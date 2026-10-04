@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 512 512">
+
+  <circle cx="256" cy="256" r="240" fill="#1A1A1A"/>
+  <circle cx="256" cy="256" r="216" fill="#E86A10"/>
+  <clipPath id="c"><circle cx="256" cy="256" r="150"/></clipPath>
+  <circle cx="256" cy="256" r="150" fill="#F5F5F5"/>
+  <g clip-path="url(#c)" fill="#1A1A1A">
+    <path d="M60 140 Q256 90 452 160 L452 186 Q256 120 60 168 Z"/>
+    <path d="M60 210 Q256 160 452 230 L452 258 Q256 190 60 240 Z"/>
+    <path d="M60 282 Q256 232 452 302 L452 330 Q256 262 60 312 Z"/>
+    <path d="M60 354 Q256 304 452 374 L452 402 Q256 334 60 384 Z"/>
+  </g>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#1A1A1A" stroke-width="10"/>
+  <rect x="146" y="226" width="220" height="64" rx="10" fill="#E86A10" stroke="#1A1A1A" stroke-width="6"/>
+  <text x="256" y="276" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="52" font-weight="bold" fill="#1A1A1A" text-anchor="middle" letter-spacing="6">KSC</text>
+</svg>

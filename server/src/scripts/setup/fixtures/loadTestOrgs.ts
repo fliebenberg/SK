@@ -1,5 +1,8 @@
 import bcrypt from 'bcryptjs';
+import fs from 'fs/promises';
+import path from 'path';
 import type { PoolClient } from 'pg';
+import { imageService, type ImageFolder } from '../../../services/ImageService';
 import { starterAgeGroupId } from '../ageGroupSeed';
 import {
     FIXTURE_ACCOUNTS_CREATED,
@@ -40,6 +43,26 @@ const birthdate = (year: number, index: number) =>
     `${year}-${pad((index % 12) + 1)}-${pad(((index * 5) % 28) + 1)}`;
 
 const quoteIdent = (name: string) => `"${name.replace(/"/g, '""')}"`;
+
+const IMAGES_DIR = path.join(__dirname, 'images');
+
+/**
+ * Writes a fixture image to asset storage, as an upload would be stored, and returns its stored name.
+ * The name is fixed, so a reload overwrites the same files. Files are written outside the
+ * transaction: a load that rolls back leaves them, unlinked but harmless, for the next one to reuse.
+ */
+const fixtureImageWriter = () => {
+    const written = new Map<string, Promise<string>>();
+    return (folder: ImageFolder, file: string, name: string) => {
+        if (!written.has(name)) {
+            written.set(name, fs.readFile(path.join(IMAGES_DIR, file)).then(async source => {
+                await imageService.writeTiers(folder, name, source);
+                return name;
+            }));
+        }
+        return written.get(name)!;
+    };
+};
 
 /**
  * Deletes the test organisations and everything that hangs off them — including rows made through
@@ -140,6 +163,9 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
     }
 
     const counts: FixtureCounts = {};
+    const writeImage = fixtureImageWriter();
+    const photo = (person: FixturePerson) =>
+        person.photo ? writeImage('profiles', person.photo, fixtureIds.photoImage(person.photo)) : Promise.resolve(null);
     const insert = async (table: string, columns: string[], values: unknown[]) => {
         const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
         await client.query(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`, values);
@@ -163,15 +189,16 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
             if (seen && seen.email !== person.email) {
                 throw new Error(`${person.name} is listed twice with different emails (${seen.email}, ${person.email}).`);
             }
-            accounts.set(id, person);
+            // Their photo in any organisation is also their account's own picture.
+            accounts.set(id, { ...person, photo: person.photo || seen?.photo });
         }
     }
 
     for (const [userId, person] of accounts) {
         const email = person.email!.toLowerCase();
         await insert('users',
-            ['id', 'name', 'email', 'email_verified', 'password_hash', 'global_role', 'created_at', 'updated_at'],
-            [userId, person.name, email, FIXTURE_ACCOUNTS_CREATED, FIXTURE_PASSWORD_HASH, 'user', FIXTURE_ACCOUNTS_CREATED, FIXTURE_ACCOUNTS_CREATED]);
+            ['id', 'name', 'email', 'email_verified', 'password_hash', 'global_role', 'created_at', 'updated_at', 'custom_image'],
+            [userId, person.name, email, FIXTURE_ACCOUNTS_CREATED, FIXTURE_PASSWORD_HASH, 'user', FIXTURE_ACCOUNTS_CREATED, FIXTURE_ACCOUNTS_CREATED, await photo(person)]);
         await insert('user_emails',
             ['id', 'user_id', 'email', 'is_primary', 'verified_at', 'created_at'],
             [fixtureIds.userEmail(person.name), userId, email, true, FIXTURE_ACCOUNTS_CREATED, FIXTURE_ACCOUNTS_CREATED]);
@@ -191,7 +218,7 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
 
         await insert('organizations',
             ['id', 'name', 'logo', 'primary_color', 'secondary_color', 'short_name', 'is_claimed', 'creator_id', 'is_active', 'settings', 'address_id', 'type'],
-            [orgId, org.name, null, org.primaryColor, org.secondaryColor, org.shortName, true,
+            [orgId, org.name, org.logo ? await writeImage('logos', org.logo, fixtureIds.logoImage(org.key)) : null, org.primaryColor, org.secondaryColor, org.shortName, true,
              org.admin.account ? fixtureIds.user(org.admin.name) : null, true, { allowUserImageUpdates: false }, addressId, org.type]);
 
         for (const sportId of sportIds) {
@@ -236,9 +263,9 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
             sequence += 1;
 
             await insert('org_profiles',
-                ['id', 'org_id', 'user_id', 'name', 'email', 'birthdate', 'identifier', 'primary_role_id'],
+                ['id', 'org_id', 'user_id', 'name', 'email', 'birthdate', 'identifier', 'primary_role_id', 'image'],
                 [profileId, orgId, person.account ? fixtureIds.user(person.name) : null, person.name,
-                 person.email?.toLowerCase() ?? null, extra.birthdate ?? null, `${org.shortName}${pad(sequence, 4)}`, orgRoleId]);
+                 person.email?.toLowerCase() ?? null, extra.birthdate ?? null, `${org.shortName}${pad(sequence, 4)}`, orgRoleId, await photo(person)]);
             await insert('org_memberships',
                 ['id', 'org_profile_id', 'org_id', 'role_id', 'start_date', 'end_date'],
                 [fixtureIds.orgMembership(org.key, person.name), profileId, orgId, orgRoleId, FIXTURE_MEMBERSHIP_START, extra.left ?? null]);
@@ -284,9 +311,9 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
                 guardianId = fixtureIds.profile(org.key, guardian.name);
                 profiles.set(guardian.name, guardianId);
                 await insert('org_profiles',
-                    ['id', 'org_id', 'user_id', 'name', 'email', 'cellphone', 'birthdate', 'identifier', 'primary_role_id'],
+                    ['id', 'org_id', 'user_id', 'name', 'email', 'cellphone', 'birthdate', 'identifier', 'primary_role_id', 'image'],
                     [guardianId, orgId, guardian.account ? fixtureIds.user(guardian.name) : null, guardian.name,
-                     guardian.email?.toLowerCase() ?? null, guardian.cellphone ?? null, null, null, null]);
+                     guardian.email?.toLowerCase() ?? null, guardian.cellphone ?? null, null, null, null, await photo(guardian)]);
             }
             for (const child of guardian.children) {
                 const childId = profiles.get(child.name);

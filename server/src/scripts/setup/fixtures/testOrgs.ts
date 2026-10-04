@@ -47,6 +47,11 @@ export interface FixturePerson {
     email?: string;
     /** Gets a login account with `FIXTURE_PASSWORD`. */
     account?: boolean;
+    /**
+     * A file in `fixtures/images`: their picture in this organisation, and their account's own
+     * picture when they have one. Most people have none, so screens show both cases.
+     */
+    photo?: string;
 }
 
 export interface FixturePlayer extends FixturePerson {
@@ -170,6 +175,8 @@ export interface FixtureOrg {
     type: 'SCHOOL' | 'CLUB';
     primaryColor: string;
     secondaryColor: string;
+    /** A file in `fixtures/images`. Only some organisations have one, so screens show both cases. */
+    logo?: string;
     address: {
         line1: string;
         /** The suburb, `address_line_2`. */
@@ -212,6 +219,7 @@ export const TEST_ORGS: FixtureOrg[] = [
         type: 'SCHOOL',
         primaryColor: '#7A1F2B',
         secondaryColor: '#E0B040',
+        logo: 'logo-doringkloof.svg',
         address: { line1: '12 Kiepersol Avenue', suburb: 'Doringkloof', city: 'Centurion', province: 'Gauteng', postalCode: '0157', latitude: -25.8603, longitude: 28.1894 },
         site: {
             name: 'Main Campus',
@@ -247,17 +255,18 @@ export const TEST_ORGS: FixtureOrg[] = [
                 facilities: [{ key: 'hall', name: 'Hall', sportId: 'netball', category: 'indoor_hall' }],
             },
         ],
-        admin: { name: 'Johan van der Merwe', email: 'johan.vandermerwe@doringkloof.test', account: true },
+        admin: { name: 'Johan van der Merwe', email: 'johan.vandermerwe@doringkloof.test', account: true, photo: 'person-johan.svg' },
         staff: [
-            { name: 'Annelie Botha', email: 'annelie.botha@doringkloof.test', account: true },
+            { name: 'Annelie Botha', email: 'annelie.botha@doringkloof.test', account: true, photo: 'person-annelie.svg' },
             { name: 'Lerato Mokoena', email: 'lerato.mokoena@doringkloof.test', account: true },
         ],
         teams: [
             {
                 key: 'rugby-u16a', name: 'U16 A', shortName: 'U16A', sportId: 'rugby', ageGroup: 'U16', birthYear: 2010,
-                coach: { name: 'Pieter Joubert', email: 'pieter.joubert@doringkloof.test', account: true },
+                coach: { name: 'Pieter Joubert', email: 'pieter.joubert@doringkloof.test', account: true, photo: 'person-pieter.svg' },
                 players: [
-                    'Ruan Potgieter', 'Jaco Swanepoel', 'Wian Kruger', 'Thabo Maseko', 'Divan Olivier',
+                    { name: 'Ruan Potgieter', photo: 'person-ruan.svg' }, 'Jaco Swanepoel', 'Wian Kruger',
+                    { name: 'Thabo Maseko', photo: 'person-thabo.svg' }, 'Divan Olivier',
                     'Christo Lombard', 'Neo Mahlangu', 'Bernard Visser', 'Hanro Smit', 'Kagiso Sithole',
                     'Dian Ferreira', 'Marco du Plessis', 'Jandré Nieuwoudt', 'Lwazi Ndlovu', 'Stefan Engelbrecht',
                     'Tiaan Vermeulen', 'Morné Bester', 'Karabo Nkosi',
@@ -278,7 +287,7 @@ export const TEST_ORGS: FixtureOrg[] = [
                 key: 'netball-u14a', name: 'U14 A', shortName: 'NB14A', sportId: 'netball', ageGroup: 'U14', birthYear: 2012,
                 coach: { name: 'Marelize Coetzee', email: 'marelize.coetzee@doringkloof.test' },
                 players: [
-                    'Anika Kotzé', 'Mia Strydom', 'Zanele Mkhize', 'Carla Rossouw', 'Liné Janse van Rensburg',
+                    'Anika Kotzé', 'Mia Strydom', { name: 'Zanele Mkhize', photo: 'person-zanele.svg' }, 'Carla Rossouw', 'Liné Janse van Rensburg',
                     'Palesa Moloi', 'Elri de Wet', 'Kayla Bezuidenhout', 'Nandi Shabalala', 'Chanté Grobler',
                 ],
             },
@@ -364,7 +373,7 @@ export const TEST_ORGS: FixtureOrg[] = [
         secondaryColor: '#8FB8DE',
         address: { line1: '3 Dorp Street', city: 'Stellenbosch', province: 'Western Cape', postalCode: '7600', latitude: -33.9346, longitude: 18.8602 },
         site: { name: 'College Grounds', facilities: STANDARD_FACILITIES },
-        admin: { name: 'Catherine Whitfield', email: 'catherine.whitfield@staldrics.test', account: true },
+        admin: { name: 'Catherine Whitfield', email: 'catherine.whitfield@staldrics.test', account: true, photo: 'person-catherine.svg' },
         staff: [
             { name: 'Graham Hendricks', email: 'graham.hendricks@staldrics.test', account: true },
         ],
@@ -471,6 +480,7 @@ export const TEST_ORGS: FixtureOrg[] = [
         type: 'CLUB',
         primaryColor: '#E86A10',
         secondaryColor: '#1A1A1A',
+        logo: 'logo-kwaggafontein.svg',
         address: { line1: '7 Nelson Mandela Drive', city: 'Bloemfontein', province: 'Free State', postalCode: '9301', latitude: -29.1183, longitude: 26.2141 },
         site: {
             name: 'Clubhouse Grounds',
@@ -564,4 +574,7 @@ export const fixtureIds = {
         `fx-pg-${orgKey}-${fixtureSlug(guardianName)}-${fixtureSlug(childName)}`,
     user: (name: string) => `fx-user-${fixtureSlug(name)}`,
     userEmail: (name: string) => `fx-email-${fixtureSlug(name)}`,
+    /** Stored image names. Fixed, unlike an upload's, so a reload replaces the files instead of adding more. */
+    logoImage: (orgKey: string) => `logo-fx-org-${orgKey}`,
+    photoImage: (file: string) => `profile-fx-${fixtureSlug(file.replace(/\.\w+$/, ''))}`,
 };

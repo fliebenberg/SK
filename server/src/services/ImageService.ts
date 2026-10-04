@@ -148,10 +148,18 @@ export class ImageService {
         const base64Data = base64.replace(/^data:image\/\w+;base64,/, "");
         const buffer = Buffer.from(base64Data, 'base64');
         const name = `${IMAGE_KINDS[folder].prefix}-${ownerId}-${Date.now()}-${crypto.randomBytes(12).toString('hex')}`;
+        await this.writeTiers(folder, name, buffer);
+        return name;
+    }
 
+    /**
+     * Writes an image's tiers under `name`, replacing any already there. Uploads go through `stage`;
+     * this is public for the test organisations, whose images have fixed names (fixtures/images).
+     */
+    async writeTiers(folder: ImageFolder, name: string, source: Buffer): Promise<void> {
         try {
             for (const tier of IMAGE_TIERS) {
-                const data = await sharp(buffer)
+                const data = await sharp(source)
                     .resize(TIER_SIZES[tier], TIER_SIZES[tier], {
                         fit: 'cover',
                         withoutEnlargement: true
@@ -165,8 +173,6 @@ export class ImageService {
             await this.deleteFiles(folder, name);
             throw err;
         }
-
-        return name;
     }
 
     private async deleteFiles(folder: ImageFolder, name: string) {

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 512 512">
+
+  <path d="M256 24 L456 72 L456 250 C456 370 370 450 256 492 C142 450 56 370 56 250 L56 72 Z" fill="#E0B040"/>
+  <path d="M256 46 L436 89 L436 250 C436 358 358 430 256 469 C154 430 76 358 76 250 L76 89 Z" fill="#7A1F2B"/>
+  <rect x="76" y="89" width="360" height="86" fill="#E0B040"/>
+  <text x="256" y="152" font-family="Georgia, 'Times New Roman', serif" font-size="58" font-weight="bold" fill="#7A1F2B" text-anchor="middle" letter-spacing="10">DKL</text>
+  <g fill="#E0B040">
+    <rect x="248" y="270" width="16" height="150" rx="4"/>
+    <ellipse cx="256" cy="262" rx="118" ry="30"/>
+    <ellipse cx="256" cy="232" rx="82" ry="22"/>
+    <path d="M256 330 L200 286 L210 280 L256 316 Z"/>
+    <path d="M256 310 L318 282 L324 290 L262 324 Z"/>
+    <rect x="170" y="414" width="172" height="12" rx="6"/>
+  </g>
+</svg>

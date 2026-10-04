@@ -88,6 +88,14 @@ lists every person with `account: true`.
     Community Hall, with **no address**, so its hall has no pin. Every fixture game is at a main
     site, so these have none.
   - A pinned site has the timezone the server would find from its pin (`Africa/Johannesburg`).
+- **Logos and photos**, so screens show both an image and the fallback. Doringkloof and
+  Kwaggafontein have logos; St Aldric's and Riverbend do not. Seven people have a photo: at
+  Doringkloof, Johan van der Merwe (admin), Annelie Botha (staff), Pieter Joubert (coach), Ruan
+  Potgieter and Thabo Maseko (U16 A rugby) and Zanele Mkhize (U14 A netball); at St Aldric's,
+  Catherine Whitfield (admin). Those with an account have the same picture as their own. The images
+  are made-up SVGs in [fixtures/images/](fixtures/images/), which the loader stores as an upload
+  would be stored, under fixed names (`logo-fx-org-dkl`, `profile-fx-person-ruan`). To add one,
+  drop any image file there and name it in `logo` or `photo` in [testOrgs.ts](fixtures/testOrgs.ts).
 
 Anything a test needs beyond this, it adds itself. Keep this file as the shared base.
 
