@@ -48,12 +48,12 @@ const ADD_NEW = '__add_new__';
 const chipClass = (isSelected: boolean) =>
   `px-3.5 py-2 rounded-xl border ${
     isSelected
-      ? 'bg-primary border-primary'
+      ? 'bg-raised border-line-selected'
       : 'bg-canvas border-line'
   }`;
 
 const chipTextClass = (isSelected: boolean) =>
-  `font-inter-bold text-xs ${isSelected ? 'text-on-primary' : 'text-ink-soft'}`;
+  `font-inter-bold text-xs ${isSelected ? 'text-ink' : 'text-ink-soft'}`;
 
 export function AgeGroupPicker({
   sportId,

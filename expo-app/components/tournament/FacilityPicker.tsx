@@ -133,13 +133,13 @@ export function FacilityPicker({
                   accessibilityLabel={`${facility.name} at ${group.name}`}
                   className={`px-3 py-1.5 rounded-full border ${
                     isOn
-                      ? 'bg-primary-soft border-primary-line'
+                      ? 'bg-raised border-line-selected'
                       : 'bg-sunken border-line'
                   } ${disabled ? 'opacity-50' : ''}`}
                 >
                   <Text
                     className={`font-inter text-xs ${
-                      isOn ? 'text-primary-ink' : 'text-ink-muted'
+                      isOn ? 'text-ink font-inter-semibold' : 'text-ink-muted'
                     }`}
                   >
                     {facility.name}

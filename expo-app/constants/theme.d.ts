@@ -6,7 +6,7 @@ export type ThemeToken =
   | 'canvas' | 'card' | 'sunken' | 'field' | 'raised' | 'popover' | 'tooltip' | 'overlay' | 'shadow' | 'logo-plate'
   | 'ink' | 'ink-soft' | 'ink-muted' | 'ink-faint' | 'on-fill' | 'on-bright'
   | 'on-primary' | 'on-accent' | 'on-success' | 'on-warning' | 'on-danger' | 'on-info' | 'on-special'
-  | 'line' | 'line-soft' | 'line-strong'
+  | 'line' | 'line-soft' | 'line-strong' | 'line-selected'
   | 'primary' | 'primary-ink' | 'primary-soft' | 'primary-line'
   | 'accent' | 'accent-ink' | 'accent-soft' | 'accent-line'
   | 'success' | 'success-ink' | 'success-soft' | 'success-line'

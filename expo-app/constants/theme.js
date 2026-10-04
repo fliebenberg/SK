@@ -115,9 +115,18 @@ const tokens = {
   'line-soft': { light: '#F1F5F9', dark: over(CARD_DARK, '#FFFFFF', 0.05) },
   /** A border that must stand out: a focused or selected control. */
   'line-strong': { light: '#CBD5E1', dark: over(CARD_DARK, '#FFFFFF', 0.2) },
+  /**
+   * The edge of a chosen option — the selected segment of a switch, the active pill tab, a ticked
+   * filter chip (`UI-26`, 2026-10-04). A chosen option is shown raised, in ink, and never orange, so
+   * it cannot be mistaken for a button. Near-white in dark mode, where `line-strong` disappeared.
+   */
+  'line-selected': { light: '#CBD5E1', dark: '#CBD5E1' },
 
   // --- Tones -------------------------------------------------------------------------------------
-  /** The brand orange: primary buttons, links, the selected state. */
+  /**
+   * The brand orange: primary buttons, links, and a filter that is narrowing a list. Not a chosen
+   * option — a switch always has one, and orange on every toolbar would drown the signal (`UI-26`).
+   */
   primary: { light: '#FF3E00', dark: '#FF3E00' },
   /**
    * Links and orange text. Not the brand orange itself, which is 4.14:1 on dark `sunken`: a deeper

@@ -94,8 +94,9 @@ The section helpers are in [utils/dates.ts](file:///c:/Fred/Coding/SK/expo-app/u
   existing new-match screen — or Tournament, a name and a first day in a dialog, after which the new
   tournament's page opens (U45).
 
-Orange marks two things only: actions, and a filter that is narrowing the list. A switch always has
-one option chosen, so it is not tinted (`UI-26`).
+Orange marks two things only: actions, and a filter (or a search term) that is narrowing the list. A
+switch always has one option chosen, so its chosen option is raised and in ink, never orange
+(`UI-26`, [design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md)).
 
 ## 5. Data and live updates
 
@@ -108,12 +109,11 @@ its organisation's name, logo, logo position and colour (`teamShortName`, `orgNa
 `orgLogoConfig`, `orgPrimaryColor`), joined in the one query that builds every summary
 (`GAME_SUMMARY_COLUMNS` in [EventManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/EventManager.ts)).
 The other side is usually another organisation, whose record the viewer does not hold, and a logo is
-a stored file name, so this costs a few bytes a side. A team or organisation edit does not yet
-republish the summaries that name it (`LIVE-22`), so an open list shows the old name or logo until it
-is reopened.
+a stored file name, so this costs a few bytes a side. A team or organisation edit does not
+republish the summaries that name it, so an open list shows the old name or logo until it is
+reopened — accepted 2026-10-04 (`LIVE-22`), since they change rarely.
 
 ## 6. Not settled here
 
 - Who-played and team changes on a tournament fixture (`FIX-21`) — stage 3.
 - Double-booking checks (`FIX-23`).
-- The selected-option look of the switches (`UI-26`).

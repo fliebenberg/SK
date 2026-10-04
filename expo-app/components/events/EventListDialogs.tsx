@@ -191,7 +191,7 @@ export function EventFiltersDialog({
                 onPress={() => toggleSport(sport.id)}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on }}
-                className={`flex-row items-center gap-1.5 rounded-full border px-3 py-1.5 ${on ? 'border-ink-soft bg-card' : 'border-line'}`}
+                className={`flex-row items-center gap-1.5 rounded-full border px-3 py-1.5 ${on ? 'bg-raised border-line-selected' : 'border-line'}`}
               >
                 {on ? <Ionicons name="checkmark" size={14} color={themeColor(isDark, 'ink')} /> : null}
                 <Text className={`text-sm ${on ? 'font-inter-semibold text-ink' : 'font-inter text-ink-soft'}`}>{sport.name}</Text>

@@ -100,7 +100,7 @@ export function SportsDialog({ org, visible, onClose }: { org: Organization; vis
               accessibilityRole="checkbox"
               accessibilityState={{ checked: on }}
               className={`flex-row items-center justify-between rounded-xl border px-3 py-2.5 ${
-                on ? 'border-primary-line bg-primary-soft' : 'border-line'
+                on ? 'bg-raised border-line-selected' : 'border-line'
               }`}
             >
               <Text className="font-inter-semibold text-sm text-ink">{sport.name}</Text>

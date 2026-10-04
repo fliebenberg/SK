@@ -105,21 +105,21 @@ export function Tabs<T extends string = string>({
               }}
               className={`px-4 py-2 rounded-xl flex-row items-center gap-2 min-h-[44px] active:opacity-80 ${
                 isActive
-                  ? 'bg-primary-soft border border-primary-line'
-                  : 'bg-sunken border border-line-soft'
+                  ? 'bg-raised border border-line-selected shadow-sm'
+                  : 'bg-sunken border border-line-soft shadow-none'
               } ${tab.disabled ? 'opacity-40' : ''}`}
             >
               {tab.leading ? tab.leading : tab.icon && (
                 <Ionicons
                   name={tab.icon}
                   size={16}
-                  color={isActive ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
+                  color={isActive ? themeColor(isDark, 'ink') : themeColor(isDark, 'ink-muted')}
                 />
               )}
               <View className="min-w-0">
                 <Text
                   className={`font-inter-bold text-xs ${
-                    isActive ? 'text-primary-ink' : 'text-ink-muted'
+                    isActive ? 'text-ink' : 'text-ink-muted'
                   }`}
                 >
                   {tab.label}
@@ -128,7 +128,7 @@ export function Tabs<T extends string = string>({
                   <Text
                     numberOfLines={1}
                     className={`font-inter-bold text-[9px] mt-0.5 ${
-                      isActive ? 'text-primary-ink' : 'text-ink-muted'
+                      isActive ? 'text-ink' : 'text-ink-muted'
                     }`}
                   >
                     {tab.sublabel}
@@ -136,8 +136,8 @@ export function Tabs<T extends string = string>({
                 )}
               </View>
               {tab.badge !== undefined ? (
-                <View className={`px-1.5 py-0.5 rounded-full ${isActive ? 'bg-primary' : 'bg-line-strong'}`}>
-                  <Text className={`text-[10px] font-inter-bold ${isActive ? 'text-on-primary' : 'text-ink-soft'}`}>
+                <View className="px-1.5 py-0.5 rounded-full bg-line-strong">
+                  <Text className="text-[10px] font-inter-bold text-ink-soft">
                     {tab.badge}
                   </Text>
                 </View>
@@ -168,13 +168,13 @@ export function Tabs<T extends string = string>({
               <Ionicons
                 name={tab.icon}
                 size={16}
-                color={isActive ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
+                color={isActive ? themeColor(isDark, 'ink') : themeColor(isDark, 'ink-muted')}
               />
             )}
             <View className="min-w-0 flex-shrink">
               <Text
                 className={`font-inter-bold text-xs text-center ${
-                  isActive ? 'text-primary-ink' : 'text-ink-muted'
+                  isActive ? 'text-ink' : 'text-ink-muted'
                 }`}
               >
                 {tab.label}
@@ -183,7 +183,7 @@ export function Tabs<T extends string = string>({
                 <Text
                   numberOfLines={1}
                   className={`font-inter-bold text-[9px] text-center mt-0.5 ${
-                    isActive ? 'text-primary-ink' : 'text-ink-muted'
+                    isActive ? 'text-ink' : 'text-ink-muted'
                   }`}
                 >
                   {tab.sublabel}
@@ -191,8 +191,8 @@ export function Tabs<T extends string = string>({
               )}
             </View>
             {tab.badge !== undefined ? (
-              <View className={`px-1.5 py-0.5 rounded-full ${isActive ? 'bg-primary-soft' : 'bg-line'}`}>
-                <Text className={`text-[10px] font-inter-bold ${isActive ? 'text-primary-ink' : 'text-ink-muted'}`}>
+              <View className={`px-1.5 py-0.5 rounded-full ${isActive ? 'bg-line-strong' : 'bg-line'}`}>
+                <Text className={`text-[10px] font-inter-bold ${isActive ? 'text-ink' : 'text-ink-muted'}`}>
                   {tab.badge}
                 </Text>
               </View>
@@ -201,7 +201,7 @@ export function Tabs<T extends string = string>({
             ) : null}
             {/* Active bottom underline indicator */}
             {isActive && (
-              <View className="absolute bottom-0 left-2 right-2 h-0.5 bg-primary rounded-full" />
+              <View className="absolute bottom-0 left-2 right-2 h-0.5 bg-ink rounded-full" />
             )}
           </TouchableOpacity>
         );

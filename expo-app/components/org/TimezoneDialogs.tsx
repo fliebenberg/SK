@@ -107,7 +107,7 @@ export function FollowAddressTimezoneDialog({ org, visible, onClose }: { org: Or
       onPress={onPress}
       accessibilityRole="radio"
       accessibilityState={{ checked: on }}
-      className={`flex-row items-start gap-3 rounded-xl border px-3 py-2.5 ${on ? 'border-primary' : 'border-line'}`}
+      className={`flex-row items-start gap-3 rounded-xl border px-3 py-2.5 ${on ? 'border-line-selected bg-raised' : 'border-line'}`}
     >
       <Ionicons name={on ? 'radio-button-on' : 'radio-button-off'} size={18} color={on ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')} style={{ marginTop: 1 }} />
       <View className="flex-1">

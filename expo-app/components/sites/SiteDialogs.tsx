@@ -355,10 +355,10 @@ export function FacilityDialog({ visible, onClose, site, facility, others, sport
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: on }}
                       accessibilityLabel={starred ? `${s.name}, marks it on the map` : s.name}
-                      className={`flex-row items-center gap-1 rounded-full border px-3 py-1.5 ${on ? 'bg-primary-soft border-primary-line' : 'bg-card border-line'}`}
+                      className={`flex-row items-center gap-1 rounded-full border px-3 py-1.5 ${on ? 'bg-raised border-line-selected' : 'bg-card border-line'}`}
                     >
-                      {starred ? <Ionicons name="star" size={12} color={themeColor(isDark, 'primary')} /> : null}
-                      <Text className={`font-inter text-sm ${on ? 'font-inter-semibold text-primary-ink' : 'text-ink-soft'}`}>{s.name}</Text>
+                      {starred ? <Ionicons name="star" size={12} color={themeColor(isDark, 'primary')} /> : on ? <Ionicons name="checkmark" size={13} color={themeColor(isDark, 'ink')} /> : null}
+                      <Text className={`font-inter text-sm ${on ? 'font-inter-semibold text-ink' : 'text-ink-soft'}`}>{s.name}</Text>
                     </TouchableOpacity>
                   );
                 })}

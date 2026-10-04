@@ -239,14 +239,14 @@ export function PersonPickerModal({
                     accessibilityRole="button"
                     className={`px-3 py-1.5 rounded-lg border ${
                       isActive
-                        ? 'bg-primary-soft border-primary-line'
+                        ? 'bg-raised border-line-selected'
                         : 'bg-sunken border-line'
                     }`}
                   >
                     <Text
                       numberOfLines={1}
                       className={`font-inter-bold text-[10px] uppercase tracking-wider ${
-                        isActive ? 'text-primary-ink' : 'text-ink-muted'
+                        isActive ? 'text-ink' : 'text-ink-muted'
                       }`}
                     >
                       {option.label}

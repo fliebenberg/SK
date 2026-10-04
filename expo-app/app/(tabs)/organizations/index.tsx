@@ -229,11 +229,11 @@ export default function OrganizationsPage() {
             <TouchableOpacity
               onPress={() => setActiveTab('my')}
               className={`flex-1 pb-3 items-center border-b-2 ${
-                activeTab === 'my' ? 'border-primary' : 'border-transparent'
+                activeTab === 'my' ? 'border-ink' : 'border-transparent'
               }`}
             >
               <Text className={`font-orbitron-bold text-xs uppercase tracking-wider ${
-                activeTab === 'my' ? 'text-primary-ink font-orbitron-bold' : 'text-ink-muted'
+                activeTab === 'my' ? 'text-ink font-orbitron-bold' : 'text-ink-muted'
               }`}>
                 My Organizations
               </Text>
@@ -241,11 +241,11 @@ export default function OrganizationsPage() {
             <TouchableOpacity
               onPress={() => setActiveTab('all')}
               className={`flex-1 pb-3 items-center border-b-2 ${
-                activeTab === 'all' ? 'border-primary' : 'border-transparent'
+                activeTab === 'all' ? 'border-ink' : 'border-transparent'
               }`}
             >
               <Text className={`font-orbitron-bold text-xs uppercase tracking-wider ${
-                activeTab === 'all' ? 'text-primary-ink font-orbitron-bold' : 'text-ink-muted'
+                activeTab === 'all' ? 'text-ink font-orbitron-bold' : 'text-ink-muted'
               }`}>
                 All Organizations
               </Text>

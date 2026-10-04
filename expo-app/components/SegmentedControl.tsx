@@ -34,6 +34,14 @@ export interface SegmentedControlProps<T extends string = string> {
 
 const IS_WEB = Platform.OS === 'web';
 
+/**
+ * A switch between two to four options that change often.
+ *
+ * **The chosen option is raised out of the sunken track, in ink, with a `line-selected` edge — never
+ * orange** (`UI-26`, 2026-10-04). Orange is for something to press, and for a filter narrowing a
+ * list; a switch always has one option chosen, so an orange one looked like a button, and put orange
+ * on every toolbar.
+ */
 export function SegmentedControl<T extends string = string>({
   options,
   value,
@@ -70,14 +78,14 @@ export function SegmentedControl<T extends string = string>({
               activeOpacity={0.8}
               className={`w-8 h-8 rounded-lg items-center justify-center ${
                 isActive
-                  ? 'bg-raised border border-primary-line shadow-sm'
+                  ? 'bg-raised border border-line-selected shadow-sm'
                   : 'bg-transparent border border-transparent shadow-none'
               } ${item.disabled ? 'opacity-40' : ''}`}
             >
               <Ionicons
                 name={iconName}
                 size={14}
-                color={isActive ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
+                color={isActive ? themeColor(isDark, 'ink') : themeColor(isDark, 'ink-muted')}
               />
             </TouchableOpacity>
           );
@@ -99,7 +107,7 @@ export function SegmentedControl<T extends string = string>({
             accessibilityLabel={item.count !== undefined ? `${item.label}, ${item.count}` : undefined}
             className={`${segmentClass} px-3 py-2 rounded-lg ${
               isActive
-                ? 'bg-raised border border-primary-line shadow-sm'
+                ? 'bg-raised border border-line-selected shadow-sm'
                 : 'bg-transparent border border-transparent shadow-none'
             } ${item.disabled ? 'opacity-40' : ''}`}
           >
@@ -108,13 +116,13 @@ export function SegmentedControl<T extends string = string>({
                 <Ionicons
                   name={iconName}
                   size={14}
-                  color={isActive ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
+                  color={isActive ? themeColor(isDark, 'ink') : themeColor(isDark, 'ink-muted')}
                 />
               )}
               <Text
                 numberOfLines={1}
                 className={`font-inter-bold text-xs ${
-                  isActive ? 'text-primary-ink' : 'text-ink-muted'
+                  isActive ? 'text-ink' : 'text-ink-muted'
                 }`}
               >
                 {label}

@@ -130,12 +130,12 @@ export default function CustomSelect({
                     activeOpacity={0.7}
                     className={`flex-row items-center justify-between p-3 rounded-xl border ${
                       isSelected
-                        ? 'bg-primary-soft border-primary'
+                        ? 'bg-raised border-line-selected'
                         : 'bg-field border-line-soft'
                     }`}
                   >
                     <View className="flex-1 pr-2">
-                      <Text className={`font-inter text-xs ${isSelected ? 'text-primary-ink font-inter-bold' : 'text-ink'}`}>
+                      <Text className={`font-inter text-xs ${isSelected ? 'text-ink font-inter-bold' : 'text-ink'}`}>
                         {opt.label}
                       </Text>
                       {!!opt.description && (
@@ -145,7 +145,7 @@ export default function CustomSelect({
                       )}
                     </View>
                     {isSelected && (
-                      <Ionicons name="checkmark-circle" size={16} color={themeColor(isDark, 'primary')} />
+                      <Ionicons name="checkmark" size={16} color={themeColor(isDark, 'ink')} />
                     )}
                   </TouchableOpacity>
                 );

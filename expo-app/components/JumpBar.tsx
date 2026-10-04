@@ -57,7 +57,7 @@ export function JumpBar<K extends string>({ sections, inView, onJump }: {
             accessibilityRole="button"
             accessibilityLabel={s.count !== undefined ? `${s.label}, ${s.count}` : s.label}
             accessibilityState={{ selected: inView === s.key }}
-            className={`flex-1 rounded-lg ${inView === s.key ? 'bg-primary-soft' : 'bg-sunken'}`}
+            className={`flex-1 rounded-lg ${inView === s.key ? 'bg-raised border border-line-selected' : 'bg-sunken border border-transparent'}`}
           >
             <ButtonFace section={s} active={inView === s.key} showCount={showCounts} />
           </TouchableOpacity>
@@ -70,11 +70,11 @@ export function JumpBar<K extends string>({ sections, inView, onJump }: {
 function ButtonFace<K extends string>({ section, active, showCount }: { section: JumpSection<K>; active: boolean; showCount: boolean }) {
   return (
     <View className="flex-row items-center justify-center gap-1 py-1.5 px-2">
-      <Text numberOfLines={1} className={`font-inter-semibold text-[13px] ${active ? 'text-primary-ink' : 'text-ink-soft'}`}>
+      <Text numberOfLines={1} className={`font-inter-semibold text-[13px] ${active ? 'text-ink' : 'text-ink-soft'}`}>
         {section.label}
       </Text>
       {showCount && section.count !== undefined ? (
-        <Text className={`font-inter text-xs ${active ? 'text-primary-ink' : 'text-ink-muted'}`}>{section.count}</Text>
+        <Text className={`font-inter text-xs ${active ? 'text-ink-soft' : 'text-ink-muted'}`}>{section.count}</Text>
       ) : null}
     </View>
   );
