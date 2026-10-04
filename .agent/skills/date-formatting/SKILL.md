@@ -24,6 +24,11 @@ which kind it is.**
 | **Calendar date** | a birthday, the days an event runs, a season's start and end | `DATE` | `YYYY-MM-DD` — `2026-09-19` | the same day for everyone |
 | **Instant, time not set** | a fixture whose kick-off is TBD | `TIMESTAMPTZ` at **12:00 venue time**, plus `timeTbd` | ISO with `Z` | the date, then `TBD` |
 
+**A kick-off is written one way: `19 Sep 2026 · 14:30`**, and `19 Sep 2026 · time TBD` when its time
+is not set — the month in words, because `09/19` is a different day to a reader used to the other
+order (`UI-13`, 2026-10-04). It is `formatFixtureWhen` in `utils/dates.ts`; a date tile ("Sat" over
+"11" over "Oct") is `instantTile`, or `calendarRangeTile` for an event's days.
+
 **Which kind is it?** Ask: *would two people in different timezones disagree on what time it is?*
 
 - A kick-off is one moment. At 14:30 in Johannesburg it is 13:30 in London, and both of them should
