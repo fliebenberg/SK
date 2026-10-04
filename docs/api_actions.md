@@ -300,7 +300,9 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
 #### `UPDATE_FACILITY`
 *   **Payload**: `{ id, data }` (where `data` is `Partial<Facility>`)
 *   **Logic**: Updates the facility. `supportedSportIds`, when present, replaces the facility's
-    sports. `siteId` is ignored — a facility cannot be moved to another site.
+    sports. `siteId` is ignored — a facility cannot be moved to another site. `null` clears
+    `surfaceType`, `primarySportId` or the pin (`latitude`/`longitude`). A `data` with no field the
+    server stores is a no-op, not an error.
 *   **Returns**: `Facility`
 *   **Broadcasts**: `FACILITY_UPDATED` with the updated `Facility` to `org:{orgId}:facilities` and
     `facility:{id}`.

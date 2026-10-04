@@ -295,10 +295,10 @@ export function FacilityDialog({ visible, onClose, site, facility, others, sport
       surfaceType: playing ? form.surface.trim() || null : null,
       latitude: form.latitude,
       longitude: form.longitude,
-    };
+    } satisfies Partial<Facility>;
     const result = facility
-      ? await sendAction(SocketAction.UPDATE_FACILITY, { id: facility.id, data: data as any }, { suppressToast: true })
-      : await sendAction(SocketAction.ADD_FACILITY, { ...data, siteId: site.id, isActive: true } as any, { suppressToast: true });
+      ? await sendAction(SocketAction.UPDATE_FACILITY, { id: facility.id, data }, { suppressToast: true })
+      : await sendAction(SocketAction.ADD_FACILITY, { ...data, siteId: site.id, isActive: true }, { suppressToast: true });
     setIsSaving(false);
     if (!result.ok) return setError(result.message || (facility ? 'The changes were not saved.' : 'The facility was not added.'));
     onClose();
