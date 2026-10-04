@@ -1,6 +1,7 @@
 /**
  * The hash of shared/src that the generated action payload check records (`SYNC-6`): shared by
- * `gen-action-schemas.js`, which writes it, and `check-action-schemas.js`, which compares it.
+ * `gen-action-schemas.js`, which writes it, and by `check-action-schemas.js` and the server's own
+ * startup check (`src/wss/actionPayloads.ts`), which compare it.
  *
  * Every `.ts` file in shared/src counts, not only Protocol.ts, because the payload types reach into
  * the models. A change that turns out not to touch any payload costs one re-run of the generator.

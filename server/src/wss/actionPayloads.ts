@@ -17,6 +17,33 @@ const ajv = new Ajv({ strict: false });
 const actions = generated.actions as Record<string, object>;
 const compiled = new Map<string, ValidateFunction>();
 
+/**
+ * Says so, loudly, when the schemas are older than the shared types this server was started with.
+ *
+ * The pre-commit hook (`check:action-schemas`) is the real guard, but it is skipped by
+ * `--no-verify`, and a server run with uncommitted changes to `shared/src` never meets it. Running
+ * stale, the check refuses fields the app has started sending and lets through ones it should not.
+ * Only a warning: the schemas still describe a consistent, earlier version of the types.
+ *
+ * Uses the same hash as the hook. Where `shared/src` is not there to hash — a deployed build — there
+ * is nothing to compare, and nothing is said.
+ */
+function warnIfStale(): void {
+    let current: string;
+    try {
+        current = require('../../scripts/action-schemas-hash').sharedSourceHash();
+    } catch {
+        return;
+    }
+    if (current === generated.sourceHash) return;
+    console.warn(
+        '[Payloads] The action payload check is OUT OF DATE: shared/src has changed since it was ' +
+        'generated, so payloads are being checked against the old types. Run ' +
+        '`npm run gen:action-schemas` in server/ and restart.'
+    );
+}
+warnIfStale();
+
 /** Where in the payload the problem is, as a reader would write it: `data.address.latitude`. */
 function where(error: ErrorObject): string {
     const path = error.instancePath.split('/').filter(Boolean).join('.');

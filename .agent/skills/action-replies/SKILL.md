@@ -132,7 +132,7 @@ contents in a report — payloads carry people's details.
   ([wss/actionPayloads.ts](file:///c:/Fred/Coding/SK/server/src/wss/actionPayloads.ts)); an action
   with no entry in `ProtocolMap` is refused outright. After changing anything in `shared/src`, run
   `npm run gen:action-schemas` in `server/` — `check:action-schemas` in the pre-commit hook fails
-  until you do.
+  until you do, and a server started with stale schemas logs `[Payloads] … OUT OF DATE` at startup.
 - **Throw** for anything the user should hear about; the handler turns a throw into
   `{ status: 'error', message }` and records it in the failures log.
 - **Never answer success for an action that did nothing.** The handler's exit refuses an empty result
