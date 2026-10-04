@@ -127,8 +127,11 @@ export class SiteManager extends BaseManager {
                 idx++;
             }
         });
-        values.push(id);
-        await this.query(`UPDATE sites SET ${clauses.join(', ')} WHERE id = $${idx}`, values);
+        // Only unknown keys: nothing to set, and an empty SET is a syntax error.
+        if (clauses.length > 0) {
+            values.push(id);
+            await this.query(`UPDATE sites SET ${clauses.join(', ')} WHERE id = $${idx}`, values);
+        }
     }
 
     this.invalidateCache();
