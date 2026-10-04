@@ -178,7 +178,7 @@ export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPan
                     className="absolute items-center z-10"
                   >
                     <View className="w-10 h-10 rounded-full bg-primary border-2 border-card items-center justify-center shadow-lg">
-                      <Text className="font-orbitron-bold text-xs text-on-fill">
+                      <Text className="font-orbitron-bold text-xs text-on-primary">
                         {player.jerseyNumber || player.position}
                       </Text>
                     </View>

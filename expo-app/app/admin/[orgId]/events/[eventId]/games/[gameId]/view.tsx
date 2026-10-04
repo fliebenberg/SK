@@ -256,8 +256,8 @@ export default function ViewGame() {
             activeOpacity={0.85}
             className="flex-row items-center justify-center gap-2 bg-primary rounded-xl py-3 mb-6"
           >
-            <Ionicons name="trophy-outline" size={14} color="white" />
-            <Text className="font-orbitron-bold text-[10px] text-on-fill uppercase tracking-widest">
+            <Ionicons name="trophy-outline" size={14} color={themeColor(isDark, 'on-primary')} />
+            <Text className="font-orbitron-bold text-[10px] text-on-primary uppercase tracking-widest">
               {game.status === 'Finished' ? 'Correct Result' : 'Record Result'}
             </Text>
           </TouchableOpacity>

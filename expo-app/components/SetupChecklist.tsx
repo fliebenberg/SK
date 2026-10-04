@@ -190,7 +190,7 @@ export function SetupChecklistRow({ step, onPress }: SetupChecklistRowProps) {
         <Ionicons
           name={isDone ? 'checkmark' : step.icon || 'ellipse-outline'}
           size={isDone ? 18 : 17}
-          color={isDone ? themeColor(isDark, 'success-ink') : themeColor(isDark, 'on-fill')}
+          color={isDone ? themeColor(isDark, 'success-ink') : themeColor(isDark, 'on-primary')}
         />
       </View>
 

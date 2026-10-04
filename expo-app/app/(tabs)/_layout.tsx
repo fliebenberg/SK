@@ -168,9 +168,9 @@ export default function TabLayout() {
                 className="bg-primary border border-primary-line rounded-xl px-4 py-3.5 flex-row items-center gap-3 shadow-lg shadow-primary/35"
               >
                 <View className="w-7 h-7 rounded-lg bg-on-fill/20 items-center justify-center">
-                  <Ionicons name="shield-checkmark" size={14} color="white" />
+                  <Ionicons name="shield-checkmark" size={14} color={themeColor(isDark, 'on-primary')} />
                 </View>
-                <Text className="font-orbitron-bold text-[10px] text-on-fill uppercase tracking-widest mt-0.5">
+                <Text className="font-orbitron-bold text-[10px] text-on-primary uppercase tracking-widest mt-0.5">
                   Admin Portal
                 </Text>
               </TouchableOpacity>

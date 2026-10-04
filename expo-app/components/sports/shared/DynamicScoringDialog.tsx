@@ -413,7 +413,7 @@ export function DynamicScoringDialog() {
                       >
                         <Text
                           className={`font-orbitron-bold text-[11px] uppercase text-center ${
-                            holdsSelection ? 'text-on-fill' : 'text-ink'
+                            holdsSelection ? 'text-on-primary' : 'text-ink'
                           }`}
                           numberOfLines={2}
                         >
@@ -421,7 +421,7 @@ export function DynamicScoringDialog() {
                         </Text>
                         <Text
                           className={`font-inter-bold text-[10px] mt-1 ${
-                            holdsSelection ? 'text-on-fill/80' : 'text-ink-muted'
+                            holdsSelection ? 'text-on-primary/80' : 'text-ink-muted'
                           }`}
                         >
                           {group.options.length}
@@ -471,7 +471,7 @@ export function DynamicScoringDialog() {
                       >
                         <Text
                           className={`font-inter-bold text-xs ${
-                            isSelected ? 'text-on-fill' : 'text-ink'
+                            isSelected ? 'text-on-primary' : 'text-ink'
                           }`}
                         >
                           {rOpt.name}
@@ -515,7 +515,7 @@ export function DynamicScoringDialog() {
                           >
                             <Text
                               className={`font-inter-bold text-xs ${
-                                isSelected ? 'text-on-fill' : 'text-ink'
+                                isSelected ? 'text-on-primary' : 'text-ink'
                               }`}
                             >
                               {rOpt.name}
@@ -580,7 +580,7 @@ export function DynamicScoringDialog() {
                       <Text
                         className={`font-inter-bold text-xs ${
                           isSelected
-                            ? 'text-on-fill'
+                            ? 'text-on-primary'
                             : isSuccess
                             ? 'text-success-ink'
                             : isWarning

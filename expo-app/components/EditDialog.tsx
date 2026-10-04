@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
-import { themeColor } from '../constants/Colors';
+import { themeColor, type ThemeToken } from '../constants/Colors';
 
 
 /**
@@ -108,12 +108,14 @@ export function EditDialog({
 function DialogButton({ label, onPress, variant = 'primary', disabled, loading }: {
   label: string; onPress: () => void; variant?: 'primary' | 'ghost' | 'danger'; disabled?: boolean; loading?: boolean;
 }) {
+  const isDark = useActiveTheme() === 'dark';
   const classes = {
     primary: 'bg-primary border-primary',
     ghost: 'bg-transparent border-line',
     danger: 'bg-danger border-danger',
   }[variant];
-  const text = variant === 'ghost' ? 'text-ink-soft' : 'text-on-fill';
+  const labelToken: ThemeToken = variant === 'ghost' ? 'ink-soft' : variant === 'danger' ? 'on-danger' : 'on-primary';
+  const text = { 'ink-soft': 'text-ink-soft', 'on-danger': 'text-on-danger', 'on-primary': 'text-on-primary' }[labelToken as 'ink-soft' | 'on-danger' | 'on-primary'];
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -122,7 +124,7 @@ function DialogButton({ label, onPress, variant = 'primary', disabled, loading }
       accessibilityState={{ disabled: !!disabled }}
       className={`min-h-[40px] px-4 rounded-xl border items-center justify-center ${classes} ${disabled ? 'opacity-40' : ''}`}
     >
-      {loading ? <ActivityIndicator size="small" color="white" /> : <Text className={`font-inter-bold text-sm ${text}`}>{label}</Text>}
+      {loading ? <ActivityIndicator size="small" color={themeColor(isDark, labelToken)} /> : <Text className={`font-inter-bold text-sm ${text}`}>{label}</Text>}
     </TouchableOpacity>
   );
 }

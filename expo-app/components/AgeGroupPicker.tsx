@@ -53,7 +53,7 @@ const chipClass = (isSelected: boolean) =>
   }`;
 
 const chipTextClass = (isSelected: boolean) =>
-  `font-inter-bold text-xs ${isSelected ? 'text-on-fill' : 'text-ink-soft'}`;
+  `font-inter-bold text-xs ${isSelected ? 'text-on-primary' : 'text-ink-soft'}`;
 
 export function AgeGroupPicker({
   sportId,
@@ -168,7 +168,7 @@ export function AgeGroupPicker({
             <Ionicons
               name={otherOpen ? 'chevron-up' : 'chevron-down'}
               size={12}
-              color={selected && !selected.isOfficial ? 'white' : themeColor(isDark, 'ink-muted')}
+              color={themeColor(isDark, selected && !selected.isOfficial ? 'on-primary' : 'ink-muted')}
             />
           </TouchableOpacity>
         </View>
@@ -206,11 +206,11 @@ export function AgeGroupPicker({
               className={`px-3.5 py-2 rounded-xl bg-primary flex-row items-center gap-1 ${!draft.trim() ? 'opacity-50' : ''}`}
             >
               {isAdding ? (
-                <ActivityIndicator size="small" color="white" />
+                <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
               ) : (
                 <>
-                  <Ionicons name="add" size={14} color="white" />
-                  <Text className="font-inter-bold text-xs text-on-fill">Add</Text>
+                  <Ionicons name="add" size={14} color={themeColor(isDark, 'on-primary')} />
+                  <Text className="font-inter-bold text-xs text-on-primary">Add</Text>
                 </>
               )}
             </TouchableOpacity>

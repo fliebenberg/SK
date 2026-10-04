@@ -449,7 +449,7 @@ export default function EditGame() {
                 onPress={() => setIsRecording(true)}
                 className="px-4 py-2 bg-primary rounded-lg"
               >
-                <Text className="font-inter-bold text-xs text-on-fill uppercase">
+                <Text className="font-inter-bold text-xs text-on-primary uppercase">
                   {game.status === 'Finished' ? 'Correct Result' : 'Record Result'}
                 </Text>
               </TouchableOpacity>
@@ -559,11 +559,11 @@ export default function EditGame() {
               }`}
             >
               {isProcessing ? (
-                <ActivityIndicator size="small" color="white" />
+                <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle" size={14} color="white" />
-                  <Text className="font-orbitron-bold text-[9px] text-on-fill uppercase tracking-widest mt-0.5">Save</Text>
+                  <Ionicons name="checkmark-circle" size={14} color={themeColor(isDark, 'on-primary')} />
+                  <Text className="font-orbitron-bold text-[9px] text-on-primary uppercase tracking-widest mt-0.5">Save</Text>
                 </>
               )}
             </TouchableOpacity>

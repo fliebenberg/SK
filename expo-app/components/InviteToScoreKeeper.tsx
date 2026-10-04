@@ -114,7 +114,7 @@ export function InviteButton({ person, cooldownHours, onPress }: InviteButtonPro
       }`}
     >
       <Text className={`font-orbitron-bold text-[8px] uppercase tracking-widest ${
-        waitHours > 0 ? 'text-ink-muted' : 'text-on-fill'
+        waitHours > 0 ? 'text-ink-muted' : 'text-on-primary'
       }`}>
         {label}
       </Text>
@@ -472,7 +472,7 @@ export function InviteStatusCard({ person, cooldownHours, canInvite, onInvite }:
               pending ? 'border-line' : 'bg-primary border-primary'
             }`}
           >
-            <Text className={`font-inter-bold text-sm ${pending ? 'text-ink-soft' : 'text-on-fill'}`}>
+            <Text className={`font-inter-bold text-sm ${pending ? 'text-ink-soft' : 'text-on-primary'}`}>
               {pending ? 'Resend' : 'Invite'}
             </Text>
           </TouchableOpacity>

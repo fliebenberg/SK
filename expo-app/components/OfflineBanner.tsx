@@ -25,8 +25,8 @@ export function OfflineBanner() {
       className={`${bannerBgClass} z-[9999]`}
     >
       <View className="flex-row items-center justify-center py-2 px-4 space-x-2">
-        <Ionicons name={iconName as any} size={16} color={themeColor(isDark, 'on-fill')} />
-        <Text className="text-on-fill text-xs font-semibold tracking-wide text-center">
+        <Ionicons name={iconName as any} size={16} color={themeColor(isDark, 'on-warning')} />
+        <Text className="text-on-warning text-xs font-semibold tracking-wide text-center">
           {message}
         </Text>
       </View>

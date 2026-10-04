@@ -879,7 +879,7 @@ export default function GameSelectionScreen() {
                       >
                         <Text
                           className={`font-orbitron-bold text-xs ${
-                            isActivePos ? 'text-on-fill' : 'text-primary-ink'
+                            isActivePos ? 'text-on-primary' : 'text-primary-ink'
                           }`}
                         >
                           {pos.id}
@@ -976,7 +976,7 @@ export default function GameSelectionScreen() {
                             onPress={() => handlePositionSlotClick(pos.id)}
                             className="bg-primary px-2.5 py-1 rounded-lg"
                           >
-                            <Text className="font-orbitron-bold text-[10px] text-on-fill">
+                            <Text className="font-orbitron-bold text-[10px] text-on-primary">
                               {isActivePos ? 'Active' : 'Assign'}
                             </Text>
                           </TouchableOpacity>
@@ -1046,12 +1046,12 @@ export default function GameSelectionScreen() {
                       <Ionicons
                         name="add-circle"
                         size={14}
-                        color={themeColor(isDark, activeIsReserve ? 'on-bright' : 'warning-ink')}
+                        color={themeColor(isDark, activeIsReserve ? 'on-warning' : 'warning-ink')}
                       />
                       <Text
                         className={`font-orbitron-bold text-xs ${
                           activeIsReserve
-                            ? 'text-on-bright'
+                            ? 'text-on-warning'
                             : 'text-warning-ink'
                         }`}
                       >
@@ -1556,11 +1556,11 @@ export default function GameSelectionScreen() {
             className="flex-1 py-3 rounded-xl bg-primary items-center flex-row justify-center gap-2"
           >
             {isSaving ? (
-              <ActivityIndicator size="small" color={themeColor(isDark, 'on-fill')} />
+              <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
             ) : (
               <>
-                <Ionicons name="save-outline" size={16} color={themeColor(isDark, 'on-fill')} />
-                <Text className="font-orbitron-bold text-xs text-on-fill">
+                <Ionicons name="save-outline" size={16} color={themeColor(isDark, 'on-primary')} />
+                <Text className="font-orbitron-bold text-xs text-on-primary">
                   Save Lineup
                 </Text>
               </>

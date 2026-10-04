@@ -75,9 +75,6 @@ function OrgAdminWorkspace() {
       <Stack.Screen name="teams/[teamId]" />
       <Stack.Screen name="sites" />
       <Stack.Screen name="sites/[siteId]" />
-      <Stack.Screen name="sites/[siteId]/view" />
-      <Stack.Screen name="sites/[siteId]/facilities/[facilityId]" />
-      <Stack.Screen name="sites/[siteId]/facilities/[facilityId]/view" />
       <Stack.Screen name="events/index" />
       <Stack.Screen name="events/create" />
       <Stack.Screen name="events/[eventId]" />
@@ -152,7 +149,7 @@ function OrgAdminWorkspace() {
                       settings={orgData.settings} 
                       size={32} 
                       className="bg-on-fill/10 border border-on-fill/20"
-                      primaryColor="white"
+                      primaryColor={themeColor(isDark, 'on-fill')}
                     />
                   </View>
 

@@ -68,7 +68,7 @@ class EventsErrorBoundary extends React.Component<
             onPress={() => this.setState({ hasError: false, error: null })}
             className="bg-primary px-4 py-2 rounded-lg self-start"
           >
-            <Text className="font-inter-bold text-xs text-on-fill uppercase">Retry</Text>
+            <Text className="font-inter-bold text-xs text-on-primary uppercase">Retry</Text>
           </TouchableOpacity>
         </View>
       );
@@ -432,7 +432,7 @@ export default function OrgEventsList() {
           className="w-8 h-8 rounded-lg bg-primary items-center justify-center shadow-md shadow-primary/20 active:opacity-85"
           onPress={() => setIsAddMenuVisible(true)}
         >
-          <Ionicons name="add" size={20} color="white" />
+          <Ionicons name="add" size={20} color={themeColor(isDark, 'on-primary')} />
         </TouchableOpacity>
       </View>
 
@@ -1028,9 +1028,9 @@ export default function OrgEventsList() {
                 }`}
               >
                 {isProcessing ? (
-                  <ActivityIndicator size="small" color={themeColor(isDark, 'on-fill')} />
+                  <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
                 ) : (
-                  <Text className="font-inter-bold text-xs text-on-fill uppercase">Create</Text>
+                  <Text className="font-inter-bold text-xs text-on-primary uppercase">Create</Text>
                 )}
               </TouchableOpacity>
             </View>

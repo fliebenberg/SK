@@ -194,7 +194,7 @@ export default function OrgSitesList() {
           className="w-8 h-8 rounded-lg bg-primary items-center justify-center shadow-md shadow-primary/20 active:opacity-85"
           onPress={() => handleOpenSiteModal(null)}
         >
-          <Ionicons name="add" size={18} color="white" />
+          <Ionicons name="add" size={18} color={themeColor(isDark, 'on-primary')} />
         </TouchableOpacity>
       </View>
 

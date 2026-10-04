@@ -671,9 +671,9 @@ function RemoveSportModal({
               }`}
             >
               {isDeleting ? (
-                <ActivityIndicator color={themeColor(isDark, 'on-fill')} />
+                <ActivityIndicator color={themeColor(isDark, 'on-danger')} />
               ) : (
-                <Text className="font-inter-bold text-xs text-on-fill text-center">
+                <Text className="font-inter-bold text-xs text-on-danger text-center">
                   Delete {count === 1 ? 'the division' : `${count} divisions`} and remove {sportName}
                 </Text>
               )}

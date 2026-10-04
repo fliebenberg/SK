@@ -11,9 +11,9 @@ interface ButtonProps extends TouchableOpacityProps {
 
 /** The spinner shown while loading, in the colour the label would be. */
 const SPINNER: Record<NonNullable<ButtonProps['variant']>, ThemeToken> = {
-  primary: 'on-fill',
-  secondary: 'on-bright',
-  danger: 'on-fill',
+  primary: 'on-primary',
+  secondary: 'on-accent',
+  danger: 'on-danger',
   ghost: 'ink-soft',
 };
 
@@ -38,9 +38,9 @@ export const Button = forwardRef<View, ButtonProps>(({
   };
 
   const textClasses = {
-    primary: "text-on-fill",
-    secondary: "text-on-bright",
-    danger: "text-on-fill",
+    primary: "text-on-primary",
+    secondary: "text-on-accent",
+    danger: "text-on-danger",
     ghost: "text-ink-soft",
   };
 

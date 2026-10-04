@@ -463,12 +463,12 @@ export default function UserManagement() {
                     onPress={() => handlePageSizeChange(size)}
                     className={`px-2.5 py-1 rounded border ${
                       pageSize === size
-                        ? 'bg-primary border-primary text-on-fill'
+                        ? 'bg-primary border-primary text-on-primary'
                         : 'bg-card border-line'
                     }`}
                   >
                     <Text className={`font-inter text-xs ${
-                      pageSize === size ? 'text-on-fill font-inter-bold' : 'text-ink-muted'
+                      pageSize === size ? 'text-on-primary font-inter-bold' : 'text-ink-muted'
                     }`}>
                       {size}
                     </Text>

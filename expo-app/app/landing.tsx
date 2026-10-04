@@ -111,13 +111,13 @@ export default function LandingPage() {
               <View className="flex-1 gap-3">
                 <View className="flex-row items-center gap-3">
                   <View className="w-5 h-5 rounded bg-primary items-center justify-center">
-                    <Text className="text-[10px] font-inter-bold text-on-fill">CT</Text>
+                    <Text className="text-[10px] font-inter-bold text-on-primary">CT</Text>
                   </View>
                   <Text className="font-inter-bold text-ink text-base">Cape Town RFC</Text>
                 </View>
                 <View className="flex-row items-center gap-3">
                   <View className="w-5 h-5 rounded bg-info items-center justify-center">
-                    <Text className="text-[10px] font-inter-bold text-on-fill">DB</Text>
+                    <Text className="text-[10px] font-inter-bold text-on-info">DB</Text>
                   </View>
                   <Text className="font-inter-bold text-ink text-base">Durban Rovers</Text>
                 </View>
@@ -154,13 +154,13 @@ export default function LandingPage() {
               <View className="flex-1 gap-3">
                 <View className="flex-row items-center gap-3">
                   <View className="w-5 h-5 rounded bg-danger items-center justify-center">
-                    <Text className="text-[10px] font-inter-bold text-on-fill">ST</Text>
+                    <Text className="text-[10px] font-inter-bold text-on-danger">ST</Text>
                   </View>
                   <Text className="font-inter-bold text-ink text-base">Strykers FC</Text>
                 </View>
                 <View className="flex-row items-center gap-3">
                   <View className="w-5 h-5 rounded bg-warning items-center justify-center">
-                    <Text className="text-[10px] font-inter-bold text-on-bright">AP</Text>
+                    <Text className="text-[10px] font-inter-bold text-on-warning">AP</Text>
                   </View>
                   <Text className="font-inter-bold text-ink text-base">Apex United</Text>
                 </View>

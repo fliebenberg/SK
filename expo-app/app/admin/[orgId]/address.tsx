@@ -97,8 +97,8 @@ function ActionButton({ icon, label, onPress, primary }: { icon: keyof typeof Io
         primary ? 'bg-primary border-primary' : 'border-line'
       }`}
     >
-      <Ionicons name={icon} size={16} color={primary ? 'white' : themeColor(isDark, 'primary')} />
-      <Text className={`font-inter-bold text-sm ${primary ? 'text-on-fill' : 'text-ink-soft'}`}>{label}</Text>
+      <Ionicons name={icon} size={16} color={themeColor(isDark, primary ? 'on-primary' : 'primary')} />
+      <Text className={`font-inter-bold text-sm ${primary ? 'text-on-primary' : 'text-ink-soft'}`}>{label}</Text>
     </TouchableOpacity>
   );
 }

@@ -487,7 +487,7 @@ export default function SettingsScreen() {
                     onPress={handlePickAvatar}
                     className="absolute bottom-0 right-0 bg-primary w-8 h-8 rounded-full items-center justify-center border-2 border-card active:scale-95"
                   >
-                    <Ionicons name="camera" size={16} color="white" />
+                    <Ionicons name="camera" size={16} color={themeColor(activeTheme === 'dark', 'on-primary')} />
                   </TouchableOpacity>
                 </View>
 

@@ -36,7 +36,7 @@ export function PersonBanner({ member, guardianship, isNarrow, onEdit, onEditPho
         <PersonAvatar name={member.name} image={member.image} imageConfig={member.imageConfig} size={size} />
         {onEditPhoto ? (
           <View className="absolute -right-0.5 -bottom-0.5 w-6 h-6 rounded-full bg-primary border-2 border-card items-center justify-center">
-            <Ionicons name="camera" size={11} color="white" />
+            <Ionicons name="camera" size={11} color={themeColor(isDark, 'on-primary')} />
           </View>
         ) : null}
       </TouchableOpacity>

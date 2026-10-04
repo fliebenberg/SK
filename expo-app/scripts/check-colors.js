@@ -11,12 +11,14 @@
  *  - a palette shade Tailwind does not have (`-850`, `-455`, `-150`);
  *  - a theme-token class whose name is not a token (`text-ink-mutted`, `bg-success-tint`);
  *  - `constants/theme.d.ts` listing different tokens from `constants/theme.js`;
- *  - a text token below 4.5:1 on the surfaces it is read on (the design spec asks for 7:1 where it
- *    can; the contrast table is printed with `--contrast`).
+ *  - a text token below 4.5:1 on the surfaces it is read on, or a tone's `on-<tone>` below 4.5:1 on
+ *    its fill (the design spec asks for 7:1 where it can; `--contrast` prints the table);
+ *  - a class string that puts a tone's fill (`bg-success`) and any text colour but that tone's own
+ *    `text-on-success` on one element (`UI-25`).
  *
  * Reports, without failing, how many colours are still named by shade rather than purpose: raw
- * palette classes, `brand-*` / `white` / `black` and the legacy class names, hex values, and the old
- * `COLORS` / `getThemeColor` helpers. Once the sweep has moved them to tokens, `--strict` makes them
+ * palette classes, `brand-*` / `white` / `black` and the legacy class names, hex values, CSS colour
+ * names in a colour prop or style (`color="white"`), and the old `COLORS` / `getThemeColor` helpers. Once the sweep has moved them to tokens, `--strict` makes them
  * fail too, and the pre-commit hook runs it that way. `--list` prints where each one is.
  *
  * Run: `npm run check:colors` (from expo-app/). Exit code 1 lists each offending line.
@@ -31,7 +33,7 @@ const SHOW_CONTRAST = process.argv.includes('--contrast');
 
 const { tokens } = require('../constants/theme');
 const TOKEN_NAMES = new Set(Object.keys(tokens));
-const TOKEN_GROUPS = new Set([...TOKEN_NAMES].map(n => n.split('-')[0]).filter(g => g !== 'on'));
+const TOKEN_GROUPS = new Set([...TOKEN_NAMES].map(n => n.split('-')[0]));
 
 const PALETTE = ['slate', 'gray', 'zinc', 'neutral', 'stone', 'red', 'orange', 'amber', 'yellow', 'lime', 'green',
   'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose'];
@@ -45,6 +47,16 @@ const HEX = /['"`](?:#(?:[0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|rgba?\(
 const OTHER_CLASS = new RegExp(`(?<![\\w-])(?:[a-z-]+:)*${COLOR_PREFIX}-(brand-[a-z]+|white|black|background|surface|textPrimary|textSecondary)(?:\\/\\d+)?(?![\\w-])`, 'g');
 // The value helpers from before the tokens; `themeColor(isDark, token)` replaces both.
 const LEGACY_VALUE = /\b(COLORS\.(?:brand|light|dark)\b|getThemeColor\()/g;
+// A CSS colour name given as a colour (`color="white"`, `backgroundColor: 'black'`) — a raw colour by
+// another name. Only on lines that set a colour, and not where the word is compared or matched
+// (`card === 'red'`, `case 'yellow':`). `transparent` is not a colour and stays allowed.
+const NAMED_COLOR = /(?<![=!]==\s*|case\s+)['"](white|black|red|green|blue|yellow|orange|gray|grey|purple|pink|silver|gold|cyan|magenta)['"]/g;
+const SETS_COLOR = /([cC]olor|tint)\s*[=:]|[cC]olor=\{/;
+const TONES = ['primary', 'accent', 'success', 'warning', 'danger', 'info', 'special'];
+// A tone's fill on an element, and a text colour on the same one.
+const TONE_FILL = new RegExp(`(?<![\\w:-])bg-(${TONES.join('|')})(?![\\w/-])`);
+const TEXT_TOKEN = /(?<![\w:-])text-((?:ink|on|primary|accent|success|warning|danger|info|special)(?:-[a-z]+)*)(?![\w-])/g;
+const STRING = /(["'`])((?:(?!\1)[^\n])*?)\1/g;
 const COMMENT = /^\s*(\/\/|\/?\*|\{\/\*)/;
 
 function walk(dir, out) {
@@ -92,9 +104,17 @@ for (const file of SCAN.flatMap(dir => walk(path.join(ROOT, dir), []))) {
       const name = m[1];
       if (!TOKEN_NAMES.has(name)) failures.push(`${rel}:${i + 1}  ${m[0]} — "${name}" is not a colour token (constants/theme.js)`);
     }
+    for (const [, , str] of line.matchAll(STRING)) {
+      const fill = str.match(TONE_FILL);
+      if (!fill) continue;
+      for (const t of str.matchAll(TEXT_TOKEN)) {
+        if (t[1] !== `on-${fill[1]}`) failures.push(`${rel}:${i + 1}  text-${t[1]} on bg-${fill[1]} — text on a tone's fill takes text-on-${fill[1]}`);
+      }
+    }
     const dataLine = /(\/\/|\/\*) colour-data:/.test(line) || /^\s*(\/\/|\{?\/\*) colour-data:/.test(lines[i - 1] || '');
     if (!isDefinition && !isData && !dataLine) {
-      for (const m of [...(line.match(HEX) || []), ...(line.match(LEGACY_VALUE) || [])]) {
+      const named = SETS_COLOR.test(line) ? line.match(NAMED_COLOR) || [] : [];
+      for (const m of [...(line.match(HEX) || []), ...(line.match(LEGACY_VALUE) || []), ...named]) {
         rawHex++;
         if (LIST) listed.push(`${rel}:${i + 1}  ${m}`);
       }
@@ -118,12 +138,11 @@ function ratio(a, b) {
   const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
   return (x + 0.05) / (y + 0.05);
 }
-const TONES = ['primary', 'accent', 'success', 'warning', 'danger', 'info', 'special'];
 const PAIRS = [
   ...['ink', 'ink-soft', 'ink-muted'].flatMap(t => ['card', 'canvas', 'field', 'sunken'].map(s => [t, s])),
   ...['ink', 'ink-soft', 'ink-muted'].map(t => [t, 'popover']),
   ['ink', 'raised'], ['ink-muted', 'raised'], ['primary-ink', 'raised'], ['on-fill', 'tooltip'],
-  ...TONES.flatMap(t => [[`${t}-ink`, 'card'], [`${t}-ink`, 'sunken'], [`${t}-ink`, `${t}-soft`]]),
+  ...TONES.flatMap(t => [[`${t}-ink`, 'card'], [`${t}-ink`, 'sunken'], [`${t}-ink`, `${t}-soft`], [`on-${t}`, t]]),
 ];
 const rows = [];
 for (const [text, surface] of PAIRS) {

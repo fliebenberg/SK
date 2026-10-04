@@ -443,7 +443,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                         </Text>
                         {isDisputed && (
                           <View className="bg-danger px-1.5 py-0.5 rounded">
-                            <Text className="font-orbitron-bold text-[8px] text-on-fill uppercase tracking-wider">Disputed</Text>
+                            <Text className="font-orbitron-bold text-[8px] text-on-danger uppercase tracking-wider">Disputed</Text>
                           </View>
                         )}
                       </View>

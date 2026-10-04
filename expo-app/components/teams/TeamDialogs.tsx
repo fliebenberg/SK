@@ -349,7 +349,7 @@ export function AddPlayersDialog({ visible, onClose, teamId, members, playerProf
                     on ? 'bg-primary border-primary' : onTeam ? 'border-line' : 'border-ink-faint'
                   }`}
                 >
-                  {on ? <Ionicons name="checkmark" size={13} color="white" /> : null}
+                  {on ? <Ionicons name="checkmark" size={13} color={themeColor(isDark, 'on-primary')} /> : null}
                 </View>
                 <View className="flex-1 min-w-0">
                   <Text className={`font-inter text-sm ${onTeam ? 'text-ink-muted' : 'text-ink'}`} numberOfLines={1}>

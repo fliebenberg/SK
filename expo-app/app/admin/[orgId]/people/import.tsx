@@ -349,7 +349,7 @@ function StepTitle({ n, title }: { n: number; title: string }) {
   return (
     <View className="flex-row items-center gap-3">
       <View className="w-8 h-8 rounded-full bg-primary items-center justify-center">
-        <Text className="font-orbitron-bold text-sm text-on-fill">{n}</Text>
+        <Text className="font-orbitron-bold text-sm text-on-primary">{n}</Text>
       </View>
       <Text className="font-inter-bold text-base text-ink">{title}</Text>
     </View>

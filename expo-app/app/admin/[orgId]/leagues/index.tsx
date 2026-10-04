@@ -227,7 +227,7 @@ export default function OrgLeagues() {
           className="w-8 h-8 rounded-lg bg-primary items-center justify-center shadow-md shadow-primary/20 active:opacity-85"
           onPress={() => setIsCreateModalOpen(true)}
         >
-          <Ionicons name="add" size={18} color="white" />
+          <Ionicons name="add" size={18} color={themeColor(isDark, 'on-primary')} />
         </TouchableOpacity>
       </View>
 
@@ -350,7 +350,7 @@ export default function OrgLeagues() {
                   <Ionicons name="trophy-outline" size={32} color={themeColor(isDark, 'ink-muted')} />
                 )}
                 <View className="absolute bottom-1 right-1 bg-primary w-5 h-5 rounded-full items-center justify-center border border-card shadow-sm">
-                  <Ionicons name="camera" size={10} color="white" />
+                  <Ionicons name="camera" size={10} color={themeColor(isDark, 'on-primary')} />
                 </View>
               </TouchableOpacity>
               <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-widest mt-1.5">League Logo</Text>

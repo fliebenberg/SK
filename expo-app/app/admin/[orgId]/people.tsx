@@ -107,8 +107,8 @@ export default function OrgPeople() {
         accessibilityLabel="Add person"
         className={`flex-row items-center gap-1.5 rounded-xl bg-primary ${isWide ? 'px-3.5 py-2' : 'w-9 h-9 justify-center'}`}
       >
-        <Ionicons name="add" size={18} color="white" />
-        {isWide ? <Text className="font-inter-bold text-sm text-on-fill">Add person</Text> : null}
+        <Ionicons name="add" size={18} color={themeColor(isDark, 'on-primary')} />
+        {isWide ? <Text className="font-inter-bold text-sm text-on-primary">Add person</Text> : null}
       </TouchableOpacity>
     </View>
   ) : undefined;

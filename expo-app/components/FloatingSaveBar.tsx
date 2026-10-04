@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { themeColor } from '../constants/Colors';
+import { useActiveTheme } from '../store/settingsStore';
 
 /**
  * The admin edit screens' floating save bar.
@@ -54,6 +56,7 @@ export function FloatingSaveBar({
   isProcessing = false,
   saveDisabled = false,
 }: FloatingSaveBarProps) {
+  const isDark = useActiveTheme() === 'dark';
   if (!visible) return null;
 
   return (
@@ -86,11 +89,11 @@ export function FloatingSaveBar({
           }`}
         >
           {isProcessing ? (
-            <ActivityIndicator size="small" color="white" />
+            <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
           ) : (
             <>
-              <Ionicons name="checkmark-circle" size={14} color="white" />
-              <Text className="font-orbitron-bold text-[9px] text-on-fill uppercase tracking-widest mt-0.5">
+              <Ionicons name="checkmark-circle" size={14} color={themeColor(isDark, 'on-primary')} />
+              <Text className="font-orbitron-bold text-[9px] text-on-primary uppercase tracking-widest mt-0.5">
                 {saveLabel}
               </Text>
             </>

@@ -808,7 +808,7 @@ export default function DivisionScreen() {
                       isSavingDetails || !effectiveName || nameClash ? 'opacity-50' : ''
                     }`}
                   >
-                    <Text className="font-inter-bold text-xs text-on-fill uppercase">Save</Text>
+                    <Text className="font-inter-bold text-xs text-on-primary uppercase">Save</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -848,7 +848,7 @@ export default function DivisionScreen() {
                       isSavingFacilities ? 'opacity-50' : ''
                     }`}
                   >
-                    <Text className="font-inter-bold text-xs text-on-fill uppercase">Save fields</Text>
+                    <Text className="font-inter-bold text-xs text-on-primary uppercase">Save fields</Text>
                   </TouchableOpacity>
                 </View>
               )}

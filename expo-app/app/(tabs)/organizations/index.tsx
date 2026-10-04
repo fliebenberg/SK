@@ -526,7 +526,7 @@ export default function OrganizationsPage() {
                 Add Organization
               </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)} className="p-1 active:opacity-70">
-                <Ionicons name="close" size={22} color={isDark ? "white" : themeColor(isDark, 'ink-muted')} />
+                <Ionicons name="close" size={22} color={themeColor(isDark, 'ink-muted')} />
               </TouchableOpacity>
             </View>
 

@@ -63,17 +63,17 @@ export function SetupStepFooter({
         }`}
       >
         {isProcessing ? (
-          <ActivityIndicator color={themeColor(isDark, 'on-fill')} />
+          <ActivityIndicator color={themeColor(isDark, 'on-primary')} />
         ) : (
           <>
-            <Text className="font-inter-bold text-sm text-on-fill text-center">
+            <Text className="font-inter-bold text-sm text-on-primary text-center">
               {nextStep
                 ? `${isDirty ? 'Save & continue to' : 'Next:'} ${nextStep.label}`
                 : isDirty
                 ? 'Save & back to checklist'
                 : 'Back to checklist'}
             </Text>
-            <Ionicons name="arrow-forward" size={16} color={themeColor(isDark, 'on-fill')} />
+            <Ionicons name="arrow-forward" size={16} color={themeColor(isDark, 'on-primary')} />
           </>
         )}
       </TouchableOpacity>

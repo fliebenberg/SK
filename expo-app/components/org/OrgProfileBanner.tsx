@@ -8,6 +8,8 @@ import { getContrastColor } from '../../utils/colorUtils';
 
 import { addressLocality } from '../../services/places';
 import { orgTypeIcon, orgTypeLabel } from './orgTypes';
+import { themeColor } from '../../constants/Colors';
+import { useActiveTheme } from '../../store/settingsStore';
 
 /**
  * The top of the org Profile page: the organisation as everyone else sees it (docs/org-profile.md §2).
@@ -18,6 +20,7 @@ import { orgTypeIcon, orgTypeLabel } from './orgTypes';
  * Padding is kept tight: the banner already sits in the page's margin.
  */
 export function OrgProfileBanner({ org, onEdit, onEditLogo }: { org: Organization; onEdit?: () => void; onEditLogo?: () => void }) {
+  const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();
   const isNarrow = width < 768;
   const { primary, secondary } = orgColors(org);
@@ -46,7 +49,7 @@ export function OrgProfileBanner({ org, onEdit, onEditLogo }: { org: Organizatio
           <TouchableOpacity onPress={onEditLogo} accessibilityRole="button" accessibilityLabel="Change the logo" activeOpacity={0.85}>
             {crest}
             <View className="absolute -right-1 -bottom-1 w-5 h-5 rounded-full bg-primary border-2 border-card items-center justify-center">
-              <Ionicons name="pencil" size={9} color="white" />
+              <Ionicons name="pencil" size={9} color={themeColor(isDark, 'on-primary')} />
             </View>
           </TouchableOpacity>
         ) : crest}
@@ -72,7 +75,7 @@ export function OrgProfileBanner({ org, onEdit, onEditLogo }: { org: Organizatio
             accessibilityLabel="Edit the name, short code, type and colours"
             className="ml-auto flex-row items-center gap-1.5 rounded-full px-3 py-1 border bg-overlay/20 border-on-fill/30"
           >
-            <Ionicons name="pencil" size={12} color="white" />
+            <Ionicons name="pencil" size={12} color={themeColor(isDark, 'on-fill')} />
             <Text className="font-inter-semibold text-sm text-on-fill">Edit</Text>
           </TouchableOpacity>
         ) : null}

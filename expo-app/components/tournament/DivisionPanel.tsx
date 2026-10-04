@@ -310,7 +310,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
                   }}
                   className="px-4 py-2 rounded-lg bg-primary active:opacity-85"
                 >
-                  <Text className="font-inter-bold text-[10px] text-on-fill uppercase tracking-wider">
+                  <Text className="font-inter-bold text-[10px] text-on-primary uppercase tracking-wider">
                     Generate fixtures
                   </Text>
                 </TouchableOpacity>
@@ -424,7 +424,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
                 onPress={() => setHandingOn({ entrant, unplayed })}
                 className="px-3 py-1.5 rounded-lg bg-primary active:opacity-85"
               >
-                <Text className="font-inter-bold text-[10px] text-on-fill uppercase tracking-wider">Replace</Text>
+                <Text className="font-inter-bold text-[10px] text-on-primary uppercase tracking-wider">Replace</Text>
               </TouchableOpacity>
             </View>
           ))}

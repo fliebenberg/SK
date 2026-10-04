@@ -375,7 +375,7 @@ export default function LeagueDetails() {
                     <Ionicons name="trophy-outline" size={40} color={themeColor(isDark, 'ink-muted')} />
                   )}
                   <View className="absolute bottom-1.5 right-1.5 bg-primary w-6 h-6 rounded-full items-center justify-center border border-card shadow-md">
-                    <Ionicons name="camera" size={12} color="white" />
+                    <Ionicons name="camera" size={12} color={themeColor(isDark, 'on-primary')} />
                   </View>
                 </TouchableOpacity>
                 <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mt-2">League Branding Logo</Text>
@@ -560,7 +560,7 @@ export default function LeagueDetails() {
                     <Ionicons name="calendar-outline" size={32} color={themeColor(isDark, 'ink-muted')} />
                   )}
                   <View className="absolute bottom-1 right-1 bg-primary w-5 h-5 rounded-full items-center justify-center border border-card shadow-sm">
-                    <Ionicons name="camera" size={10} color="white" />
+                    <Ionicons name="camera" size={10} color={themeColor(isDark, 'on-primary')} />
                   </View>
                 </TouchableOpacity>
                 <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-widest mt-1.5">Season Logo</Text>
@@ -706,11 +706,11 @@ export default function LeagueDetails() {
               className="bg-primary px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-primary/30"
             >
               {isSavingLeague ? (
-                <ActivityIndicator size="small" color="white" />
+                <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle" size={14} color="white" />
-                  <Text className="font-orbitron-bold text-[9px] text-on-fill uppercase tracking-widest mt-0.5">
+                  <Ionicons name="checkmark-circle" size={14} color={themeColor(isDark, 'on-primary')} />
+                  <Text className="font-orbitron-bold text-[9px] text-on-primary uppercase tracking-widest mt-0.5">
                     Save
                   </Text>
                 </>

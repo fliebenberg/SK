@@ -57,7 +57,7 @@ function DisputeActionButton({
         <Text
           numberOfLines={1}
           className={`text-[9px] font-inter-bold uppercase tracking-wide mb-0.5 ${
-            active ? 'text-on-fill/80' : 'text-ink-muted'
+            active ? (isApprove ? 'text-on-success/80' : 'text-on-danger/80') : 'text-ink-muted'
           }`}
         >
           {sublabel}
@@ -68,7 +68,7 @@ function DisputeActionButton({
         numberOfLines={1}
         className={`font-orbitron-bold text-xs uppercase tracking-tight ${
           active
-            ? 'text-on-fill'
+            ? isApprove ? 'text-on-success' : 'text-on-danger'
             : isApprove
             ? 'text-success-ink'
             : 'text-danger-ink'
@@ -81,7 +81,7 @@ function DisputeActionButton({
         <Text
           numberOfLines={1}
           className={`text-[9px] font-inter-semibold uppercase tracking-wide mt-0.5 ${
-            active ? 'text-on-fill/80' : 'text-ink-muted'
+            active ? (isApprove ? 'text-on-success/80' : 'text-on-danger/80') : 'text-ink-muted'
           }`}
         >
           {voteCount}

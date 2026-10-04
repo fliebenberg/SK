@@ -258,7 +258,7 @@ function GameRow({ game, teamId, eventName, first, canEdit, onOpen, onPickTeam }
 
   let right: React.ReactNode = null;
   if (game.status === 'Live') {
-    right = <Text className="font-inter-bold text-[11px] text-on-fill bg-danger rounded-full px-2 py-0.5 overflow-hidden">LIVE</Text>;
+    right = <Text className="font-inter-bold text-[11px] text-on-danger bg-danger rounded-full px-2 py-0.5 overflow-hidden">LIVE</Text>;
   } else if (game.status === 'Scheduled') {
     right = canEdit ? (
       <TouchableOpacity onPress={() => onPickTeam(game)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Pick the team for ${opponentOf(game, teamId)}`}>

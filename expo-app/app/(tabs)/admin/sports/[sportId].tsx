@@ -311,11 +311,11 @@ export default function EditSport() {
               className="bg-primary px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-primary/30"
             >
               {isProcessing ? (
-                <ActivityIndicator size="small" color="white" />
+                <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle" size={14} color="white" />
-                  <Text className="font-orbitron-bold text-[9px] text-on-fill uppercase tracking-widest mt-0.5">
+                  <Ionicons name="checkmark-circle" size={14} color={themeColor(isDark, 'on-primary')} />
+                  <Text className="font-orbitron-bold text-[9px] text-on-primary uppercase tracking-widest mt-0.5">
                     {isNew ? 'Create' : 'Save'}
                   </Text>
                 </>

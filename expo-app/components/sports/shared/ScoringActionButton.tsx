@@ -157,13 +157,13 @@ export function RosterGrid({
             <View
               className={`w-8 h-8 rounded-lg items-center justify-center ${
                 isSelected
-                  ? 'bg-on-fill/20'
+                  ? 'bg-on-primary/20'
                   : 'bg-primary-soft border border-primary-line'
               }`}
             >
               <Text
                 className={`font-orbitron-bold text-sm ${
-                  isSelected ? 'text-on-fill' : 'text-primary-ink'
+                  isSelected ? 'text-on-primary' : 'text-primary-ink'
                 }`}
               >
                 {positionDisplay}
@@ -173,7 +173,7 @@ export function RosterGrid({
               <Text
                 numberOfLines={1}
                 className={`font-inter-bold text-xs ${
-                  isSelected ? 'text-on-fill' : 'text-ink'
+                  isSelected ? 'text-on-primary' : 'text-ink'
                 }`}
               >
                 {playerName}
@@ -181,7 +181,7 @@ export function RosterGrid({
               {item.isReserve && (
                 <Text
                   className={`font-orbitron-bold text-[9px] uppercase tracking-wider ${
-                    isSelected ? 'text-on-fill/80' : 'text-ink-muted'
+                    isSelected ? 'text-on-primary/80' : 'text-ink-muted'
                   }`}
                 >
                   Reserve

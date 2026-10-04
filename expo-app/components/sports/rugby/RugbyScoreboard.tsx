@@ -39,8 +39,8 @@ const SinBinBadge = memo(function SinBinBadge({
         isYellow ? 'bg-warning border-warning' : 'bg-danger border-danger'
       }`}
     >
-      <Ionicons name="card" size={10} color={themeColor(isDark, isYellow ? 'on-bright' : 'on-fill')} />
-      <Text className={`font-mono font-bold text-[9px] ${isYellow ? 'text-on-bright' : 'text-on-fill'}`}>
+      <Ionicons name="card" size={10} color={themeColor(isDark, isYellow ? 'on-warning' : 'on-danger')} />
+      <Text className={`font-mono font-bold text-[9px] ${isYellow ? 'text-on-warning' : 'text-on-danger'}`}>
         {sb.durationMS === 0 ? 'RED' : timeStr}
       </Text>
     </TouchableOpacity>

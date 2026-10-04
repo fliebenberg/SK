@@ -128,7 +128,7 @@ export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: Sport
           className={`flex-1 ${inputClass}`}
         />
         <TouchableOpacity onPress={() => handleRename(group)} disabled={isBusy} className="p-2 bg-primary rounded-lg">
-          <Ionicons name="checkmark" size={14} color="white" />
+          <Ionicons name="checkmark" size={14} color={themeColor(isDark, 'on-primary')} />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setEditingId(null)} className="p-2 bg-sunken rounded-lg">
           <Ionicons name="close" size={14} color={themeColor(isDark, 'ink-muted')} />
@@ -197,8 +197,8 @@ export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: Sport
             disabled={!newName.trim() || isBusy}
             className={`px-3.5 py-2.5 rounded-xl bg-primary flex-row items-center gap-1 ${!newName.trim() ? 'opacity-50' : ''}`}
           >
-            <Ionicons name="add" size={14} color="white" />
-            <Text className="font-inter-bold text-xs text-on-fill">Add</Text>
+            <Ionicons name="add" size={14} color={themeColor(isDark, 'on-primary')} />
+            <Text className="font-inter-bold text-xs text-on-primary">Add</Text>
           </TouchableOpacity>
         </View>
       </GlassCard>

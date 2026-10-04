@@ -137,7 +137,7 @@ export function Tabs<T extends string = string>({
               </View>
               {tab.badge !== undefined ? (
                 <View className={`px-1.5 py-0.5 rounded-full ${isActive ? 'bg-primary' : 'bg-line-strong'}`}>
-                  <Text className={`text-[10px] font-inter-bold ${isActive ? 'text-on-fill' : 'text-ink-soft'}`}>
+                  <Text className={`text-[10px] font-inter-bold ${isActive ? 'text-on-primary' : 'text-ink-soft'}`}>
                     {tab.badge}
                   </Text>
                 </View>

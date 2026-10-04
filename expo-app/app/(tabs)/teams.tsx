@@ -23,6 +23,7 @@ export default function TeamsPage() {
       rank: '#2 in Western Dev Cup',
       abbreviation: 'CTD',
       color: 'bg-primary',
+      label: 'text-on-primary',
       role: 'Head Coach',
     },
   ];
@@ -36,6 +37,7 @@ export default function TeamsPage() {
       rank: '#1 in Western Cup',
       abbreviation: 'CT',
       color: 'bg-primary',
+      label: 'text-on-primary',
     },
     {
       id: '2',
@@ -45,6 +47,7 @@ export default function TeamsPage() {
       rank: '#3 in Western Cup',
       abbreviation: 'DB',
       color: 'bg-info',
+      label: 'text-on-info',
     },
     {
       id: '3',
@@ -54,6 +57,7 @@ export default function TeamsPage() {
       rank: '#1 in Super League',
       abbreviation: 'ST',
       color: 'bg-danger',
+      label: 'text-on-danger',
     },
   ];
 
@@ -104,7 +108,7 @@ export default function TeamsPage() {
                   <View className="flex-row items-center justify-between pl-1.5">
                     <View className="flex-row items-center gap-3.5 flex-1">
                       <View className={`w-11 h-11 rounded-xl ${team.color} items-center justify-center shadow-inner`}>
-                        <Text className="font-orbitron-bold text-sm text-on-fill">{team.abbreviation}</Text>
+                        <Text className="font-orbitron-bold text-sm text-on-primary">{team.abbreviation}</Text>
                       </View>
                       <View className="flex-1">
                         <View className="flex-row items-center gap-2">
@@ -150,7 +154,7 @@ export default function TeamsPage() {
                 <View className="flex-row items-center gap-3.5 flex-1">
                   {/* Team Logo Emblem Placeholder */}
                   <View className={`w-11 h-11 rounded-xl ${team.color} items-center justify-center shadow-inner`}>
-                    <Text className="font-orbitron-bold text-sm text-on-fill">{team.abbreviation}</Text>
+                    <Text className={`font-orbitron-bold text-sm ${team.label}`}>{team.abbreviation}</Text>
                   </View>
 
                   <View className="flex-1">
@@ -175,11 +179,11 @@ export default function TeamsPage() {
                   <Ionicons 
                     name={isFollowing ? "star" : "star-outline"} 
                     size={14} 
-                    color={isFollowing ? themeColor(isDark, 'primary') : themeColor(isDark, 'on-fill')} 
+                    color={isFollowing ? themeColor(isDark, 'primary') : themeColor(isDark, 'on-primary')} 
                   />
                   <Text 
                     className={`font-inter-bold text-xs ${
-                      isFollowing ? 'text-ink-soft' : 'text-on-fill'
+                      isFollowing ? 'text-ink-soft' : 'text-on-primary'
                     }`}
                   >
                     {isFollowing ? 'Following' : 'Follow'}

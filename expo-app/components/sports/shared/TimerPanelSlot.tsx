@@ -214,8 +214,8 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   {...({ title: 'Start Game & Match Clock' } as any)}
                   className="bg-success active:scale-95 px-3 py-1.5 rounded-lg flex-row items-center justify-center gap-1 opacity-100 disabled:opacity-50"
                 >
-                  <Ionicons name="play" size={14} color="white" />
-                  <Text className="font-orbitron-bold text-xs text-on-fill uppercase">Start Game</Text>
+                  <Ionicons name="play" size={14} color={themeColor(isDark, 'on-success')} />
+                  <Text className="font-orbitron-bold text-xs text-on-success uppercase">Start Game</Text>
                 </TouchableOpacity>
               )}
 
@@ -229,8 +229,8 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                       {...({ title: 'Pause Match Clock' } as any)}
                       className={`bg-warning active:scale-95 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50 ${!hasPeriodElapsed ? 'px-3 py-1.5' : 'w-8 h-8'}`}
                     >
-                      <Ionicons name="pause" size={14} color="white" />
-                      <Text className={`font-orbitron-bold text-xs text-on-fill uppercase ${!hasPeriodElapsed ? 'flex' : 'hidden'}`}>Pause</Text>
+                      <Ionicons name="pause" size={14} color={themeColor(isDark, 'on-warning')} />
+                      <Text className={`font-orbitron-bold text-xs text-on-warning uppercase ${!hasPeriodElapsed ? 'flex' : 'hidden'}`}>Pause</Text>
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
@@ -240,8 +240,8 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                       {...({ title: 'Resume Match Clock' } as any)}
                       className={`bg-success active:scale-95 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50 ${!hasPeriodElapsed ? 'px-3 py-1.5' : 'w-8 h-8'}`}
                     >
-                      <Ionicons name="play" size={14} color="white" />
-                      <Text className={`font-orbitron-bold text-xs text-on-fill uppercase ${!hasPeriodElapsed ? 'flex' : 'hidden'}`}>Resume</Text>
+                      <Ionicons name="play" size={14} color={themeColor(isDark, 'on-success')} />
+                      <Text className={`font-orbitron-bold text-xs text-on-success uppercase ${!hasPeriodElapsed ? 'flex' : 'hidden'}`}>Resume</Text>
                     </TouchableOpacity>
                   )
                 ) : (
@@ -252,8 +252,8 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                     {...({ title: 'Start Next Period' } as any)}
                     className="bg-success active:scale-95 px-3 py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
                   >
-                    <Ionicons name="play" size={14} color="white" />
-                    <Text className="font-orbitron-bold text-xs text-on-fill uppercase">Start Period</Text>
+                    <Ionicons name="play" size={14} color={themeColor(isDark, 'on-success')} />
+                    <Text className="font-orbitron-bold text-xs text-on-success uppercase">Start Period</Text>
                   </TouchableOpacity>
                 )
               )}
@@ -276,7 +276,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   <Ionicons
                     name={isLastPeriod && !isDraw ? 'square' : 'square-outline'}
                     size={14}
-                    color={hasPeriodElapsed ? themeColor(isDark, 'danger') : isLastPeriod && !isDraw ? 'white' : themeColor(isDark, 'primary')}
+                    color={themeColor(isDark, hasPeriodElapsed ? 'danger-ink' : isLastPeriod && !isDraw ? 'on-danger' : 'warning-ink')}
                     style={hasPeriodElapsed ? { opacity: isBlinking ? 1 : 0.25 } : undefined}
                   />
                   <Text
@@ -284,7 +284,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                       hasPeriodElapsed
                         ? 'font-orbitron-bold text-xs uppercase flex'
                         : isLastPeriod && !isDraw
-                        ? 'font-orbitron-bold text-xs text-on-fill uppercase hidden'
+                        ? 'font-orbitron-bold text-xs text-on-danger uppercase hidden'
                         : 'font-orbitron-bold text-xs text-primary-ink uppercase hidden'
                     }
                     style={
@@ -377,7 +377,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                     : 'bg-line-strong px-4 py-2.5 rounded-xl opacity-50'
                 }
               >
-                <Text className="font-inter-bold text-xs text-on-fill">
+                <Text className="font-inter-bold text-xs text-on-danger">
                   Confirm Cancellation
                 </Text>
               </TouchableOpacity>
@@ -420,7 +420,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                 onPress={handleResetGame}
                 className="bg-danger px-4 py-2.5 rounded-xl"
               >
-                <Text className="font-inter-bold text-xs text-on-fill font-inter-bold">
+                <Text className="font-inter-bold text-xs text-on-danger font-inter-bold">
                   Reset Everything
                 </Text>
               </TouchableOpacity>

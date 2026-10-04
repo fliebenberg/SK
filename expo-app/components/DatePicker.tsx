@@ -109,7 +109,7 @@ export default function DatePicker({ value, onChange, placeholder }: DatePickerP
                   <Text className="font-inter text-sm text-ink-muted">Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={confirmIos} className="px-4 py-2 rounded-xl bg-primary">
-                  <Text className="font-inter-bold text-sm text-on-fill">Done</Text>
+                  <Text className="font-inter-bold text-sm text-on-primary">Done</Text>
                 </TouchableOpacity>
               </View>
             </Pressable>

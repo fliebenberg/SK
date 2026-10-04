@@ -388,7 +388,7 @@ export function ImageEditor({
                           onPress={() => setTempScale(val)}
                           style={{ flex: 1, paddingVertical: 6, borderRadius: 6, alignItems: 'center', backgroundColor: Math.abs(tempScale - val) < 0.01 ? themeColor(isDark, 'primary') : 'transparent' }}
                         >
-                          <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 8, color: Math.abs(tempScale - val) < 0.01 ? themeColor(isDark, 'on-fill') : mutedText }}>
+                          <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 8, color: Math.abs(tempScale - val) < 0.01 ? themeColor(isDark, 'on-primary') : mutedText }}>
                             {val}x
                           </Text>
                         </TouchableOpacity>
@@ -432,7 +432,7 @@ export function ImageEditor({
                         onPress={() => { setTempX(0); setTempY(0); }}
                         style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: themeColor(isDark, 'primary'), alignItems: 'center', justifyContent: 'center' }}
                       >
-                        <Ionicons name="contract" size={12} color={themeColor(isDark, 'on-fill')} />
+                        <Ionicons name="contract" size={12} color={themeColor(isDark, 'on-primary')} />
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => setTempX(prev => Math.min(1, prev + nudgeSpeed))}
@@ -483,9 +483,9 @@ export function ImageEditor({
               style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: themeColor(isDark, 'primary'), alignItems: 'center', justifyContent: 'center', opacity: isProcessing ? 0.7 : 1 }}
             >
               {isProcessing ? (
-                <ActivityIndicator size="small" color={themeColor(isDark, 'on-fill')} />
+                <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
               ) : (
-                <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 12, color: themeColor(isDark, 'on-fill'), textTransform: 'uppercase' }}>Apply</Text>
+                <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 12, color: themeColor(isDark, 'on-primary'), textTransform: 'uppercase' }}>Apply</Text>
               )}
             </TouchableOpacity>
           </View>

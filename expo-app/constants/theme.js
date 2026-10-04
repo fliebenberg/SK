@@ -13,8 +13,9 @@
  * CommonJS, not TypeScript, because the Tailwind config is loaded by Node before anything is
  * compiled. Types are in `theme.d.ts`.
  *
- * Each tone (`primary`, `accent`, `success`, `warning`, `danger`, `info`, `special`) has four:
- * the tone itself (a fill — a button, a dot), `-ink` (text and icons in that tone, on the page or on
+ * Each tone (`primary`, `accent`, `success`, `warning`, `danger`, `info`, `special`) has five:
+ * the tone itself (a fill — a button, a dot), `on-<tone>` (text and icons on that fill, worked out
+ * below), `-ink` (text and icons in that tone, on the page or on
  * its own tint), `-soft` (a tinted background) and `-line` (the border of a tinted container). The
  * `-ink` shades are the badge shades of design_spec §1.1, which reach 7:1 on their tint.
  *
@@ -31,6 +32,26 @@ function over(base, hex, share) {
   const ch = (h, i) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
   const mix = [0, 1, 2].map(i => Math.round(ch(base, i) + (ch(hex, i) - ch(base, i)) * share));
   return '#' + mix.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+/** WCAG relative luminance of a hex colour. */
+function luminance(hex) {
+  const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+
+const WHITE = '#FFFFFF';
+const NEAR_BLACK = '#020617';
+
+/**
+ * White or near-black, whichever reads better on `fill` (`UI-25`). The fills are bright in dark
+ * mode and some are mid-tones in light — white is 1.7:1 on the dark-mode green, 3.5:1 on the brand
+ * orange — so each tone's label colour is worked out from its fill, per theme, rather than chosen.
+ */
+function labelOn(fill) {
+  const l = luminance(fill);
+  return (l + 0.05) / (luminance(NEAR_BLACK) + 0.05) >= 1.05 / (l + 0.05) ? NEAR_BLACK : WHITE;
 }
 
 /** A tint and a border for a tone in dark mode, from its hue. */
@@ -79,9 +100,12 @@ const tokens = {
   'ink-muted': { light: '#5A6779', dark: '#94A3B8' },
   /** Placeholders, disabled text and decorative marks — never text that must be read (2.6:1). */
   'ink-faint': { light: '#94A3B8', dark: '#64748B' },
-  /** Text on a filled tone (a primary button). */
+  /**
+   * White text in both themes, on what is dark in both: a tooltip, the scrim, a photo, a fill that
+   * is not a tone. On a tone's fill use that tone's `on-<tone>` instead.
+   */
   'on-fill': { light: '#FFFFFF', dark: '#FFFFFF' },
-  /** Text on a bright fill — the electric blue, the amber. */
+  /** Near-black text in both themes, on what is bright in both: a logo plate, a yellow card. */
   'on-bright': { light: '#020617', dark: '#020617' },
 
   // --- Lines -------------------------------------------------------------------------------------
@@ -139,6 +163,12 @@ const tokens = {
   'special-soft': { light: '#F5F3FF', dark: darkSoft('#8B5CF6') },
   'special-line': { light: '#DDD6FE', dark: darkLine('#8B5CF6') },
 };
+
+// Each tone's label colour: `on-primary`, `on-success`… — white or near-black, whichever reads better
+// on that tone's fill in each theme.
+for (const tone of ['primary', 'accent', 'success', 'warning', 'danger', 'info', 'special']) {
+  tokens[`on-${tone}`] = { light: labelOn(tokens[tone].light), dark: labelOn(tokens[tone].dark) };
+}
 
 /** "#0F172A" → "15 23 42", the form a CSS variable holds so opacity modifiers work. */
 function channels(hex) {

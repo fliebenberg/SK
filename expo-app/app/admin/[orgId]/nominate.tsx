@@ -91,8 +91,8 @@ export default function NominateAdmin() {
                       accessibilityRole="button"
                       className="flex-row items-center gap-1.5 rounded-xl bg-primary px-3.5 min-h-[40px]"
                     >
-                      <Ionicons name="add" size={16} color="white" />
-                      <Text className="font-inter-bold text-sm text-on-fill">Nominate</Text>
+                      <Ionicons name="add" size={16} color={themeColor(isDark, 'on-primary')} />
+                      <Text className="font-inter-bold text-sm text-on-primary">Nominate</Text>
                     </TouchableOpacity>
                   </View>
                   <Text className="font-inter text-sm text-warning-ink">
