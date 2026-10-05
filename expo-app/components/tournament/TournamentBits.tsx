@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { OrgBadge, Sport, TournamentDivision, TournamentEntrant, TournamentFormat } from '@sk/shared';
+import { EventOrgInvitation, OrgBadge, Sport, TournamentDivision, TournamentEntrant, TournamentFormat } from '@sk/shared';
 import { FixtureCrest } from '../events/EventBits';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
@@ -68,21 +68,16 @@ export function StepNumber({ index, state }: { index: number; state: StepState }
   );
 }
 
-/** The step's state in words, and Next beside the step to do next. */
-export function StepPills({ state, isNext }: { state: StepState; isNext: boolean }) {
-  const isDark = useActiveTheme() === 'dark';
+/**
+ * The step's state in words. No *Next* beside it (2026-10-05, `FIX-26`): the steps are numbered,
+ * which already says what order they go in, and the step to do next is the one that starts open.
+ */
+export function StepPills({ state }: { state: StepState }) {
   const box = isFinished(state) ? 'bg-success-soft' : state === 'part' ? 'bg-warning-soft' : 'bg-sunken';
   const text = isFinished(state) ? 'text-success-ink' : state === 'part' ? 'text-warning-ink' : 'text-ink-muted';
   return (
-    <View className="flex-row items-center gap-1.5 flex-shrink-0">
-      <View className={`rounded-full px-2 py-0.5 ${box}`}>
-        <Text className={`font-inter-bold text-[11px] ${text}`}>{STATE_LABEL[state]}</Text>
-      </View>
-      {isNext ? (
-        <View className="rounded-full px-2 py-0.5 bg-ink">
-          <Text className="font-inter-bold text-[11px]" style={{ color: themeColor(isDark, 'card') }}>Next</Text>
-        </View>
-      ) : null}
+    <View className={`rounded-full px-2 py-0.5 flex-shrink-0 ${box}`}>
+      <Text className={`font-inter-bold text-[11px] ${text}`}>{STATE_LABEL[state]}</Text>
     </View>
   );
 }
@@ -324,38 +319,286 @@ export function SportsDivisions({
 }
 
 /* ---------------------------------------------------------------------------------------------
- * Schools
+ * Organisations (FIX-26 — "organisations", never "schools": clubs take part too)
  * ------------------------------------------------------------------------------------------- */
 
-export interface SchoolRow {
-  org: Pick<OrgBadge, 'id' | 'name'> & Partial<Pick<OrgBadge, 'logo' | 'logoConfig' | 'primaryColor'>>;
-  teams: number;
-  isHost: boolean;
+const INVITATION_LABEL: Record<EventOrgInvitation, string> = {
+  not_invited: 'Not invited yet',
+  invited: 'Invited',
+  accepted: 'Accepted',
+  declined: 'Declined',
+};
+const INVITATION_TONE: Record<EventOrgInvitation, string> = {
+  not_invited: 'bg-warning-soft text-warning-ink',
+  invited: 'bg-info-soft text-info-ink',
+  accepted: 'bg-success-soft text-success-ink',
+  declined: 'bg-danger-soft text-danger-ink',
+};
+
+export const invitationLabel = (invitation: EventOrgInvitation) => INVITATION_LABEL[invitation];
+
+/** Where an organisation's invitation stands, as a small badge. *Not invited yet* is a warning. */
+export function InvitationBadge({ invitation }: { invitation: EventOrgInvitation }) {
+  const [box, text] = INVITATION_TONE[invitation].split(' ');
+  return (
+    <View className={`rounded-full px-2 py-0.5 flex-shrink-0 ${box}`}>
+      <Text className={`font-inter-semibold text-[11px] ${text}`}>{INVITATION_LABEL[invitation]}</Text>
+    </View>
+  );
 }
 
-/** The schools taking part, the host first, each with its crest and how many teams it has entered. */
-export function SchoolsList({ rows, highlightOrgId }: { rows: SchoolRow[]; highlightOrgId?: string }) {
+/** A small grey tag beside a name: Host, You, No contact yet. */
+export function QuietTag({ label }: { label: string }) {
+  return (
+    <View className="rounded-full bg-sunken px-2 py-0.5 flex-shrink-0">
+      <Text className="font-inter-semibold text-[11px] text-ink-muted">{label}</Text>
+    </View>
+  );
+}
+
+/** One piece of a line: plain text, or text in the stronger ink (a sport's name). */
+export type LinePart = string | { strong: string };
+
+/**
+ * The longest of several versions of a line that fits on one line — the organisation rows'
+ * "Netball U12 ×2, U13 · Rugby U10" → "Netball 3 · Rugby 2" → "2 sports · 5 teams". Each version
+ * is drawn once, hidden, at its natural width (as the events list measures its names); until every
+ * width is known the last, shortest one shows.
+ */
+export function FittedLine({ versions, className = 'font-inter text-xs text-ink-muted', strongClassName = 'font-inter-semibold text-ink-soft' }: {
+  versions: LinePart[][];
+  className?: string;
+  strongClassName?: string;
+}) {
+  const [room, setRoom] = useState(0);
+  const [widths, setWidths] = useState<Record<number, number>>({});
+  const draw = (parts: LinePart[]) =>
+    parts.map((part, i) => (typeof part === 'string' ? part : <Text key={i} className={strongClassName}>{part.strong}</Text>));
+  const known = room > 0 && versions.every((_, i) => widths[i] !== undefined);
+  const fits = known ? versions.findIndex((_, i) => widths[i] <= room) : -1;
+  // None fits: the shortest, which then cuts itself short.
+  const pick = fits === -1 ? versions.length - 1 : fits;
+  return (
+    <View className="min-w-0" onLayout={e => setRoom(Math.floor(e.nativeEvent.layout.width))}>
+      <View pointerEvents="none" style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden', opacity: 0 }} aria-hidden>
+        <View style={{ width: 10000, alignItems: 'flex-start' }}>
+          {versions.map((parts, i) => (
+            <Text
+              key={i}
+              numberOfLines={1}
+              className={className}
+              onLayout={e => {
+                const w = Math.ceil(e.nativeEvent.layout.width);
+                setWidths(prev => (prev[i] === w ? prev : { ...prev, [i]: w }));
+              }}
+            >
+              {draw(parts)}
+            </Text>
+          ))}
+        </View>
+      </View>
+      <Text numberOfLines={1} className={className}>{draw(versions[pick] || [])}</Text>
+    </View>
+  );
+}
+
+/** An organisation taking part, as the step and the Overview list it. */
+export interface OrgRow {
+  org: Pick<OrgBadge, 'id' | 'name'> & Partial<Pick<OrgBadge, 'logo' | 'logoConfig' | 'primaryColor' | 'isClaimed'>>;
+  isHost: boolean;
+  /** Absent for the host, whose row is not an invitation. */
+  invitation?: EventOrgInvitation;
+  /** Its active entrants, by sport in the tournament's order: `[sport, division names]`. */
+  bySport: Array<[string, string[]]>;
+  /** Of those, how many are teams (or players, in an individual sport) and how many are places to be named. */
+  teams: number;
+  players: number;
+  toBeNamed: number;
+}
+
+/** "Netball U12 ×2, U13 · Rugby U10" and the two shorter versions of it. */
+function enteredVersions(row: OrgRow): LinePart[][] {
+  const tail = row.toBeNamed ? [` · ${row.toBeNamed} to be named`] : [];
+  const full: LinePart[] = [];
+  const counts: LinePart[] = [];
+  row.bySport.forEach(([sport, names], i) => {
+    const seen = new Map<string, number>();
+    names.forEach(n => seen.set(n, (seen.get(n) || 0) + 1));
+    if (i) { full.push(' · '); counts.push(' · '); }
+    full.push({ strong: sport }, ` ${Array.from(seen).map(([n, c]) => (c > 1 ? `${n} ×${c}` : n)).join(', ')}`);
+    counts.push({ strong: sport }, ` ${names.length}`);
+  });
+  const total = [
+    plural(row.bySport.length, 'sport'),
+    row.teams ? plural(row.teams, 'team') : '',
+    row.players ? plural(row.players, 'player') : '',
+  ].filter(Boolean).join(' · ');
+  return [[...full, ...tail], [...counts, ...tail], [total, ...tail]];
+}
+
+/**
+ * The organisations taking part, the host first: crest, name, its invitation (for an organiser),
+ * and what it has entered on one line. A row opens that organisation's dialog when `onOpen` is
+ * given. `isWide` puts the team count at the right; on a phone the shortest version of the line
+ * carries it, so the name keeps the first line's width.
+ */
+export function OrgsList({ rows, isWide, showInvitations, onOpen, highlightOrgId, beforeDivisions }: {
+  rows: OrgRow[];
+  isWide: boolean;
+  showInvitations: boolean;
+  onOpen?: (orgId: string) => void;
+  highlightOrgId?: string;
+  /** Nothing can be entered yet, so the second line says so rather than counting nothing. */
+  beforeDivisions?: boolean;
+}) {
+  const isDark = useActiveTheme() === 'dark';
   return (
     <View>
       {rows.map((row, i) => {
-        const isYou = row.org.id === highlightOrgId;
-        return (
-          <View key={row.org.id} className={`flex-row items-center gap-2.5 py-2 ${i ? 'border-t border-line-soft' : ''}`}>
+        const entered = row.teams + row.players + row.toBeNamed;
+        const noContact = row.org.isClaimed === false && !row.isHost;
+        const tags = (
+          <>
+            {row.isHost ? <QuietTag label="Host" /> : showInvitations && row.invitation ? <InvitationBadge invitation={row.invitation} /> : null}
+            {row.org.id === highlightOrgId ? <QuietTag label="You" /> : null}
+            {noContact && showInvitations && isWide ? <QuietTag label="No contact yet" /> : null}
+          </>
+        );
+        const contact = noContact && showInvitations && !isWide ? ' · No contact yet' : '';
+        const second = beforeDivisions ? (
+          <Text className="font-inter text-xs text-ink-muted">{row.isHost ? 'Hosting' : 'Nothing to enter yet'}</Text>
+        ) : entered ? (
+          <FittedLine versions={enteredVersions(row).map(v => [...v, ...(contact ? [contact] : [])])} />
+        ) : (
+          <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>
+            <Text className="font-inter-semibold text-warning-ink">No teams yet</Text>{contact}
+          </Text>
+        );
+        const content = (
+          <>
             <FixtureCrest
               participant={{ id: row.org.id, orgId: row.org.id, orgLogo: row.org.logo, orgLogoConfig: row.org.logoConfig, orgPrimaryColor: row.org.primaryColor }}
               size={26}
             />
-            <Text className="flex-1 font-inter-semibold text-sm text-ink" numberOfLines={1}>{row.org.name}</Text>
-            {isYou ? (
-              <View className="rounded-full bg-sunken px-2 py-0.5"><Text className="font-inter-semibold text-[11px] text-ink-muted">You</Text></View>
+            <View className="flex-1 min-w-0 gap-0.5">
+              <View className="flex-row items-center gap-1.5 min-w-0">
+                <Text className="flex-shrink font-inter-semibold text-sm text-ink" numberOfLines={1}>{row.org.name}</Text>
+                {tags}
+              </View>
+              {second}
+            </View>
+            {isWide && !beforeDivisions && entered ? (
+              <Text className="font-inter text-xs text-ink-muted">{plural(row.teams + row.players, row.players && !row.teams ? 'player' : 'team')}</Text>
             ) : null}
-            {row.isHost ? (
-              <View className="rounded-full bg-sunken px-2 py-0.5"><Text className="font-inter-semibold text-[11px] text-ink-muted">Host</Text></View>
-            ) : null}
-            <Text className="font-inter text-xs text-ink-muted">{row.teams ? plural(row.teams, 'team') : row.isHost ? 'No teams yet' : 'Invited · no teams yet'}</Text>
-          </View>
+            {onOpen ? <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-muted')} /> : null}
+          </>
+        );
+        const rowClass = `flex-row items-center gap-2.5 py-2 ${i ? 'border-t border-line-soft' : ''}`;
+        return onOpen ? (
+          <TouchableOpacity key={row.org.id} onPress={() => onOpen(row.org.id)} accessibilityRole="button" accessibilityLabel={`${row.org.name}, open its teams`} className={rowClass}>
+            {content}
+          </TouchableOpacity>
+        ) : (
+          <View key={row.org.id} className={rowClass}>{content}</View>
         );
       })}
+    </View>
+  );
+}
+
+/** A competitor entered under nobody's organisation yet — *Winner of the regional qualifier*. */
+export function UnnamedList({ entrants, divisionName, onOpen }: {
+  entrants: TournamentEntrant[];
+  divisionName: (divisionId: string) => string;
+  onOpen?: (entrant: TournamentEntrant) => void;
+}) {
+  const isDark = useActiveTheme() === 'dark';
+  if (!entrants.length) return null;
+  return (
+    <View className="gap-0.5">
+      <Text className="font-inter-bold text-[11px] text-ink-muted uppercase tracking-wider mt-1">Still to be named</Text>
+      {entrants.map((e, i) => (
+        <TouchableOpacity
+          key={e.id}
+          disabled={!onOpen}
+          onPress={() => onOpen?.(e)}
+          accessibilityRole="link"
+          className={`flex-row items-center gap-2.5 py-2 ${i ? 'border-t border-line-soft' : ''}`}
+        >
+          <FixtureCrest placeholder size={26} />
+          <View className="flex-1 min-w-0">
+            <Text className="font-inter italic text-sm text-ink" numberOfLines={1}>{e.label || e.name || 'To be named'}</Text>
+            <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{divisionName(e.divisionId)} · named on the division page</Text>
+          </View>
+          {onOpen ? <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-muted')} /> : null}
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+/** Something that keeps a step from being done, with where to put it right. */
+export interface StepWarning {
+  text: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}
+
+/**
+ * What needs seeing to, as one badge — "⚠ 3 warnings" — that opens the list, one warning a line,
+ * each with where to fix it (agreed 2026-10-05: a paragraph of gaps did not fit a phone).
+ */
+export function WarningsBadge({ warnings, open, onToggle }: { warnings: StepWarning[]; open: boolean; onToggle: () => void }) {
+  const isDark = useActiveTheme() === 'dark';
+  if (!warnings.length) return null;
+  return (
+    <TouchableOpacity
+      onPress={onToggle}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      className="flex-row items-center gap-1.5 self-start rounded-full bg-warning-soft px-2.5 py-1"
+    >
+      <Ionicons name="warning-outline" size={13} color={themeColor(isDark, 'warning-ink')} />
+      <Text className="font-inter-bold text-xs text-warning-ink">{plural(warnings.length, 'warning')}</Text>
+      <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={12} color={themeColor(isDark, 'warning-ink')} />
+    </TouchableOpacity>
+  );
+}
+
+export function WarningsList({ warnings }: { warnings: StepWarning[] }) {
+  const isDark = useActiveTheme() === 'dark';
+  return (
+    <View className="rounded-xl bg-warning-soft px-3 py-1">
+      {warnings.map((w, i) => (
+        <View key={i} className={`flex-row items-start gap-2 py-2 ${i ? 'border-t border-warning/30' : ''}`}>
+          <Ionicons name="warning-outline" size={14} color={themeColor(isDark, 'warning-ink')} style={{ marginTop: 1 }} />
+          <Text className="flex-1 font-inter text-[13px] text-ink-soft">{w.text}</Text>
+          {w.actionLabel && w.onAction ? (
+            <TouchableOpacity onPress={w.onAction} accessibilityRole="button" hitSlop={6}>
+              <Text className="font-inter-bold text-[13px] text-primary-ink">{w.actionLabel} ›</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * Organisations added but not invited yet: the count and *Invite all* on one line, what that means
+ * on one quiet line under it.
+ */
+export function NotInvitedBox({ count, nobodyYet, onInviteAll }: { count: number; nobodyYet: boolean; onInviteAll: () => void }) {
+  if (!count) return null;
+  return (
+    <View className="rounded-xl border border-line px-3 py-2.5 gap-0.5">
+      <View className="flex-row items-center gap-2.5">
+        <Text className="flex-1 font-inter-bold text-sm text-ink">{nobodyYet ? 'Nobody invited yet' : `${count} not invited yet`}</Text>
+        <TouchableOpacity onPress={onInviteAll} accessibilityRole="button" className="rounded-xl bg-primary px-3 py-1.5">
+          <Text className="font-inter-bold text-[13px] text-on-primary">{count === 1 ? 'Invite' : `Invite all ${count}`}</Text>
+        </TouchableOpacity>
+      </View>
+      <Text className="font-inter text-xs text-ink-muted">{count === 1 ? 'It' : 'They'} can't see this tournament until invited.</Text>
     </View>
   );
 }

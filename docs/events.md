@@ -149,15 +149,16 @@ replaced the U48 checklist, whose rows each opened a step screen (closes `UI-11`
 |---|---|---|
 | 1 Where | The base site and the facilities it uses, as chips | *Where* dialog (site + `FacilityPicker`) |
 | 2 Sports & divisions | One sport at a time (below) | *Sports* dialog; a division's own page |
-| 3 Schools & teams | What is missing, then each school with its crest and teams | The entrants screen |
+| 3 Organisations & teams | Warnings, who is not invited yet, then each organisation with its invitation and teams (below) | *Add organisations*, and each organisation's own dialog |
 | 4 Rules & scoring | The points; *Confirm* while the default is unconfirmed | *Rules & scoring* dialog |
 | 5 Fixtures | Each division and whether it is drawn | Each division's schedule screen |
 
 - **Each step is in one of three states**, shown alike on its segment of the progress bar, its number
   and its pill: **Done** (green, a tick), **In progress** (amber — teams entered with gaps, scoring on
   the unconfirmed default, some divisions drawn) and **Not started** (grey). A dismissible step can
-  be marked **Not needed** (`settings.dismissedSetupSteps`), which counts as done. **Next** marks the
-  first unfinished step. Nothing is faded: a waiting step says so in words (design_system.md).
+  be marked **Not needed** (`settings.dismissedSetupSteps`), which counts as done. There is no
+  *Next* marker (dropped 2026-10-05): the steps are numbered, and the first unfinished one starts
+  open. Nothing is faded: a waiting step says so in words (design_system.md).
 - **Steps fold.** Finished and waiting steps start as one line with their summary ("Where · Main
   Campus · 5 facilities"); the next step starts open. Any heading opens or closes its step; *Open
   all / Close all*. What is open is remembered on the device per tournament.
@@ -175,10 +176,44 @@ and where it has got to) — a single division too, beside the ＋ Add a … div
 division creates one with an automatic name and opens its page, as the Sports & Divisions screen did;
 the sport's ⋯ links to that screen for its organisers, and removes a sport that has no divisions.
 
+**Organisations & teams** (`FIX-26`, agreed 2026-10-05 on `mockups/organisations-teams.html`, option
+C of three; built in [OrganisationDialogs.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/OrganisationDialogs.tsx)).
+Say *organisations*, never *schools*: clubs take part too.
+
+- **Adding is not inviting.** An organisation is **added** — so the organiser can enter its teams and
+  build the tournament — and **invited** when the organiser is ready; until then it cannot see the
+  tournament at all (`FIX-29`, okf/database.md). Each has a status, shown as a badge: *Not invited
+  yet* (the warning colour), *Invited*, *Accepted*, *Declined*. Inviting only grants visibility for
+  now; telling the organisation is the communication work.
+- **The step**: a **⚠ N warnings** badge that opens one warning a line, each linking to its fix (a
+  division with fewer than two teams, an organisation with no teams, one that has not answered, one
+  that declined); a box for those **not invited yet** — "2 not invited yet" and *Invite all 2* on one
+  line, "They can't see this tournament until invited" under it; then one row per organisation —
+  crest, name, badge, and what it has entered on **one line** that steps down until it fits: every
+  sport with its divisions → each sport with its count → "x sports · y teams". Places belonging to
+  nobody (*Winner of the regional qualifier*) are listed under *Still to be named*. The action is
+  **＋ Add organisation**, in the heading on a wide screen and on the warnings' line on a phone.
+- **Add organisations**: a search with ticks, *Register* for one not found, and two buttons — *Add*
+  is the main one until any invitation has gone out, *Add and invite* after. *Taken part before* was
+  dropped for now.
+- **An organisation's dialog** (tap its row): the invitation — badge with its date under it, and the
+  answer as a dropdown (*No answer yet / Accepted / Declined*) for the tournament's organisers, plain
+  text for anyone else; *Invite* while not invited. The answer and *Invite* write at once. Then every
+  division, grouped by sport, with its teams as tick chips; **＋ on every division** for another of
+  its teams (playing up), a new team (only where this user may create one — an unclaimed organisation,
+  or one they run), or a place to be filled later; *＋ Add player* in an individual sport. **Save**
+  writes the divisions that changed; unticking a team that has played withdraws it and says so.
+  *Remove from the tournament* confirms, and is refused once any of its teams has played.
+- **Done** when every organisation has accepted and has at least one entry, none that declined is
+  left, and every playing division has two or more entrants — a place to be named counts.
+- Entering **by division**, and Replace / Withdraw / Remove, belong to the division page (`FIX-27`);
+  a convenor enters teams there.
+
 **The Overview** — once set up, and for anyone who cannot edit: the banner (on the day, "Day 2 of 2 ·
 5 live"), **Live now** while games are being played, Sports & divisions (each tile saying where the
-division has got to), Schools, Where with the map, Rules & scoring, and Organisers for an organiser
-when there are any. A guest school sees its own school first. These outside views are accepted for
+division has got to), Organisations, Where with the map, Rules & scoring, and Organisers for an
+organiser when there are any. Invitation badges are an organiser's; anyone else sees who is taking
+part, without declined organisations. A guest organisation sees its own first. These outside views are accepted for
 now and are to be designed properly (`FIX-24`, `FIX-25`).
 
 **The ⋯ menu**: Organisers (appointed in a dialog — most tournaments have none, so no empty card),

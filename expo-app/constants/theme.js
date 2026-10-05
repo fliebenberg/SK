@@ -156,7 +156,7 @@ const tokens = {
 
   /** Refused, failed, lost, destructive. */
   danger: { light: '#DC2626', dark: '#FF003C' },
-  'danger-ink': { light: '#991B1B', dark: '#FCA5A5' },
+  'danger-ink': { light: '#991B1B', dark: '#F87171' }, // Dark: a true red; #FCA5A5 read as pink (2026-10-05).
   'danger-soft': { light: '#FEF2F2', dark: darkSoft('#FF003C') },
   'danger-line': { light: '#FECACA', dark: darkLine('#FF003C') },
 

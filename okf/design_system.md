@@ -177,12 +177,15 @@ becomes the public Overview once the setup is done.
 20. **Work done in steps shows each step's state in one consistent way** (the tournament's *Setting
     up* tab, 2026-10-04). Three states — **Done** (green, a tick), **In progress** (amber), **Not
     started** (grey) — shown alike on the step's segment of a progress bar (one segment per step,
-    with gaps, never one bar filling up), on its number and on its status pill; **Next** is a
-    separate marker on the first unfinished step. A step that is used but unconfirmed — scoring on
-    its default — is *In progress*, not *Not started*.
+    with gaps, never one bar filling up), on its number and on its status pill. **No *Next*
+    marker** (dropped 2026-10-05): numbered steps already give the order, and the first unfinished
+    one starts open. A step that is used but unconfirmed — scoring on its default — is *In
+    progress*, not *Not started*. What keeps a step from being done is **one warnings badge**
+    ("⚠ 3 warnings") that opens a list, one warning a line, each linking to its fix — never a
+    paragraph of gaps, which does not fit a phone.
 21. **A page of many cards may fold them to one line each**, keeping the line's summary ("Where ·
     Main Campus · 5 facilities") so what was decided stays visible. Open the card the reader came
-    for (the Next step), fold the rest; a heading opens or closes its own card, several may be open,
+    for (the first unfinished step), fold the rest; a heading opens or closes its own card, several may be open,
     *Open all / Close all* sits above them, and what is open is remembered on the device. A folded
     card's Edit appears only when it is open, so a tap on the line never starts an edit.
 22. **A choice with more options than fit on one line scrolls sideways, never wraps** — arrows on a

@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
+  CandidateTeam,
   DEFAULT_SCORING_SYSTEM,
   Event,
+  EventOrgBadge,
   Facility,
   GameSummary,
   Organization,
@@ -23,8 +25,18 @@ import { facilityMarkers } from '../address/facilityMarker';
 import { FacilityIcon, addressText } from '../sites/SiteBits';
 import { FixtureSideFitted, RowTag, TournamentMark, fixtureSideNames, sideScores } from '../events/EventBits';
 import { useShowFieldHelp } from '../FieldLabel';
-import { DivisionState, SchoolRow, SchoolsList, SportsDivisions, StepNumber, StepPills, StepProgressBar, StepState, isFinished } from './TournamentBits';
+import {
+  DivisionState, NotInvitedBox, OrgRow, OrgsList, SportsDivisions, StepNumber, StepPills, StepProgressBar, StepState, StepWarning,
+  UnnamedList, WarningsBadge, WarningsList, isFinished,
+} from './TournamentBits';
 import { EditTournamentDialog, ScoringDialog, SportsDialog, WhereDialog } from './TournamentDialogs';
+import { AddOrganisationsDialog, InviteOrganisationsDialog, OrganisationDialog, RemoveOrganisationDialog, useCanWriteInto } from './OrganisationDialogs';
+import { RegisterOrgModal } from '../RegisterOrgModal';
+import { NominateAdminModal } from '../NominateAdminModal';
+import { useOrgClaimStatus } from '../../hooks/useOrgClaimStatus';
+import { nominateOrgContact } from '../../services/nominations';
+import { wsService } from '../../services/websocket';
+import { useWsStore } from '../../store/wsStore';
 import { sendAction } from '../../services/actions';
 import { useActiveTheme, useSettingsStore } from '../../store/settingsStore';
 import { calendarRangeStatus, dateCountdown, eventDayOfRange, formatDateRange } from '../../utils/dates';
@@ -75,9 +87,21 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
     const playing = divisions.filter(d => !!d.sportId);
     const active = (d: TournamentDivision) => (entrantsByDivision.get(d.id) || []).filter(e => e.status !== 'withdrawn');
     const entered = entrants.filter(e => e.status !== 'withdrawn');
-    // The host can be among `participatingOrgs`; it is not one of the schools invited.
-    const invited = (event.participatingOrgs || []).filter(o => o.id !== event.orgId);
     const thin = playing.filter(d => active(d).length < 2);
+    // The host takes part by hosting; every other organisation has an invitation (`FIX-29`).
+    const others = (event.participatingOrgs || []).filter(o => o.id !== event.orgId);
+    const teamsOf = (id: string) => entered.filter(e => e.orgId === id).length;
+    const notInvited = others.filter(o => o.invitation === 'not_invited');
+    const unanswered = others.filter(o => o.invitation === 'invited');
+    const declined = others.filter(o => o.invitation === 'declined');
+    const empty = others.filter(o => o.invitation !== 'declined' && !teamsOf(o.id));
+    const warnings = thin.length + empty.length + unanswered.length + declined.length;
+    /*
+     * Done (agreed 2026-10-05, `FIX-26`): every organisation has accepted and entered something,
+     * none that declined is left, and every playing division has two or more entrants — a place
+     * still to be named counts, since it is drawn like any team.
+     */
+    const entrantsDone = playing.length > 0 && entered.length > 0 && !thin.length && !notInvited.length && !unanswered.length && !declined.length && !empty.length;
     const drawn = playing.filter(d => games.some(g => g.divisionId === d.id));
     const changed = playing.filter(d => drawChanges(d.firstStageId, games.filter(g => g.divisionId === d.id), active(d)).count > 0);
     const scoring = event.settings?.scoring;
@@ -97,11 +121,18 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
         summary: sportIds.length ? `${sportIds.map(sportName).filter(Boolean).join(', ')} · ${plural(divisions.length, 'division')}` : 'No sports yet',
       },
       {
-        key: 'entrants', title: 'Schools & teams', dismissible: true,
-        state: !entered.length ? (invited.length ? 'part' : 'none') : thin.length ? 'part' : 'done',
+        key: 'entrants', title: 'Organisations & teams', dismissible: true,
+        state: !playing.length ? 'none' : entrantsDone ? 'done' : entered.length || others.length ? 'part' : 'none',
         summary: !playing.length
-          ? invited.length ? `${plural(invited.length, 'school')} invited · teams once there are divisions` : 'Starts once there are divisions'
-          : `${plural(invited.length + 1, 'school')} · ${plural(entered.length, 'team')} entered`,
+          ? others.length
+            ? `${plural(others.length, 'organisation')} added · ${notInvited.length === others.length ? 'nobody invited yet' : `${others.length - notInvited.length} invited`}`
+            : 'Starts once there are divisions'
+          : [
+              plural(others.length + 1, 'organisation'),
+              plural(entered.length, 'team'),
+              notInvited.length ? `${notInvited.length} not invited` : '',
+              warnings ? `⚠ ${warnings}` : '',
+            ].filter(Boolean).join(' · '),
       },
       {
         key: 'scoring', title: 'Rules & scoring', dismissible: true,
@@ -123,6 +154,12 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
     const nextIndex = steps.findIndex(s => !isFinished(s.state));
     return { steps, complete: nextIndex === -1, nextIndex };
   }, [event, divisions, games, entrants, entrantsByDivision, facilityIds, sports, sites]);
+}
+
+/** Nominating a contact for an organisation nobody manages, with its claim status read for the dialog. */
+function NominateFor({ org, onClose }: { org: { id: string; name: string }; onClose: () => void }) {
+  const { status } = useOrgClaimStatus(org.id, true);
+  return <NominateAdminModal visible org={org} status={status} onClose={onClose} onNominated={onClose} />;
 }
 
 export function TournamentHome({
@@ -220,28 +257,110 @@ export function TournamentHome({
     );
   };
 
-  const schoolRows: SchoolRow[] = useMemo(() => {
-    const teamsOf = (id: string) => Array.from(entrantsByDivision.values()).flat().filter(e => e.status !== 'withdrawn' && e.orgId === id).length;
-    const rows: SchoolRow[] = [];
-    if (hostOrg) rows.push({ org: { id: hostOrg.id, name: hostOrg.name, logo: hostOrg.logo, logoConfig: (hostOrg.settings as any)?.logoConfig, primaryColor: hostOrg.primaryColor }, teams: teamsOf(hostOrg.id), isHost: true });
-    for (const org of event.participatingOrgs || []) {
-      if (org.id === hostOrg?.id) continue;
-      rows.push({ org, teams: teamsOf(org.id), isHost: false });
+  /* --------------------------------------------------------- organisations & teams (FIX-26) --- */
+  const allEntrants = useMemo(() => Array.from(entrantsByDivision.values()).flat(), [entrantsByDivision]);
+  const activeEntrants = allEntrants.filter(e => e.status !== 'withdrawn');
+  const takingPart = event.participatingOrgs || [];
+  const divisionName = (id: string) => {
+    const d = divisions.find(x => x.id === id);
+    return d ? `${sportName(d.sportId)} ${d.name}` : '';
+  };
+
+  const orgRows: OrgRow[] = useMemo(() => {
+    const sportOrder = event.sportIds || [];
+    const rowFor = (org: OrgRow['org'], isHost: boolean, invitation?: OrgRow['invitation']): OrgRow => {
+      const mine = activeEntrants.filter(e => e.orgId === org.id);
+      const bySport: Array<[string, string[]]> = [];
+      for (const sportId of sportOrder) {
+        const names = mine
+          .map(e => divisions.find(d => d.id === e.divisionId))
+          .filter((d): d is TournamentDivision => !!d && d.sportId === sportId)
+          .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+          .map(d => d.name);
+        if (names.length) bySport.push([sportName(sportId), names]);
+      }
+      return {
+        org, isHost, invitation, bySport,
+        teams: mine.filter(e => e.teamId).length,
+        players: mine.filter(e => e.orgProfileId).length,
+        toBeNamed: mine.filter(e => !e.teamId && !e.orgProfileId).length,
+      };
+    };
+    const rows: OrgRow[] = [];
+    if (hostOrg) rows.push(rowFor({ id: hostOrg.id, name: hostOrg.name, logo: hostOrg.logo, logoConfig: (hostOrg.settings as any)?.logoConfig, primaryColor: hostOrg.primaryColor }, true));
+    for (const org of takingPart) {
+      if (org.id === event.orgId) continue;
+      rows.push(rowFor(org, false, org.invitation));
     }
-    // The viewer's own school first, after the host, when they are a guest.
+    // The viewer's own organisation first, after the host, when they are a guest.
     const mine = rows.filter(r => !r.isHost && viewerOrgIds.includes(r.org.id));
     return [...rows.filter(r => r.isHost), ...mine, ...rows.filter(r => !r.isHost && !viewerOrgIds.includes(r.org.id))];
-  }, [hostOrg, event.participatingOrgs, entrantsByDivision, viewerOrgIds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostOrg, takingPart, allEntrants, divisions, sports, viewerOrgIds, event.orgId, event.sportIds]);
 
-  const gapsLine = (() => {
-    const thin = divisions.filter(d => d.sportId && active(d).length < 2);
-    const noTeams = schoolRows.filter(r => !r.isHost && !r.teams);
-    const parts = [
-      thin.length === 1 ? `${sportName(thin[0].sportId)} ${thin[0].name} has ${active(thin[0]).length ? 'only one team' : 'no teams'}` : thin.length ? `${thin.length} divisions need more teams` : '',
-      noTeams.length === 1 ? `${noTeams[0].org.name} has not entered any yet` : noTeams.length ? `${noTeams.length} invited schools have not entered any yet` : '',
-    ].filter(Boolean);
-    return parts.length ? `${parts.join(', and ')}.` : null;
+  /** Competitors that belong to nobody yet — *Winner of the regional qualifier*. */
+  const unnamed = activeEntrants.filter(e => !e.orgId && !e.teamId && !e.orgProfileId);
+  const notInvited = takingPart.filter(o => o.id !== event.orgId && o.invitation === 'not_invited');
+  const nobodyInvited = takingPart.every(o => o.id === event.orgId || o.invitation === 'not_invited');
+
+  type OrgDialog =
+    | null
+    | { kind: 'add' }
+    | { kind: 'inviteAll' }
+    | { kind: 'org'; orgId: string }
+    | { kind: 'remove'; orgId: string }
+    | { kind: 'register'; name: string }
+    | { kind: 'nominate'; orgId: string };
+  const [orgDialog, setOrgDialog] = useState<OrgDialog>(null);
+  const closeOrgDialog = () => setOrgDialog(null);
+  const badgeFor = (id: string) => takingPart.find(o => o.id === id) || null;
+  // The host may have been taken off the list (it can run a tournament it does not play in), but it
+  // still opens: its dialog is where its teams are entered again.
+  const hostBadge: EventOrgBadge | null = hostOrg
+    ? badgeFor(hostOrg.id) || { id: hostOrg.id, name: hostOrg.name, shortName: hostOrg.shortName || hostOrg.name, logo: hostOrg.logo, logoConfig: (hostOrg.settings as any)?.logoConfig, primaryColor: hostOrg.primaryColor, isClaimed: true, invitation: 'accepted' }
+    : null;
+  const openOrg = (id: string) => setOrgDialog({ kind: 'org', orgId: id });
+  const dialogOrg = orgDialog && 'orgId' in orgDialog ? (orgDialog.orgId === event.orgId ? hostBadge : badgeFor(orgDialog.orgId)) : null;
+  const canWriteInto = useCanWriteInto();
+  const viewerRuns = (id: string) => canWriteInto({ id, isClaimed: true }, orgId);
+
+  // The teams that could be entered: a one-shot read, as no room owns "teams that could enter"
+  // (`FIX-2`). Read for an organiser, again whenever the organisations taking part change.
+  const isConnected = useWsStore((state: any) => state.isConnected);
+  const [candidateTeams, setCandidateTeams] = useState<CandidateTeam[]>([]);
+  const takingPartKey = takingPart.map(o => o.id).join(',');
+  useEffect(() => {
+    if (!isConnected || !canEdit) return;
+    let live = true;
+    wsService.emit('get_data', { type: 'event_candidate_teams', eventId }, (res: any) => {
+      if (live && res) setCandidateTeams(res.teams || []);
+    });
+    return () => { live = false; };
+  }, [isConnected, canEdit, eventId, takingPartKey]);
+
+  /** What keeps step 3 from being done, one line each, with where to put it right. */
+  const warnings: StepWarning[] = (() => {
+    if (!setupMode) return [];
+    const list: StepWarning[] = [];
+    for (const d of divisions.filter(x => x.sportId && active(x).length < 2)) {
+      list.push({
+        text: `${sportName(d.sportId)} ${d.name} has ${active(d).length ? 'only one team' : 'no teams'}.`,
+        actionLabel: 'Division',
+        onAction: () => router.push(`/admin/${orgId}/events/${eventId}/divisions/${d.id}`),
+      });
+    }
+    for (const row of orgRows.filter(r => !r.isHost)) {
+      const entered = row.teams + row.players + row.toBeNamed;
+      if (row.invitation === 'declined') {
+        list.push({ text: `${row.org.name} declined. Remove it${entered ? `, with its ${plural(entered, 'team')}` : ''}.`, actionLabel: 'Review', onAction: () => openOrg(row.org.id) });
+      } else {
+        if (!entered) list.push({ text: `${row.org.name} has no teams yet.`, actionLabel: 'Enter teams', onAction: () => openOrg(row.org.id) });
+        if (row.invitation === 'invited') list.push({ text: `${row.org.name} has not answered its invitation.`, actionLabel: 'Record answer', onAction: () => openOrg(row.org.id) });
+      }
+    }
+    return list;
   })();
+  const [warningsOpen, setWarningsOpen] = useState(false);
 
   /* ------------------------------------------------------------------------------ pieces --- */
   const edit = (onPress: () => void, label = 'Edit') => (
@@ -255,6 +374,8 @@ export function TournamentHome({
       <Text className="font-inter-bold text-[13px] text-primary-ink">{label}</Text>
     </TouchableOpacity>
   );
+  /** "＋ Add organisation" — one action, since the dialog offers both Add and Add and invite. */
+  const addOrgAction = edit(() => setOrgDialog({ kind: 'add' }), '＋ Add organisation');
   const scoring = event.settings?.scoring;
   const points = scoring?.mode === 'byResult' ? scoring : DEFAULT_SCORING_SYSTEM.mode === 'byResult' ? DEFAULT_SCORING_SYSTEM : null;
   const confirmScoring = () =>
@@ -395,15 +516,33 @@ export function TournamentHome({
         return (event.sportIds || []).length
           ? sportsBlock('setup')
           : <View className="gap-1"><Text className="font-inter text-[13px] text-ink-muted">Choose the sports being played — each gets its first division straight away.</Text>{link('＋ Add a sport', () => setDialog('sports'))}</View>;
-      case 'entrants':
+      case 'entrants': {
+        const beforeDivisions = !divisions.some(d => d.sportId);
         return (
-          <View className="gap-2">
-            {gapsLine ? <Text className="font-inter text-[13px] text-ink-muted">{gapsLine}</Text> : null}
-            {!divisions.length ? <Text className="font-inter text-[13px] text-ink-muted">Teams are entered into divisions, so this starts once there are some. Schools can be invited now.</Text> : null}
-            <SchoolsList rows={schoolRows} />
-            {link('Enter teams ›', () => router.push(`/admin/${orgId}/events/${eventId}/entrants`))}
+          <View className="gap-2.5">
+            {beforeDivisions ? (
+              <Text className="font-inter text-[13px] text-ink-muted">Teams are entered into divisions, so entering starts once there are some. Organisations can be added and invited now.</Text>
+            ) : null}
+            {/* On a phone the heading has no room for the step's action, so it joins the warnings' line. */}
+            {warnings.length || !isWide ? (
+              <View className="flex-row items-center gap-2.5">
+                <WarningsBadge warnings={warnings} open={warningsOpen} onToggle={() => setWarningsOpen(o => !o)} />
+                <View className="flex-1" />
+                {!isWide ? addOrgAction : null}
+              </View>
+            ) : null}
+            {warningsOpen && warnings.length ? <WarningsList warnings={warnings} /> : null}
+            <NotInvitedBox count={notInvited.length} nobodyYet={nobodyInvited} onInviteAll={() => setOrgDialog({ kind: 'inviteAll' })} />
+            <View>
+              <OrgsList rows={orgRows} isWide={isWide} showInvitations onOpen={openOrg} beforeDivisions={beforeDivisions} />
+              <UnnamedList entrants={unnamed} divisionName={divisionName} onOpen={e => router.push(`/admin/${orgId}/events/${eventId}/divisions/${e.divisionId}`)} />
+            </View>
+            {!beforeDivisions ? (
+              <Text className="font-inter text-xs text-ink-muted">Tap an organisation to enter its teams or change its invitation. To enter teams one division at a time, open the division in step 2.</Text>
+            ) : null}
           </View>
         );
+      }
       case 'scoring':
         return (
           <View className="gap-2.5">
@@ -440,7 +579,7 @@ export function TournamentHome({
   const stepRight = (step: TournamentStep): React.ReactNode => {
     if (step.key === 'basics') return edit(() => setDialog('where'));
     if (step.key === 'scoring') return edit(() => setDialog('scoring'));
-    if (step.key === 'entrants') return edit(() => router.push(`/admin/${orgId}/events/${eventId}/entrants`), '＋ Invite');
+    if (step.key === 'entrants') return isWide ? addOrgAction : null;
     return null;
   };
 
@@ -464,7 +603,7 @@ export function TournamentHome({
               <TouchableOpacity onPress={() => toggle(i)} accessibilityRole="button" accessibilityState={{ expanded: isOpen }} accessibilityLabel={`${i + 1}. ${step.title}, ${step.summary}`} className="flex-1 min-w-0 flex-row items-center gap-2.5">
                 <StepNumber index={i} state={step.state} />
                 <Text className="font-inter-bold text-[15px] text-ink">{step.title}</Text>
-                <StepPills state={step.state} isNext={i === nextIndex} />
+                <StepPills state={step.state} />
                 {!isOpen && isWide ? <Text className="flex-1 font-inter text-[13px] text-ink-muted ml-1" numberOfLines={1}>{step.summary}</Text> : null}
               </TouchableOpacity>
               {isOpen ? stepRight(step) : null}
@@ -519,7 +658,17 @@ export function TournamentHome({
   ), undefined, liveGames.length) : null;
 
   const sportsCard = (event.sportIds || []).length ? card('Sports & divisions', sportsBlock('public'), undefined, divisions.length) : null;
-  const schoolsCard = schoolRows.length ? card('Schools', <SchoolsList rows={schoolRows} />, canEdit ? edit(() => router.push(`/admin/${orgId}/events/${eventId}/entrants`)) : undefined, schoolRows.length) : null;
+  // Invitations are an organiser's business; anyone else sees who is taking part.
+  const highlight = canEdit ? undefined : orgRows.find(r => !r.isHost && viewerOrgIds.includes(r.org.id))?.org.id;
+  const schoolsCard = orgRows.length ? card(
+    'Organisations',
+    <View>
+      <OrgsList rows={canEdit ? orgRows : orgRows.filter(r => r.isHost || r.invitation !== 'declined')} isWide={isWide} showInvitations={canEdit} onOpen={canEdit ? openOrg : undefined} highlightOrgId={highlight} />
+      <UnnamedList entrants={unnamed} divisionName={divisionName} />
+    </View>,
+    canEdit ? addOrgAction : undefined,
+    orgRows.length,
+  ) : null;
   const whereCard = site || usedFacilities.length ? card('Where', whereBody(true), canEdit ? edit(() => setDialog('where')) : undefined) : null;
   const rulesCard = card('Rules & scoring', pointsTiles, canEdit ? edit(() => setDialog('scoring')) : undefined);
   const organizersCard = canEdit && organizers.length ? card('Organisers', (
@@ -561,6 +710,65 @@ export function TournamentHome({
           <WhereDialog visible={dialog === 'where'} event={event} orgId={orgId} sites={sites} facilities={facilities} facilityIds={facilityIds} onClose={close} />
           <ScoringDialog visible={dialog === 'scoring'} event={event} orgId={orgId} onClose={close} />
           <SportsDialog visible={dialog === 'sports'} event={event} orgId={orgId} sports={sports} divisionCount={id => divisions.filter(d => d.sportId === id).length} onClose={close} />
+
+          {/* Organisations & teams — one dialog at a time, each handing on to the next. */}
+          <AddOrganisationsDialog
+            visible={orgDialog?.kind === 'add'}
+            event={event}
+            orgId={orgId}
+            onClose={closeOrgDialog}
+            onRegister={name => setOrgDialog({ kind: 'register', name })}
+          />
+          <InviteOrganisationsDialog
+            visible={orgDialog?.kind === 'inviteAll'}
+            event={event}
+            orgId={orgId}
+            onClose={closeOrgDialog}
+            onNominate={org => setOrgDialog({ kind: 'nominate', orgId: org.id })}
+          />
+          <OrganisationDialog
+            visible={orgDialog?.kind === 'org' && !!dialogOrg}
+            event={event}
+            orgId={orgId}
+            org={orgDialog?.kind === 'org' ? dialogOrg : null}
+            isHost={dialogOrg?.id === event.orgId}
+            canAnswer={canEdit}
+            sports={sports}
+            divisions={divisions}
+            entrants={allEntrants}
+            candidateTeams={candidateTeams}
+            onClose={closeOrgDialog}
+            onRemove={org => setOrgDialog({ kind: 'remove', orgId: org.id })}
+            onNominate={org => setOrgDialog({ kind: 'nominate', orgId: org.id })}
+            onTeamCreated={team => setCandidateTeams(prev => [...prev, {
+              id: team.id, name: team.name, shortName: team.shortName, orgId: team.orgId,
+              orgName: dialogOrg?.name || '', orgShortName: dialogOrg?.shortName || '',
+              sportId: team.sportId, ageGroupId: team.ageGroupId ?? null, ageGroup: team.ageGroup,
+            }])}
+          />
+          <RemoveOrganisationDialog
+            visible={orgDialog?.kind === 'remove'}
+            event={event}
+            orgId={orgId}
+            org={orgDialog?.kind === 'remove' ? dialogOrg : null}
+            entrants={allEntrants}
+            onClose={closeOrgDialog}
+          />
+          {/* A school the search did not find: registered, then added — invited too once invitations have started. */}
+          <RegisterOrgModal
+            isOpen={orgDialog?.kind === 'register'}
+            onClose={closeOrgDialog}
+            initialName={orgDialog?.kind === 'register' ? orgDialog.name : ''}
+            sportId={(event.sportIds || []).length === 1 ? event.sportIds![0] : undefined}
+            onRegistered={async (org, contactEmail) => {
+              const result = await sendAction(SocketAction.ADD_EVENT_ORGS, { eventId, orgId, participantOrgIds: [org.id], invite: !nobodyInvited });
+              if (result.ok && contactEmail) void nominateOrgContact(org.id, contactEmail);
+              closeOrgDialog();
+            }}
+          />
+          {orgDialog?.kind === 'nominate' && dialogOrg ? (
+            <NominateFor org={dialogOrg} onClose={closeOrgDialog} />
+          ) : null}
         </>
       ) : null}
     </View>
