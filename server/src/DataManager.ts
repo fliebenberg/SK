@@ -138,6 +138,10 @@ export class DataManager {
   getEvent = (id: string) => eventManager.getEvent(id);
   addEvent = (event: AddEventPayload) => eventManager.addEvent(event);
   updateEvent = (id: string, data: Partial<Event>) => eventManager.updateEvent(id, data);
+  addEventOrgs = (eventId: string, orgIds: string[], invite: boolean) => eventManager.addEventOrgs(eventId, orgIds, invite);
+  inviteEventOrgs = (eventId: string, orgIds: string[]) => eventManager.inviteEventOrgs(eventId, orgIds);
+  setEventOrgAnswer = (eventId: string, orgId: string, answer: 'invited' | 'accepted' | 'declined') =>
+    eventManager.setEventOrgAnswer(eventId, orgId, answer);
   deleteEvent = (id: string) => eventManager.deleteEvent(id);
 
   // Games

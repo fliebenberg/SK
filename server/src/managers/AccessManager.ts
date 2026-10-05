@@ -122,11 +122,18 @@ export class AccessManager extends BaseManager {
    */
   async getGameOrgIds(gameId: string): Promise<string[]> {
     const res = await this.query(`
-      SELECT e.org_id AS "orgId" FROM games g JOIN events e ON g.event_id = e.id WHERE g.id = $1
-      UNION
-      SELECT eo.org_id FROM games g JOIN event_organizations eo ON eo.event_id = g.event_id WHERE g.id = $1
-      UNION
-      SELECT t.org_id FROM game_participants gp JOIN teams t ON t.id = gp.team_id WHERE gp.game_id = $1
+      SELECT x."orgId" FROM (
+        SELECT e.org_id AS "orgId" FROM games g JOIN events e ON g.event_id = e.id WHERE g.id = $1
+        UNION
+        SELECT eo.org_id FROM games g JOIN event_organizations eo ON eo.event_id = g.event_id WHERE g.id = $1
+        UNION
+        SELECT t.org_id FROM game_participants gp JOIN teams t ON t.id = gp.team_id WHERE gp.game_id = $1
+      ) x
+      -- FIX-29: an organisation added but not invited yet has no stake it can see, by any route.
+      WHERE NOT EXISTS (
+        SELECT 1 FROM games g JOIN event_organizations nx ON nx.event_id = g.event_id
+         WHERE g.id = $1 AND nx.org_id = x."orgId" AND nx.invitation = 'not_invited'
+      )
     `, [gameId]);
     return res.rows.map((r: any) => r.orgId).filter(Boolean);
   }
@@ -141,15 +148,22 @@ export class AccessManager extends BaseManager {
    */
   async getDivisionOrgIds(divisionId: string): Promise<string[]> {
     const res = await this.query(`
-      SELECT e.org_id AS "orgId"
-        FROM tournament_divisions d JOIN events e ON e.id = d.event_id
-       WHERE d.id = $1
-      UNION
-      SELECT eo.org_id
-        FROM tournament_divisions d JOIN event_organizations eo ON eo.event_id = d.event_id
-       WHERE d.id = $1
-      UNION
-      SELECT de.org_id FROM division_entrants de WHERE de.division_id = $1
+      SELECT x."orgId" FROM (
+        SELECT e.org_id AS "orgId"
+          FROM tournament_divisions d JOIN events e ON e.id = d.event_id
+         WHERE d.id = $1
+        UNION
+        SELECT eo.org_id
+          FROM tournament_divisions d JOIN event_organizations eo ON eo.event_id = d.event_id
+         WHERE d.id = $1
+        UNION
+        SELECT de.org_id FROM division_entrants de WHERE de.division_id = $1
+      ) x
+      -- FIX-29: an organisation added but not invited yet cannot see the roster its teams are in.
+      WHERE NOT EXISTS (
+        SELECT 1 FROM tournament_divisions d JOIN event_organizations nx ON nx.event_id = d.event_id
+         WHERE d.id = $1 AND nx.org_id = x."orgId" AND nx.invitation = 'not_invited'
+      )
     `, [divisionId]);
     return res.rows.map((r: any) => r.orgId).filter(Boolean);
   }
@@ -598,7 +612,8 @@ export class AccessManager extends BaseManager {
     const res = await this.query(`
       SELECT org_id AS "orgId" FROM events WHERE id = $1
       UNION
-      SELECT org_id FROM event_organizations WHERE event_id = $1
+      -- FIX-29: not one that has only been added — it cannot see the event yet.
+      SELECT org_id FROM event_organizations WHERE event_id = $1 AND invitation <> 'not_invited'
     `, [eventId]);
     return res.rows.map((r: any) => r.orgId).filter(Boolean);
   }

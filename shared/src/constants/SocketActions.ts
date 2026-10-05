@@ -586,6 +586,29 @@ export enum SocketAction {
      */
     SET_DIVISION_FACILITIES = 'SET_DIVISION_FACILITIES',
 
+    // --- Events: the organisations taking part, and their invitations (FIX-29) ---
+    /**
+     * Add organisations to an event, invited or not yet.
+     * Expects payload: `{ eventId, orgId, participantOrgIds, invite }`
+     */
+    ADD_EVENT_ORGS = 'ADD_EVENT_ORGS',
+    /**
+     * Invite organisations already added. Ones already invited are left as they are.
+     * Expects payload: `{ eventId, orgId, participantOrgIds }`
+     */
+    INVITE_EVENT_ORGS = 'INVITE_EVENT_ORGS',
+    /**
+     * Record an invited organisation's answer, or clear it back to "no answer yet". The event's
+     * organisers for any organisation; an organisation's own admins and staff for their own.
+     * Expects payload: `{ eventId, orgId, participantOrgId, answer }`
+     */
+    SET_EVENT_ORG_ANSWER = 'SET_EVENT_ORG_ANSWER',
+    /**
+     * Take an organisation out of an event, with its entrants. Refused once its teams have played.
+     * Expects payload: `{ eventId, orgId, participantOrgId }`
+     */
+    REMOVE_EVENT_ORG = 'REMOVE_EVENT_ORG',
+
     // --- Tournaments: organiser assignments (D33) ---
     //
     // One mechanism, two scopes: naming `eventId` appoints an organiser of the whole tournament,

@@ -62,6 +62,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20261003_address_building.ts`: Adds `addresses.building`, an optional unit or building line above the street (`VENUE-2`). `address_line_1` is the street and `address_line_2` the suburb, so a unit in a complex had nowhere to go but over one of them.
     - `20261003_org_secondary_color_default.ts`: New orgs start in the app's two colours: `secondary_color` defaults to `#00E5FF`, and orgs still in the default orange with no secondary (those that never had colours) get it back, as they were shown before the previous migration. An admin may still clear the secondary; it is then painted as the primary.
     - `20261004_drop_facility_address_id.ts`: Drops `facilities.address_id`, which nothing read or wrote (`VENUE-5`): a facility's address is its site's. No row had a value.
+    - `20261005_event_org_invitations.ts`: Adds `event_organizations.invitation` (`not_invited`, `invited`, `accepted`, `declined`; default `accepted`), `invited_at` and `answered_at` (`FIX-29`). An organisation can be added to an event, so its teams can be entered, before it is invited; until then it cannot see the event. Every existing row became `accepted`.
 
 ## The tournaments schema
 
@@ -202,10 +203,33 @@ Two consequences worth knowing. The single-match screens
 ([events/create](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/create.tsx) and
 [games/[gameId]/edit](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/games/%5BgameId%5D/edit.tsx))
 used to filter the acting organisation out of `participatingOrgIds` on the same assumption, and
-`UPDATE_EVENT` replaces the whole set — so they would have silently removed the host from its own
+`UPDATE_EVENT` takes the whole set — so they would have silently removed the host from its own
 match. Both now send both sides. And `syncPlayingOrgs` still excludes the host when adding
 organisations whose teams appear in a fixture; harmless, because the host now has its row from
 creation, but it means a host removed by hand is not re-added by playing.
+
+**Taking part is not the same as seeing it (`FIX-29`, 2026-10-05).** Each row has an `invitation`:
+`not_invited`, `invited`, `accepted` or `declined`. An organisation can be **added** — so the
+organiser can enter its teams and build the tournament — before it is **invited**, and until then
+it must not see the event by **any** route: not its row, and not its teams being entered or drawn
+into fixtures. Every "which events can this organisation see" query is therefore
+`NOT NOT_INVITED_YET(event, org)` *and* its usual routes in — `EventManager.getEvents`, `getGames`,
+`getGameSummaries`, the event counts in `OrganizationManager`, and `AccessManager.getGameOrgIds`,
+`getDivisionOrgIds` and `getEventOrgIds`. A new query of that kind needs the same guard. An
+organisation with no row at all (a friendly) keeps the old routes. The rules:
+
+- `Event.participatingOrgIds` is **the organisations that can see the event**, and everything that
+  tells organisations about an event goes through it. `Event.participatingOrgs` is everyone taking
+  part, each with its invitation.
+- The column defaults to `accepted`, which is what a row meant before invitations: the migration
+  marked every existing row so, and the host's row and rows written because a team plays stay so.
+  Only `ADD_EVENT_ORGS` writes `not_invited`.
+- `UPDATE_EVENT` with `participatingOrgIds` **reconciles** the list — removes those missing, adds
+  new ones as `accepted` — rather than rewriting it, which would reset every invitation.
+- A declined organisation can still see the event until it is removed. Removing one takes its
+  entrants out with it and is refused once any of its teams has played.
+- Inviting only grants visibility for now; telling the organisation belongs to the communication
+  work ([communication.md](file:///c:/Fred/Coding/SK/docs/communication.md)).
 
 ## Organisation short codes
 

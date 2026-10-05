@@ -780,6 +780,68 @@ export class TournamentManager extends BaseManager {
   }
 
   /**
+   * Take an organisation out of an event, with every entrant it has in the event (`FIX-29`).
+   *
+   * **Refused once any of them has played.** Their results stay with the teams that earned them
+   * ("Keep", 2026-09-24), so the organisation is still in the tournament's history; the organiser
+   * withdraws its teams instead. Before that nothing is lost: its entrants are deleted, which
+   * unresolves any drawn fixture that named them — exactly what taking a team off a roster by hand
+   * does. Returns each division whose roster changed, with the stage it re-mirrored, for the caller
+   * to rebuild and publish.
+   */
+  async removeEventOrg(
+    eventId: string,
+    orgId: string
+  ): Promise<{ divisions: Array<{ divisionId: string; syncedStageIds: string[] }> }> {
+    const org = await this.query(
+      `SELECT o.name FROM event_organizations eo JOIN organizations o ON o.id = eo.org_id
+        WHERE eo.event_id = $1 AND eo.org_id = $2`,
+      [eventId, orgId]
+    );
+    if (!org.rows.length) throw new Error('That organisation is not taking part in this event.');
+    const name: string = org.rows[0].name;
+
+    const entrants = await this.query(
+      `SELECT e.id, e.division_id AS "divisionId"
+         FROM division_entrants e JOIN tournament_divisions d ON d.id = e.division_id
+        WHERE d.event_id = $1 AND e.org_id = $2`,
+      [eventId, orgId]
+    );
+    const entrantIds: string[] = entrants.rows.map((r: any) => r.id);
+    // Any played fixture of the event its side is in — through an entrant, or a hand-added fixture
+    // that names its team directly (`FIX-12`).
+    const played = await this.query(
+      `SELECT COUNT(DISTINCT g.id)::int AS n
+         FROM game_participants gp
+         JOIN games g ON g.id = gp.game_id
+         LEFT JOIN teams t ON t.id = gp.team_id
+         LEFT JOIN division_entrants de ON de.id = gp.entrant_id
+        WHERE g.event_id = $1 AND (t.org_id = $2 OR de.org_id = $2) AND ${PLAYED_GAME}`,
+      [eventId, orgId]
+    );
+    const n: number = played.rows[0]?.n || 0;
+    if (n > 0) {
+      throw new Error(
+        `${name}'s teams have played ${n === 1 ? 'a fixture' : `${n} fixtures`}, so it cannot be removed. Withdraw its teams instead — their results stay.`
+      );
+    }
+
+    await this.transaction(async (tx) => {
+      if (entrantIds.length) {
+        await tx(`DELETE FROM division_entrants WHERE id = ANY($1::text[])`, [entrantIds]);
+      }
+      await tx('DELETE FROM event_organizations WHERE event_id = $1 AND org_id = $2', [eventId, orgId]);
+    });
+
+    const divisionIds = [...new Set<string>(entrants.rows.map((r: any) => r.divisionId))];
+    const divisions: Array<{ divisionId: string; syncedStageIds: string[] }> = [];
+    for (const divisionId of divisionIds) {
+      divisions.push({ divisionId, syncedStageIds: await this.syncOpenStageEntrants(divisionId) });
+    }
+    return { divisions };
+  }
+
+  /**
    * Take entrants out of their division — by deleting them, or by withdrawing them if they played.
    *
    * **A result stays with the team that earned it** (2026-09-24, "Keep"). Deleting an entrant that

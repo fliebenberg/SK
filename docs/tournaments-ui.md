@@ -49,7 +49,7 @@ Three facts, checked rather than assumed, because two of them close questions th
 **The events list already gathers tournaments an org merely attends.**
 [EventManager.ts:59](file:///c:/Fred/Coding/SK/server/src/managers/EventManager.ts#L59) returns
 events where the org hosts it, **or** appears in `event_organizations`, **or** has a team playing a
-game in it. So "where do we see the tournaments we are involved in" already has an answer — the
+game in it — unless it has been added but not invited yet (`FIX-29`), when it sees none of them. So "where do we see the tournaments we are involved in" already has an answer — the
 existing org events list at
 [events/index.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/[orgId]/events/index.tsx). What is
 missing is that the card never says *which of the three* you are: `isEventOwner` is computed at

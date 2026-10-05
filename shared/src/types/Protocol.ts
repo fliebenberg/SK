@@ -823,6 +823,38 @@ export interface SetEventFacilitiesPayload {
     facilityIds: string[];
 }
 
+/**
+ * The organisations taking part in an event (`FIX-29`). `orgId` is the workspace the caller acts
+ * from — authorization, never stored — and `participantOrgId(s)` the organisations acted on.
+ */
+export interface AddEventOrgsPayload {
+    eventId: string;
+    orgId: string;
+    participantOrgIds: string[];
+    /** Invite them at once, or only add them — they cannot see the event until invited. */
+    invite: boolean;
+}
+
+export interface InviteEventOrgsPayload {
+    eventId: string;
+    orgId: string;
+    participantOrgIds: string[];
+}
+
+export interface SetEventOrgAnswerPayload {
+    eventId: string;
+    orgId: string;
+    participantOrgId: string;
+    /** `invited` clears an answer back to "no answer yet". */
+    answer: 'invited' | 'accepted' | 'declined';
+}
+
+export interface RemoveEventOrgPayload {
+    eventId: string;
+    orgId: string;
+    participantOrgId: string;
+}
+
 export interface SetDivisionFacilitiesPayload {
     divisionId: string;
     orgId: string;
@@ -1003,6 +1035,10 @@ export interface ProtocolMap {
     [SocketAction.DELETE_ADJUSTMENT]: { payload: DeleteAdjustmentPayload; response: { id: string } };
     [SocketAction.SET_EVENT_FACILITIES]: { payload: SetEventFacilitiesPayload; response: { eventId: string; facilityIds: string[] } };
     [SocketAction.SET_DIVISION_FACILITIES]: { payload: SetDivisionFacilitiesPayload; response: { divisionId: string; facilityIds: string[] } };
+    [SocketAction.ADD_EVENT_ORGS]: { payload: AddEventOrgsPayload; response: Event };
+    [SocketAction.INVITE_EVENT_ORGS]: { payload: InviteEventOrgsPayload; response: Event };
+    [SocketAction.SET_EVENT_ORG_ANSWER]: { payload: SetEventOrgAnswerPayload; response: Event };
+    [SocketAction.REMOVE_EVENT_ORG]: { payload: RemoveEventOrgPayload; response: Event };
     [SocketAction.APPOINT_ORGANIZER]: { payload: AppointOrganizerPayload; response: OrganizersResult };
     [SocketAction.WITHDRAW_ORGANIZER]: { payload: WithdrawOrganizerPayload; response: OrganizersResult };
 

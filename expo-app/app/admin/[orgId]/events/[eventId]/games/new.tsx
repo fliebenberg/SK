@@ -200,7 +200,10 @@ export default function ScheduleGame() {
   useEffect(() => {
     if (!event || orgsList.length === 0) return;
 
-    const allInvolvedOrgIds = [orgId, ...(event.participatingOrgIds || [])];
+    // Every organisation taking part, invited or not yet (`FIX-29`): `participatingOrgIds` is only
+    // those that can see the event, and a fixture may be drawn before the invitations go out.
+    const takingPartIds = (event.participatingOrgs || []).map(o => o.id);
+    const allInvolvedOrgIds = [orgId, ...takingPartIds.filter(id => id !== orgId)];
     
     let loadedCount = 0;
     allInvolvedOrgIds.forEach(id => {
@@ -223,7 +226,7 @@ export default function ScheduleGame() {
   const eventSports = sports.filter(s => event?.sportIds?.includes(s.id));
 
   // Resolve list of involved organizations
-  const involvedOrgs = orgsList.filter(o => o.id === orgId || event?.participatingOrgIds?.includes(o.id));
+  const involvedOrgs = orgsList.filter(o => o.id === orgId || !!event?.participatingOrgs?.some(p => p.id === o.id));
 
   // Resolve Home and Away Teams filtered by org & sport, leaving out inactive teams (docs/teams.md)
   const homeTeamsList = pickableTeams(orgTeams[selectedHomeOrgId] || [], [selectedHomeTeamId]).filter(t => t.sportId === selectedSportId);
@@ -597,7 +600,7 @@ export default function ScheduleGame() {
               </TouchableOpacity>
             </View>
             <View className="flex-row flex-wrap gap-2">
-              {orgsList.filter(o => o.id === orgId || event?.participatingOrgIds?.includes(o.id) || o.id === selectedAwayOrgId).map(o => {
+              {orgsList.filter(o => o.id === orgId || !!event?.participatingOrgs?.some(p => p.id === o.id) || o.id === selectedAwayOrgId).map(o => {
                 const isSelected = selectedAwayOrgId === o.id;
                 return (
                   <TouchableOpacity

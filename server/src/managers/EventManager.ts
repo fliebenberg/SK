@@ -7,8 +7,19 @@ import { sportManager } from "./SportManager";
 
 const EVENT_DATE_FIELDS = { startDate: 'Start date', endDate: 'End date' };
 
+/**
+ * SQL: organisation `org` has been added to event `event` but **not invited yet** (`FIX-29`).
+ *
+ * Such an organisation must not see the event by any route — not through its row in
+ * `event_organizations`, and not through its teams being entered or drawn into fixtures, which
+ * the organiser may do before inviting it. Each "which events can this org see" query is
+ * `NOT` this, `AND` its usual routes in. An organisation with no row at all keeps those routes.
+ */
+export const NOT_INVITED_YET = (event: string, org: string) =>
+  `EXISTS (SELECT 1 FROM event_organizations nx WHERE nx.event_id = ${event} AND nx.org_id = ${org} AND nx.invitation = 'not_invited')`;
+
 export class EventManager extends BaseManager {
-  private EVENT_COLUMNS = 'id, name, type, format, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", ARRAY(SELECT org_id FROM event_organizations WHERE event_id = events.id) as "participatingOrgIds", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', o.id, \'name\', o.name, \'shortName\', o.short_name, \'logo\', o.logo, \'logoConfig\', o.settings->\'logoConfig\', \'primaryColor\', o.primary_color, \'isClaimed\', o.is_claimed) ORDER BY o.name) FROM event_organizations eo JOIN organizations o ON o.id = eo.org_id WHERE eo.event_id = events.id), \'[]\'::jsonb) as "participatingOrgs", ARRAY(SELECT sport_id FROM event_sports WHERE event_id = events.id) as "sportIds", settings, status';
+  private EVENT_COLUMNS = 'id, name, type, format, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", ARRAY(SELECT org_id FROM event_organizations WHERE event_id = events.id AND invitation <> \'not_invited\') as "participatingOrgIds", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', o.id, \'name\', o.name, \'shortName\', o.short_name, \'logo\', o.logo, \'logoConfig\', o.settings->\'logoConfig\', \'primaryColor\', o.primary_color, \'isClaimed\', o.is_claimed, \'invitation\', eo.invitation, \'invitedAt\', eo.invited_at, \'answeredAt\', eo.answered_at) ORDER BY o.name) FROM event_organizations eo JOIN organizations o ON o.id = eo.org_id WHERE eo.event_id = events.id), \'[]\'::jsonb) as "participatingOrgs", ARRAY(SELECT sport_id FROM event_sports WHERE event_id = events.id) as "sportIds", settings, status';
   private GAME_COLUMNS = 'g.id, g.event_id as "eventId", g.sport_id as "sportId", g.stage_id as "stageId", (SELECT ds.division_id FROM division_stages ds WHERE ds.id = g.stage_id) as "divisionId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', p.id, \'gameId\', p.game_id, \'teamId\', p.team_id, \'name\', t.name, \'orgProfileId\', p.org_profile_id, \'status\', p.status, \'sortOrder\', p.sort_order, \'entrantId\', p.entrant_id, \'sourceGameId\', p.source_game_id, \'sourceStageId\', p.source_stage_id, \'sourceRule\', p.source_rule) ORDER BY p.sort_order, p.id) FROM game_participants p LEFT JOIN teams t ON t.id = p.team_id WHERE p.game_id = g.id), \'[]\'::jsonb) as participants';
 
   /**
@@ -87,13 +98,14 @@ export class EventManager extends BaseManager {
         SELECT ${this.GAME_SUMMARY_COLUMNS}
         FROM games g
         JOIN events e ON g.event_id = e.id
-        WHERE e.org_id = $1
-           OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = $1)
+        WHERE NOT ${NOT_INVITED_YET('e.id', '$1')}
+          AND (e.org_id = $1
+           OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = $1 AND eo.invitation <> 'not_invited')
            OR EXISTS (
                SELECT 1 FROM game_participants gp
                JOIN teams t ON gp.team_id = t.id
                WHERE gp.game_id = g.id AND t.org_id = $1
-           )
+           ))
     `, [orgId]);
     return res.rows;
   }
@@ -156,14 +168,15 @@ export class EventManager extends BaseManager {
     let queryText = `SELECT ${this.EVENT_COLUMNS} FROM events`;
     const params: any[] = [];
     if (orgId) {
-        queryText += ` WHERE org_id = $1 
-                       OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = events.id AND eo.org_id = $1)
+        queryText += ` WHERE NOT ${NOT_INVITED_YET('events.id', '$1')}
+                       AND (org_id = $1
+                       OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = events.id AND eo.org_id = $1 AND eo.invitation <> 'not_invited')
                        OR EXISTS (
-                           SELECT 1 FROM games g 
-                           JOIN game_participants gp ON gp.game_id = g.id 
-                           JOIN teams t ON gp.team_id = t.id 
+                           SELECT 1 FROM games g
+                           JOIN game_participants gp ON gp.game_id = g.id
+                           JOIN teams t ON gp.team_id = t.id
                            WHERE g.event_id = events.id AND t.org_id = $1
-                       )`;
+                       ))`;
         params.push(orgId);
     }
     const res = await this.query(queryText, params);
@@ -256,17 +269,104 @@ export class EventManager extends BaseManager {
              }
          }
 
+          /*
+            The whole list, reconciled rather than rewritten (`FIX-29`): deleting every row and
+            inserting the list again would reset every organisation's invitation. Those no longer
+            listed go; those newly listed come in at the column's default, `accepted` — what being
+            listed meant before invitations existed, and what a single match's two sides still mean.
+            Adding an organisation without inviting it is `addEventOrgs`.
+          */
           if (participatingOrgIds !== undefined) {
               const uniqueParticipatingOrgIds = [...new Set(participatingOrgIds)];
-              await tx('DELETE FROM event_organizations WHERE event_id = $1', [id]);
+              await tx(
+                  'DELETE FROM event_organizations WHERE event_id = $1 AND NOT (org_id = ANY($2::text[]))',
+                  [id, uniqueParticipatingOrgIds]
+              );
               for (const orgId of uniqueParticipatingOrgIds) {
-                  await tx('INSERT INTO event_organizations (event_id, org_id) VALUES ($1, $2)', [id, orgId]);
+                  await tx(
+                      'INSERT INTO event_organizations (event_id, org_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+                      [id, orgId]
+                  );
               }
           }
      });
 
      organizationManager.invalidateCache();
      return (await this.getEvent(id)) || null;
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // The organisations taking part, and their invitations (`FIX-29`)
+  // ---------------------------------------------------------------------------------------------
+
+  /**
+   * Add organisations to an event, invited at once or not yet.
+   *
+   * One already taking part is left exactly as it is — adding it again must not reset an answer it
+   * has given. The host is never "not invited": it takes part by hosting, so its row is `accepted`
+   * whatever was asked.
+   */
+  async addEventOrgs(eventId: string, orgIds: string[], invite: boolean): Promise<Event> {
+    const event = await this.getEvent(eventId);
+    if (!event) throw new Error('That event no longer exists.');
+    const unique = [...new Set(orgIds.filter(Boolean))];
+    if (!unique.length) throw new Error('Choose at least one organisation to add.');
+    const known = await this.query('SELECT id FROM organizations WHERE id = ANY($1::text[])', [unique]);
+    if (known.rows.length !== unique.length) throw new Error('One of those organisations no longer exists.');
+
+    await this.transaction(async (tx) => {
+      for (const orgId of unique) {
+        const invitation = orgId === event.orgId ? 'accepted' : invite ? 'invited' : 'not_invited';
+        await tx(
+          `INSERT INTO event_organizations (event_id, org_id, invitation, invited_at)
+           VALUES ($1, $2, $3, CASE WHEN $3 = 'invited' THEN NOW() END)
+           ON CONFLICT DO NOTHING`,
+          [eventId, orgId, invitation]
+        );
+      }
+    });
+    organizationManager.invalidateCache();
+    return (await this.getEvent(eventId))!;
+  }
+
+  /**
+   * Invite organisations already added. Returns the event and the organisations that can now see
+   * it for the first time, so the caller can tell them; one already invited is left as it is.
+   */
+  async inviteEventOrgs(eventId: string, orgIds: string[]): Promise<{ event: Event; newlyInvited: string[] }> {
+    const res = await this.query(
+      `UPDATE event_organizations SET invitation = 'invited', invited_at = NOW()
+        WHERE event_id = $1 AND org_id = ANY($2::text[]) AND invitation = 'not_invited'
+        RETURNING org_id AS "orgId"`,
+      [eventId, [...new Set(orgIds)]]
+    );
+    organizationManager.invalidateCache();
+    const event = await this.getEvent(eventId);
+    if (!event) throw new Error('That event no longer exists.');
+    return { event, newlyInvited: res.rows.map((r: any) => r.orgId) };
+  }
+
+  /**
+   * Record an invited organisation's answer — or clear it, with `invited`, back to "no answer yet".
+   *
+   * Only once it has been invited: an organisation that cannot see the event has nothing to answer.
+   * The host's own row is not an invitation, so it has no answer to change.
+   */
+  async setEventOrgAnswer(eventId: string, orgId: string, answer: 'invited' | 'accepted' | 'declined'): Promise<Event> {
+    const event = await this.getEvent(eventId);
+    if (!event) throw new Error('That event no longer exists.');
+    if (orgId === event.orgId) throw new Error('The host takes part by hosting, so it has no invitation to answer.');
+    const row = event.participatingOrgs?.find(o => o.id === orgId);
+    if (!row) throw new Error('That organisation is not taking part in this event.');
+    if (row.invitation === 'not_invited') throw new Error(`${row.name} has not been invited yet.`);
+
+    await this.query(
+      `UPDATE event_organizations
+          SET invitation = $3, answered_at = CASE WHEN $3 = 'invited' THEN NULL ELSE NOW() END
+        WHERE event_id = $1 AND org_id = $2`,
+      [eventId, orgId, answer]
+    );
+    return (await this.getEvent(eventId))!;
   }
 
   async deleteEvent(id: string): Promise<Event | null> {
@@ -329,13 +429,14 @@ export class EventManager extends BaseManager {
         SELECT ${selectClause}
         FROM games g
         JOIN events e ON g.event_id = e.id
-        WHERE e.org_id = $1 
-           OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = $1)
+        WHERE NOT ${NOT_INVITED_YET('e.id', '$1')}
+          AND (e.org_id = $1
+           OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = $1 AND eo.invitation <> 'not_invited')
            OR EXISTS (
-               SELECT 1 FROM game_participants gp 
-               JOIN teams t ON gp.team_id = t.id 
+               SELECT 1 FROM game_participants gp
+               JOIN teams t ON gp.team_id = t.id
                WHERE gp.game_id = g.id AND t.org_id = $1
-           )
+           ))
     `, [orgId]);
     return res.rows;
   }

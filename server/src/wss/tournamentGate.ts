@@ -48,6 +48,11 @@ export const TOURNAMENT_ACTION_EVENT: Partial<Record<SocketAction, (payload: any
     return divisionId ? dataManager.getDivisionEventId(divisionId) : null;
   },
   [SocketAction.SET_EVENT_FACILITIES]: async (p) => p?.eventId ?? null,
+  // Who takes part (`FIX-29`) is the shape of the tournament, so event scope only — in neither map
+  // below. Answering an invitation is the org gate's, since the invited organisation may give it.
+  [SocketAction.ADD_EVENT_ORGS]: async (p) => p?.eventId ?? null,
+  [SocketAction.INVITE_EVENT_ORGS]: async (p) => p?.eventId ?? null,
+  [SocketAction.REMOVE_EVENT_ORG]: async (p) => p?.eventId ?? null,
   [SocketAction.SET_DIVISION_FACILITIES]: async (p) =>
     p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
   // Appointing is authorized as the event at every scope. Since 2026-09-19 a convenor may also

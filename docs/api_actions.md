@@ -672,6 +672,10 @@ may hold no membership anywhere and so act from no workspace at all.
 | `CHANGE_FIXTURE_SIDE` | `{ gameParticipantId, orgId, teamId? \| orgProfileId?, initiatorOrgProfileId? }` | no | `GAME_SUMMARY_UPDATED`, standings, and a `SIDE_CHANGED` entry in the fixture's log. The side keeps its entrant |
 | `ADD_ADJUSTMENT` / `DELETE_ADJUSTMENT` | an adjustment | no | `DIVISION_ADJUSTMENTS_SYNC`, standings |
 | `SET_EVENT_FACILITIES` / `SET_DIVISION_FACILITIES` | `{ …Id, orgId, facilityIds }` | no | `EVENT_FACILITIES_SYNC` / `DIVISION_FACILITIES_SYNC` |
+| `ADD_EVENT_ORGS` | `{ eventId, orgId, participantOrgIds, invite }` | no | `EVENT_UPDATED` to the event room and to each organisation that can see it; when inviting, the fixtures go out again to their new audience (`FIX-29`) |
+| `INVITE_EVENT_ORGS` | `{ eventId, orgId, participantOrgIds }` | no | as `ADD_EVENT_ORGS`. Ones already invited are left as they are |
+| `SET_EVENT_ORG_ANSWER` | `{ eventId, orgId, participantOrgId, answer: 'invited' \| 'accepted' \| 'declined' }` | no | `EVENT_UPDATED`. `invited` clears an answer. The **org gate's** (`answer-invitation`): the event's organisers, or the invited organisation's own admins and staff |
+| `REMOVE_EVENT_ORG` | `{ eventId, orgId, participantOrgId }` | no | `EVENT_UPDATED`, `EVENT_DELETED` to the organisation removed, and for each division it had entrants in: `DIVISION_ENTRANTS_SYNC`, standings, a summary per fixture. Refused once its teams have played |
 | `APPOINT_ORGANIZER` / `WITHDRAW_ORGANIZER` | `{ eventId \| (eventId + sportId) \| divisionId, orgProfileId, orgId? }` | no | `EVENT_CAPABILITIES_UPDATED` to `user:{id}` — **not** to a division room |
 
 **Which of these a division convenor may send** (Phase 4, widened from D31 on 2026-09-03): every
@@ -765,7 +769,7 @@ something up is a screen that makes N round trips and then renders a stale answe
 
 | Payload | Field | Why it travels rather than being resolved |
 | --- | --- | --- |
-| `Event` | `participatingOrgs` — `{ id, name, shortName }[]` | `FIX-2`. The event screen used to read *every organisation in the system* to name a handful, and kept the answer only `if (Array.isArray(res))`, which a paginated response never satisfies, so it named none of them. Displaying orgs already in an event is data a room owns. |
+| `Event` | `participatingOrgs` — `{ id, name, shortName, …, invitation, invitedAt, answeredAt }[]`, everyone taking part with their invitation (`FIX-29`); `participatingOrgIds` is only those that can see the event | `FIX-2`. The event screen used to read *every organisation in the system* to name a handful, and kept the answer only `if (Array.isArray(res))`, which a paginated response never satisfies, so it named none of them. Displaying orgs already in an event is data a room owns. |
 | `GameSummary` / `Game` | `stageId`, `divisionId` | A division's fixture list has to say which stage a fixture is in, and a client-side permission check has to know which division it belongs to — a convenor's grant is scoped to exactly that id, so without it the screen hides the scoring control from somebody the server would let through. `divisionId` is derived through `division_stages`, never stored twice. |
 | `Event.settings` | `dismissedSetupSteps` | Which setup-checklist steps the organiser has put away (U17), written from the step's own screen (U48). On the event rather than per viewer: a step that does not apply does not apply for anybody organising it. A key here that matches no current step is ignored, not an error — `schedule` was dropped in U48 and events that dismissed it still carry it. Any write must **spread the existing `settings`**, because `UPDATE_EVENT` replaces the column. |
 

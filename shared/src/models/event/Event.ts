@@ -55,6 +55,32 @@ export function eventFormatLabel(format?: EventFormat | null): string {
   return EVENT_FORMATS.find(f => f.value === format)?.label || 'Festival';
 }
 
+/**
+ * Where an organisation taking part in an event stands with its invitation (`FIX-29`).
+ *
+ * An organisation is **added** first — the organiser can enter its teams — and cannot see the event
+ * until it is **invited**. It then answers, or the organiser records the answer they got another
+ * way. A declined organisation can still see the event until it is removed. Rows from before the
+ * status existed, and the host's own, are `accepted`.
+ */
+export type EventOrgInvitation = 'not_invited' | 'invited' | 'accepted' | 'declined';
+
+export const EVENT_ORG_INVITATIONS: readonly EventOrgInvitation[] = ['not_invited', 'invited', 'accepted', 'declined'];
+
+/** An organisation taking part in an event, with its invitation. */
+export interface EventOrgBadge extends OrgBadge {
+  invitation: EventOrgInvitation;
+  /** When it was invited — an instant. `null` while it is not invited yet. */
+  invitedAt?: string | null;
+  /** When it accepted or declined — an instant. `null` while there is no answer. */
+  answeredAt?: string | null;
+}
+
+/** Whether an organisation in this state can see the event. */
+export function canSeeEvent(invitation: EventOrgInvitation): boolean {
+  return invitation !== 'not_invited';
+}
+
 export interface Event {
   id: string;
   name: string;
@@ -76,6 +102,12 @@ export interface Event {
   /** `null` on an update clears it. */
   facilityId?: string | null;
   orgId: string;
+  /**
+   * The organisations that can **see** the event: every one taking part except those **not invited
+   * yet** (`FIX-29`, 2026-10-05). Whoever is told about the event — its org rooms, the events lists —
+   * is told through this list, so an organisation added but not invited hears nothing. The whole
+   * list taking part, with each one's invitation, is `participatingOrgs`.
+   */
   participatingOrgIds?: string[];
   /**
    * The same organisations, named — so a screen can print them without looking anything up.
@@ -88,7 +120,7 @@ export interface Event {
    * is open. Choosing which orgs to *invite* is a different question, over a set no room owns, and
    * stays a search.
    */
-  participatingOrgs?: OrgBadge[];
+  participatingOrgs?: EventOrgBadge[];
   sportIds?: string[];
   settings?: {
     /**

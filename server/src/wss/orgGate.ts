@@ -68,6 +68,11 @@ type Rule =
   | { kind: 'edit-event' }
   /** Editing or deleting a fixture: `canEditEventOrGame` for the fixture. */
   | { kind: 'edit-fixture' }
+  /**
+   * Answering an event's invitation (`FIX-29`): the event's organisers, for any organisation, or the
+   * invited organisation's own admins and staff, for theirs.
+   */
+  | { kind: 'answer-invitation' }
   | { kind: 'app-admin' }
   | { kind: 'signed-in' }
   /** A payload that names a user must name the caller. */
@@ -161,6 +166,9 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   // assert "every action is gated" with no list of exceptions to keep in step.
   [SocketAction.UPDATE_EVENT]: { kind: 'edit-event' },
   [SocketAction.DELETE_EVENT]: { kind: 'edit-event' },
+  // Adding, inviting and removing organisations are the tournament gate's, at event scope; the
+  // answer is also the invited organisation's own to give.
+  [SocketAction.SET_EVENT_ORG_ANSWER]: { kind: 'answer-invitation' },
   // Planning only since 2026-09-21 — the result is `RECORD_GAME_RESULT`'s, under the scoring gate.
   [SocketAction.UPDATE_GAME]: { kind: 'edit-fixture' },
   [SocketAction.DELETE_GAME]: { kind: 'edit-fixture' },
@@ -291,6 +299,19 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
         type === SocketAction.DELETE_EVENT
           ? 'Unauthorized: You do not have permission to delete this event.'
           : 'Unauthorized: You do not have permission to edit this event.'
+      );
+    }
+
+    case 'answer-invitation': {
+      const res = await pool.query('SELECT org_id FROM events WHERE id = $1', [payload?.eventId]);
+      if (!res.rows.length) throw refuse('Bad request: that event does not exist.');
+      const requestingOrgId = payload?.orgId || res.rows[0].org_id;
+      if (await accessManager.canEditEventOrGame(userId, requestingOrgId, payload.eventId, undefined)) return;
+      if (payload?.participantOrgId && (await accessManager.canManageOrgPeople(userId, payload.participantOrgId))) {
+        return;
+      }
+      throw refuse(
+        "Unauthorized: Only the event's organisers, or the invited organisation's admins, may answer its invitation."
       );
     }
 

@@ -326,6 +326,12 @@ const createTables = async () => {
             CREATE TABLE IF NOT EXISTS event_organizations (
                 event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
                 org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+                -- FIX-29: an organisation not invited yet cannot see the event.
+                invitation TEXT NOT NULL DEFAULT 'accepted'
+                    CONSTRAINT event_organizations_invitation_check
+                    CHECK (invitation IN ('not_invited', 'invited', 'accepted', 'declined')),
+                invited_at TIMESTAMPTZ,
+                answered_at TIMESTAMPTZ,
                 PRIMARY KEY (event_id, org_id)
             );
         `);

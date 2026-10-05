@@ -297,6 +297,11 @@ Which sports an event runs. `PRIMARY KEY (event_id, sport_id)`, both FKs cascadi
 
 ### 11c. `event_organizations`
 Which organisations are taking part. `PRIMARY KEY (event_id, org_id)`, both FKs cascading.
+- `invitation` (TEXT): NOT NULL, default `accepted`, one of `not_invited`, `invited`, `accepted`,
+  `declined` (`FIX-29`). An organisation **not invited yet** cannot see the event, by any route
+  (okf/database.md, *Who is taking part in an event*).
+- `invited_at` (TIMESTAMPTZ): when it was invited; NULL while not invited yet.
+- `answered_at` (TIMESTAMPTZ): when it accepted or declined; NULL while there is no answer.
 
 **Participation is determined by the teams taking part, and by nothing else.** Appointing an
 organiser, a sport's organiser or a convenor must never write a row here — see `event_organizers`

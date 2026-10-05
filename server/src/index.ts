@@ -3540,6 +3540,72 @@ io.on('connection', (socket) => {
                 break;
             }
 
+            /*
+             * The organisations taking part, and their invitations (`FIX-29`). Every change goes
+             * out as the event itself, to the event's room and to each organisation that can see
+             * it — `participatingOrgIds` is exactly those — so one that has only been added hears
+             * nothing, and one just invited gets the event in its list. Its fixtures follow: each
+             * is republished to whoever can see it now.
+             */
+            case SocketAction.ADD_EVENT_ORGS:
+            case SocketAction.INVITE_EVENT_ORGS:
+            case SocketAction.SET_EVENT_ORG_ANSWER: {
+                const p = action.payload;
+                let newlyVisible: string[] = [];
+                if (action.type === SocketAction.ADD_EVENT_ORGS) {
+                    result = await dataManager.addEventOrgs(p.eventId, p.participantOrgIds || [], !!p.invite);
+                    if (p.invite) newlyVisible = p.participantOrgIds || [];
+                } else if (action.type === SocketAction.INVITE_EVENT_ORGS) {
+                    const invited = await dataManager.inviteEventOrgs(p.eventId, p.participantOrgIds || []);
+                    result = invited.event;
+                    newlyVisible = invited.newlyInvited;
+                } else {
+                    result = await dataManager.setEventOrgAnswer(p.eventId, p.participantOrgId, p.answer);
+                }
+                publishEventToOrgs([result.orgId, ...(result.participatingOrgIds || [])], 'EVENT_UPDATED', result);
+                additionalBroadcasts.push({ topic: eventRoom(result.id), type: 'EVENT_UPDATED', data: result });
+                if (newlyVisible.length) {
+                    await broadcastOrgSummaries(newlyVisible);
+                    const eventGames = await pool.query('SELECT id FROM games WHERE event_id = $1', [result.id]);
+                    for (const row of eventGames.rows) await publishGameSummary(row.id);
+                }
+                break;
+            }
+
+            case SocketAction.REMOVE_EVENT_ORG: {
+                const { eventId: removeFromEventId, participantOrgId } = action.payload;
+                const couldSee = (await dataManager.getEvent(removeFromEventId))?.participatingOrgIds?.includes(participantOrgId);
+                const removal = await tournamentManager.removeEventOrg(removeFromEventId, participantOrgId);
+                result = await dataManager.getEvent(removeFromEventId);
+                if (!result) throw new Error('That event no longer exists.');
+                publishEventToOrgs([result.orgId, ...(result.participatingOrgIds || [])], 'EVENT_UPDATED', result);
+                additionalBroadcasts.push({ topic: eventRoom(result.id), type: 'EVENT_UPDATED', data: result });
+                if (couldSee) {
+                    publishEventToOrgs([participantOrgId], 'EVENT_DELETED', { id: result.id });
+                    await broadcastOrgSummaries([participantOrgId]);
+                }
+                // Its entrants went with it: each roster it was in, as a roster write would publish.
+                for (const changed of removal.divisions) {
+                    await tournamentManager.recalculateDivision(changed.divisionId);
+                    await publishEntrants(
+                        changed.divisionId,
+                        await dataManager.getDivisionEntrants(changed.divisionId),
+                        removeFromEventId
+                    );
+                    for (const syncedStageId of changed.syncedStageIds) {
+                        publishStageEntrants(changed.divisionId, syncedStageId, await dataManager.getStageEntrants(syncedStageId));
+                    }
+                    if (changed.syncedStageIds.length) {
+                        publishStages(changed.divisionId, await dataManager.getStages(changed.divisionId));
+                    }
+                    await publishStandings(changed.divisionId, removeFromEventId);
+                    for (const game of await dataManager.getDivisionGames(changed.divisionId)) {
+                        await publishGameSummary(game.id);
+                    }
+                }
+                break;
+            }
+
             case SocketAction.APPOINT_ORGANIZER: {
                 const { orgProfileId } = action.payload;
                 const appointScope = organizerScopeOf(action.payload);
