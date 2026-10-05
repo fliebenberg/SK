@@ -168,10 +168,10 @@ replaced the U48 checklist, whose rows each opened a step screen (closes `UI-11`
   that compete against each other — usually an age group, e.g. Rugby U16. …").
 
 **Sports & divisions, one sport at a time.** The sports are one line that scrolls sideways and never
-wraps — arrows on a wide screen, a swipe on a phone — with **All N ▾** fixed at its end, a list to
-jump straight to a sport. Under it, only the chosen sport: its name, divisions and teams, and its
-divisions as tiles (name, format from its stages, who can play, teams, and where it has got to). A
-sport with **one** division shows it as one wide panel, with *＋ Split into divisions*. ＋ Add a …
+wraps — arrows on a wide screen when the sports do not fit, a swipe on a phone — with **All N ▾**
+fixed at its end, a list to jump straight to a sport. Under it, only the chosen sport: its name,
+divisions and teams, and its divisions as tiles (name, format from its stages, who can play, teams,
+and where it has got to) — a single division too, beside the ＋ Add a … division tile. ＋ Add a …
 division creates one with an automatic name and opens its page, as the Sports & Divisions screen did;
 the sport's ⋯ links to that screen for its organisers, and removes a sport that has no divisions.
 

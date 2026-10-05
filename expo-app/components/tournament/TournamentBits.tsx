@@ -167,6 +167,12 @@ export function SportsDivisions({
   const stripRef = useRef<ScrollView>(null);
   const chipX = useRef<Record<string, number>>({});
   const scrollX = useRef(0);
+  // Arrows only when the sports do not fit: measured against the room left without them, so showing
+  // the arrows cannot itself make the strip fit and flip them off again.
+  const [rowW, setRowW] = useState(0);
+  const [allW, setAllW] = useState(0);
+  const [stripW, setStripW] = useState(0);
+  const overflows = stripW > rowW - allW - 6;
 
   const current = sportIds.includes(selected || '') ? selected! : sportIds[0];
   const sportName = (id: string) => sports.find(s => s.id === id)?.name || 'Sport';
@@ -232,13 +238,11 @@ export function SportsDivisions({
     );
   };
 
-  const one = chosen.length === 1 ? chosen[0] : null;
-
   return (
     <View className="gap-3">
       {/* The sports, one line that scrolls sideways; "All" stays put at its end. */}
-      <View className="flex-row items-center gap-1.5">
-        {isWide ? (
+      <View className="flex-row items-center gap-1.5" onLayout={e => setRowW(e.nativeEvent.layout.width)}>
+        {isWide && overflows ? (
           <TouchableOpacity onPress={() => stripRef.current?.scrollTo({ x: Math.max(0, scrollX.current - 220), animated: true })} accessibilityLabel="Earlier sports" className="w-8 h-8 rounded-full border border-line bg-card items-center justify-center">
             <Ionicons name="chevron-back" size={14} color={themeColor(isDark, 'ink-soft')} />
           </TouchableOpacity>
@@ -249,6 +253,7 @@ export function SportsDivisions({
           showsHorizontalScrollIndicator={false}
           onScroll={e => { scrollX.current = e.nativeEvent.contentOffset.x; }}
           scrollEventThrottle={32}
+          onContentSizeChange={w => setStripW(w)}
           style={{ flex: 1 }}
           contentContainerStyle={{ gap: 6, paddingVertical: 2, paddingHorizontal: 2 }}
         >
@@ -260,12 +265,12 @@ export function SportsDivisions({
             </TouchableOpacity>
           ) : null}
         </ScrollView>
-        {isWide ? (
+        {isWide && overflows ? (
           <TouchableOpacity onPress={() => stripRef.current?.scrollTo({ x: scrollX.current + 220, animated: true })} accessibilityLabel="More sports" className="w-8 h-8 rounded-full border border-line bg-card items-center justify-center">
             <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-soft')} />
           </TouchableOpacity>
         ) : null}
-        <TouchableOpacity onPress={() => setPickerOpen(true)} accessibilityRole="button" accessibilityLabel="All sports" className="flex-row items-center gap-1 rounded-xl border border-line bg-card px-2.5 py-2">
+        <TouchableOpacity onPress={() => setPickerOpen(true)} onLayout={e => setAllW(e.nativeEvent.layout.width)} accessibilityRole="button" accessibilityLabel="All sports" className="flex-row items-center gap-1 rounded-xl border border-line bg-card px-2.5 py-2">
           <Text className="font-inter-semibold text-[13px] text-ink-soft">All {sportIds.length}</Text>
           <Ionicons name="chevron-down" size={13} color={themeColor(isDark, 'ink-muted')} />
         </TouchableOpacity>
@@ -280,49 +285,19 @@ export function SportsDivisions({
         {sportMenu ? sportMenu(current) : null}
       </View>
 
-      {one ? (
-        <View className="rounded-2xl border border-line bg-card p-3.5 gap-2.5">
-          <TouchableOpacity onPress={() => onOpenDivision(one)} accessibilityRole="link" className="gap-2.5">
-          <View className="flex-row items-center gap-2.5">
-            <Text className="font-inter-bold text-lg text-ink">{one.name}</Text>
-            <View className={`w-2 h-2 rounded-full ${DOT[divisionState(one).tone]}`} />
-            <Text className={`font-inter-semibold text-xs ${STATE_TEXT[divisionState(one).tone]}`}>{divisionState(one).label}</Text>
-            <View className="flex-1" />
-            <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} />
-          </View>
-          <View className="flex-row flex-wrap">
-            {[['Format', divisionFormatLabel(one)], ['Who can play', one.ageGroup || 'Any age'], ['Teams', String(teamsIn(one))]].map(([k, v]) => (
-              <View key={k} style={{ marginRight: 24, marginBottom: 4 }}>
-                <Text className="font-inter-semibold text-[11px] text-ink-muted uppercase tracking-wider">{k}</Text>
-                <Text className="font-inter text-sm text-ink-soft">{v}</Text>
-              </View>
-            ))}
-          </View>
+      <View className="flex-row flex-wrap gap-2.5">
+        {chosen.map(tile)}
+        {setupMode && canEdit && onAddDivision ? (
+          <TouchableOpacity
+            onPress={() => onAddDivision(current)}
+            accessibilityRole="button"
+            className="rounded-2xl border border-dashed border-line-strong items-center justify-center p-3"
+            style={{ width: isWide ? '31.8%' : '48.5%', minHeight: 104 }}
+          >
+            <Text className="font-inter-bold text-sm text-primary-ink text-center">＋ Add a {sportName(current)} division</Text>
           </TouchableOpacity>
-          {setupMode && canEdit && onAddDivision ? (
-            <View className="flex-row flex-wrap items-center gap-2 pt-2.5 border-t border-line-soft">
-              <Text className="font-inter text-[13px] text-ink-muted flex-1">All {sportName(current)} teams play in this one division.</Text>
-              <TouchableOpacity onPress={() => onAddDivision(current)} accessibilityRole="button">
-                <Text className="font-inter-bold text-[13px] text-primary-ink">＋ Split into divisions</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-        </View>
-      ) : (
-        <View className="flex-row flex-wrap gap-2.5">
-          {chosen.map(tile)}
-          {setupMode && canEdit && onAddDivision ? (
-            <TouchableOpacity
-              onPress={() => onAddDivision(current)}
-              accessibilityRole="button"
-              className="rounded-2xl border border-dashed border-line-strong items-center justify-center p-3"
-              style={{ width: isWide ? '31.8%' : '48.5%', minHeight: 104 }}
-            >
-              <Text className="font-inter-bold text-sm text-primary-ink text-center">＋ Add a {sportName(current)} division</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      )}
+        ) : null}
+      </View>
 
       {/* "All ▾": every sport at once, to jump straight to one. */}
       <Modal transparent visible={pickerOpen} animationType="fade" onRequestClose={() => setPickerOpen(false)}>

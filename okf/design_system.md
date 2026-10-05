@@ -186,7 +186,7 @@ becomes the public Overview once the setup is done.
     *Open all / Close all* sits above them, and what is open is remembered on the device. A folded
     card's Edit appears only when it is open, so a tap on the line never starts an edit.
 22. **A choice with more options than fit on one line scrolls sideways, never wraps** — arrows on a
-    wide screen, a swipe on a phone, the chosen option scrolled into view — with an **All N ▾**
+    wide screen (only while the options overflow), a swipe on a phone, the chosen option scrolled into view — with an **All N ▾**
     fixed at its end that lists every option for a quick jump (with a search once there are many).
     One choice at a time is shown under it: the tournament's sports, then the chosen sport's
     divisions. A segmented control is still the answer for two to four options (rule 2).
