@@ -33,6 +33,18 @@ This document is a space to jot down brilliant ideas for the application while w
   half would be a new grant — the school's admins acting within *this* tournament's divisions —
   which belongs beside the event, sport and division organiser scopes in `AccessManager`.
 
+- [ ] **Duplicate a tournament, or carry it forward to next year.** Raised 2026-10-05 while designing
+  how organisations join a tournament (`FIX-26`). Most school tournaments run every year with much the
+  same sports, divisions, venue, rules and organisations. Copying last year's into a new one, with new
+  dates, would save the organiser rebuilding it. It rests on a decision made for `FIX-26`: an
+  organisation can be **added** to a tournament without being **invited**, and cannot see it until it
+  is. So every organisation in the copy starts as *Not invited yet*, and their teams can be listed
+  too, until the organiser is ready to send this year's invitations. Open questions for when it is
+  built: what is copied (divisions and their stages, facilities, rules, organisers, organisations,
+  entered teams with each team moved up an age group or left as it was); whether placeholders and
+  results-based seeding carry over; and whether "carry forward" is a different action from
+  "duplicate", for example by keeping a link between the two years for history.
+
 - [ ] **A fault analyser for the failures log, so recurring failures point at weak processes.**
   Since 2026-09-19 (SYNC-2) every failure a user meets is written to
   `server/logs/failures-YYYY-MM-DD.jsonl`, one JSON object per line: server refusals and the
