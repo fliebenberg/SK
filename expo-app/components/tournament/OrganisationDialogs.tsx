@@ -448,9 +448,12 @@ export function OrganisationDialog({
     <View className="flex-row items-center gap-3 rounded-xl border border-line px-3 py-2.5">
       <View className="flex-1 min-w-0 items-start gap-1">
         <InvitationBadge invitation={org.invitation} />
-        <Text className="font-inter text-xs text-ink-muted">
-          {org.invitation === 'not_invited' ? "It can't see the tournament yet" : formatInstantDate(org.invitedAt) || 'Invited'}
-        </Text>
+        {/* No date for one taking part before invitations were recorded: nothing, rather than the badge again. */}
+        {org.invitation === 'not_invited' || formatInstantDate(org.invitedAt) ? (
+          <Text className="font-inter text-xs text-ink-muted">
+            {org.invitation === 'not_invited' ? "It can't see the tournament yet" : formatInstantDate(org.invitedAt)}
+          </Text>
+        ) : null}
       </View>
       {org.invitation === 'not_invited' ? (
         canAnswer ? (
