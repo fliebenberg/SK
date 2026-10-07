@@ -13,6 +13,7 @@ import {
   TournamentDivision,
   TournamentEntrant,
   teamQualifies,
+  toEntrantInput,
 } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import CustomSelect from '../CustomSelect';
@@ -411,15 +412,14 @@ export function OrganisationDialog({
       const others = entrants.filter(e => e.divisionId === divisionId && (e.status === 'withdrawn' || e.orgId !== org.id));
       const kept = rows.filter(p => p.on);
       const roster = [
-        ...others.map(e => ({ id: e.id, teamId: e.teamId, orgProfileId: e.orgProfileId, orgId: e.teamId || e.orgProfileId ? undefined : e.orgId, label: e.label, seed: e.seed, status: e.status })),
-        ...kept.map(p => ({
+        ...others.map(e => toEntrantInput(e)),
+        ...kept.map(p => toEntrantInput({
           id: p.entrantId,
           teamId: p.teamId,
           orgProfileId: p.orgProfileId,
-          // Only a placeholder's organisation is read by the server; a team or a person carries its own.
-          orgId: p.kind === 'placeholder' ? org.id : undefined,
+          orgId: org.id,
           label: p.kind === 'placeholder' ? p.label : undefined,
-          status: 'active' as const,
+          status: 'active',
         })),
       ];
       const result = await sendAction(SocketAction.SET_DIVISION_ENTRANTS, { divisionId, orgId, entrants: roster, takeFromOtherDivisions: true });

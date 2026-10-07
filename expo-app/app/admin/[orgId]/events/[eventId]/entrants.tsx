@@ -16,6 +16,7 @@ import {
   TournamentEntrant,
   buildEntrantRows,
   divisionsForTeam,
+  toEntrantInput,
 } from '@sk/shared';
 import { GlassCard } from '../../../../../components/GlassCard';
 import { OrgLogo } from '../../../../../components/OrgLogo';
@@ -398,16 +399,8 @@ export default function EntrantsScreen() {
       divisionId,
       orgId,
       ...rest,
-      entrants: next.map(entrant => ({
-        id: entrant.id || undefined,
-        teamId: entrant.teamId,
-        orgProfileId: entrant.orgProfileId,
-        // Only a placeholder's is read by the server; a team or a person carries its own.
-        orgId: entrant.teamId || entrant.orgProfileId ? undefined : entrant.orgId,
-        label: entrant.label,
-        seed: entrant.seed,
-        status: entrant.status || 'active',
-      })),
+      // Empty fields left out: the server reads them back as null, which the payload check refuses.
+      entrants: next.map(toEntrantInput),
     }).then(result => {
       if (busyKey) setBusyKeys(prev => ({ ...prev, [busyKey]: false }));
       return result;

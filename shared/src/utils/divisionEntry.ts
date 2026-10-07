@@ -1,4 +1,5 @@
 import { CandidateTeam } from '../models/event/Tournament';
+import type { DivisionEntrantInput } from '../types/Protocol';
 
 /**
  * Whether a team is eligible for a division.
@@ -57,4 +58,31 @@ export function divisionsForTeam<D extends { sportId?: string; ageGroupId?: stri
     else if (!division.sportId || team.sportId === division.sportId) others.push(division);
   }
   return { qualifying, others };
+}
+
+/**
+ * One entrant as `SET_DIVISION_ENTRANTS` takes it — for sending a roster back whole.
+ *
+ * The server reads entrants back with `null` in the fields an entrant does not use (a team has no
+ * `orgProfileId`), and the payload check (`SYNC-6`) refuses `null` where the type says "a string, or
+ * absent". So every empty field is left out rather than copied, and only a placeholder carries its
+ * organisation: a team or a person has its own.
+ */
+export function toEntrantInput(entrant: {
+  id?: string | null;
+  teamId?: string | null;
+  orgProfileId?: string | null;
+  orgId?: string | null;
+  label?: string | null;
+  seed?: number | null;
+  status?: 'active' | 'withdrawn' | null;
+}): DivisionEntrantInput {
+  const input: DivisionEntrantInput = { status: entrant.status || 'active' };
+  if (entrant.id) input.id = entrant.id;
+  if (entrant.teamId) input.teamId = entrant.teamId;
+  if (entrant.orgProfileId) input.orgProfileId = entrant.orgProfileId;
+  if (!entrant.teamId && !entrant.orgProfileId && entrant.orgId) input.orgId = entrant.orgId;
+  if (entrant.label) input.label = entrant.label;
+  if (entrant.seed != null) input.seed = entrant.seed;
+  return input;
 }
