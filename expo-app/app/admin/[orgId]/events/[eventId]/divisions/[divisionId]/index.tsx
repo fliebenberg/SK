@@ -225,6 +225,7 @@ export default function DivisionScreen() {
   const [draftFacilityIds, setDraftFacilityIds] = useState<string[]>([]);
   const [isSavingFacilities, setIsSavingFacilities] = useState(false);
   const savedFacilityKey = [...(division?.facilityIds || [])].sort().join();
+  const hasDivision = !!division;
 
   /**
    * A baseline of its own, for the same reasons as the details above — the facilities are a
@@ -262,8 +263,11 @@ export default function DivisionScreen() {
       same: (a, b) => a === b,
     });
     if (decision === 'adopt') seedFacilities(division.facilityIds || [], savedFacilityKey, divisionId);
+    // `hasDivision` as well: a division with no fields of its own has the same key, `''`, before it
+    // loads and after, so without it this never ran, no baseline was set, and ticking a field never
+    // counted as a change — no Save, and the choice was dropped on leaving (2026-10-07).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [divisionId, savedFacilityKey]);
+  }, [divisionId, savedFacilityKey, hasDivision]);
 
   const facilitiesDirty =
     facilityBaselineKey !== null && [...draftFacilityIds].sort().join() !== facilityBaselineKey;
