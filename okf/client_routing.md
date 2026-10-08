@@ -108,8 +108,9 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     What the Schedule tab opens when there are several divisions (U53).
 *   `/admin/[orgId]/events/[eventId]/organisations/[participantOrgId]`: One organisation in a
     tournament (`FIX-26`, 2026-10-08) — its invitation and response, and its teams in every division,
-    saved through a save bar. Reached from step 3 and the Organisations card. Organisers only for
-    now; the organisation's own view is `FIX-30`.
+    saved through a save bar. Reached from step 3 and the Organisations card. Two readers (`FIX-30`):
+    the organisers, and the organisation's own members once it is invited — they answer, ask to
+    withdraw, and see their teams read-only.
 *   `/admin/[orgId]/events/[eventId]/entrants` (`?divisionId=` to open filtered): **Since `FIX-26`
     (2026-10-05) no longer reached from the tournament page**, whose step 3 adds and invites
     organisations and enters each one's teams in dialogs (docs/events.md §7); still linked from a

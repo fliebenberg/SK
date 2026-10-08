@@ -7,7 +7,7 @@ import {
   Event,
   EventOrgBadge,
   EventOrgHistory,
-  SocketAction,
+  hasLeft,
   Sport,
   TournamentDivision,
 } from '@sk/shared';
@@ -20,6 +20,7 @@ import { FixtureCrest } from '../../../../../../components/events/EventBits';
 import { InvitationBadge } from '../../../../../../components/tournament/TournamentBits';
 import { NominateFor, RemoveOrganisationDialog, useCanWriteInto } from '../../../../../../components/tournament/OrganisationDialogs';
 import { OrgTeamsByDivision, useOrgTeamPicks } from '../../../../../../components/tournament/OrganisationTeams';
+import { OrganisationResponse, isLongReason } from '../../../../../../components/tournament/OrganisationResponse';
 import { useLiveRoom } from '../../../../../../hooks/useLiveRoom';
 import { useEventEntrants } from '../../../../../../hooks/useEventEntrants';
 import { useEventCapabilities } from '../../../../../../hooks/useEventCapabilities';
@@ -29,9 +30,7 @@ import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../../../store/unsavedChangesStore';
 import { useAuthStore } from '../../../../../../store/authStore';
 import { useWsStore } from '../../../../../../store/wsStore';
-import { sendAction } from '../../../../../../services/actions';
 import { wsService } from '../../../../../../services/websocket';
-import { formatInstantDate } from '../../../../../../utils/dates';
 
 /**
  * One organisation in a tournament (`FIX-26`, agreed 2026-10-07/08 on
@@ -48,10 +47,16 @@ import { formatInstantDate } from '../../../../../../utils/dates';
  * - **The teams** card: every division by sport, the organisation's teams as tick chips, a ＋ on
  *   every division, and *All divisions / Entered*. Changes collect in the save bar.
  *
- * For the tournament's organisers. The organisation's own view — answering, withdrawing — is `FIX-30`.
+ * **Two readers** (`FIX-30`): the tournament's organisers, who manage everything here, and the
+ * organisation's own members once it is invited — they answer (an admin or staff member), ask to
+ * withdraw, and see their teams, read-only until self-entry exists (FUTURE_IDEAS).
  */
 
-type Answer = 'invited' | 'accepted' | 'declined';
+
+/** The participant's invitation, read from the event as it arrives — before `org` is worked out. */
+function useLiveRoomOwnStatus(events: Event[], eventId: string, participantOrgId: string) {
+  return events.find(e => e?.id === eventId)?.participatingOrgs?.find(o => o.id === participantOrgId)?.invitation;
+}
 
 export default function OrganisationInTournamentScreen() {
   const { orgId, eventId, participantOrgId } = useLocalSearchParams<{ orgId: string; eventId: string; participantOrgId: string }>();
@@ -65,6 +70,12 @@ export default function OrganisationInTournamentScreen() {
 
   const { capabilities, isLoading: loadingCapabilities } = useEventCapabilities(eventId);
   const canEdit = !!capabilities?.canEditEvent;
+  // The organisation's own members: its page is theirs too, once it is invited (`FIX-30`).
+  const memberships = useAuthStore((state: any) => state.orgMemberships) || [];
+  const current = (m: any) => m.orgId === participantOrgId && (!m.endDate || new Date(m.endDate) > new Date());
+  const isOwnOrg = memberships.some(current);
+  // Answering for it is an admin's or staff member's, as the server's `answer-invitation` gate has it.
+  const runsOwnOrg = memberships.some((m: any) => current(m) && (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff'));
 
   /* -- data ------------------------------------------------------------------------------- */
   const { items: eventItems, isLoading: eventLoading } = useLiveRoom<Event>(eventId ? `event:${eventId}` : null, {
@@ -88,7 +99,9 @@ export default function OrganisationInTournamentScreen() {
       }
     },
   });
-  const { entrants } = useEventEntrants(eventId, canEdit);
+  // Its teams: the organisers', and an invited or taking-part organisation's own (its members' room).
+  const ownStatus = useLiveRoomOwnStatus(eventItems, eventId, participantOrgId);
+  const { entrants } = useEventEntrants(eventId, canEdit || (isOwnOrg && !!ownStatus && ['invited', 'accepted', 'withdrawal_pending'].includes(ownStatus)));
 
   const [sports, setSports] = useState<Sport[]>([]);
   const [candidateTeams, setCandidateTeams] = useState<CandidateTeam[]>([]);
@@ -118,11 +131,11 @@ export default function OrganisationInTournamentScreen() {
   // Who invited and who answered: names, so a read of their own rather than on the public event.
   const [history, setHistory] = useState<EventOrgHistory | null>(null);
   useEffect(() => {
-    if (!isConnected || !canEdit || !eventId || !participantOrgId) return;
+    if (!isConnected || !(canEdit || isOwnOrg) || !eventId || !participantOrgId) return;
     let live = true;
     wsService.emit('get_data', { type: 'event_org_history', eventId, participantOrgId }, (res: any) => { if (live) setHistory(res || null); });
     return () => { live = false; };
-  }, [isConnected, canEdit, eventId, participantOrgId, org?.invitation, org?.answeredAt, org?.invitedAt]);
+  }, [isConnected, canEdit, isOwnOrg, eventId, participantOrgId, org?.invitation, org?.answeredAt, org?.invitedAt]);
 
   /* -- teams ------------------------------------------------------------------------------- */
   const teams = useOrgTeamPicks({ org, orgId, divisions, sportIds: event?.sportIds || [], entrants, candidateTeams });
@@ -132,28 +145,13 @@ export default function OrganisationInTournamentScreen() {
     if (await teams.save()) useUnsavedChangesStore.getState().clear();
   };
 
-  /* -- the response ------------------------------------------------------------------------ */
-  const [changing, setChanging] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<null | 'remove' | 'nominate'>(null);
-  const answer = async (value: Answer) => {
-    if (!org) return;
-    setBusy(true);
-    const result = await sendAction(SocketAction.SET_EVENT_ORG_ANSWER, { eventId, orgId, participantOrgId: org.id, answer: value });
-    setBusy(false);
-    if (result.ok) setChanging(false);
-  };
-  const invite = async () => {
-    if (!org) return;
-    setBusy(true);
-    await sendAction(SocketAction.INVITE_EVENT_ORGS, { eventId, orgId, participantOrgIds: [org.id] });
-    setBusy(false);
-  };
 
-  if (!loadingCapabilities && !canEdit) {
+  const mayOpen = canEdit || (isOwnOrg && !!ownStatus && ownStatus !== 'not_invited');
+  if (!loadingCapabilities && !eventLoading && event && !mayOpen) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
-        <AccessDenied message="This page is for the tournament's organisers." actionLabel="Back to the tournament" onAction={backToTournament} />
+        <AccessDenied message="This page is for the tournament's organisers, and for the organisation itself once it is invited." actionLabel="Back to the tournament" onAction={backToTournament} />
       </SafeAreaView>
     );
   }
@@ -171,70 +169,24 @@ export default function OrganisationInTournamentScreen() {
   const entered = Object.values(teams.picks).flat().filter(p => p.was);
   const enteredDivisions = Object.entries(teams.picks).filter(([, rows]) => rows.some(p => p.was)).length;
 
-  /** "Accepted by Pieter Joubert (Laerskool Waterkloof) · Tue 7 Oct", or "… by you". */
-  const by = (who: EventOrgHistory['answeredBy']) =>
-    !who ? '' : who.userId === myUserId ? ' by you' : ` by ${who.name}${who.orgName ? ` (${who.orgName})` : ''}`;
-  const answeredLine = () => {
-    const label = org.invitation === 'accepted' ? 'Accepted' : 'Declined';
-    // An organiser recording an answer heard another way: "Set to Accepted by …".
-    const setByOrganiser = history?.answeredBy && history.answeredBy.orgName !== org.name;
-    const when = formatInstantDate(org.answeredAt);
-    return `${setByOrganiser ? `Set to ${label}` : label}${by(history?.answeredBy || null)}${when ? ` · ${when}` : ''}`;
-  };
-  const invitedLine = () => {
-    const when = formatInstantDate(org.invitedAt);
-    return `Invited${when ? ` ${when}` : ''}${by(history?.invitedBy || null)}`;
-  };
-
-  const link = (label: string, onPress: () => void, danger?: boolean) => (
-    <TouchableOpacity onPress={onPress} accessibilityRole="button" disabled={busy}>
-      <Text className={`font-inter-bold text-[13px] ${danger ? 'text-danger-ink' : 'text-primary-ink'}`}>{label}</Text>
-    </TouchableOpacity>
-  );
-  const button = (label: string, onPress: () => void, primary?: boolean) => (
-    <TouchableOpacity onPress={onPress} disabled={busy} accessibilityRole="button" className={`rounded-xl px-3 py-1.5 border ${primary ? 'bg-primary border-primary' : 'border-line'}`}>
-      <Text className={`font-inter-bold text-[13px] ${primary ? 'text-on-primary' : 'text-ink'}`}>{label}</Text>
-    </TouchableOpacity>
-  );
-  const remove = link('Remove from the tournament', () => setDialog('remove'), true);
-
-  const awaiting = org.invitation === 'invited' || (changing && (org.invitation === 'accepted' || org.invitation === 'declined'));
+  const viewer = canEdit ? 'organiser' : 'organisation';
   const response = (
-    <View className="rounded-2xl border border-line bg-card p-4 gap-2" style={isWide ? { width: 300 } : undefined}>
-      <Text className="font-inter-bold text-[13px] text-ink-soft">Response</Text>
-      {isHost ? (
-        <>
-          <Text className="font-inter text-xs text-ink-muted">The host takes part by hosting, so it has no invitation.</Text>
-          <View className="flex-row flex-wrap gap-3.5 mt-0.5">{remove}</View>
-        </>
-      ) : org.invitation === 'not_invited' ? (
-        <>
-          <Text className="font-inter text-xs text-ink-muted">Not invited yet: it can't see the tournament.</Text>
-          <View className="flex-row flex-wrap items-center gap-3.5 mt-0.5">{button('Invite', invite, true)}{remove}</View>
-        </>
-      ) : awaiting ? (
-        <>
-          <View className="flex-row flex-wrap gap-2">
-            {button('✓ Accepted', () => answer('accepted'))}
-            {button('✕ Declined', () => answer('declined'))}
-          </View>
-          <Text className="font-inter text-xs text-ink-muted">
-            {changing ? 'Change their response, or ' : `${invitedLine()} · they can respond, or you can set their response.`}
-            {changing ? <Text onPress={() => setChanging(false)} className="font-inter-bold text-primary-ink">keep it as it is</Text> : null}
-          </Text>
-          {!changing ? <View className="flex-row flex-wrap gap-3.5 mt-0.5">{remove}</View> : null}
-        </>
-      ) : (
-        <>
-          <Text className="font-inter text-xs text-ink-muted">{answeredLine()}</Text>
-          <View className="flex-row flex-wrap gap-3.5 mt-0.5">
-            {link('Change response', () => setChanging(true))}
-            {remove}
-          </View>
-        </>
-      )}
-    </View>
+    <OrganisationResponse
+      event={event}
+      orgId={orgId}
+      org={org}
+      isHost={isHost}
+      viewer={viewer}
+      canAnswer={canEdit || runsOwnOrg}
+      hostName={hostOrg?.name || 'the organisers'}
+      history={history}
+      myUserId={myUserId}
+      wide={isWide && !isLongReason(history)}
+      onRemove={() => setDialog('remove')}
+    />
   );
+  // A long reason would make the card beside the banner tall and narrow: it goes under it instead.
+  const sideBySide = isWide && !isLongReason(history);
 
   const banner = (
     <View className="flex-1 rounded-2xl border border-line bg-card p-4 flex-row items-center gap-3.5">
@@ -252,7 +204,7 @@ export default function OrganisationInTournamentScreen() {
     </View>
   );
 
-  const menuItems = org.isClaimed === false
+  const menuItems = canEdit && org.isClaimed === false
     ? [{ label: 'Nominate a contact', description: `Nobody manages ${org.name} on ScoreKeeper yet.`, icon: 'person-add-outline' as const, onPress: () => setDialog('nominate') }]
     : [];
 
@@ -266,7 +218,7 @@ export default function OrganisationInTournamentScreen() {
       />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 120 }}>
         <View className="w-full self-center gap-4" style={{ maxWidth: 960 }}>
-          {isWide ? <View className="flex-row gap-4 items-stretch">{banner}{response}</View> : <>{banner}{response}</>}
+          {sideBySide ? <View className="flex-row gap-4 items-stretch">{banner}{response}</View> : <>{banner}{response}</>}
 
           <View className="rounded-2xl border border-line bg-card p-4 gap-2">
             <View className="flex-row items-center gap-2">
@@ -281,7 +233,9 @@ export default function OrganisationInTournamentScreen() {
                 options={[{ key: 'all', label: 'All divisions' }, { key: 'entered', label: 'Entered' }]}
               />
             </View>
-            <OrgTeamsByDivision
+            {hasLeft(org.invitation) ? (
+              <Text className="font-inter text-[13px] text-ink-muted">{org.invitation === 'declined' ? 'Declined' : 'Withdrawn'}: its teams were taken out of their divisions.</Text>
+            ) : <OrgTeamsByDivision
               org={org}
               orgId={orgId}
               sports={sports}
@@ -301,7 +255,7 @@ export default function OrganisationInTournamentScreen() {
                 orgName: org.name, orgShortName: org.shortName,
                 sportId: team.sportId, ageGroupId: team.ageGroupId ?? null, ageGroup: team.ageGroup,
               }])}
-            />
+            />}
             {teams.withdrawing.length ? (
               <View className="rounded-xl bg-warning-soft px-3 py-2">
                 <Text className="font-inter text-[13px] text-warning-ink">
@@ -314,7 +268,7 @@ export default function OrganisationInTournamentScreen() {
       </ScrollView>
 
       <FloatingSaveBar
-        visible={teams.isDirty}
+        visible={canEdit && teams.isDirty}
         title={`${teams.changedCount} ${teams.changedCount === 1 ? 'division' : 'divisions'} changed`}
         description={`${org.name}'s teams`}
         saveLabel={teams.withdrawing.length ? `Save and withdraw ${teams.withdrawing.length}` : 'Save'}

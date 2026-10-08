@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Event,
+  EventOrgInvitation,
   GameSummary,
   Sport,
   eventFormatLabel,
@@ -135,7 +136,7 @@ export default function OrgEventsList() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [namingTournament, setNamingTournament] = useState(false);
 
-  const { items: events, isLoading: eventsLoading, accessDenied } = useLiveRoom<Event>(orgId ? `org:${orgId}:events` : null, {
+  const { items: listedEvents, isLoading: eventsLoading, accessDenied } = useLiveRoom<Event>(orgId ? `org:${orgId}:events` : null, {
     reduce: (message) => {
       switch (message.type) {
         case 'EVENTS_SYNC':
@@ -150,6 +151,24 @@ export default function OrgEventsList() {
       }
     },
   });
+
+  /*
+   * Tournaments its members see here but its public lists do not (`FIX-30`): an invitation to
+   * answer, and one it declined or withdrew from, kept as the record. A members' room — the
+   * public `org:{id}:events` shows a tournament only once the organisation is in it.
+   */
+  const { items: invitedEvents } = useLiveRoom<Event>(orgId ? `org:${orgId}:invitations` : null, {
+    reduce: (message) =>
+      message.type === 'EVENT_INVITATIONS_SYNC' ? { kind: 'replace', items: message.data || [] } : { kind: 'ignore' },
+  });
+  const events = useMemo(() => {
+    const listed = (listedEvents || []).filter(Boolean);
+    const seen = new Set(listed.map(e => e.id));
+    return [...listed, ...(invitedEvents || []).filter(e => e && !seen.has(e.id))];
+  }, [listedEvents, invitedEvents]);
+  /** This organisation's invitation to a tournament it does not host. */
+  const invitationTo = (event: Event): EventOrgInvitation | undefined =>
+    event.orgId === orgId ? undefined : event.participatingOrgs?.find(o => o.id === orgId)?.invitation;
 
   const { items: games, isLoading: gamesLoading } = useLiveRoom<GameSummary>(orgId ? `org:${orgId}:fixtures` : null, {
     reduce: (message) => {
@@ -706,6 +725,7 @@ export default function OrgEventsList() {
                 sportIds={eventSportIds(event)}
                 first={i === 0}
                 isPast={when === 'past'}
+                invitation={invitationTo(event)}
                 away={away}
                 convening={convening}
                 onPress={() => openEvent(event)}
@@ -912,11 +932,13 @@ function MatchRow({ game, event, competition, showDate, isWide, orgId, sportName
 }
 
 /** A tournament: its name and format, the sports, where, and how many games — or that it is on now. */
-function TournamentRow({ event, games, sportIds, isPast, isWide, canCreate, sportName, siteName, today, first, away, convening, onPress }: RowBase & {
+function TournamentRow({ event, games, sportIds, isPast, isWide, canCreate, sportName, siteName, today, first, away, convening, invitation, onPress }: RowBase & {
   event: Event;
   games: GameSummary[];
   sportIds: string[];
   isPast: boolean;
+  /** This organisation's invitation, when it does not host — its answer leads the row (`FIX-30`). */
+  invitation?: EventOrgInvitation;
 }) {
   const isDark = useActiveTheme() === 'dark';
   const tile = calendarRangeTile(event.startDate, event.endDate);
@@ -931,6 +953,12 @@ function TournamentRow({ event, games, sportIds, isPast, isWide, canCreate, spor
 
   const end = isCancelled ? (
     <RowTag tone="cancelled" label="Cancelled" />
+  ) : invitation === 'invited' && !isPast ? (
+    <RowTag tone="setup" label="Answer needed" />
+  ) : invitation === 'declined' || invitation === 'withdrawn' ? (
+    <RowTag tone="cancelled" label={invitation === 'declined' ? 'Declined' : 'Withdrawn'} />
+  ) : invitation === 'withdrawal_pending' ? (
+    <RowTag tone="setup" label="Withdrawal pending" />
   ) : liveCount ? (
     <>
       <RowTag tone="live" label={`● ${liveCount} live`} />

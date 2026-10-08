@@ -17,6 +17,8 @@ import {
   TournamentOrganizer,
   divisionAutoName,
   drawChanges,
+  hasLeft,
+  isTakingPart,
 } from '@sk/shared';
 import { OverflowMenu } from '../OverflowMenu';
 import { AddressMap } from '../address/AddressMap';
@@ -30,6 +32,8 @@ import {
 } from './TournamentBits';
 import { EditTournamentDialog, ScoringDialog, SportsDialog, WhereDialog } from './TournamentDialogs';
 import { AddOrganisationsDialog, InviteOrganisationsDialog, NominateFor } from './OrganisationDialogs';
+import { OrganisationResponse } from './OrganisationResponse';
+import { useAuthStore } from '../../store/authStore';
 import { RegisterOrgModal } from '../RegisterOrgModal';
 import { nominateOrgContact } from '../../services/nominations';
 import { sendAction } from '../../services/actions';
@@ -84,19 +88,20 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
     const entered = entrants.filter(e => e.status !== 'withdrawn');
     const thin = playing.filter(d => active(d).length < 2);
     // The host takes part by hosting; every other organisation has an invitation (`FIX-29`).
-    const others = (event.participatingOrgs || []).filter(o => o.id !== event.orgId);
+    // One that declined or withdrew stays listed as the record, but is out of it (`FIX-30`).
+    const others = (event.participatingOrgs || []).filter(o => o.id !== event.orgId && !hasLeft(o.invitation));
     const teamsOf = (id: string) => entered.filter(e => e.orgId === id).length;
     const notInvited = others.filter(o => o.invitation === 'not_invited');
     const unanswered = others.filter(o => o.invitation === 'invited');
-    const declined = others.filter(o => o.invitation === 'declined');
-    const empty = others.filter(o => o.invitation !== 'declined' && !teamsOf(o.id));
-    const warnings = thin.length + empty.length + unanswered.length + declined.length;
+    const leaving = others.filter(o => o.invitation === 'withdrawal_pending');
+    const empty = others.filter(o => !teamsOf(o.id));
+    const warnings = thin.length + empty.length + unanswered.length + leaving.length;
     /*
-     * Done (agreed 2026-10-05, `FIX-26`): every organisation has accepted and entered something,
-     * none that declined is left, and every playing division has two or more entrants — a place
-     * still to be named counts, since it is drawn like any team.
+     * Done (agreed 2026-10-05, `FIX-26`; `FIX-30`): every organisation still in it has accepted and
+     * entered something, none is asking to withdraw, and every playing division has two or more
+     * entrants — a place still to be named counts, since it is drawn like any team.
      */
-    const entrantsDone = playing.length > 0 && entered.length > 0 && !thin.length && !notInvited.length && !unanswered.length && !declined.length && !empty.length;
+    const entrantsDone = playing.length > 0 && entered.length > 0 && !thin.length && !notInvited.length && !unanswered.length && !leaving.length && !empty.length;
     const drawn = playing.filter(d => games.some(g => g.divisionId === d.id));
     const changed = playing.filter(d => drawChanges(d.firstStageId, games.filter(g => g.divisionId === d.id), active(d)).count > 0);
     const scoring = event.settings?.scoring;
@@ -283,7 +288,10 @@ export function TournamentHome({
     }
     // The viewer's own organisation first, after the host, when they are a guest.
     const mine = rows.filter(r => !r.isHost && viewerOrgIds.includes(r.org.id));
-    return [...rows.filter(r => r.isHost), ...mine, ...rows.filter(r => !r.isHost && !viewerOrgIds.includes(r.org.id))];
+    // Those that declined or withdrew last: kept as the record, but out of it (`FIX-30`).
+    const left = (r: OrgRow) => !!r.invitation && hasLeft(r.invitation);
+    const others = rows.filter(r => !r.isHost && !viewerOrgIds.includes(r.org.id));
+    return [...rows.filter(r => r.isHost), ...mine, ...others.filter(r => !left(r)), ...others.filter(left)];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hostOrg, takingPart, allEntrants, divisions, sports, viewerOrgIds, event.orgId, event.sportIds]);
 
@@ -307,6 +315,10 @@ export function TournamentHome({
     ? badgeFor(hostOrg.id) || { id: hostOrg.id, name: hostOrg.name, shortName: hostOrg.shortName || hostOrg.name, logo: hostOrg.logo, logoConfig: (hostOrg.settings as any)?.logoConfig, primaryColor: hostOrg.primaryColor, isClaimed: true, invitation: 'accepted' }
     : null;
   /** An organisation's own page: its invitation and its teams (`FIX-26`, 2026-10-08). */
+  const myUserId = useAuthStore((state: any) => state.user?.id);
+  const myMemberships = useAuthStore((state: any) => state.orgMemberships) || [];
+  /** An admin or staff member of that organisation — who may answer for it. */
+  const runsOrg = (id: string) => myMemberships.some((m: any) => m.orgId === id && (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff') && (!m.endDate || new Date(m.endDate) > new Date()));
   const openOrg = (id: string) => router.push(`/admin/${orgId}/events/${eventId}/organisations/${id}` as any);
   const dialogOrg = orgDialog && 'orgId' in orgDialog ? (orgDialog.orgId === event.orgId ? hostBadge : badgeFor(orgDialog.orgId)) : null;
 
@@ -321,14 +333,15 @@ export function TournamentHome({
         onAction: () => router.push(`/admin/${orgId}/events/${eventId}/divisions/${d.id}`),
       });
     }
-    for (const row of orgRows.filter(r => !r.isHost)) {
+    // Declined and withdrawn are not warnings: they are answers (`FIX-30`), listed at the bottom.
+    for (const row of orgRows.filter(r => !r.isHost && !(r.invitation && hasLeft(r.invitation)))) {
       const entered = row.teams + row.players + row.toBeNamed;
-      if (row.invitation === 'declined') {
-        list.push({ text: `${row.org.name} declined. Remove it${entered ? `, with its ${plural(entered, 'team')}` : ''}.`, actionLabel: 'Review', onAction: () => openOrg(row.org.id) });
-      } else {
-        if (!entered) list.push({ text: `${row.org.name} has no teams yet.`, actionLabel: 'Enter teams', onAction: () => openOrg(row.org.id) });
-        if (row.invitation === 'invited') list.push({ text: `${row.org.name} has not answered its invitation.`, actionLabel: 'Record answer', onAction: () => openOrg(row.org.id) });
+      if (row.invitation === 'withdrawal_pending') {
+        list.push({ text: `${row.org.name} asks to withdraw.`, actionLabel: 'Review', onAction: () => openOrg(row.org.id) });
+        continue;
       }
+      if (!entered) list.push({ text: `${row.org.name} has no teams yet.`, actionLabel: 'Enter teams', onAction: () => openOrg(row.org.id) });
+      if (row.invitation === 'invited') list.push({ text: `${row.org.name} has not answered its invitation.`, actionLabel: 'Record answer', onAction: () => openOrg(row.org.id) });
     }
     return list;
   })();
@@ -635,7 +648,7 @@ export function TournamentHome({
   const schoolsCard = orgRows.length ? card(
     'Organisations',
     <View>
-      <OrgsList rows={canEdit ? orgRows : orgRows.filter(r => r.isHost || r.invitation !== 'declined')} isWide={isWide} showInvitations={canEdit} onOpen={canEdit ? openOrg : undefined} highlightOrgId={highlight} />
+      <OrgsList rows={canEdit ? orgRows : orgRows.filter(r => r.isHost || (!!r.invitation && isTakingPart(r.invitation)))} isWide={isWide} showInvitations={canEdit} onOpen={canEdit ? openOrg : undefined} highlightOrgId={highlight} />
       <UnnamedList entrants={unnamed} divisionName={divisionName} />
     </View>,
     canEdit ? addOrgAction : undefined,
@@ -655,8 +668,33 @@ export function TournamentHome({
   ), edit(onEditOrganizers)) : null;
 
   const isGuest = !canEdit && viewerOrgIds.some(id => (event.participatingOrgs || []).some(o => o.id === id));
+  /*
+   * The viewer's own organisation, invited and not simply taking part (`FIX-30`): "Valley Prep has
+   * invited you", with Accept and Decline — or where its request to withdraw, or its answer, stands.
+   * The same card as on its page, which this links to for its teams.
+   */
+  const myInvitations = canEdit ? [] : takingPart.filter(o => o.id !== event.orgId && viewerOrgIds.includes(o.id) && o.invitation !== 'accepted' && o.invitation !== 'not_invited');
+  const invitationBanners = myInvitations.map(o => (
+    <View key={o.id} className="gap-1.5">
+      <OrganisationResponse
+        event={event}
+        orgId={orgId}
+        org={o}
+        isHost={false}
+        viewer="organisation"
+        canAnswer={runsOrg(o.id)}
+        hostName={hostOrg?.name || 'the organisers'}
+        history={null}
+        myUserId={myUserId}
+        wide={false}
+        onRemove={() => {}}
+      />
+      {link(`${o.name}'s page in this tournament ›`, () => openOrg(o.id))}
+    </View>
+  ));
   const overview = (
     <>
+      {invitationBanners}
       {liveCard}
       {isGuest && !isWide ? whereCard : null}
       {sportsCard}
