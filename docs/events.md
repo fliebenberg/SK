@@ -196,14 +196,27 @@ Say *organisations*, never *schools*: clubs take part too.
 - **Add organisations**: a search with ticks, *Register* for one not found, and two buttons — *Add*
   is the main one until any invitation has gone out, *Add and invite* after. *Taken part before* was
   dropped for now.
-- **An organisation's dialog** (tap its row): the invitation — badge with its date under it, and the
-  answer as a dropdown (*No answer yet / Accepted / Declined*) for the tournament's organisers, plain
-  text for anyone else; *Invite* while not invited. The answer and *Invite* write at once. Then every
-  division, grouped by sport, with its teams as tick chips; **＋ on every division** for another of
-  its teams (playing up), a new team (only where this user may create one — an unclaimed organisation,
-  or one they run), or a place to be filled later; *＋ Add player* in an individual sport. **Save**
-  writes the divisions that changed; unticking a team that has played withdraws it and says so.
-  *Remove from the tournament* confirms, and is refused once any of its teams has played.
+- **An organisation's page** (tap its row; `events/[eventId]/organisations/[participantOrgId]`) —
+  a page, not a dialog (2026-10-08): a link to send to whoever enters an organisation's teams, and
+  room for a big club in a big tournament. Option B of two, agreed on the mockup:
+  - **The banner**: crest, name, and the status as a full-size badge; the tournament and how much it
+    has entered.
+  - **The response** has a small card of its own — beside the banner on a wide screen, under it on a
+    phone. While there is no answer: *✓ Accepted* / *✕ Declined*, with "Invited Mon 6 Oct by … · they
+    can respond, or you can set their response." Once answered, the buttons go and it says who and
+    when — "Accepted by Pieter Joubert (Laerskool Waterkloof) · Tue 7 Oct", "… by you", or "Set to
+    Accepted by …" when an organiser recorded it — with *Change response* and *Remove from the
+    tournament*. Not invited yet: *Invite*. The answer and *Invite* write at once. Who invited and
+    who answered are names, so they are read by `get_data` `event_org_history` (organisers only),
+    never carried on the event, which goes to a public room.
+  - **The teams**: every division, grouped by sport, with its teams as tick chips; **＋ on every
+    division** for another of its teams (playing up), a new team (only where this user may create
+    one — an unclaimed organisation, or one they run), or a place to be filled later; *＋ Add
+    player* in an individual sport; *All divisions / Entered*. Changes collect in the save bar, which
+    writes the divisions that changed; unticking a team that has played withdraws it and says so.
+  - *Remove from the tournament* confirms, and is refused once any of its teams has played. The ⋯
+    menu holds *Nominate a contact* when nobody manages the organisation.
+  - The organisation's own view of the page — answering, and asking to withdraw — is `FIX-30`.
 - **Done** when every organisation has accepted and has at least one entry, none that declined is
   left, and every playing division has two or more entrants — a place to be named counts.
 - Entering **by division**, and Replace / Withdraw / Remove, belong to the division page (`FIX-27`);

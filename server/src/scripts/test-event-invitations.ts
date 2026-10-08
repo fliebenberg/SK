@@ -119,7 +119,7 @@ async function run() {
     check(await rejects(() => eventManager.setEventOrgAnswer(event.id, guest, 'accepted'), /not been invited/), 'an answer before an invitation is refused');
 
     // --- Inviting.
-    const invited = await eventManager.inviteEventOrgs(event.id, [guest]);
+    const invited = await eventManager.inviteEventOrgs(event.id, [guest], { userId: hostAdmin, orgId: host });
     check(invited.newlyInvited.length === 1 && invited.newlyInvited[0] === guest, 'inviting reports the organisation as newly able to see it');
     check(!!invited.event.participatingOrgs?.find(o => o.id === guest)?.invitedAt, '…and records when');
     check((await eventManager.inviteEventOrgs(event.id, [guest])).newlyInvited.length === 0, 'inviting it again changes nothing');
@@ -128,11 +128,16 @@ async function run() {
     check(after.gameStake && after.divisionStake && after.eventStake, 'invited: it has its stake in the fixture, roster and event');
 
     // --- Answers.
-    const accepted = await eventManager.setEventOrgAnswer(event.id, guest, 'accepted');
+    const history0 = await eventManager.getEventOrgHistory(event.id, guest);
+    check(history0?.invitedBy?.userId === hostAdmin && history0?.invitedBy?.orgName === `${P} host` && !history0?.answeredBy, 'who invited is recorded, with the organisation they acted from');
+    const accepted = await eventManager.setEventOrgAnswer(event.id, guest, 'accepted', { userId: guestAdmin, orgId: guest });
+    const history1 = await eventManager.getEventOrgHistory(event.id, guest);
+    check(history1?.answeredBy?.userId === guestAdmin && history1?.answeredBy?.name === 'guestadmin' && history1?.answeredBy?.orgName === `${P} guest`, 'who answered is recorded, with their organisation');
     const guestRow = accepted.participatingOrgs?.find(o => o.id === guest);
     check(guestRow?.invitation === 'accepted' && !!guestRow.answeredAt, 'an answer is recorded with its time');
     const cleared = await eventManager.setEventOrgAnswer(event.id, guest, 'invited');
     check(cleared.participatingOrgs?.find(o => o.id === guest)?.answeredAt == null, '"no answer yet" clears the time');
+    check(!(await eventManager.getEventOrgHistory(event.id, guest))?.answeredBy, '…and who answered');
     await eventManager.setEventOrgAnswer(event.id, guest, 'declined');
     check((await sees(guest, event.id, game.id, division.id)).events, 'a declined organisation can still see the event');
     check(await rejects(() => eventManager.setEventOrgAnswer(event.id, host, 'declined'), /host/), 'the host has no invitation to answer');

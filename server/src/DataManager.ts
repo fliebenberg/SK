@@ -4,7 +4,7 @@ import {
 import { siteManager } from "./managers/SiteManager";
 import { facilityManager } from "./managers/FacilityManager";
 import { teamManager } from "./managers/TeamManager";
-import { eventManager } from "./managers/EventManager";
+import { eventManager, EventOrgActor } from "./managers/EventManager";
 import { userManager } from "./managers/UserManager";
 import { sportManager } from "./managers/SportManager";
 import { accessManager } from "./managers/AccessManager";
@@ -138,10 +138,11 @@ export class DataManager {
   getEvent = (id: string) => eventManager.getEvent(id);
   addEvent = (event: AddEventPayload) => eventManager.addEvent(event);
   updateEvent = (id: string, data: Partial<Event>) => eventManager.updateEvent(id, data);
-  addEventOrgs = (eventId: string, orgIds: string[], invite: boolean) => eventManager.addEventOrgs(eventId, orgIds, invite);
-  inviteEventOrgs = (eventId: string, orgIds: string[]) => eventManager.inviteEventOrgs(eventId, orgIds);
-  setEventOrgAnswer = (eventId: string, orgId: string, answer: 'invited' | 'accepted' | 'declined') =>
-    eventManager.setEventOrgAnswer(eventId, orgId, answer);
+  addEventOrgs = (eventId: string, orgIds: string[], invite: boolean, actor?: EventOrgActor) => eventManager.addEventOrgs(eventId, orgIds, invite, actor);
+  inviteEventOrgs = (eventId: string, orgIds: string[], actor?: EventOrgActor) => eventManager.inviteEventOrgs(eventId, orgIds, actor);
+  setEventOrgAnswer = (eventId: string, orgId: string, answer: 'invited' | 'accepted' | 'declined', actor?: EventOrgActor) =>
+    eventManager.setEventOrgAnswer(eventId, orgId, answer, actor);
+  getEventOrgHistory = (eventId: string, orgId: string) => eventManager.getEventOrgHistory(eventId, orgId);
   deleteEvent = (id: string) => eventManager.deleteEvent(id);
 
   // Games

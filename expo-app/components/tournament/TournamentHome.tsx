@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  CandidateTeam,
   DEFAULT_SCORING_SYSTEM,
   Event,
   EventOrgBadge,
@@ -30,13 +29,9 @@ import {
   UnnamedList, WarningsBadge, WarningsList, isFinished,
 } from './TournamentBits';
 import { EditTournamentDialog, ScoringDialog, SportsDialog, WhereDialog } from './TournamentDialogs';
-import { AddOrganisationsDialog, InviteOrganisationsDialog, OrganisationDialog, RemoveOrganisationDialog, useCanWriteInto } from './OrganisationDialogs';
+import { AddOrganisationsDialog, InviteOrganisationsDialog, NominateFor } from './OrganisationDialogs';
 import { RegisterOrgModal } from '../RegisterOrgModal';
-import { NominateAdminModal } from '../NominateAdminModal';
-import { useOrgClaimStatus } from '../../hooks/useOrgClaimStatus';
 import { nominateOrgContact } from '../../services/nominations';
-import { wsService } from '../../services/websocket';
-import { useWsStore } from '../../store/wsStore';
 import { sendAction } from '../../services/actions';
 import { useActiveTheme, useSettingsStore } from '../../store/settingsStore';
 import { calendarRangeStatus, dateCountdown, eventDayOfRange, formatDateRange } from '../../utils/dates';
@@ -154,12 +149,6 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
     const nextIndex = steps.findIndex(s => !isFinished(s.state));
     return { steps, complete: nextIndex === -1, nextIndex };
   }, [event, divisions, games, entrants, entrantsByDivision, facilityIds, sports, sites]);
-}
-
-/** Nominating a contact for an organisation nobody manages, with its claim status read for the dialog. */
-function NominateFor({ org, onClose }: { org: { id: string; name: string }; onClose: () => void }) {
-  const { status } = useOrgClaimStatus(org.id, true);
-  return <NominateAdminModal visible org={org} status={status} onClose={onClose} onNominated={onClose} />;
 }
 
 export function TournamentHome({
@@ -307,8 +296,6 @@ export function TournamentHome({
     | null
     | { kind: 'add' }
     | { kind: 'inviteAll' }
-    | { kind: 'org'; orgId: string }
-    | { kind: 'remove'; orgId: string }
     | { kind: 'register'; name: string }
     | { kind: 'nominate'; orgId: string };
   const [orgDialog, setOrgDialog] = useState<OrgDialog>(null);
@@ -319,24 +306,9 @@ export function TournamentHome({
   const hostBadge: EventOrgBadge | null = hostOrg
     ? badgeFor(hostOrg.id) || { id: hostOrg.id, name: hostOrg.name, shortName: hostOrg.shortName || hostOrg.name, logo: hostOrg.logo, logoConfig: (hostOrg.settings as any)?.logoConfig, primaryColor: hostOrg.primaryColor, isClaimed: true, invitation: 'accepted' }
     : null;
-  const openOrg = (id: string) => setOrgDialog({ kind: 'org', orgId: id });
+  /** An organisation's own page: its invitation and its teams (`FIX-26`, 2026-10-08). */
+  const openOrg = (id: string) => router.push(`/admin/${orgId}/events/${eventId}/organisations/${id}` as any);
   const dialogOrg = orgDialog && 'orgId' in orgDialog ? (orgDialog.orgId === event.orgId ? hostBadge : badgeFor(orgDialog.orgId)) : null;
-  const canWriteInto = useCanWriteInto();
-  const viewerRuns = (id: string) => canWriteInto({ id, isClaimed: true }, orgId);
-
-  // The teams that could be entered: a one-shot read, as no room owns "teams that could enter"
-  // (`FIX-2`). Read for an organiser, again whenever the organisations taking part change.
-  const isConnected = useWsStore((state: any) => state.isConnected);
-  const [candidateTeams, setCandidateTeams] = useState<CandidateTeam[]>([]);
-  const takingPartKey = takingPart.map(o => o.id).join(',');
-  useEffect(() => {
-    if (!isConnected || !canEdit) return;
-    let live = true;
-    wsService.emit('get_data', { type: 'event_candidate_teams', eventId }, (res: any) => {
-      if (live && res) setCandidateTeams(res.teams || []);
-    });
-    return () => { live = false; };
-  }, [isConnected, canEdit, eventId, takingPartKey]);
 
   /** What keeps step 3 from being done, one line each, with where to put it right. */
   const warnings: StepWarning[] = (() => {
@@ -725,34 +697,6 @@ export function TournamentHome({
             orgId={orgId}
             onClose={closeOrgDialog}
             onNominate={org => setOrgDialog({ kind: 'nominate', orgId: org.id })}
-          />
-          <OrganisationDialog
-            visible={orgDialog?.kind === 'org' && !!dialogOrg}
-            event={event}
-            orgId={orgId}
-            org={orgDialog?.kind === 'org' ? dialogOrg : null}
-            isHost={dialogOrg?.id === event.orgId}
-            canAnswer={canEdit}
-            sports={sports}
-            divisions={divisions}
-            entrants={allEntrants}
-            candidateTeams={candidateTeams}
-            onClose={closeOrgDialog}
-            onRemove={org => setOrgDialog({ kind: 'remove', orgId: org.id })}
-            onNominate={org => setOrgDialog({ kind: 'nominate', orgId: org.id })}
-            onTeamCreated={team => setCandidateTeams(prev => [...prev, {
-              id: team.id, name: team.name, shortName: team.shortName, orgId: team.orgId,
-              orgName: dialogOrg?.name || '', orgShortName: dialogOrg?.shortName || '',
-              sportId: team.sportId, ageGroupId: team.ageGroupId ?? null, ageGroup: team.ageGroup,
-            }])}
-          />
-          <RemoveOrganisationDialog
-            visible={orgDialog?.kind === 'remove'}
-            event={event}
-            orgId={orgId}
-            org={orgDialog?.kind === 'remove' ? dialogOrg : null}
-            entrants={allEntrants}
-            onClose={closeOrgDialog}
           />
           {/* A school the search did not find: registered, then added — invited too once invitations have started. */}
           <RegisterOrgModal

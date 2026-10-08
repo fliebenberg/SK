@@ -168,6 +168,8 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     list. `setDivisionEntrants` therefore syncs the **first** stage when it draws from no earlier
     one, preserving any `pool_key` and `seed` already there. Without it, entering ten teams and
     pressing Generate would find an empty stage.
+*   **`event_org_history`** (`FIX-26`): who invited an organisation and who answered, by name — a
+    standalone `tournament-organiser` read, because the event itself travels to a public room.
 *   **Two reads that no room owns** (Phase 6): `event_entrants` defers to the room above, and
     `event_candidate_teams` — "teams that could be entered" — is a standalone
     `tournament-organiser` read scoped by **either** an `eventId` (the entry screen) or a

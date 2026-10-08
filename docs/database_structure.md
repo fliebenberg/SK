@@ -302,6 +302,11 @@ Which organisations are taking part. `PRIMARY KEY (event_id, org_id)`, both FKs 
   (okf/database.md, *Who is taking part in an event*).
 - `invited_at` (TIMESTAMPTZ): when it was invited; NULL while not invited yet.
 - `answered_at` (TIMESTAMPTZ): when it accepted or declined; NULL while there is no answer.
+- `invited_by_user_id`, `invited_by_org_id` (TEXT): who sent the invitation, and the organisation
+  they acted from. FKs to `users` and `organizations`, `ON DELETE SET NULL`.
+- `answered_by_user_id`, `answered_by_org_id` (TEXT): the same for the answer — the organisation's
+  own admin, or an organiser who recorded it. Cleared when the answer is cleared. Names are read
+  through `get_data` `event_org_history`, organisers only, never on the public event record.
 
 **Participation is determined by the teams taking part, and by nothing else.** Appointing an
 organiser, a sport's organiser or a convenor must never write a row here — see `event_organizers`

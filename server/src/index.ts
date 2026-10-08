@@ -1806,6 +1806,14 @@ io.on('connection', (socket) => {
                 );
                 break;
             }
+            case 'event_org_history': {
+                callback(
+                    request.eventId && request.participantOrgId
+                        ? await dataManager.getEventOrgHistory(request.eventId, request.participantOrgId)
+                        : null
+                );
+                break;
+            }
             case 'event_standings': {
                 const standingsEvent = request.eventId ? await dataManager.getEvent(request.eventId) : null;
                 callback((standingsEvent as any)?.cachedStandings || []);
@@ -3551,16 +3559,18 @@ io.on('connection', (socket) => {
             case SocketAction.INVITE_EVENT_ORGS:
             case SocketAction.SET_EVENT_ORG_ANSWER: {
                 const p = action.payload;
+                // Recorded with the invitation or the answer, for "Accepted by … (…)".
+                const actor = { userId: authUserId || null, orgId: p.orgId || null };
                 let newlyVisible: string[] = [];
                 if (action.type === SocketAction.ADD_EVENT_ORGS) {
-                    result = await dataManager.addEventOrgs(p.eventId, p.participantOrgIds || [], !!p.invite);
+                    result = await dataManager.addEventOrgs(p.eventId, p.participantOrgIds || [], !!p.invite, actor);
                     if (p.invite) newlyVisible = p.participantOrgIds || [];
                 } else if (action.type === SocketAction.INVITE_EVENT_ORGS) {
-                    const invited = await dataManager.inviteEventOrgs(p.eventId, p.participantOrgIds || []);
+                    const invited = await dataManager.inviteEventOrgs(p.eventId, p.participantOrgIds || [], actor);
                     result = invited.event;
                     newlyVisible = invited.newlyInvited;
                 } else {
-                    result = await dataManager.setEventOrgAnswer(p.eventId, p.participantOrgId, p.answer);
+                    result = await dataManager.setEventOrgAnswer(p.eventId, p.participantOrgId, p.answer, actor);
                 }
                 publishEventToOrgs([result.orgId, ...(result.participatingOrgIds || [])], 'EVENT_UPDATED', result);
                 additionalBroadcasts.push({ topic: eventRoom(result.id), type: 'EVENT_UPDATED', data: result });

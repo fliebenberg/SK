@@ -76,6 +76,22 @@ export interface EventOrgBadge extends OrgBadge {
   answeredAt?: string | null;
 }
 
+/** A person who did something to an invitation, and the organisation they acted from. */
+export interface EventOrgActorName {
+  userId: string;
+  name: string;
+  orgName: string | null;
+}
+
+/**
+ * Who invited an organisation and who gave its answer (`FIX-26`). Names, so it is read by
+ * `get_data` `event_org_history` rather than travelling on the event, which goes to a public room.
+ */
+export interface EventOrgHistory {
+  invitedBy: EventOrgActorName | null;
+  answeredBy: EventOrgActorName | null;
+}
+
 /** Whether an organisation in this state can see the event. */
 export function canSeeEvent(invitation: EventOrgInvitation): boolean {
   return invitation !== 'not_invited';

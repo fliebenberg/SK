@@ -204,6 +204,9 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // Who runs this tournament is not spectator information: it is a list of named people, and
   // `event:{id}` is a public room, so it cannot defer to one.
   event_organizers:     { standalone: 'tournament-organiser', organiserScope: (req: any) => ({ eventId: req.eventId }) },
+  // Who invited an organisation and who answered (`FIX-26`): named people, so the organisers' only
+  // — not the public event room. The invited organisation's own admins join it with `FIX-30`.
+  event_org_history:    { standalone: 'tournament-organiser', organiserScope: (req: any) => ({ eventId: req.eventId }) },
   // Asked per sport, not per event (2026-09-20): the read is then gated by exactly the grant that
   // would let the caller change it, so a sport's organiser reads their own sport's list without
   // being handed the people running every other sport.

@@ -63,6 +63,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20261003_org_secondary_color_default.ts`: New orgs start in the app's two colours: `secondary_color` defaults to `#00E5FF`, and orgs still in the default orange with no secondary (those that never had colours) get it back, as they were shown before the previous migration. An admin may still clear the secondary; it is then painted as the primary.
     - `20261004_drop_facility_address_id.ts`: Drops `facilities.address_id`, which nothing read or wrote (`VENUE-5`): a facility's address is its site's. No row had a value.
     - `20261005_event_org_invitations.ts`: Adds `event_organizations.invitation` (`not_invited`, `invited`, `accepted`, `declined`; default `accepted`), `invited_at` and `answered_at` (`FIX-29`). An organisation can be added to an event, so its teams can be entered, before it is invited; until then it cannot see the event. Every existing row became `accepted`.
+    - `20261008_event_org_who.ts`: Adds `event_organizations.invited_by_user_id`, `invited_by_org_id`, `answered_by_user_id` and `answered_by_org_id` (`FIX-26`), all `ON DELETE SET NULL`: who sent the invitation and who gave the answer, with the organisation each acted from. Read only through `get_data` `event_org_history`, never on the public event record.
 
 ## The tournaments schema
 

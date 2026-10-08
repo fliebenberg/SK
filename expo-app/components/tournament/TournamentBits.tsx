@@ -337,12 +337,15 @@ const INVITATION_TONE: Record<EventOrgInvitation, string> = {
 
 export const invitationLabel = (invitation: EventOrgInvitation) => INVITATION_LABEL[invitation];
 
-/** Where an organisation's invitation stands, as a small badge. *Not invited yet* is a warning. */
-export function InvitationBadge({ invitation }: { invitation: EventOrgInvitation }) {
+/**
+ * Where an organisation's invitation stands, as a badge. *Not invited yet* is a warning. `large`
+ * beside a name in a banner, where the small one read as an afterthought.
+ */
+export function InvitationBadge({ invitation, large }: { invitation: EventOrgInvitation; large?: boolean }) {
   const [box, text] = INVITATION_TONE[invitation].split(' ');
   return (
-    <View className={`rounded-full px-2 py-0.5 flex-shrink-0 ${box}`}>
-      <Text className={`font-inter-semibold text-[11px] ${text}`}>{INVITATION_LABEL[invitation]}</Text>
+    <View className={`rounded-full flex-shrink-0 ${large ? 'px-3 py-1' : 'px-2 py-0.5'} ${box}`}>
+      <Text className={`${large ? 'font-inter-bold text-[13px]' : 'font-inter-semibold text-[11px]'} ${text}`}>{INVITATION_LABEL[invitation]}</Text>
     </View>
   );
 }

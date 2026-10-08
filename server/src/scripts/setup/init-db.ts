@@ -332,6 +332,11 @@ const createTables = async () => {
                     CHECK (invitation IN ('not_invited', 'invited', 'accepted', 'declined')),
                 invited_at TIMESTAMPTZ,
                 answered_at TIMESTAMPTZ,
+                -- FIX-26: who invited, and who answered — the person and the organisation they acted from.
+                invited_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+                invited_by_org_id TEXT REFERENCES organizations(id) ON DELETE SET NULL,
+                answered_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+                answered_by_org_id TEXT REFERENCES organizations(id) ON DELETE SET NULL,
                 PRIMARY KEY (event_id, org_id)
             );
         `);

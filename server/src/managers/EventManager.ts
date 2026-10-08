@@ -1,11 +1,17 @@
 import { v4 as uuidv4 } from "uuid";
-import { Event, Game, GameParticipant, GameClockState, GameEvent, GameSummary, AddGamePayload, UpdateGamePayload } from "@sk/shared";
+import { Event, EventOrgHistory, Game, GameParticipant, GameClockState, GameEvent, GameSummary, AddGamePayload, UpdateGamePayload } from "@sk/shared";
 import { getPeriodLabel, assertCalendarDates } from "@sk/shared";
 import { BaseManager, Tx } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 import { sportManager } from "./SportManager";
 
 const EVENT_DATE_FIELDS = { startDate: 'Start date', endDate: 'End date' };
+
+/** Who did something to an organisation's invitation: the user, and the organisation they acted from. */
+export interface EventOrgActor {
+  userId: string | null;
+  orgId: string | null;
+}
 
 /**
  * SQL: organisation `org` has been added to event `event` but **not invited yet** (`FIX-29`).
@@ -306,7 +312,7 @@ export class EventManager extends BaseManager {
    * has given. The host is never "not invited": it takes part by hosting, so its row is `accepted`
    * whatever was asked.
    */
-  async addEventOrgs(eventId: string, orgIds: string[], invite: boolean): Promise<Event> {
+  async addEventOrgs(eventId: string, orgIds: string[], invite: boolean, actor?: EventOrgActor): Promise<Event> {
     const event = await this.getEvent(eventId);
     if (!event) throw new Error('That event no longer exists.');
     const unique = [...new Set(orgIds.filter(Boolean))];
@@ -318,10 +324,11 @@ export class EventManager extends BaseManager {
       for (const orgId of unique) {
         const invitation = orgId === event.orgId ? 'accepted' : invite ? 'invited' : 'not_invited';
         await tx(
-          `INSERT INTO event_organizations (event_id, org_id, invitation, invited_at)
-           VALUES ($1, $2, $3, CASE WHEN $3 = 'invited' THEN NOW() END)
+          `INSERT INTO event_organizations (event_id, org_id, invitation, invited_at, invited_by_user_id, invited_by_org_id)
+           VALUES ($1, $2, $3, CASE WHEN $3 = 'invited' THEN NOW() END,
+                   CASE WHEN $3 = 'invited' THEN $4 END, CASE WHEN $3 = 'invited' THEN $5 END)
            ON CONFLICT DO NOTHING`,
-          [eventId, orgId, invitation]
+          [eventId, orgId, invitation, actor?.userId ?? null, actor?.orgId ?? null]
         );
       }
     });
@@ -333,12 +340,13 @@ export class EventManager extends BaseManager {
    * Invite organisations already added. Returns the event and the organisations that can now see
    * it for the first time, so the caller can tell them; one already invited is left as it is.
    */
-  async inviteEventOrgs(eventId: string, orgIds: string[]): Promise<{ event: Event; newlyInvited: string[] }> {
+  async inviteEventOrgs(eventId: string, orgIds: string[], actor?: EventOrgActor): Promise<{ event: Event; newlyInvited: string[] }> {
     const res = await this.query(
-      `UPDATE event_organizations SET invitation = 'invited', invited_at = NOW()
+      `UPDATE event_organizations
+          SET invitation = 'invited', invited_at = NOW(), invited_by_user_id = $3, invited_by_org_id = $4
         WHERE event_id = $1 AND org_id = ANY($2::text[]) AND invitation = 'not_invited'
         RETURNING org_id AS "orgId"`,
-      [eventId, [...new Set(orgIds)]]
+      [eventId, [...new Set(orgIds)], actor?.userId ?? null, actor?.orgId ?? null]
     );
     organizationManager.invalidateCache();
     const event = await this.getEvent(eventId);
@@ -352,7 +360,7 @@ export class EventManager extends BaseManager {
    * Only once it has been invited: an organisation that cannot see the event has nothing to answer.
    * The host's own row is not an invitation, so it has no answer to change.
    */
-  async setEventOrgAnswer(eventId: string, orgId: string, answer: 'invited' | 'accepted' | 'declined'): Promise<Event> {
+  async setEventOrgAnswer(eventId: string, orgId: string, answer: 'invited' | 'accepted' | 'declined', actor?: EventOrgActor): Promise<Event> {
     const event = await this.getEvent(eventId);
     if (!event) throw new Error('That event no longer exists.');
     if (orgId === event.orgId) throw new Error('The host takes part by hosting, so it has no invitation to answer.');
@@ -362,11 +370,40 @@ export class EventManager extends BaseManager {
 
     await this.query(
       `UPDATE event_organizations
-          SET invitation = $3, answered_at = CASE WHEN $3 = 'invited' THEN NULL ELSE NOW() END
+          SET invitation = $3,
+              answered_at = CASE WHEN $3 = 'invited' THEN NULL ELSE NOW() END,
+              answered_by_user_id = CASE WHEN $3 = 'invited' THEN NULL ELSE $4 END,
+              answered_by_org_id = CASE WHEN $3 = 'invited' THEN NULL ELSE $5 END
         WHERE event_id = $1 AND org_id = $2`,
-      [eventId, orgId, answer]
+      [eventId, orgId, answer, actor?.userId ?? null, actor?.orgId ?? null]
     );
     return (await this.getEvent(eventId))!;
+  }
+
+  /**
+   * Who invited an organisation and who gave its answer — names, so not on the event record, which
+   * travels to a public room. Read by the organisation's page (`get_data` `event_org_history`).
+   */
+  async getEventOrgHistory(eventId: string, orgId: string): Promise<EventOrgHistory | null> {
+    const res = await this.query(
+      `SELECT eo.invited_by_user_id AS "invitedByUserId", iu.name AS "invitedByName", io.name AS "invitedByOrgName",
+              eo.answered_by_user_id AS "answeredByUserId", au.name AS "answeredByName", ao.name AS "answeredByOrgName"
+         FROM event_organizations eo
+         LEFT JOIN users iu ON iu.id = eo.invited_by_user_id
+         LEFT JOIN organizations io ON io.id = eo.invited_by_org_id
+         LEFT JOIN users au ON au.id = eo.answered_by_user_id
+         LEFT JOIN organizations ao ON ao.id = eo.answered_by_org_id
+        WHERE eo.event_id = $1 AND eo.org_id = $2`,
+      [eventId, orgId]
+    );
+    const r = res.rows[0];
+    if (!r) return null;
+    const who = (userId: string | null, name: string | null, orgName: string | null) =>
+      userId ? { userId, name: name || 'Someone', orgName: orgName || null } : null;
+    return {
+      invitedBy: who(r.invitedByUserId, r.invitedByName, r.invitedByOrgName),
+      answeredBy: who(r.answeredByUserId, r.answeredByName, r.answeredByOrgName),
+    };
   }
 
   async deleteEvent(id: string): Promise<Event | null> {
