@@ -64,6 +64,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20261004_drop_facility_address_id.ts`: Drops `facilities.address_id`, which nothing read or wrote (`VENUE-5`): a facility's address is its site's. No row had a value.
     - `20261005_event_org_invitations.ts`: Adds `event_organizations.invitation` (`not_invited`, `invited`, `accepted`, `declined`; default `accepted`), `invited_at` and `answered_at` (`FIX-29`). An organisation can be added to an event, so its teams can be entered, before it is invited; until then it cannot see the event. Every existing row became `accepted`.
     - `20261008_event_org_who.ts`: Adds `event_organizations.invited_by_user_id`, `invited_by_org_id`, `answered_by_user_id` and `answered_by_org_id` (`FIX-26`), all `ON DELETE SET NULL`: who sent the invitation and who gave the answer, with the organisation each acted from. Read only through `get_data` `event_org_history`, never on the public event record.
+    - `20261008_event_org_withdrawal.ts`: `event_organizations.invitation` gains `withdrawal_pending` and `withdrawn` (`FIX-30`), and the row gains `withdrawal_reason`, `withdrawal_requested_at` and `withdrawal_requested_by_user_id`: an organisation that accepted asks to withdraw, with a reason, and the organisers confirm it or keep it in.
 
 ## The tournaments schema
 
@@ -209,26 +210,48 @@ match. Both now send both sides. And `syncPlayingOrgs` still excludes the host w
 organisations whose teams appear in a fixture; harmless, because the host now has its row from
 creation, but it means a host removed by hand is not re-added by playing.
 
-**Taking part is not the same as seeing it (`FIX-29`, 2026-10-05).** Each row has an `invitation`:
-`not_invited`, `invited`, `accepted` or `declined`. An organisation can be **added** — so the
-organiser can enter its teams and build the tournament — before it is **invited**, and until then
-it must not see the event by **any** route: not its row, and not its teams being entered or drawn
-into fixtures. Every "which events can this organisation see" query is therefore
-`NOT NOT_INVITED_YET(event, org)` *and* its usual routes in — `EventManager.getEvents`, `getGames`,
-`getGameSummaries`, the event counts in `OrganizationManager`, and `AccessManager.getGameOrgIds`,
-`getDivisionOrgIds` and `getEventOrgIds`. A new query of that kind needs the same guard. An
-organisation with no row at all (a friendly) keeps the old routes. The rules:
+**Taking part is not the same as seeing it (`FIX-29` 2026-10-05, `FIX-30` 2026-10-08).** Each row
+has an `invitation`: `not_invited`, `invited`, `accepted`, `declined`, `withdrawal_pending` or
+`withdrawn`. An organisation can be **added** — so the organiser can enter its teams and build the
+tournament — before it is **invited**. Who sees what at each status is one module,
+[eventVisibility.ts](file:///c:/Fred/Coding/SK/server/src/managers/eventVisibility.ts), in three levels:
 
-- `Event.participatingOrgIds` is **the organisations that can see the event**, and everything that
-  tells organisations about an event goes through it. `Event.participatingOrgs` is everyone taking
-  part, each with its invitation.
+| Invitation | Its public lists | Its members, in the workspace | Rosters and members' rooms |
+|---|---|---|---|
+| not invited yet | no | no | no |
+| invited | no | yes, to answer it | yes |
+| accepted, withdrawal pending | yes | yes | yes |
+| declined, withdrawn | no | yes, marked so | no |
+
+- **Public lists** are `EventManager.getEvents`, `getGames` and `getGameSummaries` (the public
+  rooms `org:{id}:events` and `org:{id}:fixtures`) and the event counts in `OrganizationManager`:
+  `NOT NOT_LISTED(event, org)` *and* their usual routes in, so a team entered or drawn does not
+  leak a tournament onto an organisation's lists. **Members' rooms** are
+  `AccessManager.getGameOrgIds`, `getDivisionOrgIds` and `getEventOrgIds`. **The workspace list**
+  is the members' room `org:{id}:invitations` (`getEventInvitationsForOrg`). A new query of any
+  of these kinds takes its rule from that module. An organisation with no row at all (a friendly)
+  keeps the old routes in.
+- `Event.participatingOrgIds` is **the organisations that list the event**, and everything that
+  tells organisations about an event goes through it. `Event.participatingOrgs` is everyone
+  taking part, each with its invitation.
 - The column defaults to `accepted`, which is what a row meant before invitations: the migration
   marked every existing row so, and the host's row and rows written because a team plays stay so.
   Only `ADD_EVENT_ORGS` writes `not_invited`.
+- **An answer is final for the organisation** (`FIX-30`): it may answer an invitation once —
+  accept or decline — and only the organisers change it after that (the `answer-invitation` gate).
+  **Declining** takes its teams out (`TournamentManager.retireOrgEntrants`: one that has played is
+  withdrawn and keeps its results; the rest are deleted, and drawn fixtures show an empty side).
+- **Withdrawing**: an organisation that accepted asks, with a reason (`withdrawal_pending`, which
+  changes nothing yet); it can cancel; the organisers confirm it (`withdrawn`, treated as declined)
+  or keep it in (`accepted`). The reason and who asked are kept once withdrawn, as the record.
+- **A declined or withdrawn organisation stays listed**: its row is the record that it was invited
+  and said no, so `REMOVE_EVENT_ORG` refuses it. Removing another takes its entrants out with it
+  and is refused once any of its teams has played.
 - `UPDATE_EVENT` with `participatingOrgIds` **reconciles** the list — removes those missing, adds
   new ones as `accepted` — rather than rewriting it, which would reset every invitation.
-- A declined organisation can still see the event until it is removed. Removing one takes its
-  entrants out with it and is refused once any of its teams has played.
+- Who invited and who answered (`invited_by_*`, `answered_by_*`) and the withdrawal are names, read
+  only through `get_data` `event_org_history` — the organisers, and the organisation itself —
+  never on the event record, which goes to a public room.
 - Inviting only grants visibility for now; telling the organisation belongs to the communication
   work ([communication.md](file:///c:/Fred/Coding/SK/docs/communication.md)).
 

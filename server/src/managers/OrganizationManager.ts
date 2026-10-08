@@ -71,7 +71,7 @@ export class OrganizationManager extends BaseManager {
         a.longitude,
         c.team_count as "teamCount",
         c.site_count as "siteCount",
-        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = o.id AND eo.invitation <> 'not_invited') OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id WHERE g.event_id = e.id AND t.org_id = o.id)) AND NOT EXISTS (SELECT 1 FROM event_organizations nx WHERE nx.event_id = e.id AND nx.org_id = o.id AND nx.invitation = 'not_invited') AND (e.start_date IS NULL OR COALESCE(e.end_date, e.start_date) >= CURRENT_DATE)) as "eventCount",
+        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = o.id AND eo.invitation IN ('accepted', 'withdrawal_pending')) OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id WHERE g.event_id = e.id AND t.org_id = o.id)) AND NOT EXISTS (SELECT 1 FROM event_organizations nx WHERE nx.event_id = e.id AND nx.org_id = o.id AND nx.invitation NOT IN ('accepted', 'withdrawal_pending')) AND (e.start_date IS NULL OR COALESCE(e.end_date, e.start_date) >= CURRENT_DATE)) as "eventCount",
         c.member_count as "memberCount"
       FROM organizations o
       LEFT JOIN addresses a ON o.address_id = a.id${ORG_COUNTS_JOIN}
@@ -194,7 +194,7 @@ export class OrganizationManager extends BaseManager {
         a.longitude,
         c.team_count as "teamCount",
         c.site_count as "siteCount",
-        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = o.id AND eo.invitation <> 'not_invited') OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id WHERE g.event_id = e.id AND t.org_id = o.id)) AND NOT EXISTS (SELECT 1 FROM event_organizations nx WHERE nx.event_id = e.id AND nx.org_id = o.id AND nx.invitation = 'not_invited') AND (e.start_date IS NULL OR COALESCE(e.end_date, e.start_date) >= CURRENT_DATE)) as "eventCount",
+        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = o.id AND eo.invitation IN ('accepted', 'withdrawal_pending')) OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id WHERE g.event_id = e.id AND t.org_id = o.id)) AND NOT EXISTS (SELECT 1 FROM event_organizations nx WHERE nx.event_id = e.id AND nx.org_id = o.id AND nx.invitation NOT IN ('accepted', 'withdrawal_pending')) AND (e.start_date IS NULL OR COALESCE(e.end_date, e.start_date) >= CURRENT_DATE)) as "eventCount",
         c.member_count as "memberCount"
       FROM organizations o
       LEFT JOIN addresses a ON o.address_id = a.id${ORG_COUNTS_JOIN}
@@ -545,7 +545,7 @@ export class OrganizationManager extends BaseManager {
       SELECT 
         (SELECT COUNT(*)::int FROM teams WHERE org_id = $1) as teams,
         (SELECT COUNT(*)::int FROM sites WHERE org_id = $1) as sites,
-        (SELECT COUNT(*)::int FROM events WHERE NOT EXISTS (SELECT 1 FROM event_organizations nx WHERE nx.event_id = events.id AND nx.org_id = $1 AND nx.invitation = 'not_invited') AND (org_id = $1 OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = events.id AND eo.org_id = $1 AND eo.invitation <> 'not_invited') OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id WHERE g.event_id = events.id AND t.org_id = $1))) as events,
+        (SELECT COUNT(*)::int FROM events WHERE NOT EXISTS (SELECT 1 FROM event_organizations nx WHERE nx.event_id = events.id AND nx.org_id = $1 AND nx.invitation NOT IN ('accepted', 'withdrawal_pending')) AND (org_id = $1 OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = events.id AND eo.org_id = $1 AND eo.invitation IN ('accepted', 'withdrawal_pending')) OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id WHERE g.event_id = events.id AND t.org_id = $1))) as events,
         (SELECT COUNT(*)::int FROM org_memberships WHERE org_id = $1 AND (end_date IS NULL OR end_date > NOW())) as active_people
     `, [id]);
 

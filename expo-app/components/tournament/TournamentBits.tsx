@@ -327,12 +327,16 @@ const INVITATION_LABEL: Record<EventOrgInvitation, string> = {
   invited: 'Invited',
   accepted: 'Accepted',
   declined: 'Declined',
+  withdrawal_pending: 'Withdrawal pending',
+  withdrawn: 'Withdrawn',
 };
 const INVITATION_TONE: Record<EventOrgInvitation, string> = {
   not_invited: 'bg-warning-soft text-warning-ink',
   invited: 'bg-info-soft text-info-ink',
   accepted: 'bg-success-soft text-success-ink',
   declined: 'bg-danger-soft text-danger-ink',
+  withdrawal_pending: 'bg-warning-soft text-warning-ink',
+  withdrawn: 'bg-danger-soft text-danger-ink',
 };
 
 export const invitationLabel = (invitation: EventOrgInvitation) => INVITATION_LABEL[invitation];

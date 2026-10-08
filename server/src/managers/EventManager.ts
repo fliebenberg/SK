@@ -3,6 +3,7 @@ import { Event, EventOrgHistory, Game, GameParticipant, GameClockState, GameEven
 import { getPeriodLabel, assertCalendarDates } from "@sk/shared";
 import { BaseManager, Tx } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
+import { INVITATION_LIST, LISTED, NOT_LISTED } from "./eventVisibility";
 import { sportManager } from "./SportManager";
 
 const EVENT_DATE_FIELDS = { startDate: 'Start date', endDate: 'End date' };
@@ -13,19 +14,8 @@ export interface EventOrgActor {
   orgId: string | null;
 }
 
-/**
- * SQL: organisation `org` has been added to event `event` but **not invited yet** (`FIX-29`).
- *
- * Such an organisation must not see the event by any route — not through its row in
- * `event_organizations`, and not through its teams being entered or drawn into fixtures, which
- * the organiser may do before inviting it. Each "which events can this org see" query is
- * `NOT` this, `AND` its usual routes in. An organisation with no row at all keeps those routes.
- */
-export const NOT_INVITED_YET = (event: string, org: string) =>
-  `EXISTS (SELECT 1 FROM event_organizations nx WHERE nx.event_id = ${event} AND nx.org_id = ${org} AND nx.invitation = 'not_invited')`;
-
 export class EventManager extends BaseManager {
-  private EVENT_COLUMNS = 'id, name, type, format, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", ARRAY(SELECT org_id FROM event_organizations WHERE event_id = events.id AND invitation <> \'not_invited\') as "participatingOrgIds", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', o.id, \'name\', o.name, \'shortName\', o.short_name, \'logo\', o.logo, \'logoConfig\', o.settings->\'logoConfig\', \'primaryColor\', o.primary_color, \'isClaimed\', o.is_claimed, \'invitation\', eo.invitation, \'invitedAt\', eo.invited_at, \'answeredAt\', eo.answered_at) ORDER BY o.name) FROM event_organizations eo JOIN organizations o ON o.id = eo.org_id WHERE eo.event_id = events.id), \'[]\'::jsonb) as "participatingOrgs", ARRAY(SELECT sport_id FROM event_sports WHERE event_id = events.id) as "sportIds", settings, status';
+  private EVENT_COLUMNS = 'id, name, type, format, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", ARRAY(SELECT org_id FROM event_organizations WHERE event_id = events.id AND invitation IN (\'accepted\', \'withdrawal_pending\')) as "participatingOrgIds", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', o.id, \'name\', o.name, \'shortName\', o.short_name, \'logo\', o.logo, \'logoConfig\', o.settings->\'logoConfig\', \'primaryColor\', o.primary_color, \'isClaimed\', o.is_claimed, \'invitation\', eo.invitation, \'invitedAt\', eo.invited_at, \'answeredAt\', eo.answered_at) ORDER BY o.name) FROM event_organizations eo JOIN organizations o ON o.id = eo.org_id WHERE eo.event_id = events.id), \'[]\'::jsonb) as "participatingOrgs", ARRAY(SELECT sport_id FROM event_sports WHERE event_id = events.id) as "sportIds", settings, status';
   private GAME_COLUMNS = 'g.id, g.event_id as "eventId", g.sport_id as "sportId", g.stage_id as "stageId", (SELECT ds.division_id FROM division_stages ds WHERE ds.id = g.stage_id) as "divisionId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', p.id, \'gameId\', p.game_id, \'teamId\', p.team_id, \'name\', t.name, \'orgProfileId\', p.org_profile_id, \'status\', p.status, \'sortOrder\', p.sort_order, \'entrantId\', p.entrant_id, \'sourceGameId\', p.source_game_id, \'sourceStageId\', p.source_stage_id, \'sourceRule\', p.source_rule) ORDER BY p.sort_order, p.id) FROM game_participants p LEFT JOIN teams t ON t.id = p.team_id WHERE p.game_id = g.id), \'[]\'::jsonb) as participants';
 
   /**
@@ -104,9 +94,9 @@ export class EventManager extends BaseManager {
         SELECT ${this.GAME_SUMMARY_COLUMNS}
         FROM games g
         JOIN events e ON g.event_id = e.id
-        WHERE NOT ${NOT_INVITED_YET('e.id', '$1')}
+        WHERE NOT ${NOT_LISTED('e.id', '$1')}
           AND (e.org_id = $1
-           OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = $1 AND eo.invitation <> 'not_invited')
+           OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = $1 AND eo.invitation IN ${LISTED})
            OR EXISTS (
                SELECT 1 FROM game_participants gp
                JOIN teams t ON gp.team_id = t.id
@@ -174,9 +164,9 @@ export class EventManager extends BaseManager {
     let queryText = `SELECT ${this.EVENT_COLUMNS} FROM events`;
     const params: any[] = [];
     if (orgId) {
-        queryText += ` WHERE NOT ${NOT_INVITED_YET('events.id', '$1')}
+        queryText += ` WHERE NOT ${NOT_LISTED('events.id', '$1')}
                        AND (org_id = $1
-                       OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = events.id AND eo.org_id = $1 AND eo.invitation <> 'not_invited')
+                       OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = events.id AND eo.org_id = $1 AND eo.invitation IN ${LISTED})
                        OR EXISTS (
                            SELECT 1 FROM games g
                            JOIN game_participants gp ON gp.game_id = g.id
@@ -355,29 +345,86 @@ export class EventManager extends BaseManager {
   }
 
   /**
-   * Record an invited organisation's answer — or clear it, with `invited`, back to "no answer yet".
+   * Record an invited organisation's answer — or clear it, with `invited`, back to "no answer yet";
+   * confirm a withdrawal (`withdrawn`), or keep an organisation that asked to withdraw (`accepted`).
    *
    * Only once it has been invited: an organisation that cannot see the event has nothing to answer.
-   * The host's own row is not an invitation, so it has no answer to change.
+   * The host's own row is not an invitation, so it has no answer to change. Who may move between
+   * which answers is the gate's (`answer-invitation`): the organisation answers an invitation once;
+   * the organisers change anything. Declining or withdrawing takes its teams out — the caller does
+   * that (`TournamentManager.retireOrgEntrants`), so it can publish what changed.
    */
-  async setEventOrgAnswer(eventId: string, orgId: string, answer: 'invited' | 'accepted' | 'declined', actor?: EventOrgActor): Promise<Event> {
+  async setEventOrgAnswer(eventId: string, orgId: string, answer: 'invited' | 'accepted' | 'declined' | 'withdrawn', actor?: EventOrgActor): Promise<Event> {
     const event = await this.getEvent(eventId);
     if (!event) throw new Error('That event no longer exists.');
     if (orgId === event.orgId) throw new Error('The host takes part by hosting, so it has no invitation to answer.');
     const row = event.participatingOrgs?.find(o => o.id === orgId);
     if (!row) throw new Error('That organisation is not taking part in this event.');
     if (row.invitation === 'not_invited') throw new Error(`${row.name} has not been invited yet.`);
+    if (answer === 'withdrawn' && row.invitation !== 'accepted' && row.invitation !== 'withdrawal_pending') {
+      throw new Error(`${row.name} is not taking part, so it cannot withdraw.`);
+    }
 
     await this.query(
       `UPDATE event_organizations
           SET invitation = $3,
               answered_at = CASE WHEN $3 = 'invited' THEN NULL ELSE NOW() END,
               answered_by_user_id = CASE WHEN $3 = 'invited' THEN NULL ELSE $4 END,
-              answered_by_org_id = CASE WHEN $3 = 'invited' THEN NULL ELSE $5 END
+              answered_by_org_id = CASE WHEN $3 = 'invited' THEN NULL ELSE $5 END,
+              -- A request to withdraw is kept as the record once confirmed, and dropped otherwise.
+              withdrawal_reason = CASE WHEN $3 = 'withdrawn' THEN withdrawal_reason END,
+              withdrawal_requested_at = CASE WHEN $3 = 'withdrawn' THEN withdrawal_requested_at END,
+              withdrawal_requested_by_user_id = CASE WHEN $3 = 'withdrawn' THEN withdrawal_requested_by_user_id END
         WHERE event_id = $1 AND org_id = $2`,
       [eventId, orgId, answer, actor?.userId ?? null, actor?.orgId ?? null]
     );
     return (await this.getEvent(eventId))!;
+  }
+
+  /**
+   * An organisation that accepted asks to withdraw (`FIX-30`). Nothing changes for its teams until
+   * the organisers confirm it; it can cancel the request until then.
+   */
+  async requestEventWithdrawal(eventId: string, orgId: string, reason: string, actor?: EventOrgActor): Promise<Event> {
+    const text = (reason || '').trim();
+    if (!text) throw new Error('Say why you are withdrawing — it is sent to the organisers.');
+    const res = await this.query(
+      `UPDATE event_organizations
+          SET invitation = 'withdrawal_pending', withdrawal_reason = $3, withdrawal_requested_at = NOW(),
+              withdrawal_requested_by_user_id = $4
+        WHERE event_id = $1 AND org_id = $2 AND invitation = 'accepted'`,
+      [eventId, orgId, text, actor?.userId ?? null]
+    );
+    if (!res.rowCount) throw new Error('Only an organisation that has accepted can ask to withdraw.');
+    return (await this.getEvent(eventId))!;
+  }
+
+  /** Withdraws a request to withdraw that the organisers have not confirmed yet: back to `accepted`. */
+  async cancelEventWithdrawal(eventId: string, orgId: string): Promise<Event> {
+    const res = await this.query(
+      `UPDATE event_organizations
+          SET invitation = 'accepted', withdrawal_reason = NULL, withdrawal_requested_at = NULL,
+              withdrawal_requested_by_user_id = NULL
+        WHERE event_id = $1 AND org_id = $2 AND invitation = 'withdrawal_pending'`,
+      [eventId, orgId]
+    );
+    if (!res.rowCount) throw new Error('There is no request to withdraw to cancel.');
+    return (await this.getEvent(eventId))!;
+  }
+
+  /**
+   * The tournaments an organisation's members see in its workspace but not its public lists: an
+   * invitation to answer, and one it declined or withdrew from, kept as the record
+   * (`org:{id}:invitations`, a members' room — eventVisibility.ts).
+   */
+  async getEventInvitationsForOrg(orgId: string): Promise<Event[]> {
+    const res = await this.query(
+      `SELECT ${this.EVENT_COLUMNS} FROM events
+        WHERE EXISTS (SELECT 1 FROM event_organizations eo
+                       WHERE eo.event_id = events.id AND eo.org_id = $1 AND eo.invitation IN ${INVITATION_LIST})`,
+      [orgId]
+    );
+    return res.rows;
   }
 
   /**
@@ -387,8 +434,12 @@ export class EventManager extends BaseManager {
   async getEventOrgHistory(eventId: string, orgId: string): Promise<EventOrgHistory | null> {
     const res = await this.query(
       `SELECT eo.invited_by_user_id AS "invitedByUserId", iu.name AS "invitedByName", io.name AS "invitedByOrgName",
-              eo.answered_by_user_id AS "answeredByUserId", au.name AS "answeredByName", ao.name AS "answeredByOrgName"
+              eo.answered_by_user_id AS "answeredByUserId", au.name AS "answeredByName", ao.name AS "answeredByOrgName",
+              eo.withdrawal_reason AS "withdrawalReason", eo.withdrawal_requested_at AS "withdrawalRequestedAt",
+              eo.withdrawal_requested_by_user_id AS "withdrawalByUserId", wu.name AS "withdrawalByName", wo.name AS "withdrawalByOrgName"
          FROM event_organizations eo
+         LEFT JOIN users wu ON wu.id = eo.withdrawal_requested_by_user_id
+         LEFT JOIN organizations wo ON wo.id = eo.org_id
          LEFT JOIN users iu ON iu.id = eo.invited_by_user_id
          LEFT JOIN organizations io ON io.id = eo.invited_by_org_id
          LEFT JOIN users au ON au.id = eo.answered_by_user_id
@@ -403,6 +454,13 @@ export class EventManager extends BaseManager {
     return {
       invitedBy: who(r.invitedByUserId, r.invitedByName, r.invitedByOrgName),
       answeredBy: who(r.answeredByUserId, r.answeredByName, r.answeredByOrgName),
+      withdrawal: r.withdrawalRequestedAt
+        ? {
+            reason: r.withdrawalReason,
+            requestedAt: r.withdrawalRequestedAt instanceof Date ? r.withdrawalRequestedAt.toISOString() : r.withdrawalRequestedAt,
+            requestedBy: who(r.withdrawalByUserId, r.withdrawalByName, r.withdrawalByOrgName),
+          }
+        : null,
     };
   }
 
@@ -466,9 +524,9 @@ export class EventManager extends BaseManager {
         SELECT ${selectClause}
         FROM games g
         JOIN events e ON g.event_id = e.id
-        WHERE NOT ${NOT_INVITED_YET('e.id', '$1')}
+        WHERE NOT ${NOT_LISTED('e.id', '$1')}
           AND (e.org_id = $1
-           OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = $1 AND eo.invitation <> 'not_invited')
+           OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = $1 AND eo.invitation IN ${LISTED})
            OR EXISTS (
                SELECT 1 FROM game_participants gp
                JOIN teams t ON gp.team_id = t.id

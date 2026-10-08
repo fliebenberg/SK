@@ -169,6 +169,8 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   // Adding, inviting and removing organisations are the tournament gate's, at event scope; the
   // answer is also the invited organisation's own to give.
   [SocketAction.SET_EVENT_ORG_ANSWER]: { kind: 'answer-invitation' },
+  [SocketAction.REQUEST_EVENT_WITHDRAWAL]: { kind: 'answer-invitation' },
+  [SocketAction.CANCEL_EVENT_WITHDRAWAL]: { kind: 'answer-invitation' },
   // Planning only since 2026-09-21 — the result is `RECORD_GAME_RESULT`'s, under the scoring gate.
   [SocketAction.UPDATE_GAME]: { kind: 'edit-fixture' },
   [SocketAction.DELETE_GAME]: { kind: 'edit-fixture' },
@@ -306,9 +308,20 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
       const res = await pool.query('SELECT org_id FROM events WHERE id = $1', [payload?.eventId]);
       if (!res.rows.length) throw refuse('Bad request: that event does not exist.');
       const requestingOrgId = payload?.orgId || res.rows[0].org_id;
+      // The organisers may set any answer — an answer heard another way, a change of mind, a
+      // withdrawal confirmed or turned down.
       if (await accessManager.canEditEventOrGame(userId, requestingOrgId, payload.eventId, undefined)) return;
       if (payload?.participantOrgId && (await accessManager.canManageOrgPeople(userId, payload.participantOrgId))) {
-        return;
+        // The organisation itself answers its invitation once (`FIX-30`): Accept or Decline, while
+        // it is still only invited. After that only the organisers change it — a place may have
+        // gone. Asking to withdraw, and cancelling that, are its own; the manager checks the state.
+        if (type !== SocketAction.SET_EVENT_ORG_ANSWER) return;
+        const row = await pool.query(
+          'SELECT invitation FROM event_organizations WHERE event_id = $1 AND org_id = $2',
+          [payload.eventId, payload.participantOrgId]
+        );
+        if (row.rows[0]?.invitation === 'invited' && (payload.answer === 'accepted' || payload.answer === 'declined')) return;
+        throw refuse("Unauthorized: You have already answered. To change it, contact the tournament's organisers.");
       }
       throw refuse(
         "Unauthorized: Only the event's organisers, or the invited organisation's admins, may answer its invitation."

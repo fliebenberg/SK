@@ -76,6 +76,9 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
         // Who answers for which player (`MEMBER-3`) — its own dataset, so a screen that wants the
         // guardians is not handed the whole member list, and the other way round.
         case 'guardians':
+        // Invitations to answer, and tournaments it declined or withdrew from (`FIX-30`): its own
+        // business, not the public's — eventVisibility.ts.
+        case 'invitations':
           return { access: 'member', orgsFor: async () => [id] };
         // Fixtures, venues, teams and competitions are public information.
         case 'summary':

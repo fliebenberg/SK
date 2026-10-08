@@ -845,8 +845,27 @@ export interface SetEventOrgAnswerPayload {
     eventId: string;
     orgId: string;
     participantOrgId: string;
-    /** `invited` clears an answer back to "no answer yet". */
-    answer: 'invited' | 'accepted' | 'declined';
+    /**
+     * `invited` clears an answer back to "no answer yet"; `withdrawn` confirms a withdrawal, and
+     * `accepted` from a pending one keeps the organisation in. The organisation itself may only
+     * answer an invitation (`accepted` / `declined`) — the gate holds the rest for the organisers.
+     */
+    answer: 'invited' | 'accepted' | 'declined' | 'withdrawn';
+}
+
+/** An organisation that accepted asks to withdraw (`FIX-30`). The organisers confirm it. */
+export interface RequestEventWithdrawalPayload {
+    eventId: string;
+    orgId: string;
+    participantOrgId: string;
+    reason: string;
+}
+
+/** Withdraws a request to withdraw that the organisers have not confirmed yet. */
+export interface CancelEventWithdrawalPayload {
+    eventId: string;
+    orgId: string;
+    participantOrgId: string;
 }
 
 export interface RemoveEventOrgPayload {
@@ -1039,6 +1058,8 @@ export interface ProtocolMap {
     [SocketAction.INVITE_EVENT_ORGS]: { payload: InviteEventOrgsPayload; response: Event };
     [SocketAction.SET_EVENT_ORG_ANSWER]: { payload: SetEventOrgAnswerPayload; response: Event };
     [SocketAction.REMOVE_EVENT_ORG]: { payload: RemoveEventOrgPayload; response: Event };
+    [SocketAction.REQUEST_EVENT_WITHDRAWAL]: { payload: RequestEventWithdrawalPayload; response: Event };
+    [SocketAction.CANCEL_EVENT_WITHDRAWAL]: { payload: CancelEventWithdrawalPayload; response: Event };
     [SocketAction.APPOINT_ORGANIZER]: { payload: AppointOrganizerPayload; response: OrganizersResult };
     [SocketAction.WITHDRAW_ORGANIZER]: { payload: WithdrawOrganizerPayload; response: OrganizersResult };
 

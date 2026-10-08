@@ -329,7 +329,7 @@ const createTables = async () => {
                 -- FIX-29: an organisation not invited yet cannot see the event.
                 invitation TEXT NOT NULL DEFAULT 'accepted'
                     CONSTRAINT event_organizations_invitation_check
-                    CHECK (invitation IN ('not_invited', 'invited', 'accepted', 'declined')),
+                    CHECK (invitation IN ('not_invited', 'invited', 'accepted', 'declined', 'withdrawal_pending', 'withdrawn')),
                 invited_at TIMESTAMPTZ,
                 answered_at TIMESTAMPTZ,
                 -- FIX-26: who invited, and who answered — the person and the organisation they acted from.
@@ -337,6 +337,10 @@ const createTables = async () => {
                 invited_by_org_id TEXT REFERENCES organizations(id) ON DELETE SET NULL,
                 answered_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
                 answered_by_org_id TEXT REFERENCES organizations(id) ON DELETE SET NULL,
+                -- FIX-30: an accepted organisation asking to withdraw — why, when and who.
+                withdrawal_reason TEXT,
+                withdrawal_requested_at TIMESTAMPTZ,
+                withdrawal_requested_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
                 PRIMARY KEY (event_id, org_id)
             );
         `);

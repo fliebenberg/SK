@@ -143,6 +143,9 @@ export class DataManager {
   setEventOrgAnswer = (eventId: string, orgId: string, answer: 'invited' | 'accepted' | 'declined', actor?: EventOrgActor) =>
     eventManager.setEventOrgAnswer(eventId, orgId, answer, actor);
   getEventOrgHistory = (eventId: string, orgId: string) => eventManager.getEventOrgHistory(eventId, orgId);
+  requestEventWithdrawal = (eventId: string, orgId: string, reason: string, actor?: EventOrgActor) => eventManager.requestEventWithdrawal(eventId, orgId, reason, actor);
+  cancelEventWithdrawal = (eventId: string, orgId: string) => eventManager.cancelEventWithdrawal(eventId, orgId);
+  getEventInvitationsForOrg = (orgId: string) => eventManager.getEventInvitationsForOrg(orgId);
   deleteEvent = (id: string) => eventManager.deleteEvent(id);
 
   // Games

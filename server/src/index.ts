@@ -68,6 +68,7 @@ import {
   eventFacilitiesRoom,
   eventFixturesRoom,
   eventRoom,
+  orgInvitationsRoom,
   gameDisputesRoom,
   teamMembersRoom,
   userNotificationsRoom,
@@ -1435,6 +1436,24 @@ async function assertNotLastDivisionOfDelegatedSport(
  * stages without joining a stages room per division; adding, resequencing or deleting a stage can
  * change which one is first, and the division itself carries no other sign of that.
  */
+/**
+ * Divisions whose rosters changed outside a roster write — an organisation removed, or its teams
+ * taken out when it declined or withdrew (`FIX-29`, `FIX-30`) — rebuilt and published as a roster
+ * write would be.
+ */
+async function publishRosterChanges(divisions: Array<{ divisionId: string; syncedStageIds: string[] }>, eventId: string) {
+  for (const changed of divisions) {
+    await tournamentManager.recalculateDivision(changed.divisionId);
+    await publishEntrants(changed.divisionId, await dataManager.getDivisionEntrants(changed.divisionId), eventId);
+    for (const syncedStageId of changed.syncedStageIds) {
+      publishStageEntrants(changed.divisionId, syncedStageId, await dataManager.getStageEntrants(syncedStageId));
+    }
+    if (changed.syncedStageIds.length) publishStages(changed.divisionId, await dataManager.getStages(changed.divisionId));
+    await publishStandings(changed.divisionId, eventId);
+    for (const game of await dataManager.getDivisionGames(changed.divisionId)) await publishGameSummary(game.id);
+  }
+}
+
 async function publishFirstStage(divisionId: string) {
     const division = await dataManager.getDivision(divisionId);
     if (division) await publishDivision(divisionId, 'DIVISION_UPDATED', division, division.eventId);
@@ -1937,6 +1956,9 @@ io.on('connection', (socket) => {
                 // (rule 4) - this room carried both until 2026-09-11, so an events list paid for
                 // every game in the org on join.
                 pushToSocket(socket, room, 'EVENTS_SYNC', await dataManager.getEvents(id));
+            } else if (sub === 'invitations') {
+                // Tournaments its members see in the workspace but not its public lists (`FIX-30`).
+                pushToSocket(socket, room, 'EVENT_INVITATIONS_SYNC', await dataManager.getEventInvitationsForOrg(id));
             } else if (sub === 'summary') {
                 const org = await dataManager.getOrganization(id);
                 if (org) {
@@ -3549,69 +3571,62 @@ io.on('connection', (socket) => {
             }
 
             /*
-             * The organisations taking part, and their invitations (`FIX-29`). Every change goes
-             * out as the event itself, to the event's room and to each organisation that can see
-             * it — `participatingOrgIds` is exactly those — so one that has only been added hears
-             * nothing, and one just invited gets the event in its list. Its fixtures follow: each
-             * is republished to whoever can see it now.
+             * The organisations taking part, and their invitations (`FIX-29`, `FIX-30`). Every change
+             * goes out as the event, to the event's room and to the public events list of each
+             * organisation that lists it (`participatingOrgIds`); an organisation dropped from that
+             * list is told the event is gone from it; and each organisation acted on gets its
+             * members' invitations list again (`org:{id}:invitations`). Declining, or a confirmed
+             * withdrawal, takes its teams out, published as a roster write would be. Who sees what at
+             * each status is `managers/eventVisibility.ts`.
              */
             case SocketAction.ADD_EVENT_ORGS:
             case SocketAction.INVITE_EVENT_ORGS:
-            case SocketAction.SET_EVENT_ORG_ANSWER: {
-                const p = action.payload;
+            case SocketAction.SET_EVENT_ORG_ANSWER:
+            case SocketAction.REQUEST_EVENT_WITHDRAWAL:
+            case SocketAction.CANCEL_EVENT_WITHDRAWAL:
+            case SocketAction.REMOVE_EVENT_ORG: {
+                const p = action.payload as any;
                 // Recorded with the invitation or the answer, for "Accepted by … (…)".
                 const actor = { userId: authUserId || null, orgId: p.orgId || null };
-                let newlyVisible: string[] = [];
+                const before = await dataManager.getEvent(p.eventId);
+                if (!before) throw new Error('That event no longer exists.');
+                const touched: string[] = p.participantOrgIds || (p.participantOrgId ? [p.participantOrgId] : []);
+                let rosterChanges: Array<{ divisionId: string; syncedStageIds: string[] }> = [];
                 if (action.type === SocketAction.ADD_EVENT_ORGS) {
-                    result = await dataManager.addEventOrgs(p.eventId, p.participantOrgIds || [], !!p.invite, actor);
-                    if (p.invite) newlyVisible = p.participantOrgIds || [];
+                    result = await dataManager.addEventOrgs(p.eventId, touched, !!p.invite, actor);
                 } else if (action.type === SocketAction.INVITE_EVENT_ORGS) {
-                    const invited = await dataManager.inviteEventOrgs(p.eventId, p.participantOrgIds || [], actor);
-                    result = invited.event;
-                    newlyVisible = invited.newlyInvited;
-                } else {
+                    result = (await dataManager.inviteEventOrgs(p.eventId, touched, actor)).event;
+                } else if (action.type === SocketAction.SET_EVENT_ORG_ANSWER) {
                     result = await dataManager.setEventOrgAnswer(p.eventId, p.participantOrgId, p.answer, actor);
+                    if (p.answer === 'declined' || p.answer === 'withdrawn') {
+                        rosterChanges = (await tournamentManager.retireOrgEntrants(p.eventId, p.participantOrgId)).divisions;
+                    }
+                } else if (action.type === SocketAction.REQUEST_EVENT_WITHDRAWAL) {
+                    result = await dataManager.requestEventWithdrawal(p.eventId, p.participantOrgId, p.reason, actor);
+                } else if (action.type === SocketAction.CANCEL_EVENT_WITHDRAWAL) {
+                    result = await dataManager.cancelEventWithdrawal(p.eventId, p.participantOrgId);
+                } else {
+                    rosterChanges = (await tournamentManager.removeEventOrg(p.eventId, p.participantOrgId)).divisions;
+                    result = await dataManager.getEvent(p.eventId);
+                    if (!result) throw new Error('That event no longer exists.');
                 }
-                publishEventToOrgs([result.orgId, ...(result.participatingOrgIds || [])], 'EVENT_UPDATED', result);
+                if (rosterChanges.length) result = (await dataManager.getEvent(p.eventId)) || result;
+
+                const listedNow = [result.orgId, ...(result.participatingOrgIds || [])];
+                const listedBefore = [before.orgId, ...(before.participatingOrgIds || [])];
+                publishEventToOrgs(listedNow, 'EVENT_UPDATED', result);
+                publishEventToOrgs(listedBefore.filter((id: string) => !listedNow.includes(id)), 'EVENT_DELETED', { id: result.id });
                 additionalBroadcasts.push({ topic: eventRoom(result.id), type: 'EVENT_UPDATED', data: result });
-                if (newlyVisible.length) {
-                    await broadcastOrgSummaries(newlyVisible);
+                for (const touchedOrgId of touched) {
+                    broadcast(orgInvitationsRoom(touchedOrgId), 'EVENT_INVITATIONS_SYNC', await dataManager.getEventInvitationsForOrg(touchedOrgId));
+                }
+                await broadcastOrgSummaries(touched);
+                await publishRosterChanges(rosterChanges, result.id);
+                // Who may see each fixture follows the invitations, so they go out to their audience again.
+                const statusOf = (event: any, id: string) => event?.participatingOrgs?.find((o: any) => o.id === id)?.invitation;
+                if (touched.some((id: string) => statusOf(before, id) !== statusOf(result, id))) {
                     const eventGames = await pool.query('SELECT id FROM games WHERE event_id = $1', [result.id]);
                     for (const row of eventGames.rows) await publishGameSummary(row.id);
-                }
-                break;
-            }
-
-            case SocketAction.REMOVE_EVENT_ORG: {
-                const { eventId: removeFromEventId, participantOrgId } = action.payload;
-                const couldSee = (await dataManager.getEvent(removeFromEventId))?.participatingOrgIds?.includes(participantOrgId);
-                const removal = await tournamentManager.removeEventOrg(removeFromEventId, participantOrgId);
-                result = await dataManager.getEvent(removeFromEventId);
-                if (!result) throw new Error('That event no longer exists.');
-                publishEventToOrgs([result.orgId, ...(result.participatingOrgIds || [])], 'EVENT_UPDATED', result);
-                additionalBroadcasts.push({ topic: eventRoom(result.id), type: 'EVENT_UPDATED', data: result });
-                if (couldSee) {
-                    publishEventToOrgs([participantOrgId], 'EVENT_DELETED', { id: result.id });
-                    await broadcastOrgSummaries([participantOrgId]);
-                }
-                // Its entrants went with it: each roster it was in, as a roster write would publish.
-                for (const changed of removal.divisions) {
-                    await tournamentManager.recalculateDivision(changed.divisionId);
-                    await publishEntrants(
-                        changed.divisionId,
-                        await dataManager.getDivisionEntrants(changed.divisionId),
-                        removeFromEventId
-                    );
-                    for (const syncedStageId of changed.syncedStageIds) {
-                        publishStageEntrants(changed.divisionId, syncedStageId, await dataManager.getStageEntrants(syncedStageId));
-                    }
-                    if (changed.syncedStageIds.length) {
-                        publishStages(changed.divisionId, await dataManager.getStages(changed.divisionId));
-                    }
-                    await publishStandings(changed.divisionId, removeFromEventId);
-                    for (const game of await dataManager.getDivisionGames(changed.divisionId)) {
-                        await publishGameSummary(game.id);
-                    }
                 }
                 break;
             }

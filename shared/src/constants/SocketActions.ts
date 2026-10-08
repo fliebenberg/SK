@@ -608,6 +608,17 @@ export enum SocketAction {
      * Expects payload: `{ eventId, orgId, participantOrgId }`
      */
     REMOVE_EVENT_ORG = 'REMOVE_EVENT_ORG',
+    /**
+     * An organisation that accepted asks to withdraw, with a reason; the organisers confirm it
+     * (`SET_EVENT_ORG_ANSWER` `withdrawn`) or keep it in (`accepted`) — `FIX-30`.
+     * Expects payload: `{ eventId, orgId, participantOrgId, reason }`
+     */
+    REQUEST_EVENT_WITHDRAWAL = 'REQUEST_EVENT_WITHDRAWAL',
+    /**
+     * Withdraws a request to withdraw, while the organisers have not confirmed it.
+     * Expects payload: `{ eventId, orgId, participantOrgId }`
+     */
+    CANCEL_EVENT_WITHDRAWAL = 'CANCEL_EVENT_WITHDRAWAL',
 
     // --- Tournaments: organiser assignments (D33) ---
     //

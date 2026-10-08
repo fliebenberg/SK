@@ -60,12 +60,22 @@ export function eventFormatLabel(format?: EventFormat | null): string {
  *
  * An organisation is **added** first — the organiser can enter its teams — and cannot see the event
  * until it is **invited**. It then answers, or the organiser records the answer they got another
- * way. A declined organisation can still see the event until it is removed. Rows from before the
- * status existed, and the host's own, are `accepted`.
+ * way; an answer is final for the organisation, and only the organisers change it (`FIX-30`).
+ * Declining takes its teams out. An organisation that accepted can **ask to withdraw**, with a
+ * reason (`withdrawal_pending`, which changes nothing yet); the organisers confirm it
+ * (`withdrawn`, treated as declined) or keep it in (back to `accepted`). Rows from before the
+ * status existed, and the host's own, are `accepted`. Who sees what at each status is
+ * `server/src/managers/eventVisibility.ts`.
  */
-export type EventOrgInvitation = 'not_invited' | 'invited' | 'accepted' | 'declined';
+export type EventOrgInvitation = 'not_invited' | 'invited' | 'accepted' | 'declined' | 'withdrawal_pending' | 'withdrawn';
 
-export const EVENT_ORG_INVITATIONS: readonly EventOrgInvitation[] = ['not_invited', 'invited', 'accepted', 'declined'];
+export const EVENT_ORG_INVITATIONS: readonly EventOrgInvitation[] = ['not_invited', 'invited', 'accepted', 'declined', 'withdrawal_pending', 'withdrawn'];
+
+/** Taking part: accepted, including one asking to withdraw — its teams stay until confirmed. */
+export const isTakingPart = (invitation: EventOrgInvitation) => invitation === 'accepted' || invitation === 'withdrawal_pending';
+
+/** Out of it, but kept as the record that it was invited: it declined, or withdrew. */
+export const hasLeft = (invitation: EventOrgInvitation) => invitation === 'declined' || invitation === 'withdrawn';
 
 /** An organisation taking part in an event, with its invitation. */
 export interface EventOrgBadge extends OrgBadge {
@@ -90,12 +100,10 @@ export interface EventOrgActorName {
 export interface EventOrgHistory {
   invitedBy: EventOrgActorName | null;
   answeredBy: EventOrgActorName | null;
+  /** An accepted organisation asking to withdraw — and, once withdrawn, the record of it. */
+  withdrawal: { reason: string | null; requestedAt: string | null; requestedBy: EventOrgActorName | null } | null;
 }
 
-/** Whether an organisation in this state can see the event. */
-export function canSeeEvent(invitation: EventOrgInvitation): boolean {
-  return invitation !== 'not_invited';
-}
 
 export interface Event {
   id: string;

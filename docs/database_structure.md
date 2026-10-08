@@ -298,15 +298,18 @@ Which sports an event runs. `PRIMARY KEY (event_id, sport_id)`, both FKs cascadi
 ### 11c. `event_organizations`
 Which organisations are taking part. `PRIMARY KEY (event_id, org_id)`, both FKs cascading.
 - `invitation` (TEXT): NOT NULL, default `accepted`, one of `not_invited`, `invited`, `accepted`,
-  `declined` (`FIX-29`). An organisation **not invited yet** cannot see the event, by any route
-  (okf/database.md, *Who is taking part in an event*).
+  `declined`, `withdrawal_pending`, `withdrawn` (`FIX-29`, `FIX-30`). Who sees the event at each is
+  `server/src/managers/eventVisibility.ts` (okf/database.md, *Who is taking part in an event*).
 - `invited_at` (TIMESTAMPTZ): when it was invited; NULL while not invited yet.
 - `answered_at` (TIMESTAMPTZ): when it accepted or declined; NULL while there is no answer.
 - `invited_by_user_id`, `invited_by_org_id` (TEXT): who sent the invitation, and the organisation
   they acted from. FKs to `users` and `organizations`, `ON DELETE SET NULL`.
 - `answered_by_user_id`, `answered_by_org_id` (TEXT): the same for the answer — the organisation's
   own admin, or an organiser who recorded it. Cleared when the answer is cleared. Names are read
-  through `get_data` `event_org_history`, organisers only, never on the public event record.
+  through `get_data` `event_org_history`, never on the public event record.
+- `withdrawal_reason` (TEXT), `withdrawal_requested_at` (TIMESTAMPTZ), `withdrawal_requested_by_user_id`
+  (TEXT, FK `users`, `ON DELETE SET NULL`): an accepted organisation asking to withdraw (`FIX-30`).
+  Kept once withdrawn, as the record; cleared when the request is cancelled or turned down.
 
 **Participation is determined by the teams taking part, and by nothing else.** Appointing an
 organiser, a sport's organiser or a convenor must never write a row here — see `event_organizers`

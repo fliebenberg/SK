@@ -57,6 +57,7 @@ not also query for the same data.
 | `org:{id}:leagues` | public | `LEAGUES_SYNC` | `LEAGUE_*`, `SEASON_*` |
 | `org:{id}:members` | member | `ORG_MEMBERS_SYNC` | `ORG_MEMBER_UPDATED`, `ORG_MEMBERS_SYNC` (a minors-setting change) |
 | `org:{id}:guardians` | member | `GUARDIANS_SYNC` (every active `ProfileGuardian` in the org) | `PROFILE_GUARDIANS_UPDATED` (`{ playerProfileId, guardians }` — one player's whole current list; replace that player's slice) |
+| `org:{id}:invitations` | member | `EVENT_INVITATIONS_SYNC` (`Event[]`: tournaments it is invited to, or declined or withdrew from — `FIX-30`) | `EVENT_INVITATIONS_SYNC` again, whole, when one of its invitations changes |
 | `org:{id}:referrals` | member | `ORG_REFERRALS_SYNC` | `ORG_REFERRAL_ADDED` |
 
 "Member" here means a membership that carries a member's privileges: a **restricted minor's**

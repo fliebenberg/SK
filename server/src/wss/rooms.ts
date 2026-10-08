@@ -18,6 +18,8 @@
 export const orgSummaryRoom = (orgId: string) => `org:${orgId}:summary`;
 /** The `Event` records. Not the games under them — that is `orgFixturesRoom`. */
 export const orgEventsRoom = (orgId: string) => `org:${orgId}:events`;
+/** Tournaments an organisation's members see in its workspace but not its public lists (`FIX-30`). */
+export const orgInvitationsRoom = (orgId: string) => `org:${orgId}:invitations`;
 /** The `GameSummary` rows for every event in the org. */
 export const orgFixturesRoom = (orgId: string) => `org:${orgId}:fixtures`;
 export const orgTeamsRoom = (orgId: string) => `org:${orgId}:teams`;

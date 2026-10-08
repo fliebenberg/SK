@@ -794,12 +794,16 @@ export class TournamentManager extends BaseManager {
     orgId: string
   ): Promise<{ divisions: Array<{ divisionId: string; syncedStageIds: string[] }> }> {
     const org = await this.query(
-      `SELECT o.name FROM event_organizations eo JOIN organizations o ON o.id = eo.org_id
+      `SELECT o.name, eo.invitation FROM event_organizations eo JOIN organizations o ON o.id = eo.org_id
         WHERE eo.event_id = $1 AND eo.org_id = $2`,
       [eventId, orgId]
     );
     if (!org.rows.length) throw new Error('That organisation is not taking part in this event.');
     const name: string = org.rows[0].name;
+    // Its row is the record that it was invited and said no (`FIX-30`), so it is kept.
+    if (org.rows[0].invitation === 'declined' || org.rows[0].invitation === 'withdrawn') {
+      throw new Error(`${name} ${org.rows[0].invitation === 'declined' ? 'declined' : 'withdrew'}, and stays listed as the record of it. Its teams are already out.`);
+    }
 
     const entrants = await this.query(
       `SELECT e.id, e.division_id AS "divisionId"
@@ -836,6 +840,34 @@ export class TournamentManager extends BaseManager {
     const divisionIds = [...new Set<string>(entrants.rows.map((r: any) => r.divisionId))];
     const divisions: Array<{ divisionId: string; syncedStageIds: string[] }> = [];
     for (const divisionId of divisionIds) {
+      divisions.push({ divisionId, syncedStageIds: await this.syncOpenStageEntrants(divisionId) });
+    }
+    return { divisions };
+  }
+
+  /**
+   * Take every entrant an organisation has in an event out of its division (`FIX-30`): when it
+   * declines, or its withdrawal is confirmed. As taking a team off a roster does: one that has
+   * played is withdrawn and keeps its results, the rest are deleted, and drawn fixtures that named
+   * them show an empty side until the organisers redraw or replace. Returns each division whose
+   * roster changed, with the stage it re-mirrored, for the caller to rebuild and publish.
+   */
+  async retireOrgEntrants(
+    eventId: string,
+    orgId: string
+  ): Promise<{ divisions: Array<{ divisionId: string; syncedStageIds: string[] }> }> {
+    const entrants = await this.query(
+      `SELECT e.id, e.division_id AS "divisionId"
+         FROM division_entrants e JOIN tournament_divisions d ON d.id = e.division_id
+        WHERE d.event_id = $1 AND e.org_id = $2 AND e.status = 'active'`,
+      [eventId, orgId]
+    );
+    if (!entrants.rows.length) return { divisions: [] };
+    await this.transaction(async (tx) => {
+      await this.retireEntrants(tx, entrants.rows.map((r: any) => r.id));
+    });
+    const divisions: Array<{ divisionId: string; syncedStageIds: string[] }> = [];
+    for (const divisionId of [...new Set<string>(entrants.rows.map((r: any) => r.divisionId))]) {
       divisions.push({ divisionId, syncedStageIds: await this.syncOpenStageEntrants(divisionId) });
     }
     return { divisions };
