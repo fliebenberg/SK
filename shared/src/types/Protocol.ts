@@ -7,7 +7,7 @@ import { TeamMembership } from "../models/team/TeamMembership";
 import { Site } from "../models/venue/Site";
 import { AddressPayload } from "../models/Address";
 import { Facility } from "../models/venue/Facility";
-import { Event } from "../models/event/Event";
+import { Event, EventFormat } from "../models/event/Event";
 import { Game } from "../models/event/Game";
 import { GameParticipant } from "../models/event/GameParticipant";
 import { OrgProfile } from "../models/people/OrgProfile";
@@ -620,6 +620,26 @@ export interface AddDivisionPayload {
      * so the caller that knows the format says so here rather than making a second round trip.
      */
     stage?: Omit<AddStagePayload, 'divisionId' | 'orgId'>;
+    /**
+     * How the division is played, when no `stage` is given: its stages follow the format's plan
+     * (`stagePlanForFormat`). Without either, the tournament's format is used (`FIX-27`).
+     */
+    format?: EventFormat;
+}
+
+/** How a division is played (`FIX-27`), set from its *How it's played* dialog. */
+export interface SetDivisionFormatPayload {
+    divisionId: string;
+    /** The workspace the caller is acting from. Authorization, not data — never stored. */
+    orgId: string;
+    /** `Festival` is "set fixtures by hand". */
+    format: EventFormat;
+    settings?: {
+        /** Round robin: once, or twice (home and away). */
+        legs?: number;
+        /** Knockout: a game for third place. */
+        thirdPlacePlayoff?: boolean;
+    };
 }
 
 export interface UpdateDivisionPayload {
@@ -1041,6 +1061,7 @@ export interface ProtocolMap {
     [SocketAction.ADD_STAGE]: { payload: AddStagePayload; response: TournamentStage };
     [SocketAction.UPDATE_STAGE]: { payload: UpdateStagePayload; response: TournamentStage };
     [SocketAction.DELETE_STAGE]: { payload: DeleteStagePayload; response: { id: string } };
+    [SocketAction.SET_DIVISION_FORMAT]: { payload: SetDivisionFormatPayload; response: TournamentStage[] };
     [SocketAction.SET_DIVISION_ENTRANTS]: { payload: SetDivisionEntrantsPayload; response: BatchResponse<TournamentEntrant> };
     [SocketAction.SET_STAGE_ENTRANTS]: { payload: SetStageEntrantsPayload; response: BatchResponse<StageEntrant> };
     [SocketAction.REPLACE_ENTRANT]: { payload: ReplaceEntrantPayload; response: ReplaceEntrantResult };

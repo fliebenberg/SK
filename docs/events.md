@@ -257,3 +257,66 @@ cards, until the drill-down work (`FIX-26`–`FIX-28`) decides their place. The 
 no longer shown anywhere on the page: every tournament is created a Festival and the formats live on
 each division's stages.
 
+
+## 8. The division page (`FIX-27`)
+
+Agreed 2026-10-09 on `mockups/division-read-first.html`, **option A**: one page of cards, read
+first, at `events/[eventId]/divisions/[divisionId]`.
+
+- **The banner** says what the division is — sport, age group, how it is played, how many teams —
+  where it has got to **in the same words as its tile** on the tournament page (*Needs more teams*,
+  *Not drawn yet*, *Changed since the draw*, *Draw made*; on the day *N live · x of y played*,
+  *Finished*), and whether entries are open or locked. ✎ opens the details dialog.
+- **One strip** under it says what the division needs next. A warning inside an otherwise good strip
+  keeps the warning colour, and starts its own line on a phone.
+- **Cards**, two columns on a wide screen, ordered by the moment: while setting up **Teams** leads;
+  once drawn, the fixtures sit beside the teams; **on the day Fixtures lead**, then Standings.
+  Each card edits itself — there is no separate edit screen.
+- **Teams**: each team with its status (`FIX-31`); declined teams under *Not taking part*. Once
+  entries are locked, *Accepted* badges go and only the exceptions keep one. A late-entry request
+  or a withdrawal request sits at the top with its message — two lines, then *Show more* — and its
+  two answers. Each team's ⋯: *Mark as accepted* (only once its organisation has accepted), *Mark as
+  declined* (any time), *Replace*, *Withdraw* (after the lock; results stand), *Remove* (until it
+  has played). A team entered for an organisation not yet invited reads *Not invited yet*; the
+  division page never offers *Invite* — inviting is for the tournament's organisers only.
+- **Add teams** lists only the organisations taking part, and only their teams **of this age group
+  not already in the division**; **＋ A team from another age group** under each organisation is the
+  exception. A place to be filled later is at the foot. **Replace** is the same picker choosing one,
+  with a late entry not yet in the draw offered first, and says before confirming whether the
+  replacement takes everything (nothing played) or only the unplayed fixtures (results stand).
+- **How it's played**: *Round robin* (once / twice), *Pools & knockout*, *Knockout* (a game for third
+  place), *Set fixtures by hand* (`Festival`: no draw). Chosen when the division is added, changed
+  on the page until the draw — after it, changing means redoing the draw. What each option means may
+  still change; the UI is what is settled.
+- **The draw** is made from locked entries (`FIX-31`); an unlocked division's *Make the draw* lists,
+  as warnings, the teams still to answer. *Redo the draw* (not *Remake*) replaces the fixtures.
+- **Details dialog**: name, sport (fixed once a team or a fixture exists), age group, division
+  organisers, and the courts as chips with **＋ after them** opening the facility picker.
+- **Adding a division** asks first: age group, then a name filled in from it, and how it is played.
+  A sport's first division is asked for when the sport is added; *Skip* names it *Open*.
+
+**Names, within a sport.** A division is read under its sport, so its name does not repeat it:
+"U12", and "Open" with no age group; a second of the same age is "U12 B". Names are therefore
+**unique within a sport**, not the tournament ("U12" in netball and in hockey), and the sport is put
+back — "Netball U12" — wherever it is not already on screen (`divisionFullName`). The automatic name
+no longer upper-cases the age group (`SPORT-11`); names given before, such as "Rugby U14" or
+"RUGBY U14 - 2", keep their names and are still recognised as automatic, ignoring case.
+
+**Once a game has started** — live, finished or holding a score — **only fixture changes by hand**:
+no redrawing, no change to the format or the stages (a stage's name and earliest start may still
+change), and the division cannot be deleted. *Replace* stays, because it keeps the draw. The
+server refuses each of these itself (`assertDivisionNotStarted` in
+[TournamentManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/TournamentManager.ts)).
+
+**A division's sport** is fixed once a team is entered **or a fixture exists** — a fixture added by
+hand is played under the sport's rules (`FIX-17`).
+
+**Courts**: a facility picked for a division that the tournament does not use yet is **added to the
+tournament too**, since the tournament's facilities are everything used on the day and drive its
+map. The server does it inside `SET_DIVISION_FACILITIES`, because a division organiser may not set
+the tournament's facilities directly; narrowing a division takes nothing off the tournament.
+
+**Who may do what** (from `tournamentGate.ts`): a division organiser has the division's teams,
+how it is played, the draw, fixtures and its courts; renaming or deleting it, and inviting an
+organisation, are for the tournament's and the sport's organisers — so a division organiser sees the
+name and age group read-only, and no *Delete division*.

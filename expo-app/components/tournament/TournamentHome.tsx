@@ -222,7 +222,7 @@ export function TournamentHome({
       eventId,
       orgId,
       sportId,
-      name: divisionAutoName(sportName(sportId), undefined, divisions.map(d => d.name)) || 'Division',
+      name: divisionAutoName(undefined, divisions.filter(d => d.sportId === sportId).map(d => d.name)),
       // Every division has at least one stage (D11); its own screen sets the format.
       stage: { name: 'Fixtures', format: 'Festival', sequence: 1 },
     });

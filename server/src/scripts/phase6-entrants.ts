@@ -43,8 +43,8 @@ import { up as backfillStages } from './migrations/20260903_backfill_stages';
  *    never the roster, so without the mirror an organiser could enter ten teams, press Generate,
  *    and be told the stage is empty. This is the single check that makes the feature work at all.
  *  - **D9 — two paths and no silent top-up.** `create` refuses a stage that already has fixtures;
- *    `regenerate` refuses to destroy a result without being told to, and names the count so the
- *    dialog can state the concrete cost.
+ *    `regenerate` is refused outright once a game in the division has started (`FIX-27`, agreed
+ *    2026-10-09) — from then on fixtures change by hand only.
  *  - **D10 — a substitution is not a regeneration.** Swapping who an entrant is rewrites every
  *    fixture that names it and touches the draw not at all.
  *  - **D7 — a placeholder is a real entrant**, schedulable, and resolving it updates every fixture
@@ -484,26 +484,28 @@ async function main() {
   );
 
   // ------------------------------------------------------------------------------------------
-  // 5. D9's second path — regenerating over results
+  // 5. D9's second path — no redraw once a game has started (`FIX-27`)
   // ------------------------------------------------------------------------------------------
 
   await expectThrows(
     () => tournamentManager.generateStageFixtures(divisionX.stageId, 'regenerate'),
-    /deletes 6 fixture\(s\), 6 of which have results/,
-    'regenerating over results is refused, and the refusal states the concrete cost'
+    /have started, so the draw can no longer be redone/,
+    'redoing the draw is refused once a game in the division has started'
   );
-  const regenerated = await tournamentManager.generateStageFixtures(divisionX.stageId, 'regenerate', true);
-  expect(
-    [regenerated.deleted, regenerated.created],
-    [6, 6],
-    'and goes ahead once told the results should go'
+  await expectThrows(
+    () => tournamentManager.generateStageFixtures(divisionX.stageId, 'regenerate', true),
+    /have started, so the draw can no longer be redone/,
+    'even when told the results may go — fixtures change by hand from here'
   );
   expect(
-    ((await tournamentManager.getStage(divisionX.stageId))!.cachedStandings || []).every(
-      row => row.played === 0
-    ),
-    true,
-    'the table is rebuilt without them rather than left standing'
+    (await query(`SELECT count(*)::int AS n FROM games WHERE stage_id = $1`, [divisionX.stageId])).rows[0].n,
+    6,
+    'and the draw is left exactly as it was'
+  );
+  await expectThrows(
+    () => tournamentManager.setDivisionFormat(divisionX.id, 'Knockout'),
+    /have started, so how it is played can no longer change/,
+    'nor can the format change, which would replace the stages and their fixtures'
   );
 
   // ------------------------------------------------------------------------------------------
@@ -661,6 +663,29 @@ async function main() {
     sportId: lockSportId,
     ageGroupId: starterAgeGroupId(lockSportId, 'u13'),
   });
+
+  // A fixture added by hand commits the division to its sport as an entrant does (`FIX-17`,
+  // closed 2026-10-09): it is played under the sport's rules, though nobody was entered.
+  const handDivision = await tournamentManager.addDivision({
+    eventId: event.id,
+    name: `P6 Hand ${stamp}`,
+    sportId: lockSportId,
+  } as any);
+  const handStage = await tournamentManager.addStage({ divisionId: handDivision.id, name: 'Fixtures', format: 'Festival' });
+  await query(
+    `INSERT INTO games (id, event_id, sport_id, stage_id, status, custom_settings, live_state)
+     VALUES ($1, $2, $3, $4, 'Scheduled', '{}'::jsonb, '{}'::jsonb)`,
+    [`game-p6-hand-${stamp}`, event.id, lockSportId, handStage.id]
+  );
+  const handRefusal = await tournamentManager
+    .updateDivision(handDivision.id, { sportId: sports[1].id })
+    .then(() => null)
+    .catch((err: Error) => err.message);
+  expect(
+    [typeof handRefusal === 'string' && handRefusal.includes('1 fixture'), (await tournamentManager.getDivision(handDivision.id))?.sportId],
+    [true, lockSportId],
+    'a division with a fixture added by hand, and no entrants, cannot change its sport either'
+  );
 
   // And now a real team.
   const lockTeamId = `team-p6-lock-${stamp}`;

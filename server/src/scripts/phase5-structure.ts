@@ -4,6 +4,8 @@ import pool from '../db';
 import { accessManager } from '../managers/AccessManager';
 import { eventManager } from '../managers/EventManager';
 import { tournamentManager } from '../managers/TournamentManager';
+import { siteManager } from '../managers/SiteManager';
+import { facilityManager } from '../managers/FacilityManager';
 import { starterAgeGroupId } from './setup/ageGroupSeed';
 
 /**
@@ -22,9 +24,10 @@ import { starterAgeGroupId } from './setup/ageGroupSeed';
  *    stages its format implies. Checked for all four formats, because `PoolsKnockout` is the only
  *    one that is genuinely two, and a rule with one interesting case is a rule worth checking on
  *    all of them.
- *  - **The naming that only becomes visible later** — the implicit division is named after the
- *    sport when there is one, because the moment a second division is added, that name appears on
- *    screen having never been seen before.
+ *  - **The naming that only becomes visible later** — the implicit division is named "Open", the
+ *    automatic name for a division with no age group, and is read under its sport (`FIX-27`):
+ *    the moment a second division is added, that name appears on screen having never been seen
+ *    before.
  *  - **`FIX-2`** — an event carries its participating organisations *named*, so the screen that
  *    used to read every organisation in the system reads nothing at all.
  *  - **The fields the permission check needs** — a fixture summary names its stage and its
@@ -55,6 +58,7 @@ const created = {
   userIds: [] as string[],
   profileIds: [] as string[],
   membershipIds: [] as string[],
+  siteIds: [] as string[],
 };
 
 async function main() {
@@ -108,8 +112,8 @@ async function main() {
     expect(divisions.length, 1, `${format}: created with exactly one division`);
     expect(
       divisions[0].name,
-      sportId.name,
-      `${format}: the division is named after the tournament's only sport`
+      'Open',
+      `${format}: the division is called "Open", read under its sport`
     );
     expect(divisions[0].sportId, sportId.id, `${format}: the sport is carried onto the division`);
 
@@ -140,6 +144,12 @@ async function main() {
       multiDivisions.map(d => d.sportId).sort(),
       [...twoSportIds].sort(),
       'a tournament with two sports starts with one division for each'
+    );
+    // Names are unique within a sport, not the tournament (`FIX-27`), so both may be "Open".
+    expect(
+      multiDivisions.map(d => d.name),
+      ['Open', 'Open'],
+      'and each sport\'s first division is "Open" — the names only clash within a sport'
     );
   }
 
@@ -184,6 +194,48 @@ async function main() {
     bothDivisions[0].name,
     firstDivision.name,
     'the name the announcement promises to show is the name that is still there'
+  );
+
+  // ------------------------------------------------------------------------------------------
+  // 3b. `FIX-27` — how a division is played, and the courts it plays on
+  // ------------------------------------------------------------------------------------------
+
+  // Setting the format replaces the division's stages with the format's plan, settings and all.
+  const formatStages = await tournamentManager.setDivisionFormat(second.id, 'PoolsKnockout', {
+    legs: 2,
+    thirdPlacePlayoff: true,
+  });
+  expect(
+    formatStages.map(stage => [stage.name, stage.format, stage.sequence, stage.settings?.legs ?? null, stage.settings?.thirdPlacePlayoff ?? null]),
+    [
+      ['Pools', 'RoundRobin', 1, 2, null],
+      ['Knockout', 'Knockout', 2, null, true],
+    ],
+    'setting a division to pools & knockout gives it the two stages, each with its own settings'
+  );
+  expect(
+    (await tournamentManager.setDivisionFormat(second.id, 'RoundRobin')).map(stage => stage.format),
+    ['RoundRobin'],
+    'and setting it again replaces them rather than adding to them'
+  );
+
+  // A court a division plays on joins the tournament's facilities, which drive its map.
+  const courtSite = await siteManager.addSite({ id: `site-p5-${stamp}`, name: `P5 Courts ${stamp}`, orgId: APP_TEST_ORG_ID } as any);
+  created.siteIds.push(courtSite.id);
+  const courtA = await facilityManager.addFacility({ id: `fac-p5a-${stamp}`, name: 'Court A', siteId: courtSite.id } as any);
+  const courtB = await facilityManager.addFacility({ id: `fac-p5b-${stamp}`, name: 'Court B', siteId: courtSite.id } as any);
+  await tournamentManager.setEventFacilities(host.id, [courtA.id]);
+  const courtsSet = await tournamentManager.setDivisionFacilities(second.id, [courtA.id, courtB.id]);
+  expect(
+    [courtsSet.facilityIds.sort(), (courtsSet.eventFacilityIds || []).sort()],
+    [[courtA.id, courtB.id].sort(), [courtA.id, courtB.id].sort()],
+    'a court new to the tournament, picked for a division, is added to the tournament too'
+  );
+  const courtsNarrowed = await tournamentManager.setDivisionFacilities(second.id, [courtA.id]);
+  expect(
+    [courtsNarrowed.eventFacilityIds, (await tournamentManager.getEventFacilities(host.id)).sort()],
+    [null, [courtA.id, courtB.id].sort()],
+    'and narrowing the division takes nothing off the tournament, which is told of no change'
   );
 
   // ------------------------------------------------------------------------------------------
@@ -337,6 +389,10 @@ async function cleanup() {
   for (const id of created.userIds) {
     await query(`DELETE FROM user_emails WHERE user_id = $1`, [id]);
     await query(`DELETE FROM users WHERE id = $1`, [id]);
+  }
+  for (const id of created.siteIds) {
+    await query(`DELETE FROM facilities WHERE site_id = $1`, [id]);
+    await query(`DELETE FROM sites WHERE id = $1`, [id]);
   }
   if (created.guestOrgId) await query(`DELETE FROM organizations WHERE id = $1`, [created.guestOrgId]);
 }

@@ -496,6 +496,12 @@ export enum SocketAction {
      * Action to delete a stage. Its fixtures survive with a null `stageId`.
      */
     DELETE_STAGE = 'DELETE_STAGE',
+    /**
+     * Action to set how a division is played (`FIX-27`): its stages are replaced by the plan for a
+     * format, and fixtures not yet started go with them. Refused once a game has started.
+     * Expects payload: `SetDivisionFormatPayload`
+     */
+    SET_DIVISION_FORMAT = 'SET_DIVISION_FORMAT',
 
     /**
      * Action to replace a division's whole roster.

@@ -234,15 +234,10 @@ export default function SetupPlaying() {
         eventId,
         orgId,
         sportId,
-        // The automatic name for a division with no age group yet — "Rugby", or "Rugby - 2" when
-        // the sport already has one — and it becomes "Rugby U14" once an age group is given on
-        // the screen this opens.
-        name:
-          divisionAutoName(
-            sportName(sportId),
-            undefined,
-            orderedDivisions.map(d => d.name)
-          ) || 'Division',
+        // The automatic name for a division with no age group yet — "Open", or "Open B" when the
+        // sport already has one — and it becomes "U14" once an age group is given on the screen
+        // this opens (`FIX-27`).
+        name: divisionAutoName(undefined, orderedDivisions.filter(d => d.sportId === sportId).map(d => d.name)),
         // Every division has at least one stage (D11), and the caller that knows the format
         // says so in the same call rather than making a second round trip.
         stage: { name: 'Fixtures', format: 'Festival', sequence: 1 },

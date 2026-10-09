@@ -1015,6 +1015,9 @@ that spans weeks.
 >   a division keeps a numbered name while nobody else holds it, and *Add a {sport} division* and a
 >   newly chosen sport use the same rule. A warning about two divisions sharing a sport and age
 >   group was built the same day and taken out again; the name check is what matters.
+>   **Superseded 2026-10-09 (`FIX-27`):** names are unique **within a sport**, the automatic name
+>   is the age group alone (`U14`, `U14 B`, `Open`), and the sport is added back where it is not on
+>   screen — see [events.md](file:///c:/Fred/Coding/SK/docs/events.md) §8.
 
 > **Decided 2026-09-19 — a division's age group narrows the team list; it does not forbid.** Entry
 > (U21) offered only teams matching the division's sport *and* age group, with no way past it, but a

@@ -371,20 +371,18 @@ export default function DivisionScreen() {
     }
   );
   const siblingDivisions = eventDivisions.filter(d => d.id !== divisionId);
-  const siblingNames = siblingDivisions.map(d => d.name);
-
-  /* Numbered when another division already holds the name — `Rugby U14 - 2` — and a numbered name
-     this division already has is kept while it is free (`divisionAutoName`). */
-  const deriveName = useCallback(
-    (sportId?: string, ageGroup?: string) =>
-      divisionAutoName(
-        sports.find(sport => sport.id === sportId)?.name,
-        ageGroup,
-        siblingNames,
-        division?.name
-      ),
+  /** Names are unique within a sport (`FIX-27`), so only that sport's other divisions count. */
+  const namesInSport = useCallback(
+    (sportId?: string | null) => siblingDivisions.filter(d => (d.sportId || null) === (sportId || null)).map(d => d.name),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sports, siblingNames.join('\u0000'), division?.name]
+    [siblingDivisions.map(d => `${d.sportId}:${d.name}`).join('\u0000')]
+  );
+
+  /* Lettered when another division of the sport already holds the name — `U14 B` — and a lettered
+     name this division already has is kept while it is free (`divisionAutoName`). */
+  const deriveName = useCallback(
+    (sportId?: string, ageGroup?: string) => divisionAutoName(ageGroup, namesInSport(sportId), division?.name),
+    [namesInSport, division?.name]
   );
 
   const savedCustomName = useMemo(() => {
@@ -485,7 +483,7 @@ export default function DivisionScreen() {
     now, so the clash is shown before Save rather than refused after it. The automatic name is
     numbered to avoid one, so in practice this only fires on a name somebody typed.
   */
-  const nameClash = findTakenDivisionName(effectiveName, siblingNames);
+  const nameClash = findTakenDivisionName(effectiveName, namesInSport(draftSportId));
   /**
    * Measured against the **baseline**, and over the fields the organiser actually edits.
    *

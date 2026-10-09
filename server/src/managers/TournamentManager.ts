@@ -256,9 +256,9 @@ export class TournamentManager extends BaseManager {
    *
    * A tournament's divisions follow its sports: choosing a sport — at creation or later on Sports &
    * Divisions — gives it a division to start from, so the organiser meets the division the moment
-   * the sport exists rather than having to know to add one. Named after the sport, which is the
-   * automatic name for a division with no age group yet (`divisionAutoName`), so it becomes
-   * "Rugby U14" the moment an age group is given.
+   * the sport exists rather than having to know to add one. Named "Open", the automatic name for a
+   * division with no age group (`divisionAutoName`, `FIX-27`), so it becomes "U14" the moment an
+   * age group is given — read under its sport, it needs no sport in its name.
    *
    * Created **with its stages** (D11), derived from the format, so every division has somewhere
    * for its fixtures to belong (`PEOPLE-3`).
@@ -268,13 +268,12 @@ export class TournamentManager extends BaseManager {
     sportIds: string[]
   ): Promise<TournamentDivision[]> {
     const created: TournamentDivision[] = [];
-    // Names are unique within a tournament, ignoring case — so a hand-named "rugby" already there
-    // makes the new one "Rugby - 2" rather than a clash the server would otherwise refuse.
-    const takenNames = (await this.getDivisions(event.id)).map(d => d.name);
+    // Names are unique within a sport, ignoring case — so a hand-named "open" already in the sport
+    // makes the new one "Open B" rather than a clash the server would otherwise refuse.
+    const existing = await this.getDivisions(event.id);
     for (const sportId of [...new Set(sportIds)]) {
-      const sportName = (await this.query(`SELECT name FROM sports WHERE id = $1`, [sportId])).rows[0]?.name;
-      const name = divisionAutoName(sportName || event.name, undefined, takenNames);
-      takenNames.push(name);
+      const takenNames = existing.filter(d => d.sportId === sportId).map(d => d.name);
+      const name = divisionAutoName(undefined, takenNames);
       const division = await this.addDivision({ eventId: event.id, name, sportId });
       for (const stage of stagePlanForFormat(event.format)) {
         await this.addStage({ divisionId: division.id, ...stage });
@@ -331,6 +330,15 @@ export class TournamentManager extends BaseManager {
             `changed. Remove them first, or add a division for the other sport.`
         );
       }
+      // A fixture added by hand (`FIX-12`) commits the division to its sport just as an entrant
+      // does: it is played under the sport's rules (`FIX-17`, closed 2026-10-09).
+      const { total } = await this.getDivisionGameCounts(id);
+      if (total > 0) {
+        throw new Error(
+          `This division has ${total} ${total === 1 ? 'fixture' : 'fixtures'}, so its sport cannot be ` +
+            `changed. Delete them first, or add a division for the other sport.`
+        );
+      }
     }
 
     if (data.name !== undefined) set('name', data.name);
@@ -364,6 +372,76 @@ export class TournamentManager extends BaseManager {
   async deleteDivision(id: string): Promise<boolean> {
     const res = await this.query(`DELETE FROM tournament_divisions WHERE id = $1`, [id]);
     return (res.rowCount ?? 0) > 0;
+  }
+
+  /**
+   * How many fixtures a division has, and how many of them have **started** — live, finished, or
+   * holding a score. A fixture belongs to a division through its stage.
+   */
+  async getDivisionGameCounts(divisionId: string): Promise<{ total: number; started: number }> {
+    const res = await this.query(
+      `SELECT count(*)::int AS total,
+              count(*) FILTER (
+                WHERE g.status IN ('Live', 'Finished') OR g.final_score_data IS NOT NULL
+              )::int AS started
+         FROM games g JOIN division_stages s ON s.id = g.stage_id
+        WHERE s.division_id = $1`,
+      [divisionId]
+    );
+    return { total: res.rows[0]?.total ?? 0, started: res.rows[0]?.started ?? 0 };
+  }
+
+  /**
+   * **Once a game in a division has started, only fixture changes by hand** (`FIX-27`, agreed
+   * 2026-10-09). The draw is not redone, the format and stages do not change, and the division is
+   * not deleted: each of those would replace or remove fixtures that people have already played or
+   * are playing. Moving, adding and deleting single fixtures, and *Replace*, which keeps the draw,
+   * are still allowed.
+   *
+   * @param doing what was refused, finishing "Games in U12 have started, so …"
+   */
+  async assertDivisionNotStarted(divisionId: string, doing: string): Promise<void> {
+    const { started } = await this.getDivisionGameCounts(divisionId);
+    if (started > 0) {
+      const division = await this.getDivision(divisionId);
+      throw new Error(
+        `Games in ${division?.name || 'this division'} have started, so ${doing}. ` +
+          `Fixtures can still be changed by hand.`
+      );
+    }
+  }
+
+  /**
+   * Set how a division is played (`FIX-27`): its stages are replaced by the plan for `format`
+   * (`stagePlanForFormat`), with the few settings the picker offers. Refused once a game has
+   * started; before that, any fixtures already drawn are deleted with the old stages — the dialog
+   * says so — because a draw made for one format means nothing under another.
+   */
+  async setDivisionFormat(
+    divisionId: string,
+    format: EventFormat,
+    settings: { legs?: number; thirdPlacePlayoff?: boolean } = {}
+  ): Promise<TournamentStage[]> {
+    await this.assertDivisionNotStarted(divisionId, 'how it is played can no longer change');
+    const plan = stagePlanForFormat(format);
+    await this.transaction(async (tx) => {
+      await tx(
+        `DELETE FROM games WHERE stage_id IN (SELECT id FROM division_stages WHERE division_id = $1)`,
+        [divisionId]
+      );
+      await tx(`DELETE FROM division_stages WHERE division_id = $1`, [divisionId]);
+      for (const stage of plan) {
+        const stageSettings: TournamentStage['settings'] = {};
+        if (stage.format === 'RoundRobin' && settings.legs) stageSettings.legs = settings.legs;
+        if (stage.format === 'Knockout' && settings.thirdPlacePlayoff) stageSettings.thirdPlacePlayoff = true;
+        await tx(
+          `INSERT INTO division_stages (id, division_id, name, format, sequence, status, settings)
+           VALUES ($1, $2, $3, $4, $5, 'Pending', $6)`,
+          [`stg-${uuidv4()}`, divisionId, stage.name, stage.format, stage.sequence, JSON.stringify(stageSettings)]
+        );
+      }
+    });
+    return this.getStages(divisionId);
   }
 
   // ============================================================================================
@@ -1296,7 +1374,21 @@ export class TournamentManager extends BaseManager {
     return res.rows.map((r: any) => r.facility_id);
   }
 
-  async setDivisionFacilities(divisionId: string, facilityIds: string[]): Promise<string[]> {
+  /**
+   * Set the facilities a division plays at. **Any the tournament does not use yet are added to the
+   * tournament too** (`FIX-27`, agreed 2026-10-09): the tournament's facilities are everything used
+   * on the day, and they are what its map shows. That happens here rather than by the client also
+   * sending `SET_EVENT_FACILITIES`, which a division organiser may not do — they can add a court to
+   * the tournament only by playing on it. Nothing is ever taken off the tournament this way.
+   *
+   * @returns the division's facilities, and the tournament's when this added to them
+   */
+  async setDivisionFacilities(
+    divisionId: string,
+    facilityIds: string[]
+  ): Promise<{ facilityIds: string[]; eventId: string | null; eventFacilityIds: string[] | null }> {
+    const eventId = await this.getDivisionEventId(divisionId);
+    let added = 0;
     await this.transaction(async (tx) => {
       await tx(`DELETE FROM division_facilities WHERE division_id = $1`, [divisionId]);
       for (const facilityId of facilityIds) {
@@ -1304,9 +1396,20 @@ export class TournamentManager extends BaseManager {
           `INSERT INTO division_facilities (division_id, facility_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
           [divisionId, facilityId]
         );
+        if (eventId) {
+          const res = await tx(
+            `INSERT INTO event_facilities (event_id, facility_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [eventId, facilityId]
+          );
+          added += res.rowCount ?? 0;
+        }
       }
     });
-    return this.getDivisionFacilities(divisionId);
+    return {
+      facilityIds: await this.getDivisionFacilities(divisionId),
+      eventId,
+      eventFacilityIds: eventId && added > 0 ? await this.getEventFacilities(eventId) : null,
+    };
   }
 
   async getAdjustments(divisionId: string): Promise<TournamentAdjustment[]> {
@@ -1703,6 +1806,9 @@ export class TournamentManager extends BaseManager {
         `${stage.name} already has ${total} fixture(s). Regenerate to replace them, or add ` +
           `fixtures by hand — generation never tops up an existing draw.`
       );
+    }
+    if (mode === 'regenerate') {
+      await this.assertDivisionNotStarted(division.id, 'the draw can no longer be redone');
     }
     if (mode === 'regenerate' && played > 0 && !deleteResults) {
       throw new Error(

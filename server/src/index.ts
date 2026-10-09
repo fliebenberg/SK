@@ -13,6 +13,7 @@ import {
     OrganizerScope,
     SocketAction,
     findTakenDivisionName,
+    stagePlanForFormat,
     organizerScopeFields,
     organizerScopeOf,
     minorsSettingsOf,
@@ -1460,17 +1461,25 @@ async function publishFirstStage(divisionId: string) {
 }
 
 /**
- * Refuse a division name another division in the same tournament already has, ignoring case and
- * surrounding space. The division screen checks as the name is typed; this is what holds when two
- * people save at once, or a caller skips the screen.
+ * Refuse a division name another division **of the same sport** in the tournament already has,
+ * ignoring case and surrounding space (`FIX-27`: a division is read under its sport, so netball's
+ * "U12" and hockey's "U12" do not clash). The division page checks as the name is typed; this is
+ * what holds when two people save at once, or a caller skips the page.
  */
-async function assertDivisionNameFree(eventId: string | null | undefined, name: string | undefined, exceptDivisionId?: string) {
+async function assertDivisionNameFree(
+    eventId: string | null | undefined,
+    sportId: string | null | undefined,
+    name: string | undefined,
+    exceptDivisionId?: string
+) {
     if (!eventId || name === undefined) return;
     if (!name.trim()) throw new Error('A division needs a name.');
-    const others = (await dataManager.getDivisions(eventId)).filter(d => d.id !== exceptDivisionId);
+    const others = (await dataManager.getDivisions(eventId)).filter(
+        d => d.id !== exceptDivisionId && (d.sportId || null) === (sportId || null)
+    );
     const clash = findTakenDivisionName(name, others.map(d => d.name));
     if (clash) {
-        throw new Error(`Another division in this tournament is already called "${clash}". Division names must be different.`);
+        throw new Error(`Another division of this sport is already called "${clash}". Division names must be different.`);
     }
 }
 
@@ -3200,7 +3209,7 @@ io.on('connection', (socket) => {
             // rather than open-coded here.
 
             case SocketAction.ADD_DIVISION: {
-                const { stage, orgId: _actingOrgId, ...divisionData } = action.payload;
+                const { stage, format, orgId: _actingOrgId, ...divisionData } = action.payload;
                 // U52: a division plays one of the tournament's sports — so there must be one to play,
                 // and with only one there is nothing to choose.
                 const parentEvent = await dataManager.getEvent(divisionData.eventId);
@@ -3215,12 +3224,18 @@ io.on('connection', (socket) => {
                     throw new Error('Say which sport the new division plays.');
                 }
                 await assertDivisionSportAllowed(divisionData.eventId, divisionData.sportId);
-                await assertDivisionNameFree(divisionData.eventId, divisionData.name);
+                await assertDivisionNameFree(divisionData.eventId, divisionData.sportId, divisionData.name);
                 const division = await dataManager.addDivision(divisionData);
                 // D11: every division has at least one stage. The caller that knows the format
                 // says so in the same call rather than making a second round trip, and a division
                 // with one stage is what the collapse rule (U15) renders with no stage tabs.
+                // *Add a division* names the format (`FIX-27`); without either, the tournament's.
                 if (stage) await dataManager.addStage({ ...stage, divisionId: division.id });
+                else {
+                    for (const planned of stagePlanForFormat(format || parentEvent?.format)) {
+                        await dataManager.addStage({ ...planned, divisionId: division.id });
+                    }
+                }
                 result = await dataManager.getDivisionDetail(division.id);
                 await publishDivision(division.id, 'DIVISION_ADDED', result, division.eventId);
                 break;
@@ -3231,8 +3246,13 @@ io.on('connection', (socket) => {
                     action.payload.data?.sportId !== undefined || action.payload.data?.name !== undefined
                         ? await dataManager.getDivision(action.payload.id)
                         : null;
-                if (action.payload.data?.name !== undefined) {
-                    await assertDivisionNameFree(beforeUpdate?.eventId, action.payload.data.name, action.payload.id);
+                if (action.payload.data?.name !== undefined || action.payload.data?.sportId) {
+                    await assertDivisionNameFree(
+                        beforeUpdate?.eventId,
+                        action.payload.data?.sportId || beforeUpdate?.sportId,
+                        action.payload.data?.name ?? beforeUpdate?.name,
+                        action.payload.id
+                    );
                 }
                 if (action.payload.data?.sportId !== undefined) {
                     if (!action.payload.data.sportId) throw new Error('A division has to play a sport.');
@@ -3258,6 +3278,7 @@ io.on('connection', (socket) => {
                 const divisionEventId = await dataManager.getDivisionEventId(action.payload.id);
                 const divisionBeforeDelete = await dataManager.getDivision(action.payload.id);
                 await assertNotLastDivisionOfDelegatedSport(authUserId, action.payload.orgId, divisionBeforeDelete);
+                await tournamentManager.assertDivisionNotStarted(action.payload.id, 'it can no longer be deleted');
                 const removedDivision = await dataManager.deleteDivision(action.payload.id);
                 if (!removedDivision) throw new Error('Division not found.');
                 result = { id: action.payload.id };
@@ -3272,6 +3293,7 @@ io.on('connection', (socket) => {
             }
 
             case SocketAction.ADD_STAGE: {
+                await tournamentManager.assertDivisionNotStarted(action.payload.divisionId, 'its stages can no longer change');
                 result = await dataManager.addStage(action.payload);
                 publishStages(action.payload.divisionId, await dataManager.getStages(action.payload.divisionId));
                 await publishFirstStage(action.payload.divisionId);
@@ -3279,6 +3301,15 @@ io.on('connection', (socket) => {
             }
 
             case SocketAction.UPDATE_STAGE: {
+                // A stage's name and earliest start are labels and timing; its format, order and
+                // settings are how the division is played, which is fixed once a game has started.
+                const stageData = action.payload.data || {};
+                if (stageData.format !== undefined || stageData.sequence !== undefined || stageData.settings !== undefined) {
+                    const stageBefore = await dataManager.getStage(action.payload.id);
+                    if (stageBefore) {
+                        await tournamentManager.assertDivisionNotStarted(stageBefore.divisionId, 'how it is played can no longer change');
+                    }
+                }
                 result = await dataManager.updateStage(action.payload.id, action.payload.data);
                 if (!result) throw new Error('Stage not found.');
                 publishStages(result.divisionId, await dataManager.getStages(result.divisionId));
@@ -3286,9 +3317,26 @@ io.on('connection', (socket) => {
                 break;
             }
 
+            case SocketAction.SET_DIVISION_FORMAT: {
+                // How it's played (`FIX-27`): the division's stages replaced by the format's plan,
+                // and any fixtures not yet started with them. Refused once a game has started.
+                result = await tournamentManager.setDivisionFormat(
+                    action.payload.divisionId,
+                    action.payload.format,
+                    action.payload.settings || {}
+                );
+                const formatEventId = await dataManager.getDivisionEventId(action.payload.divisionId);
+                publishStages(action.payload.divisionId, result);
+                await publishFirstStage(action.payload.divisionId);
+                await tournamentManager.recalculateDivision(action.payload.divisionId);
+                await publishStandings(action.payload.divisionId, formatEventId);
+                break;
+            }
+
             case SocketAction.DELETE_STAGE: {
                 const stageToDelete = await dataManager.getStage(action.payload.id);
                 if (!stageToDelete) throw new Error('Stage not found.');
+                await tournamentManager.assertDivisionNotStarted(stageToDelete.divisionId, 'its stages can no longer change');
                 await dataManager.deleteStage(action.payload.id);
                 result = { id: action.payload.id };
                 publishStages(stageToDelete.divisionId, await dataManager.getStages(stageToDelete.divisionId));
@@ -3712,12 +3760,20 @@ io.on('connection', (socket) => {
             }
 
             case SocketAction.SET_DIVISION_FACILITIES: {
-                const divisionFacilityIds = await dataManager.setDivisionFacilities(
+                const divisionFacilities = await dataManager.setDivisionFacilities(
                     action.payload.divisionId,
                     action.payload.facilityIds || []
                 );
-                result = { divisionId: action.payload.divisionId, facilityIds: divisionFacilityIds };
+                result = { divisionId: action.payload.divisionId, facilityIds: divisionFacilities.facilityIds };
                 broadcast(divisionFacilitiesRoom(action.payload.divisionId), 'DIVISION_FACILITIES_SYNC', result);
+                // A facility new to the tournament joined it too (`FIX-27`), so the tournament's
+                // list and map hear about it as if it had been set there.
+                if (divisionFacilities.eventId && divisionFacilities.eventFacilityIds) {
+                    broadcast(eventFacilitiesRoom(divisionFacilities.eventId), 'EVENT_FACILITIES_SYNC', {
+                        eventId: divisionFacilities.eventId,
+                        facilityIds: divisionFacilities.eventFacilityIds,
+                    });
+                }
 
                 // The division itself carries `facilityIds` now, and the event screen lists every
                 // division with the fields it uses — so the event room has to hear about this too,

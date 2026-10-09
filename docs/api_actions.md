@@ -658,20 +658,21 @@ may hold no membership anywhere and so act from no workspace at all.
 
 | Action | Payload | Batch? | Broadcasts |
 | --- | --- | --- | --- |
-| `ADD_DIVISION` | `AddDivisionPayload` (optionally with the division's first `stage`) | no | `DIVISION_ADDED` to `division:{id}:fixtures` and `event:{eventId}` |
+| `ADD_DIVISION` | `AddDivisionPayload` (optionally with the division's first `stage`, or a `format` whose stages it is created with — the tournament's when neither is given). The name must be free **within the sport** | no | `DIVISION_ADDED` to `division:{id}:fixtures` and `event:{eventId}` |
 | `UPDATE_DIVISION` | `{ id, orgId, data }` | no | `DIVISION_UPDATED`, then `DIVISION_STANDINGS_UPDATED` — `weighting`, `scoring` and `tiebreakers` all change what the tables say |
-| `DELETE_DIVISION` | `{ id, orgId }` | no | `DIVISION_DELETED`, `EVENT_STANDINGS_UPDATED` |
-| `ADD_STAGE` / `UPDATE_STAGE` / `DELETE_STAGE` | a stage | no | `STAGES_SYNC` |
+| `DELETE_DIVISION` | `{ id, orgId }` — refused once a game in the division has started | no | `DIVISION_DELETED`, `EVENT_STANDINGS_UPDATED` |
+| `ADD_STAGE` / `UPDATE_STAGE` / `DELETE_STAGE` | a stage — once a game has started, only a stage's name and earliest start may change | no | `STAGES_SYNC` |
+| `SET_DIVISION_FORMAT` | `{ divisionId, orgId, format, settings?: { legs?, thirdPlacePlayoff? } }` — replaces the division's stages with the format's plan, and any fixtures not started with them; refused once a game has started (`FIX-27`) | no | `STAGES_SYNC`, the division, standings |
 | `SET_DIVISION_ENTRANTS` | `{ divisionId, orgId, entrants[], idempotencyKey? }` | **yes** | `DIVISION_ENTRANTS_SYNC`, standings, and a `GAME_SUMMARY_UPDATED` per affected fixture |
 | `REPLACE_ENTRANT` | `ReplaceEntrantPayload` — `{ divisionId, orgId, entrantId }` plus `teamId` \| `orgProfileId` \| `label` \| `replacementEntrantId` | no | `DIVISION_ENTRANTS_SYNC`, `STAGE_ENTRANTS_SYNC` per stage, `STAGES_SYNC`, standings, a summary per fixture that changed hands. Answers `{ entrantId, inPlace, movedFixtures, keptResults }` |
 | `SET_STAGE_ENTRANTS` | `{ stageId, orgId, entrants[], idempotencyKey? }` | **yes** | `STAGE_ENTRANTS_SYNC`, `STAGES_SYNC` |
-| `GENERATE_STAGE_FIXTURES` | `{ stageId, orgId, mode, deleteResults? }` | server-side fan-out | `STAGE_FIXTURES_SYNC` (one message), `STAGES_SYNC`, standings |
+| `GENERATE_STAGE_FIXTURES` | `{ stageId, orgId, mode, deleteResults? }` — `regenerate` is refused once a game in the division has started | server-side fan-out | `STAGE_FIXTURES_SYNC` (one message), `STAGES_SYNC`, standings |
 | `SCHEDULE_STAGE` | `ScheduleStagePayload` | server-side fan-out | `STAGE_FIXTURES_SYNC`, plus a summary per fixture |
 | `ADD_GAMES` / `UPDATE_GAMES` | `{ games[], idempotencyKey? }` | **yes** | a summary per fixture |
 | `RESOLVE_PARTICIPANT` | `{ gameParticipantId, orgId, teamId? \| orgProfileId? \| entrantId? }` | no | `GAME_SUMMARY_UPDATED`, standings |
 | `CHANGE_FIXTURE_SIDE` | `{ gameParticipantId, orgId, teamId? \| orgProfileId?, initiatorOrgProfileId? }` | no | `GAME_SUMMARY_UPDATED`, standings, and a `SIDE_CHANGED` entry in the fixture's log. The side keeps its entrant |
 | `ADD_ADJUSTMENT` / `DELETE_ADJUSTMENT` | an adjustment | no | `DIVISION_ADJUSTMENTS_SYNC`, standings |
-| `SET_EVENT_FACILITIES` / `SET_DIVISION_FACILITIES` | `{ …Id, orgId, facilityIds }` | no | `EVENT_FACILITIES_SYNC` / `DIVISION_FACILITIES_SYNC` |
+| `SET_EVENT_FACILITIES` / `SET_DIVISION_FACILITIES` | `{ …Id, orgId, facilityIds }` — a division's facilities new to the tournament are added to it too | no | `EVENT_FACILITIES_SYNC` / `DIVISION_FACILITIES_SYNC`, plus `EVENT_FACILITIES_SYNC` when a division's added to the tournament's |
 | `ADD_EVENT_ORGS` | `{ eventId, orgId, participantOrgIds, invite }` | no | `EVENT_UPDATED` to the event room and to each organisation that can see it; when inviting, the fixtures go out again to their new audience (`FIX-29`) |
 | `INVITE_EVENT_ORGS` | `{ eventId, orgId, participantOrgIds }` | no | as `ADD_EVENT_ORGS`. Ones already invited are left as they are |
 | `SET_EVENT_ORG_ANSWER` | `{ eventId, orgId, participantOrgId, answer: 'invited' \| 'accepted' \| 'declined' \| 'withdrawn' }` | no | `EVENT_UPDATED`; `EVENT_INVITATIONS_SYNC` to `org:{id}:invitations`. `invited` clears an answer; `withdrawn` confirms a withdrawal; declining or withdrawing takes its teams out (rosters published). The **org gate's** (`answer-invitation`): the organisers set any answer; the organisation's admins (not staff) answer only while invited, with `accepted` or `declined` |
@@ -713,9 +714,9 @@ defaulted.
 Three behaviours are worth stating because they are refusals rather than features:
 
 - **`GENERATE_STAGE_FIXTURES` never tops up a draw (D9).** `create` refuses a stage that already
-  has fixtures; `regenerate` deletes them first. A regeneration that would destroy a recorded result
-  needs `deleteResults`, and the refusal names the counts so the client can state the concrete cost
-  ("this deletes 14 fixtures, 3 of which have results") rather than warning in the abstract.
+  has fixtures; `regenerate` deletes them first — and **is refused once any game in the division has
+  started** (`FIX-27`): from then on fixtures change by hand only, so `deleteResults` no longer
+  unlocks a redraw over results.
 - **`UPDATE_GAMES` cannot carry a score.** Its updatable set is when and where, plus status and
   stage. A result goes through the scoring path so the choke point runs and the undo and dispute
   rules apply; a bulk reschedule that could also write `finalScoreData` would be a second,

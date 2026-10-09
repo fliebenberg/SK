@@ -31,6 +31,8 @@ export const TOURNAMENT_ACTION_EVENT: Partial<Record<SocketAction, (payload: any
   [SocketAction.ADD_STAGE]: async (p) => (p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null),
   [SocketAction.UPDATE_STAGE]: async (p) => (p?.id ? dataManager.getStageEventId(p.id) : null),
   [SocketAction.DELETE_STAGE]: async (p) => (p?.id ? dataManager.getStageEventId(p.id) : null),
+  [SocketAction.SET_DIVISION_FORMAT]: async (p) =>
+    p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
   [SocketAction.SET_DIVISION_ENTRANTS]: async (p) =>
     p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
   // Addressed by division like the roster it edits; `replaceEntrant` refuses an entrant from any
@@ -178,6 +180,8 @@ export const TOURNAMENT_ACTION_DIVISION: Partial<Record<SocketAction, (payload: 
   [SocketAction.ADD_STAGE]: async (p) => p?.divisionId ?? null,
   [SocketAction.UPDATE_STAGE]: async (p) => (p?.id ? divisionOfStage(p.id) : null),
   [SocketAction.DELETE_STAGE]: async (p) => (p?.id ? divisionOfStage(p.id) : null),
+  // How the division is played is the division's own, like its stages.
+  [SocketAction.SET_DIVISION_FORMAT]: async (p) => p?.divisionId ?? null,
   [SocketAction.SET_DIVISION_ENTRANTS]: async (p) => p?.divisionId ?? null,
   [SocketAction.REPLACE_ENTRANT]: async (p) => p?.divisionId ?? null,
   [SocketAction.SET_STAGE_ENTRANTS]: async (p) => (p?.stageId ? divisionOfStage(p.stageId) : null),

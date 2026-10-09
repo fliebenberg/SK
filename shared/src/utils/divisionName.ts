@@ -1,80 +1,108 @@
 /**
- * A division's automatic name (U50) — in shared because the client and the server both make one.
+ * A division's automatic name (U50, revised by `FIX-27` on 2026-10-09) — in shared because the
+ * client and the server both make one.
  *
- * The division screen fills the name in from the sport and age group until the organiser types
- * their own, and the Sports & Divisions screen names a division it adds the same way.
+ * **A division is named within its sport.** It is nearly always read under its sport — the
+ * tournament page lists one sport at a time, with its divisions as tiles — so its name does not
+ * repeat the sport: the netball U12 is "U12", and a division with no age group is "Open". Where the
+ * sport is not already on screen, {@link divisionFullName} puts it back: "Netball U12".
  *
  * **Two divisions may play the same sport at the same age group** — two U14 rugby pools, an A and
- * a B competition — so the automatic name has to tell them apart: the second is `Rugby U14 - 2`,
- * the third `Rugby U14 - 3`. The number is the lowest one free, and a division that already holds a
- * numbered name keeps it for as long as nobody else has taken it, so a name does not change under
- * the organiser just because a sibling was renamed or deleted.
+ * a B competition — so the automatic name has to tell them apart: the second is `U14 B`, the third
+ * `U14 C`. The letter is the first one free, and a division that already holds a lettered name
+ * keeps it for as long as nobody else has taken it, so a name does not change under the organiser
+ * just because a sibling was renamed or deleted.
+ *
+ * Divisions named before this — "Rugby U14", "Rugby U14 - 2", upper-cased by the old rule
+ * (`SPORT-11`) — keep their names, and are still recognised as automatic (compared ignoring case),
+ * so they follow a change of age group like any automatic name.
  */
 
 /**
- * **A division's name is unique within its tournament, ignoring case and surrounding space.**
- * "Rugby U14" and "rugby u14 " are the same name to anyone reading a draw or a table, so they are
- * the same name here. The server refuses a duplicate; the division screen checks as the name is
- * typed; the automatic name never produces one.
+ * **A division's name is unique within its sport in a tournament, ignoring case and surrounding
+ * space.** "U14" and "u14 " are the same name to anyone reading a draw or a table, so they are the
+ * same name here; netball's "U14" and hockey's "U14" are not, because each is read under its sport.
+ * The server refuses a duplicate; the division page checks as the name is typed; the automatic
+ * name never produces one.
  */
 export function normaliseDivisionName(name?: string | null): string {
   return (name || '').trim().toLowerCase();
 }
 
-/** The name in `takenNames` that `name` collides with, or undefined when it is free. */
+/**
+ * The name in `takenNames` that `name` collides with, or undefined when it is free. `takenNames`
+ * are the names of the other divisions **of the same sport** in the tournament.
+ */
 export function findTakenDivisionName(name: string | null | undefined, takenNames: string[]): string | undefined {
   const wanted = normaliseDivisionName(name);
   if (!wanted) return undefined;
   return takenNames.find(taken => normaliseDivisionName(taken) === wanted);
 }
 
-/** "Rugby U14" — sport first, then age group; either may be missing. */
-function baseName(sportName?: string | null, ageGroup?: string | null): string {
-  return [sportName?.trim(), ageGroup?.trim().toUpperCase()].filter(Boolean).join(' ');
+/** What a division with no age group is called. */
+export const OPEN_DIVISION_NAME = 'Open';
+
+/** "U14" — the age group as the sport's list spells it, or "Open" without one. */
+function baseName(ageGroup?: string | null): string {
+  return ageGroup?.trim() || OPEN_DIVISION_NAME;
 }
 
-/** Whether `name` is `base` itself or one of its numbered variants, `base - 2` and on. */
+const LETTERS = 'BCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+/** Whether `name` is `base` itself or one of its lettered variants, `base B` and on — ignoring case. */
 function isVariantOf(name: string, base: string): boolean {
-  if (!base) return false;
-  if (name === base) return true;
-  const prefix = `${base} - `;
-  return name.startsWith(prefix) && /^\d+$/.test(name.slice(prefix.length));
+  const n = normaliseDivisionName(name);
+  const b = normaliseDivisionName(base);
+  if (!b) return false;
+  if (n === b) return true;
+  return n.length === b.length + 2 && n.startsWith(`${b} `) && LETTERS.toLowerCase().includes(n.slice(-1));
+}
+
+/** The names the app gave divisions before `FIX-27`: "Rugby U14", "Rugby U14 - 2", "Rugby". */
+function isLegacyAutomatic(name: string, sportName?: string | null, ageGroup?: string | null): boolean {
+  const legacy = normaliseDivisionName([sportName?.trim(), ageGroup?.trim()].filter(Boolean).join(' '));
+  if (!legacy) return false;
+  const n = normaliseDivisionName(name);
+  if (n === legacy) return true;
+  const prefix = `${legacy} - `;
+  return n.startsWith(prefix) && /^\d+$/.test(n.slice(prefix.length));
 }
 
 /**
  * The automatic name for a division.
  *
- * @param taken   the other divisions' names in the same tournament — never this division's own
- * @param current this division's saved name, kept when it is already a free variant of the base
+ * @param ageGroup the division's age group, as the sport's list names it
+ * @param taken    the other divisions' names **in the same sport** — never this division's own
+ * @param current  this division's saved name, kept when it is already a free variant of the base
  */
 export function divisionAutoName(
-  sportName?: string | null,
   ageGroup?: string | null,
   taken: string[] = [],
   current?: string | null
 ): string {
-  const base = baseName(sportName, ageGroup);
-  if (!base) return '';
+  const base = baseName(ageGroup);
   // Compared the way uniqueness is judged — ignoring case — so the automatic name can never be one
   // the server would refuse.
   const used = new Set(taken.map(normaliseDivisionName));
   const kept = current?.trim();
   if (kept && isVariantOf(kept, base) && !used.has(normaliseDivisionName(kept))) return kept;
   if (!used.has(normaliseDivisionName(base))) return base;
-  let n = 2;
-  while (used.has(normaliseDivisionName(`${base} - ${n}`))) n++;
-  return `${base} - ${n}`;
+  for (const letter of LETTERS) {
+    const candidate = `${base} ${letter}`;
+    if (!used.has(normaliseDivisionName(candidate))) return candidate;
+  }
+  return `${base} ${taken.length + 1}`;
 }
 
 /**
  * Whether a saved name is one the app would have produced, and so may be replaced by the app.
  *
- * Nothing is stored to say which kind a name is. A name counts as automatic when it is empty, the
- * derived name for the division's current sport and age group or a numbered variant of it
- * (`Rugby U14 - 2`), the tournament's name (what an early first division was created with), or the
- * `Division 2` that *Add a division* used to hand out. A hand-typed "Rugby U14" is
- * indistinguishable from the automatic one, which is fine: it is the same name, and following the
- * sport is what its author would expect.
+ * Nothing is stored to say which kind a name is. A name counts as automatic when it is empty; the
+ * derived name for the division's age group or a lettered variant of it (`U14 B`); a name the app
+ * gave before `FIX-27` (`Rugby U14`, `Rugby U14 - 2`, `RUGBY U14` — compared ignoring case); the
+ * tournament's name (what an early first division was created with); or the `Division 2` that
+ * *Add a division* used to hand out. A hand-typed "U14" is indistinguishable from the automatic one,
+ * which is fine: it is the same name, and following the age group is what its author would expect.
  */
 export function isAutomaticDivisionName(
   name: string | null | undefined,
@@ -82,9 +110,24 @@ export function isAutomaticDivisionName(
 ): boolean {
   const value = (name || '').trim();
   if (!value) return true;
-  if (isVariantOf(value, baseName(context.sportName, context.ageGroup))) return true;
+  if (isVariantOf(value, baseName(context.ageGroup))) return true;
+  if (isLegacyAutomatic(value, context.sportName, context.ageGroup)) return true;
   if (context.eventName && value === context.eventName.trim()) return true;
   return /^Division \d+$/.test(value);
+}
+
+/**
+ * A division's name where its sport is not already on screen — a fixture on the tournament's
+ * schedule, a team's page: "Netball U12". A name that already starts with the sport (one given
+ * before `FIX-27`, or typed that way) is left as it is, so nothing reads "Netball Netball U12".
+ */
+export function divisionFullName(name?: string | null, sportName?: string | null): string {
+  const value = (name || '').trim();
+  const sport = (sportName || '').trim();
+  if (!sport) return value;
+  if (!value) return sport;
+  if (normaliseDivisionName(value).startsWith(normaliseDivisionName(sport))) return value;
+  return `${sport} ${value}`;
 }
 
 /**

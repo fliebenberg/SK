@@ -315,6 +315,7 @@ async function main() {
   const convenorMay: [SocketAction, any, string][] = [
     [SocketAction.SET_DIVISION_ENTRANTS, { divisionId: divisionA.id, entrants: [] }, 'set their entrants'],
     [SocketAction.ADD_STAGE, { divisionId: divisionA.id, name: 'Knockout', format: 'Knockout' }, 'add a stage'],
+    [SocketAction.SET_DIVISION_FORMAT, { divisionId: divisionA.id, format: 'RoundRobin' }, 'set how their division is played'],
     [SocketAction.UPDATE_STAGE, { id: stageA.id, data: { name: 'Pools' } }, 'rename their stage'],
     [SocketAction.GENERATE_STAGE_FIXTURES, { stageId: stageA.id, mode: 'create' }, 'generate their fixtures'],
     [SocketAction.SCHEDULE_STAGE, { stageId: stageA.id }, 'schedule their fixtures'],
@@ -344,6 +345,7 @@ async function main() {
       'move a competitor out of a division they do not run into their own',
     ],
     [SocketAction.ADD_STAGE, { divisionId: divisionB.id, name: 'X', format: 'Festival' }, "add a stage to another division"],
+    [SocketAction.SET_DIVISION_FORMAT, { divisionId: divisionB.id, format: 'Knockout' }, "set how another division is played"],
     [SocketAction.GENERATE_STAGE_FIXTURES, { stageId: stageB.id, mode: 'create' }, "generate another division's fixtures"],
     [SocketAction.ADD_DIVISION, { eventId: event.id, name: 'Cricket' }, 'create a division'],
     [SocketAction.DELETE_DIVISION, { id: divisionA.id }, 'delete their own division'],

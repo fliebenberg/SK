@@ -358,7 +358,16 @@ async function main() {
   // 5. A redraw never draws a withdrawn entrant
   // ------------------------------------------------------------------------------------------
 
-  await tournamentManager.generateStageFixtures(pool4.stageId, 'regenerate', true);
+  // Games in this pool have results, so the draw can no longer be redone (`FIX-27`)...
+  await expectThrows(
+    () => tournamentManager.generateStageFixtures(pool4.stageId, 'regenerate', true),
+    /have started, so the draw can no longer be redone/,
+    'a pool whose games have started is not redrawn — fixtures change by hand from there'
+  );
+  // ...so the redraw is checked from a clean start: the played fixtures taken away first, which
+  // is the state a division is in when its draw may still be redone.
+  await query(`DELETE FROM games WHERE stage_id = $1`, [pool4.stageId]);
+  await tournamentManager.generateStageFixtures(pool4.stageId, 'create');
   const drawnIds = new Set((await sides(pool4.stageId)).map(s => s.entrantId));
   expect([drawnIds.has(c), drawnIds.has(d)], [false, false], 'regenerating leaves both withdrawn teams out');
   expect(drawnIds.size, 4, 'and draws the four still competing: G, H, F and the late entry');
