@@ -194,6 +194,20 @@ becomes the public Overview once the setup is done.
     fixed at its end that lists every option for a quick jump (with a search once there are many).
     One choice at a time is shown under it: the tournament's sports, then the chosen sport's
     divisions. A segmented control is still the answer for two to four options (rule 2).
+23. **A page whose job changes with time says what is needed next, once, under its banner, and
+    orders its cards by the moment** (the division page, 2026-10-09): one strip, amber while
+    something is missing, green when the next step is ready, with its one action; Teams lead while
+    setting up, Fixtures on the day. [design_spec §5.5](file:///c:/Fred/Coding/SK/docs/design_spec.md).
+24. **A warning keeps the warning colour wherever it appears** — inside a green strip (its own line
+    on a phone), and in a dialog, where what stops or follows an action is a `warning-soft` box,
+    never grey small print.
+25. **Once something has started, the actions that would undo it go** — disabled with the reason
+    (rule 19), or the card says *Fixed* — and what can still be done by hand stays.
+26. **Name a thing within where it is listed**: "U12" under Netball, "Netball U12" where the sport is
+    not on screen (`divisionFullName`).
+27. **A picker offers the likely choice and keeps the exception one tap away** — the division's age
+    group, then *＋ A team from another age group*. **What someone else wrote shows two lines, then
+    *Show more* / *Show less*.** Doing it again is ***Redo***.
 
 ## NativeWind v4 & React Native Styling Constraints
 

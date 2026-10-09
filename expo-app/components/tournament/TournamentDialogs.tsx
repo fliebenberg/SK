@@ -259,12 +259,15 @@ export function SportsDialog({ visible, event, orgId, sports, divisionCount, onC
   orgId: string;
   sports: Sport[];
   divisionCount: (sportId: string) => number;
-  onClose: () => void;
+  /** With the sports ticked while it was open, so each new sport's first division can be named (`FIX-27`). */
+  onClose: (addedSportIds: string[]) => void;
 }) {
   const isDark = useActiveTheme() === 'dark';
   const chosen = event.sportIds || [];
   const [busy, setBusy] = useState(false);
   const [blocked, setBlocked] = useState<string | null>(null);
+  const [added, setAdded] = useState<string[]>([]);
+  useEffect(() => { if (visible) setAdded([]); }, [visible]);
 
   const toggle = async (sportId: string) => {
     if (busy) return;
@@ -274,17 +277,19 @@ export function SportsDialog({ visible, event, orgId, sports, divisionCount, onC
       return;
     }
     setBusy(true);
-    await sendAction(SocketAction.UPDATE_EVENT, {
+    const adding = !chosen.includes(sportId);
+    const result = await sendAction(SocketAction.UPDATE_EVENT, {
       id: event.id,
       orgId,
-      data: { sportIds: chosen.includes(sportId) ? chosen.filter(id => id !== sportId) : [...chosen, sportId] },
+      data: { sportIds: adding ? [...chosen, sportId] : chosen.filter(id => id !== sportId) },
     });
     setBusy(false);
+    if (result.ok) setAdded(prev => (adding ? [...prev, sportId] : prev.filter(id => id !== sportId)));
   };
 
   const blockedName = sports.find(s => s.id === blocked)?.name;
   return (
-    <EditDialog visible={visible} title="Sports" onClose={onClose} doneLabel="Done">
+    <EditDialog visible={visible} title="Sports" onClose={() => onClose(added)} doneLabel="Done">
       <Text className="font-inter text-sm text-ink-soft">Tick what is played. A sport gets its first division as soon as it is ticked.</Text>
       <View className="flex-row flex-wrap gap-2">
         {[...sports].sort((a, b) => a.name.localeCompare(b.name)).map(sport => {

@@ -115,6 +115,12 @@ export interface TournamentDivision {
    */
   firstStageId?: string | null;
   stages?: TournamentStage[];
+  /**
+   * Derived, never stored: the outline of its stages — enough to say how the division is played
+   * ("Round robin, twice") wherever it is listed, so its tile and its page say the same (`FIX-27`)
+   * without the list carrying every stage's standings.
+   */
+  stageShapes?: Array<Pick<TournamentStage, 'name' | 'format' | 'sequence' | 'settings'>>;
   entrants?: TournamentEntrant[];
 }
 
@@ -439,6 +445,16 @@ export interface EventCapabilities {
  * The names are the organiser's words rather than the format's: a `PoolsKnockout` division shows
  * "Pools" and "Knockout", not "RoundRobin" and "Knockout". Every one of them is renamable (D3).
  */
+/**
+ * How a new division is played when nobody has said (`FIX-27`, agreed 2026-10-09): **round robin**,
+ * which is also what *Add a division* offers first. The tournament's hidden `format` is used when it
+ * names a real format; `Festival` — "set fixtures by hand", what every tournament is created with —
+ * is a choice somebody makes for a division, never a default.
+ */
+export function defaultDivisionFormat(eventFormat?: EventFormat | null): EventFormat {
+  return eventFormat && eventFormat !== 'Festival' ? eventFormat : 'RoundRobin';
+}
+
 export function stagePlanForFormat(
   format?: EventFormat | null
 ): Array<{ name: string; format: TournamentFormat; sequence: number }> {

@@ -65,6 +65,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20261005_event_org_invitations.ts`: Adds `event_organizations.invitation` (`not_invited`, `invited`, `accepted`, `declined`; default `accepted`), `invited_at` and `answered_at` (`FIX-29`). An organisation can be added to an event, so its teams can be entered, before it is invited; until then it cannot see the event. Every existing row became `accepted`.
     - `20261008_event_org_who.ts`: Adds `event_organizations.invited_by_user_id`, `invited_by_org_id`, `answered_by_user_id` and `answered_by_org_id` (`FIX-26`), all `ON DELETE SET NULL`: who sent the invitation and who gave the answer, with the organisation each acted from. Read only through `get_data` `event_org_history`, never on the public event record.
     - `20261008_event_org_withdrawal.ts`: `event_organizations.invitation` gains `withdrawal_pending` and `withdrawn` (`FIX-30`), and the row gains `withdrawal_reason`, `withdrawal_requested_at` and `withdrawal_requested_by_user_id`: an organisation that accepted asks to withdraw, with a reason, and the organisers confirm it or keep it in.
+    - `20261009_division_default_round_robin.ts`: **Data only, no schema change.** A division whose only stage is an untouched `Festival` with no fixtures becomes round robin (`FIX-27`): a `Festival` stage now means *set fixtures by hand*, chosen on purpose, and a division nobody set a format for starts as round robin (`defaultDivisionFormat`).
 
 ## The tournaments schema
 

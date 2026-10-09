@@ -97,14 +97,13 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     [useSetupStepScreen](file:///c:/Fred/Coding/SK/expo-app/hooks/useSetupStepScreen.ts); the order
     and the routes are
     [setupSteps.ts](file:///c:/Fred/Coding/SK/expo-app/components/tournament/setupSteps.ts).
-*   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`: One division's **setup** — its **name,
-    sport and age group** as one form (U50; the only place any of them is edited — the sport from the
-    tournament's own list, U51), its convenors, its fields, and deletion (event organisers only, U52),
-    headed `{tournament} - {division}`. Opened from Sports & Divisions. **Basics only (U53):** no
-    entrants, stages, fixtures or table — those are later setup steps.
-*   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]/schedule`: One division's **schedule** —
-    its stages as navigation tabs (U13/U14), its generation controls, a link to its entrants, and its own table.
-    What the Schedule tab opens when there are several divisions (U53).
+*   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`: **One division, read first** (`FIX-27`,
+    2026-10-09; docs/events.md §8) — a banner with its state in the same words as its tile, a
+    what's-next strip, and cards: its **teams** (added, replaced, withdrawn and removed here — a
+    convenor runs the whole division from this page), **how it is played**, **the draw and its
+    fixtures**, the **table**, and its **organisers and courts**. Its details and its format are
+    dialogs; deleting it is in the ⋯ menu. Opened from a division tile, the draw step and the
+    Schedule tab. It replaced the division's basics form and its schedule screen (U53).
 *   `/admin/[orgId]/events/[eventId]/organisations/[participantOrgId]`: One organisation in a
     tournament (`FIX-26`, 2026-10-08) — its invitation and response, and its teams in every division,
     saved through a save bar. Reached from step 3 and the Organisations card. Two readers (`FIX-30`):
@@ -112,9 +111,9 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     withdraw, and see their teams read-only.
 *   `/admin/[orgId]/events/[eventId]/entrants` (`?divisionId=` to open filtered): **Since `FIX-26`
     (2026-10-05) no longer reached from the tournament page**, whose step 3 adds and invites
-    organisations and enters each one's teams in dialogs (docs/events.md §7); still linked from a
-    division's schedule (`DivisionPanel`) until the division page (`FIX-27`) takes entering by
-    division, and retired with the step chain (`FIX-28`). Getting teams in, on **both axes over one dataset**
+    organisations and enters each one's teams in dialogs (docs/events.md §7), and since `FIX-27` not
+    from a division either — the division page enters by division. Reached now only through the
+    step chain, and retired with it (`FIX-28`). Getting teams in, on **both axes over one dataset**
     (U21) — *by division* ("who is in the u14 rugby?") and *by organisation* ("what is Northcliff
     entering?"). The organisation axis is where **inline team creation** lives, because that is the
     moment you discover a school has no u16 netball team. Also the **Entrants step** of the setup
@@ -131,7 +130,7 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
 > renders that child inline and shows no picker — so a tournament with one division shows that
 > division's panel directly on its Schedule tab, and a division with one stage shows no stage
 > tabs. **Since U50 this is layout only for divisions:** setup always lists the division and links
-> to `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`, one included, and the Schedule tab links to `/admin/[orgId]/events/[eventId]/divisions/[divisionId]/schedule`. The rule lives in
+> to `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`, one included, and so does the Schedule tab. The rule lives in
 > [shared/src/utils/collapseRule.ts](file:///c:/Fred/Coding/SK/shared/src/utils/collapseRule.ts) and
 > the shared rendering is
 > [DivisionPanel](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionPanel.tsx), so the

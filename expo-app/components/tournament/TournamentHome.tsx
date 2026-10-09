@@ -15,7 +15,7 @@ import {
   TournamentDivision,
   TournamentEntrant,
   TournamentOrganizer,
-  divisionAutoName,
+  divisionFullName,
   drawChanges,
   hasLeft,
   isTakingPart,
@@ -27,10 +27,11 @@ import { FacilityIcon, addressText } from '../sites/SiteBits';
 import { FixtureSideFitted, RowTag, TournamentMark, fixtureSideNames, sideScores } from '../events/EventBits';
 import { useShowFieldHelp } from '../FieldLabel';
 import {
-  DivisionState, NotInvitedBox, OrgRow, OrgsList, SportsDivisions, StepNumber, StepPills, StepProgressBar, StepState, StepWarning,
-  UnnamedList, WarningsBadge, WarningsList, isFinished,
+  DivisionState, DivisionStateLine, NotInvitedBox, OrgRow, OrgsList, SportsDivisions, StepNumber, StepPills, StepProgressBar, StepState, StepWarning,
+  TournamentCard, UnnamedList, WarningsBadge, WarningsList, divisionStateOf, isFinished,
 } from './TournamentBits';
 import { EditTournamentDialog, ScoringDialog, SportsDialog, WhereDialog } from './TournamentDialogs';
+import { AddDivisionDialog } from './DivisionDialogs';
 import { AddOrganisationsDialog, InviteOrganisationsDialog, NominateFor } from './OrganisationDialogs';
 import { OrganisationResponse } from './OrganisationResponse';
 import { useAuthStore } from '../../store/authStore';
@@ -103,7 +104,8 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
      */
     const entrantsDone = playing.length > 0 && entered.length > 0 && !thin.length && !notInvited.length && !unanswered.length && !leaving.length && !empty.length;
     const drawn = playing.filter(d => games.some(g => g.divisionId === d.id));
-    const changed = playing.filter(d => drawChanges(d.firstStageId, games.filter(g => g.divisionId === d.id), active(d)).count > 0);
+    // The whole roster: a team that withdrew after the draw is one of the changes (`drawChanges`).
+    const changed = playing.filter(d => drawChanges(d.firstStageId, games.filter(g => g.divisionId === d.id), entrantsByDivision.get(d.id) || []).count > 0);
     const scoring = event.settings?.scoring;
     const sportName = (id: string) => sports.find(s => s.id === id)?.name;
 
@@ -196,38 +198,21 @@ export function TournamentHome({
   const liveGames = games.filter(g => g.status === 'Live');
 
   /* ------------------------------------------------------------------ divisions, schools --- */
-  const divisionState = (d: TournamentDivision): DivisionState => {
-    const own = gamesIn(d);
-    const live = own.filter(g => g.status === 'Live').length;
-    const played = own.filter(g => g.status === 'Finished').length;
-    if (setupMode) {
-      if (active(d).length < 2) return { tone: 'wait', label: 'Needs more teams' };
-      if (!own.length) return { tone: 'mute', label: 'Not drawn yet' };
-      if (drawChanges(d.firstStageId, own, active(d)).count > 0) return { tone: 'wait', label: 'Changed since the draw' };
-      return { tone: 'ok', label: 'Draw made' };
-    }
-    if (live) return { tone: 'live', label: `${live} live · ${played} of ${own.length} played` };
-    if (!own.length) return { tone: 'mute', label: 'Fixtures to come' };
-    if (played === own.length) return { tone: 'ok', label: 'Finished' };
-    if (played) return { tone: 'ok', label: `${played} of ${own.length} played` };
-    return { tone: 'ok', label: plural(own.length, 'fixture') };
-  };
+  // One rule with the division's own page (`divisionStateOf`), so the tile and the page agree.
+  const divisionState = (d: TournamentDivision): DivisionState =>
+    divisionStateOf({ setupMode, games: gamesIn(d), entrants: entrantsByDivision.get(d.id) || [], firstStageId: d.firstStageId });
   const attention = (sportId: string): 'wait' | 'live' | null => {
     const own = divisions.filter(d => d.sportId === sportId);
     if (!setupMode) return own.some(d => gamesIn(d).some(g => g.status === 'Live')) ? 'live' : null;
     return own.some(d => divisionState(d).tone !== 'ok') ? 'wait' : null;
   };
-  const addDivision = async (sportId: string) => {
-    const result = await sendAction(SocketAction.ADD_DIVISION, {
-      eventId,
-      orgId,
-      sportId,
-      name: divisionAutoName(undefined, divisions.filter(d => d.sportId === sportId).map(d => d.name)),
-      // Every division has at least one stage (D11); its own screen sets the format.
-      stage: { name: 'Fixtures', format: 'Festival', sequence: 1 },
-    });
-    if (result.ok) router.push(`/admin/${orgId}/events/${eventId}/divisions/${result.data.id}`);
-  };
+  /* Adding a division asks first — age group, name, how it is played — rather than creating one
+     called after the sport (`FIX-27`). A sport just ticked gets its first division the same way:
+     the server makes it, called Open, and the same dialog names it, one sport at a time. */
+  const [addingTo, setAddingTo] = useState<string | null>(null);
+  const [firstFor, setFirstFor] = useState<string[]>([]);
+  const firstDivision = firstFor.length ? divisions.find(d => d.sportId === firstFor[0]) || null : null;
+  const addDivision = (sportId: string) => setAddingTo(sportId);
   const removeSport = (sportId: string) =>
     sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { sportIds: (event.sportIds || []).filter(id => id !== sportId) } });
   const sportMenu = (sportId: string) => {
@@ -257,7 +242,7 @@ export function TournamentHome({
   const takingPart = event.participatingOrgs || [];
   const divisionName = (id: string) => {
     const d = divisions.find(x => x.id === id);
-    return d ? `${sportName(d.sportId)} ${d.name}` : '';
+    return d ? divisionFullName(d.name, sportName(d.sportId)) : '';
   };
 
   const orgRows: OrgRow[] = useMemo(() => {
@@ -328,7 +313,7 @@ export function TournamentHome({
     const list: StepWarning[] = [];
     for (const d of divisions.filter(x => x.sportId && active(x).length < 2)) {
       list.push({
-        text: `${sportName(d.sportId)} ${d.name} has ${active(d).length ? 'only one team' : 'no teams'}.`,
+        text: `${divisionFullName(d.name, sportName(d.sportId))} has ${active(d).length ? 'only one team' : 'no teams'}.`,
         actionLabel: 'Division',
         onAction: () => router.push(`/admin/${orgId}/events/${eventId}/divisions/${d.id}`),
       });
@@ -441,15 +426,7 @@ export function TournamentHome({
   );
 
   const card = (title: string, body: React.ReactNode, right?: React.ReactNode, count?: number) => (
-    <View className="rounded-2xl border border-line bg-card p-4 gap-3">
-      <View className="flex-row items-center gap-2">
-        <Text className="font-inter-bold text-[13px] text-ink-soft">{title}</Text>
-        {count !== undefined ? <Text className="font-inter text-[13px] text-ink-muted">{count}</Text> : null}
-        <View className="flex-1" />
-        {right}
-      </View>
-      {body}
-    </View>
+    <TournamentCard title={title} count={count} right={right}>{body}</TournamentCard>
   );
 
   /* ------------------------------------------------------------------------------ banner --- */
@@ -548,9 +525,9 @@ export function TournamentHome({
             {playing.map((d, i) => {
               const st = divisionState(d);
               return (
-                <TouchableOpacity key={d.id} onPress={() => router.push(`/admin/${orgId}/events/${eventId}/divisions/${d.id}/schedule`)} accessibilityRole="link" className={`flex-row items-center gap-2 py-2 ${i ? 'border-t border-line-soft' : ''}`}>
-                  <Text className="flex-1 font-inter-semibold text-sm text-ink" numberOfLines={1}>{sportName(d.sportId)} {d.name}</Text>
-                  <Text className={`font-inter-semibold text-xs ${st.tone === 'ok' ? 'text-success-ink' : st.tone === 'wait' ? 'text-warning-ink' : 'text-ink-muted'}`}>{st.label}</Text>
+                <TouchableOpacity key={d.id} onPress={() => router.push(`/admin/${orgId}/events/${eventId}/divisions/${d.id}`)} accessibilityRole="link" className={`flex-row items-center gap-2 py-2 ${i ? 'border-t border-line-soft' : ''}`}>
+                  <Text className="flex-1 font-inter-semibold text-sm text-ink" numberOfLines={1}>{divisionFullName(d.name, sportName(d.sportId))}</Text>
+                  <DivisionStateLine state={st} />
                   <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-muted')} />
                 </TouchableOpacity>
               );
@@ -634,7 +611,7 @@ export function TournamentHome({
               <FixtureSideFitted names={fixtureSideNames(away, orgId)} participant={away} align="right" />
             </View>
             <Text className="font-inter text-xs text-ink-muted mt-1" numberOfLines={1}>
-              {[g.periodLabel, facilities.find(f => f.id === g.facilityId)?.name, division ? `${sportName(division.sportId)} ${division.name}` : ''].filter(Boolean).join(' · ')}
+              {[g.periodLabel, facilities.find(f => f.id === g.facilityId)?.name, division ? divisionFullName(division.name, sportName(division.sportId)) : ''].filter(Boolean).join(' · ')}
             </Text>
           </TouchableOpacity>
         );
@@ -719,7 +696,25 @@ export function TournamentHome({
           <EditTournamentDialog visible={dialog === 'details'} event={event} orgId={orgId} onClose={close} />
           <WhereDialog visible={dialog === 'where'} event={event} orgId={orgId} sites={sites} facilities={facilities} facilityIds={facilityIds} onClose={close} />
           <ScoringDialog visible={dialog === 'scoring'} event={event} orgId={orgId} onClose={close} />
-          <SportsDialog visible={dialog === 'sports'} event={event} orgId={orgId} sports={sports} divisionCount={id => divisions.filter(d => d.sportId === id).length} onClose={close} />
+          <SportsDialog visible={dialog === 'sports'} event={event} orgId={orgId} sports={sports} divisionCount={id => divisions.filter(d => d.sportId === id).length} onClose={addedSportIds => { close(); setFirstFor(addedSportIds); }} />
+          <AddDivisionDialog
+            visible={!!addingTo}
+            onClose={() => setAddingTo(null)}
+            onAdded={id => router.push(`/admin/${orgId}/events/${eventId}/divisions/${id}`)}
+            orgId={orgId}
+            event={event}
+            sport={sports.find(s => s.id === addingTo) || null}
+            divisions={divisions}
+          />
+          <AddDivisionDialog
+            visible={!!firstDivision && dialog === null}
+            onClose={() => setFirstFor(prev => prev.slice(1))}
+            orgId={orgId}
+            event={event}
+            sport={sports.find(s => s.id === firstFor[0]) || null}
+            divisions={divisions}
+            existing={firstDivision}
+          />
 
           {/* Organisations & teams — one dialog at a time, each handing on to the next. */}
           <AddOrganisationsDialog

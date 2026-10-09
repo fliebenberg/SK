@@ -32,11 +32,10 @@ import { themeColor } from '../../constants/Colors';
 /**
  * One division: its stages, and the fixtures under them.
  *
- * **This is the piece the collapse rule shares** (U15). A tournament with one division renders it
- * inline on the event screen — the event screen *is* the division screen — and a tournament with
- * several gives each one its own schedule screen at
- * `/admin/[orgId]/events/[eventId]/divisions/[divisionId]/schedule` (U53). Both mount this, so there is one
- * rendering of a division rather than two that drift.
+ * **What is left of it is the tournament's Schedule tab** (U15): a tournament with one division
+ * renders it inline there. Its schedule screen, which mounted it for each division of a larger
+ * tournament, became the division page in `FIX-27` — which has its own fixtures card
+ * (`DivisionFixturesCard`) — so this goes when the Schedule tab is redesigned (events stage 4).
  *
  * It joins `division:{id}:fixtures`, which is public and carries the division, its stages and its
  * fixtures. It joins the member-tier roster room **only for a viewer who may edit** — the roster
@@ -119,8 +118,10 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
           return { kind: 'replace', items: message.data || [] };
         // Generation publishes a whole stage's fixtures as one message (D13), so they merge as one
         // state update rather than as ninety (U32).
+        // It is the stage's whole set, so it replaces that stage's fixtures: merging kept the old
+        // draw's fixtures on screen after a regeneration.
         case 'STAGE_FIXTURES_SYNC':
-          return { kind: 'upsertMany', items: message.data?.games || [] };
+          return { kind: 'replaceWhere', items: message.data?.games || [], where: (game: GameSummary) => game.stageId === message.data?.stageId };
         case 'GAME_SUMMARY_UPDATED':
           return { kind: 'upsert', item: message.data };
         case 'GAME_SUMMARY_REMOVED':
@@ -495,19 +496,18 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
       )}
 
       {/*
-        Who is entered is edited on the Entrants step (2026-09-24, `UI-20`) — convenors included,
-        for their own divisions — so this is a count and a way there rather than a second copy of
-        the editor. Filtered to this division on arrival.
+        Who is entered is edited on the division page (`FIX-27`) — convenors included — so this is
+        a count and a way there rather than a second copy of the editor.
       */}
       {canEdit && (
         <TouchableOpacity
-          onPress={() => router.push(`/admin/${orgId}/events/${eventId}/entrants?divisionId=${divisionId}` as any)}
+          onPress={() => router.push(`/admin/${orgId}/events/${eventId}/divisions/${divisionId}`)}
           className="mt-4 pt-4 border-t border-line-soft flex-row items-center justify-between active:opacity-80"
         >
           <View className="flex-row items-center gap-2">
             <Ionicons name="people-outline" size={16} color={themeColor(isDark, 'primary')} />
             <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
-              Entrants
+              Teams
             </Text>
           </View>
           <View className="flex-row items-center gap-2">

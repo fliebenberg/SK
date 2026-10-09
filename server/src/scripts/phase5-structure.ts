@@ -1,4 +1,4 @@
-import { APP_TEST_ORG_ID, stagePlanForFormat } from '@sk/shared';
+import { APP_TEST_ORG_ID, defaultDivisionFormat, stagePlanForFormat } from '@sk/shared';
 import { query } from '../db';
 import pool from '../db';
 import { accessManager } from '../managers/AccessManager';
@@ -118,11 +118,13 @@ async function main() {
     expect(divisions[0].sportId, sportId.id, `${format}: the sport is carried onto the division`);
 
     const stages = await tournamentManager.getStages(divisions[0].id);
-    const plan = stagePlanForFormat(format);
+    // A Festival tournament's divisions start as round robin: Festival — set by hand — is chosen,
+    // never a default (`FIX-27`).
+    const plan = stagePlanForFormat(defaultDivisionFormat(format));
     expect(
       stages.map(s => [s.name, s.format, s.sequence]),
       plan.map(s => [s.name, s.format, s.sequence]),
-      `${format}: the stages match the plan for the format`
+      `${format}: the stages match the plan for ${format === 'Festival' ? 'round robin, the default' : 'the format'}`
     );
     // D11 stated as its own assertion, because it is the invariant the rest depends on.
     expect(stages.length > 0, true, `${format}: the division has at least one stage`);
@@ -217,6 +219,21 @@ async function main() {
     (await tournamentManager.setDivisionFormat(second.id, 'RoundRobin')).map(stage => stage.format),
     ['RoundRobin'],
     'and setting it again replaces them rather than adding to them'
+  );
+
+  // Deleting a division takes its unplayed fixtures with it (a started one cannot be deleted).
+  const doomed = await tournamentManager.addDivision({ eventId: host.id, name: `P5 Doomed ${stamp}`, sportId: sportId.id } as any);
+  const doomedStage = await tournamentManager.addStage({ divisionId: doomed.id, name: 'Fixtures', format: 'Festival' });
+  await query(
+    `INSERT INTO games (id, event_id, sport_id, stage_id, status, custom_settings, live_state)
+     VALUES ($1, $2, $3, $4, 'Scheduled', '{}'::jsonb, '{}'::jsonb)`,
+    [`game-p5-doomed-${stamp}`, host.id, sportId.id, doomedStage.id]
+  );
+  await tournamentManager.deleteDivision(doomed.id);
+  expect(
+    (await query(`SELECT count(*)::int AS n FROM games WHERE id = $1`, [`game-p5-doomed-${stamp}`])).rows[0].n,
+    0,
+    'deleting a division deletes its unplayed fixtures, rather than leaving them in no division'
   );
 
   // A court a division plays on joins the tournament's facilities, which drive its map.

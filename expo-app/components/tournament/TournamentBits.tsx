@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { EventOrgInvitation, OrgBadge, Sport, TournamentDivision, TournamentEntrant, TournamentFormat } from '@sk/shared';
+import { EventOrgInvitation, GameSummary, OrgBadge, Sport, TournamentDivision, TournamentEntrant, drawChanges } from '@sk/shared';
 import { FixtureCrest } from '../events/EventBits';
+import { formatLabel, formatOfStages } from './DivisionDialogs';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
 
@@ -86,24 +87,16 @@ export function StepPills({ state }: { state: StepState }) {
  * Divisions
  * ------------------------------------------------------------------------------------------- */
 
-const FORMAT_LABEL: Record<TournamentFormat, string> = {
-  RoundRobin: 'Round robin',
-  Knockout: 'Knockout',
-  Festival: 'Festival',
-  Plate: 'Plate',
-  Swiss: 'Swiss',
-};
-
 /**
  * How a division is played, from its stages — "Round robin", or "Pools & knockout" for the
  * two-stage shape. The tournament's own `format` is not this: every tournament is created a
  * Festival and the real formats live on each division's stages.
  */
 export function divisionFormatLabel(division: TournamentDivision): string {
-  const stages = [...(division.stages || [])].sort((a, b) => a.sequence - b.sequence);
+  // The same words as the division's page (`FIX-27`), from the outline its record carries.
+  const stages = division.stages?.length ? division.stages : division.stageShapes || [];
   if (!stages.length) return 'No format yet';
-  if (stages.length === 2 && stages[0].format === 'RoundRobin' && stages[1].format === 'Knockout') return 'Pools & knockout';
-  return stages.map(s => FORMAT_LABEL[s.format] || s.format).join(' then ');
+  return formatLabel(formatOfStages(stages), stages);
 }
 
 /** Where a division has got to, for its tile: a tone and a few words. */
@@ -126,6 +119,73 @@ const STATE_TEXT: Record<DivisionState['tone'], string> = {
 };
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/**
+ * Where a division has got to, in a few words — one rule for its tile on the tournament page and
+ * its own page, so the two always say the same (`FIX-27`).
+ *
+ * While setting up (an organiser, before any of its games has started): *Needs more teams*, *Not
+ * drawn yet*, *Changed since the draw*, *Draw made*. Otherwise: *N live · x of y played*,
+ * *Fixtures to come*, *Finished*, *x of y played*, *N fixtures*.
+ *
+ * `entrants` is the whole roster, withdrawn teams included — a withdrawn team still in the draw is
+ * one of the two changes `drawChanges` looks for.
+ */
+export function divisionStateOf({ setupMode, games, entrants, firstStageId }: {
+  setupMode: boolean;
+  /** The division's own fixtures. */
+  games: GameSummary[];
+  entrants: TournamentEntrant[];
+  firstStageId?: string | null;
+}): DivisionState {
+  const live = games.filter(g => g.status === 'Live').length;
+  const played = games.filter(g => g.status === 'Finished').length;
+  const started = live > 0 || played > 0;
+  if (setupMode && !started) {
+    if (entrants.filter(e => e.status !== 'withdrawn').length < 2) return { tone: 'wait', label: 'Needs more teams' };
+    if (!games.length) return { tone: 'mute', label: 'Not drawn yet' };
+    if (drawChanges(firstStageId, games, entrants).count > 0) return { tone: 'wait', label: 'Changed since the draw' };
+    return { tone: 'ok', label: 'Draw made' };
+  }
+  if (live) return { tone: 'live', label: `${live} live · ${played} of ${games.length} played` };
+  if (!games.length) return { tone: 'mute', label: 'Fixtures to come' };
+  if (played === games.length) return { tone: 'ok', label: 'Finished' };
+  if (played) return { tone: 'ok', label: `${played} of ${games.length} played` };
+  return { tone: 'ok', label: plural(games.length, 'fixture') };
+}
+
+/** A division's state as its tile and its page show it: a coloured dot and the words. */
+export function DivisionStateLine({ state, large }: { state: DivisionState; large?: boolean }) {
+  return (
+    <View className="flex-row items-center gap-1.5">
+      <View className={`w-2 h-2 rounded-full ${DOT[state.tone]}`} />
+      <Text className={`font-inter-semibold ${large ? 'text-sm' : 'text-xs'} ${STATE_TEXT[state.tone]}`} numberOfLines={1}>{state.label}</Text>
+    </View>
+  );
+}
+
+/**
+ * A card on the tournament's pages: a title, an optional count beside it, an optional action at
+ * the right, and its body. The tournament page and the division page both build from it.
+ */
+export function TournamentCard({ title, count, right, children }: {
+  title: string;
+  count?: number | string;
+  right?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <View className="rounded-2xl border border-line bg-card p-4 gap-3">
+      <View className="flex-row items-center gap-2">
+        <Text className="font-inter-bold text-[13px] text-ink-soft">{title}</Text>
+        {count !== undefined ? <Text className="font-inter text-[13px] text-ink-muted">{count}</Text> : null}
+        <View className="flex-1" />
+        {right}
+      </View>
+      {children}
+    </View>
+  );
+}
 
 /**
  * Sports & divisions, one sport at a time (agreed 2026-10-04). The sports are one line that
@@ -225,9 +285,8 @@ export function SportsDivisions({
         <Text className="font-inter text-xs text-ink-muted" numberOfLines={2}>
           {divisionFormatLabel(d)}{'\n'}{d.ageGroup || 'Any age'} · {plural(teamsIn(d), 'team')}
         </Text>
-        <View className="flex-row items-center gap-1.5 mt-auto">
-          <View className={`w-2 h-2 rounded-full ${DOT[state.tone]}`} />
-          <Text className={`font-inter-semibold text-xs ${STATE_TEXT[state.tone]}`} numberOfLines={1}>{state.label}</Text>
+        <View className="mt-auto">
+          <DivisionStateLine state={state} />
         </View>
       </TouchableOpacity>
     );

@@ -797,7 +797,7 @@ export default function EventDetails() {
                     <TouchableOpacity
                       key={division.id}
                       onPress={() =>
-                        router.push(`/admin/${orgId}/events/${eventId}/divisions/${division.id}/schedule`)
+                        router.push(`/admin/${orgId}/events/${eventId}/divisions/${division.id}`)
                       }
                       activeOpacity={0.85}
                     >

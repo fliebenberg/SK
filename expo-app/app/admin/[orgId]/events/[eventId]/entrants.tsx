@@ -315,7 +315,7 @@ export default function EntrantsScreen() {
       canEditEvent
         ? `/admin/${orgId}/events/${eventId}?tab=setup`
         : divisionParam
-          ? `/admin/${orgId}/events/${eventId}/divisions/${divisionParam}/schedule`
+          ? `/admin/${orgId}/events/${eventId}/divisions/${divisionParam}`
           : `/admin/${orgId}/events/${eventId}`
     );
 

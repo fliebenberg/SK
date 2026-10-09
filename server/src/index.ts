@@ -14,6 +14,7 @@ import {
     SocketAction,
     findTakenDivisionName,
     stagePlanForFormat,
+    defaultDivisionFormat,
     organizerScopeFields,
     organizerScopeOf,
     minorsSettingsOf,
@@ -1453,6 +1454,21 @@ async function publishRosterChanges(divisions: Array<{ divisionId: string; synce
     await publishStandings(changed.divisionId, eventId);
     for (const game of await dataManager.getDivisionGames(changed.divisionId)) await publishGameSummary(game.id);
   }
+}
+
+/**
+ * The audience of every fixture a division has, captured **before** they are deleted — by a
+ * format change or the division going (`FIX-27`) — so each can be announced as removed afterwards,
+ * when nothing is left to resolve the rooms from.
+ */
+async function captureDivisionGameRooms(divisionId: string): Promise<Array<{ gameId: string; rooms: string[] }>> {
+    const res = await pool.query(
+        `SELECT g.id FROM games g JOIN division_stages s ON s.id = g.stage_id WHERE s.division_id = $1`,
+        [divisionId]
+    );
+    const captured = [];
+    for (const row of res.rows) captured.push({ gameId: row.id as string, rooms: await captureFixtureRooms(row.id) });
+    return captured;
 }
 
 async function publishFirstStage(divisionId: string) {
@@ -3232,7 +3248,7 @@ io.on('connection', (socket) => {
                 // *Add a division* names the format (`FIX-27`); without either, the tournament's.
                 if (stage) await dataManager.addStage({ ...stage, divisionId: division.id });
                 else {
-                    for (const planned of stagePlanForFormat(format || parentEvent?.format)) {
+                    for (const planned of stagePlanForFormat(format || defaultDivisionFormat(parentEvent?.format))) {
                         await dataManager.addStage({ ...planned, divisionId: division.id });
                     }
                 }
@@ -3279,8 +3295,11 @@ io.on('connection', (socket) => {
                 const divisionBeforeDelete = await dataManager.getDivision(action.payload.id);
                 await assertNotLastDivisionOfDelegatedSport(authUserId, action.payload.orgId, divisionBeforeDelete);
                 await tournamentManager.assertDivisionNotStarted(action.payload.id, 'it can no longer be deleted');
+                const deletedDivisionGames = await captureDivisionGameRooms(action.payload.id);
                 const removedDivision = await dataManager.deleteDivision(action.payload.id);
                 if (!removedDivision) throw new Error('Division not found.');
+                // Its unplayed fixtures went with it.
+                for (const removed of deletedDivisionGames) publishGameRemoved(removed.gameId, removed.rooms);
                 result = { id: action.payload.id };
                 await publishDivision(action.payload.id, 'DIVISION_DELETED', result, divisionEventId || undefined);
                 if (divisionEventId) {
@@ -3320,11 +3339,13 @@ io.on('connection', (socket) => {
             case SocketAction.SET_DIVISION_FORMAT: {
                 // How it's played (`FIX-27`): the division's stages replaced by the format's plan,
                 // and any fixtures not yet started with them. Refused once a game has started.
+                const replacedGames = await captureDivisionGameRooms(action.payload.divisionId);
                 result = await tournamentManager.setDivisionFormat(
                     action.payload.divisionId,
                     action.payload.format,
                     action.payload.settings || {}
                 );
+                for (const removed of replacedGames) publishGameRemoved(removed.gameId, removed.rooms);
                 const formatEventId = await dataManager.getDivisionEventId(action.payload.divisionId);
                 publishStages(action.payload.divisionId, result);
                 await publishFirstStage(action.payload.divisionId);

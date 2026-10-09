@@ -320,3 +320,21 @@ the tournament's facilities directly; narrowing a division takes nothing off the
 how it is played, the draw, fixtures and its courts; renaming or deleting it, and inviting an
 organisation, are for the tournament's and the sport's organisers — so a division organiser sees the
 name and age group read-only, and no *Delete division*.
+
+**Built 2026-10-09.** The page is
+[divisions/[divisionId]/index.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/divisions/%5BdivisionId%5D/index.tsx),
+from [DivisionTeams.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionTeams.tsx)
+(the Teams card, *Add teams* and *Replace* sharing one team picker),
+[DivisionFixtures.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionFixtures.tsx)
+(the draw and fixtures) and
+[DivisionDialogs.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionDialogs.tsx)
+(details, *How it's played*, *Add a division*). The tile and the page share `divisionStateOf`,
+`DivisionStateLine` and `TournamentCard` in
+[TournamentBits.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentBits.tsx), and
+a division record carries `stageShapes` so its tile names the format as its page does. The
+division's `/schedule` screen is gone; the Schedule tab's `DivisionPanel` links to the page. Until
+teams answer for themselves (`FIX-31`) a team's badge is its organisation's invitation, there is no
+lock, and *Make the draw* says which teams' organisations have not accepted rather than refusing.
+Deleting a division deletes its unplayed fixtures with it.
+
+**A division with no format chosen is round robin** (`defaultDivisionFormat`): *Set fixtures by hand* (`Festival`) is only ever chosen, never a default, so a new sport's first division and a division added without a format start as round robin.

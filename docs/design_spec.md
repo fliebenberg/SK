@@ -226,6 +226,18 @@ Agreed 2026-10-03 on the People list ([people.md](file:///c:/Fred/Coding/SK/docs
 - **A fixture looks the same wherever it is listed** (rule 14 of *Read-first record pages*, made concrete for games): the date tile, both teams with their crests (the organisation's logo, or a shield in its colour), the time or score, and where. On a phone, one scoreboard line — home, the time or score, away — in short codes, with where and the sport under it. Its pieces are [EventBits.tsx](file:///c:/Fred/Coding/SK/expo-app/components/events/EventBits.tsx).
 - Applied to the Teams list on 2026-10-03 ([teams.md](file:///c:/Fred/Coding/SK/docs/teams.md)), and the Sites list on 2026-10-04 ([sites.md](file:///c:/Fred/Coding/SK/docs/sites.md)), which has no filters — an organisation has a handful of sites — and shows a site's other facilities as icons only, the marks they have on the map.
 
+### 5.5 Pages of Work in Progress
+Agreed 2026-10-09 on the division page ([events.md](file:///c:/Fred/Coding/SK/docs/events.md) §8), for any record page whose job changes as the thing it describes moves on — setting up, then running. The rules are numbered with the others in [design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md), *Read-first record pages*.
+- **Say what is needed next, once, under the banner.** One strip: amber while something is missing, green when the next step is ready, with the one action that takes it. Nothing when nothing is needed.
+- **A warning keeps its colour wherever it appears.** A warning inside a good-news strip ("Ready for the draw. ⚠ 2 teams' organisations have not accepted yet") is in the warning colour and, on a phone, starts its own line; what stops an action in a dialog — the teams still to answer, a request still open, what a change will replace — is a warning box (`warning-soft`), not grey small print.
+- **Order the cards by the moment.** While setting up, what is being set up leads (the teams); on the day, what is happening leads (the fixtures, then the table). The same cards, not a different page.
+- **Once something has started, what would undo it goes.** A division with a game under way cannot be redrawn, change its format or be deleted: the action stays in its menu, disabled with the reason (rule 19), or its card says *Fixed*; what can still be done by hand stays.
+- **A tile and the page it opens say the same thing in the same words** — the state ("Draw made"), the format ("Round robin, twice") — from one shared rule, never two that drift (rule 14).
+- **Name a thing within the place it is listed.** A division read under its sport is "U12", not "Netball U12", and "Open" with no age group; wherever its sport is not on screen it gets it back ("Netball U12"). Its name need only be unique within the sport.
+- **A picker offers the likely choice first and the exception on request.** *Add teams* lists each organisation's teams of the division's age group that are not in already; **＋ A team from another age group** opens the rest. *Replace* is the same picker choosing one.
+- **What someone else wrote is shown in two lines, then *Show more*.** A request's or a withdrawal's reason can be long; it opens in place and closes with *Show less*. The link appears only when there is more to show.
+- **Words for doing it again: *Redo*.** *Redo the draw*, not *Remake* or *Regenerate*.
+
 ---
 
 ## 6. Cross-Cutting UX Principles

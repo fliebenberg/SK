@@ -23,6 +23,7 @@ import {
   NO_ORGANIZER_SCOPE,
   organizerScopeOf,
   stagePlanForFormat,
+  defaultDivisionFormat,
   divisionAutoName,
   calculateStandings,
   isResultNotProvided,
@@ -148,7 +149,10 @@ export class TournamentManager extends BaseManager {
       COALESCE((SELECT json_agg(df.facility_id ORDER BY df.facility_id)
                   FROM division_facilities df WHERE df.division_id = d.id), '[]'::json) as "facilityIds",
       (SELECT s.id FROM division_stages s WHERE s.division_id = d.id
-        ORDER BY s.sequence, s.created_at LIMIT 1) as "firstStageId"`;
+        ORDER BY s.sequence, s.created_at LIMIT 1) as "firstStageId",
+      COALESCE((SELECT json_agg(json_build_object('name', s.name, 'format', s.format, 'sequence', s.sequence, 'settings', s.settings)
+                         ORDER BY s.sequence, s.created_at)
+                  FROM division_stages s WHERE s.division_id = d.id), '[]'::json) as "stageShapes"`;
 
   private STAGE_COLUMNS = `
       s.id, s.division_id as "divisionId", s.name, s.format, s.sequence, s.status,
@@ -275,7 +279,8 @@ export class TournamentManager extends BaseManager {
       const takenNames = existing.filter(d => d.sportId === sportId).map(d => d.name);
       const name = divisionAutoName(undefined, takenNames);
       const division = await this.addDivision({ eventId: event.id, name, sportId });
-      for (const stage of stagePlanForFormat(event.format)) {
+      // Round robin unless the tournament names another format (`defaultDivisionFormat`).
+      for (const stage of stagePlanForFormat(defaultDivisionFormat(event.format))) {
         await this.addStage({ divisionId: division.id, ...stage });
       }
       created.push((await this.getDivision(division.id))!);
@@ -362,16 +367,21 @@ export class TournamentManager extends BaseManager {
   }
 
   /**
-   * Delete a division and everything under it.
+   * Delete a division and everything under it, **its fixtures included**.
    *
-   * Its fixtures are **not** deleted — `games.stage_id` is `ON DELETE SET NULL`, so a played
-   * fixture survives its stage being removed. Deleting the record of a match that happened,
-   * because the organisational grouping around it was tidied away, would be a data-loss bug
-   * rather than a cascade.
+   * `games.stage_id` is `ON DELETE SET NULL`, so on its own a delete would leave the division's
+   * fixtures in the tournament belonging to no division. That was deliberate while a division with
+   * results could be deleted — the record of a match that happened survived the grouping around it
+   * being tidied away. Since `FIX-27` a division cannot be deleted once any of its games has started
+   * (the handler checks `assertDivisionNotStarted` first), so its fixtures are only a draw nobody has
+   * played, and they go with it.
    */
   async deleteDivision(id: string): Promise<boolean> {
-    const res = await this.query(`DELETE FROM tournament_divisions WHERE id = $1`, [id]);
-    return (res.rowCount ?? 0) > 0;
+    return this.transaction(async (tx) => {
+      await tx(`DELETE FROM games WHERE stage_id IN (SELECT id FROM division_stages WHERE division_id = $1)`, [id]);
+      const res = await tx(`DELETE FROM tournament_divisions WHERE id = $1`, [id]);
+      return (res.rowCount ?? 0) > 0;
+    });
   }
 
   /**

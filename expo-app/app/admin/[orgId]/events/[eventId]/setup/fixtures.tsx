@@ -154,7 +154,7 @@ export default function SetupFixtures() {
                       games={gamesByDivision.get(division.id) || []}
                       entrants={byDivision.get(division.id) || []}
                       onPress={() =>
-                        router.push(`/admin/${orgId}/events/${eventId}/divisions/${division.id}/schedule`)
+                        router.push(`/admin/${orgId}/events/${eventId}/divisions/${division.id}`)
                       }
                     />
                   ))}
