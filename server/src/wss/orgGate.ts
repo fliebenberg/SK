@@ -311,7 +311,9 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
       // The organisers may set any answer — an answer heard another way, a change of mind, a
       // withdrawal confirmed or turned down.
       if (await accessManager.canEditEventOrGame(userId, requestingOrgId, payload.eventId, undefined)) return;
-      if (payload?.participantOrgId && (await accessManager.canManageOrgPeople(userId, payload.participantOrgId))) {
+      if (payload?.participantOrgId && (await accessManager.isOrganizationAdmin(userId, payload.participantOrgId))) {
+        // Admins only, not staff (`FIX-31`, 2026-10-08): an answer commits the organisation, and
+        // once given only a withdrawal undoes it.
         // The organisation itself answers its invitation once (`FIX-30`): Accept or Decline, while
         // it is still only invited. After that only the organisers change it — a place may have
         // gone. Asking to withdraw, and cancelling that, are its own; the manager checks the state.

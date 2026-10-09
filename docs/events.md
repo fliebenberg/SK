@@ -221,7 +221,7 @@ Say *organisations*, never *schools*: clubs take part too.
   - **The organisation answers once.** Its members see the invitation in their workspace (an
     *Answer needed* tag in the events list, from the members' room `org:{id}:invitations`, and a box at the top of that list — "1 invitation to answer" — naming each and opening it) and on
     the tournament page ("Valley Prep has invited you", *Accept* / *Decline*, the same card as on its
-    page); an admin or staff member answers. *Decline* asks first. After that only the organisers
+    page); an admin answers — not staff (`FIX-31`). *Decline* asks first. After that only the organisers
     change it: "To change this, contact Valley Prep."
   - **Declining**, or a confirmed withdrawal, takes its teams out; it stays listed — at the bottom,
     badged — as the record, and is not a warning. The organisers' only action then is *Change
@@ -235,7 +235,7 @@ Say *organisations*, never *schools*: clubs take part too.
     an invitation, a decline or a withdrawal in the workspace; one that declined or withdrew keeps
     only the public view. The rules are `server/src/managers/eventVisibility.ts`.
   - The organisation's page is open to its own members once it is invited; its teams are read-only
-    for them until self-entry exists (FUTURE_IDEAS).
+    for them until teams answer for themselves (`FIX-31`).
 - **Done** when every organisation has accepted and has at least one entry, none that declined is
   left, and every playing division has two or more entrants — a place to be named counts.
 - Entering **by division**, and Replace / Withdraw / Remove, belong to the division page (`FIX-27`);

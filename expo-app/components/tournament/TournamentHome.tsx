@@ -317,8 +317,8 @@ export function TournamentHome({
   /** An organisation's own page: its invitation and its teams (`FIX-26`, 2026-10-08). */
   const myUserId = useAuthStore((state: any) => state.user?.id);
   const myMemberships = useAuthStore((state: any) => state.orgMemberships) || [];
-  /** An admin or staff member of that organisation — who may answer for it. */
-  const runsOrg = (id: string) => myMemberships.some((m: any) => m.orgId === id && (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff') && (!m.endDate || new Date(m.endDate) > new Date()));
+  /** An admin of that organisation — who may answer for it; staff may not (`FIX-31`). */
+  const adminsOrg = (id: string) => myMemberships.some((m: any) => m.orgId === id && m.roleId === 'role-org-admin' && (!m.endDate || new Date(m.endDate) > new Date()));
   const openOrg = (id: string) => router.push(`/admin/${orgId}/events/${eventId}/organisations/${id}` as any);
   const dialogOrg = orgDialog && 'orgId' in orgDialog ? (orgDialog.orgId === event.orgId ? hostBadge : badgeFor(orgDialog.orgId)) : null;
 
@@ -682,7 +682,7 @@ export function TournamentHome({
         org={o}
         isHost={false}
         viewer="organisation"
-        canAnswer={runsOrg(o.id)}
+        canAnswer={adminsOrg(o.id)}
         hostName={hostOrg?.name || 'the organisers'}
         history={null}
         myUserId={myUserId}

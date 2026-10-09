@@ -183,7 +183,9 @@ make anybody an admin of any organisation, `DELETE_ORG` and `DELETE_TEAM` acted 
   `canEditEventOrGame` and `canScoreGame` use.
 - **Admin only** for its identity and who runs it: renaming or deleting it, and **handing out the
   admin role**. Staff may add an ordinary member, but granting admin is how a staff member would
-  otherwise promote themselves, so it has a check of its own.
+  otherwise promote themselves, so it has a check of its own. **Answering a tournament invitation**
+  for the organisation — accepting, declining, asking to withdraw — is admin only too (the
+  `answer-invitation` gate, `FIX-31`): it commits the organisation.
 - **App administrators** for the operator's levers — the cache resets that broadcast a refresh to
   every connected client. (The direct `CLAIM_ORG` was removed 2026-10-03, `ORG-12`: an app admin is
   never an org's admin, so it could only mark an org claimed with nobody running it.)

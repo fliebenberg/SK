@@ -48,8 +48,8 @@ import { wsService } from '../../../../../../services/websocket';
  *   every division, and *All divisions / Entered*. Changes collect in the save bar.
  *
  * **Two readers** (`FIX-30`): the tournament's organisers, who manage everything here, and the
- * organisation's own members once it is invited — they answer (an admin or staff member), ask to
- * withdraw, and see their teams, read-only until self-entry exists (FUTURE_IDEAS).
+ * organisation's own members once it is invited — they answer (an admin, not staff: `FIX-31`), ask
+ * to withdraw, and see their teams, read-only until teams answer for themselves (`FIX-31`).
  */
 
 
@@ -75,7 +75,7 @@ export default function OrganisationInTournamentScreen() {
   const current = (m: any) => m.orgId === participantOrgId && (!m.endDate || new Date(m.endDate) > new Date());
   const isOwnOrg = memberships.some(current);
   // Answering for it is an admin's or staff member's, as the server's `answer-invitation` gate has it.
-  const runsOwnOrg = memberships.some((m: any) => current(m) && (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff'));
+  const adminsOwnOrg = memberships.some((m: any) => current(m) && m.roleId === 'role-org-admin');
 
   /* -- data ------------------------------------------------------------------------------- */
   const { items: eventItems, isLoading: eventLoading } = useLiveRoom<Event>(eventId ? `event:${eventId}` : null, {
@@ -177,7 +177,7 @@ export default function OrganisationInTournamentScreen() {
       org={org}
       isHost={isHost}
       viewer={viewer}
-      canAnswer={canEdit || runsOwnOrg}
+      canAnswer={canEdit || adminsOwnOrg}
       hostName={hostOrg?.name || 'the organisers'}
       history={history}
       myUserId={myUserId}

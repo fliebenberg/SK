@@ -237,8 +237,8 @@ tournament — before it is **invited**. Who sees what at each status is one mod
 - The column defaults to `accepted`, which is what a row meant before invitations: the migration
   marked every existing row so, and the host's row and rows written because a team plays stay so.
   Only `ADD_EVENT_ORGS` writes `not_invited`.
-- **An answer is final for the organisation** (`FIX-30`): it may answer an invitation once —
-  accept or decline — and only the organisers change it after that (the `answer-invitation` gate).
+- **An answer is final for the organisation** (`FIX-30`): its admins (not staff, `FIX-31`) may
+  answer an invitation once — accept or decline — and only the organisers change it after that (the `answer-invitation` gate).
   **Declining** takes its teams out (`TournamentManager.retireOrgEntrants`: one that has played is
   withdrawn and keeps its results; the rest are deleted, and drawn fixtures show an empty side).
 - **Withdrawing**: an organisation that accepted asks, with a reason (`withdrawal_pending`, which

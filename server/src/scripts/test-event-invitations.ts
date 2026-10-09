@@ -45,15 +45,15 @@ async function makeOrg(slug: string): Promise<string> {
     return id;
 }
 
-/** A user who is an admin of `orgId`. */
-async function makeAdmin(slug: string, orgId: string): Promise<string> {
+/** A user who is an admin (or, with `role`, staff) of `orgId`. */
+async function makeAdmin(slug: string, orgId: string, role = 'role-org-admin'): Promise<string> {
     const userId = `${P}-user-${slug}`;
     await q(`INSERT INTO users (id, name, email, global_role) VALUES ($1, $2, $3, 'user')`, [userId, slug, `${userId}@example.test`]);
     created.userIds.push(userId);
     await q(`INSERT INTO org_profiles (id, org_id, user_id, name, email) VALUES ($1, $2, $3, $4, $5)`, [`${userId}-p`, orgId, userId, slug, `${userId}@example.test`]);
     await q(
-        `INSERT INTO org_memberships (id, org_profile_id, org_id, role_id, start_date) VALUES ($1, $2, $3, 'role-org-admin', NOW())`,
-        [`${userId}-m`, `${userId}-p`, orgId]
+        `INSERT INTO org_memberships (id, org_profile_id, org_id, role_id, start_date) VALUES ($1, $2, $3, $4, NOW())`,
+        [`${userId}-m`, `${userId}-p`, orgId, role]
     );
     return userId;
 }
@@ -83,6 +83,7 @@ async function run() {
     const late = await makeOrg('late');
     const hostAdmin = await makeAdmin('hostadmin', host);
     const guestAdmin = await makeAdmin('guestadmin', guest);
+    const guestStaff = await makeAdmin('gueststaff', guest, 'role-org-staff');
     const lateAdmin = await makeAdmin('lateadmin', late);
 
     const event = await eventManager.addEvent({
@@ -132,6 +133,8 @@ async function run() {
     // --- Answers.
     const history0 = await eventManager.getEventOrgHistory(event.id, guest);
     check(history0?.invitedBy?.userId === hostAdmin && history0?.invitedBy?.orgName === `${P} host` && !history0?.answeredBy, 'who invited is recorded, with the organisation they acted from');
+    check(await rejects(() => enforceOrgAction(guestStaff, SocketAction.SET_EVENT_ORG_ANSWER, { eventId: event.id, orgId: guest, participantOrgId: guest, answer: 'accepted' }), /admins/), "an invited organisation's staff may not answer for it (FIX-31)");
+    check(await rejects(() => enforceOrgAction(guestStaff, SocketAction.REQUEST_EVENT_WITHDRAWAL, { eventId: event.id, orgId: guest, participantOrgId: guest, reason: 'x' }), /admins/), '…nor ask to withdraw');
     check(!(await rejects(() => enforceOrgAction(guestAdmin, SocketAction.SET_EVENT_ORG_ANSWER, { eventId: event.id, orgId: guest, participantOrgId: guest, answer: 'accepted' }))), 'an invited organisation\'s admin may answer for it');
     const accepted = await eventManager.setEventOrgAnswer(event.id, guest, 'accepted', { userId: guestAdmin, orgId: guest });
     const history1 = await eventManager.getEventOrgHistory(event.id, guest);
