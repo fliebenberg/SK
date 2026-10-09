@@ -219,7 +219,7 @@ Say *organisations*, never *schools*: clubs take part too.
 - **Answering and withdrawing** (`FIX-30`, agreed 2026-10-07/08). Statuses: *Not invited yet*,
   *Invited*, *Accepted*, *Declined*, *Withdrawal pending*, *Withdrawn*.
   - **The organisation answers once.** Its members see the invitation in their workspace (an
-    *Answer needed* tag in the events list, from the members' room `org:{id}:invitations`) and on
+    *Answer needed* tag in the events list, from the members' room `org:{id}:invitations`, and a box at the top of that list — "1 invitation to answer" — naming each and opening it) and on
     the tournament page ("Valley Prep has invited you", *Accept* / *Decline*, the same card as on its
     page); an admin or staff member answers. *Decline* asks first. After that only the organisers
     change it: "To change this, contact Valley Prep."

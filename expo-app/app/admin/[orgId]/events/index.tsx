@@ -44,6 +44,7 @@ import { getMatchPermissions } from '../../../../utils/matchPermissions';
 import {
   calendarRangeStatus,
   calendarRangeTile,
+  formatDateRange,
   dayHeading,
   eventDayOfRange,
   formatKickoffTime,
@@ -434,6 +435,50 @@ export default function OrgEventsList() {
     else router.push(`/admin/${orgId}/events/${event.id}`);
   };
 
+  /*
+   * Invitations still to answer (`FIX-30`), at the top of the list whatever the filters: a
+   * tournament months away sits far down it, and its *Answer needed* tag with it. Each opens the
+   * tournament, where its card has Accept and Decline beside everything else about it.
+   */
+  const toAnswer = useMemo(
+    () =>
+      (events || [])
+        .filter(event => invitationTo(event) === 'invited' && !isPastEvent(event))
+        .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || '')),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [events, orgId, today]
+  );
+  const invitationsBox = toAnswer.length ? (
+    <View className="rounded-2xl bg-warning-soft px-4 py-3 gap-1">
+      <View className="flex-row items-center gap-2">
+        <Ionicons name="mail-unread-outline" size={16} color={themeColor(isDark, 'warning-ink')} />
+        <Text className="font-inter-bold text-sm text-warning-ink">
+          {toAnswer.length === 1 ? '1 invitation to answer' : `${toAnswer.length} invitations to answer`}
+        </Text>
+      </View>
+      {toAnswer.map((event, i) => {
+        const host = event.participatingOrgs?.find(o => o.id === event.orgId)?.name;
+        return (
+          <TouchableOpacity
+            key={event.id}
+            onPress={() => router.push(`/admin/${orgId}/events/${event.id}`)}
+            accessibilityRole="link"
+            accessibilityLabel={`Answer the invitation to ${event.name}`}
+            className={`flex-row items-center gap-2 py-1.5 ${i ? 'border-t border-warning/30' : ''}`}
+          >
+            <View className="flex-1 min-w-0">
+              <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{event.name}</Text>
+              <Text className="font-inter text-xs text-ink-soft" numberOfLines={1}>
+                {[host ? `From ${host}` : '', formatDateRange(event.startDate, event.endDate, { compact: true })].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
+            <Text className="font-inter-bold text-[13px] text-primary-ink">Answer ›</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  ) : null;
+
   /* ---------------------------------------------------------------------------------------------
    * Rendering
    * ------------------------------------------------------------------------------------------- */
@@ -747,6 +792,7 @@ export default function OrgEventsList() {
       ) : (
         <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
           <View className="w-full gap-3 self-center" style={{ maxWidth: 960 }}>
+            {invitationsBox}
             {toolbar}
             {body}
             {/* A phone has no Upcoming / Past switch in its toolbar, so the upcoming list ends with the way to the results. */}
