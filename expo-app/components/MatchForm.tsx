@@ -464,9 +464,9 @@ export default function MatchForm({
   }
 
   return (
-    <View className="space-y-6">
+    <View className="gap-6">
       {/* CARD 1: SPORT SELECTION */}
-      <GlassCard className="border border-line p-5 space-y-4">
+      <GlassCard className="border border-line p-5 gap-4">
         <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
           Sport
         </Text>
@@ -510,13 +510,13 @@ export default function MatchForm({
         <View className="flex-col lg:flex-row gap-6">
           {/* CARD 2: THE MATCHUP */}
           <View className="flex-1">
-            <GlassCard className="border border-line p-5 space-y-5 h-full">
+            <GlassCard className="border border-line p-5 gap-5 h-full">
               <Text className="font-orbitron-bold text-xs text-ink uppercase tracking-wider">
                 The Matchup
               </Text>
 
               {/* Team 1 Section */}
-              <View className="space-y-4">
+              <View className="gap-4">
                 <View className="pt-2 border-t border-line-soft">
                   <Text className="font-orbitron-bold text-[11px] text-ink uppercase tracking-widest font-bold">
                     Team 1
@@ -524,13 +524,13 @@ export default function MatchForm({
                 </View>
 
                 {/* Home Org Selection */}
-                <View className="space-y-1.5" style={{ zIndex: 30 }}>
+                <View className="gap-1.5" style={{ zIndex: 30 }}>
                   <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Organization
                   </Text>
 
                   {selectedHomeOrg ? (
-                    <View className="space-y-2">
+                    <View className="gap-2">
                       <View className="flex-row items-center justify-between bg-canvas border border-line rounded-xl px-4 py-3">
                         <View className="flex-1 flex-row items-center mr-2">
                           <Text className="font-inter text-sm text-ink flex-shrink">
@@ -640,7 +640,7 @@ export default function MatchForm({
 
                 {/* Home Team Selection */}
                 {selectedHomeOrg && (
-                  <View className="space-y-1.5">
+                  <View className="gap-1.5">
                     <View className="flex-row justify-between items-center mb-1">
                       <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                         Team
@@ -672,7 +672,7 @@ export default function MatchForm({
               </View>
 
               {/* Team 2 Section */}
-              <View className="space-y-4">
+              <View className="gap-4">
                 <View className="pt-2 border-t border-line-soft">
                   <Text className="font-orbitron-bold text-[11px] text-ink uppercase tracking-widest font-bold">
                     Team 2
@@ -680,13 +680,13 @@ export default function MatchForm({
                 </View>
 
                 {/* Away Org Selection */}
-                <View className="space-y-1.5" style={{ zIndex: 20 }}>
+                <View className="gap-1.5" style={{ zIndex: 20 }}>
                   <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Organization
                   </Text>
 
                   {selectedAwayOrg ? (
-                    <View className="space-y-2">
+                    <View className="gap-2">
                       <View className="flex-row items-center justify-between bg-canvas border border-line rounded-xl px-4 py-3">
                         <View className="flex-1 flex-row items-center mr-2">
                           <Text className="font-inter text-sm text-ink flex-shrink">
@@ -796,7 +796,7 @@ export default function MatchForm({
 
                 {/* Away Team Selection */}
                 {selectedAwayOrg && (
-                  <View className="space-y-1.5">
+                  <View className="gap-1.5">
                     <View className="flex-row justify-between items-center mb-1">
                       <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                         Team
@@ -823,7 +823,7 @@ export default function MatchForm({
 
           {/* CARD 3: LOGISTICS */}
           <View className="flex-1">
-            <GlassCard className="border border-line p-5 space-y-5 h-full">
+            <GlassCard className="border border-line p-5 gap-5 h-full">
               <Text className="font-orbitron-bold text-xs text-ink uppercase tracking-wider">
                 Logistics & Details
               </Text>
@@ -843,7 +843,7 @@ export default function MatchForm({
               )}
 
               {/* Site selection */}
-              <View className="space-y-1.5 pt-2 border-t border-line-soft">
+              <View className="gap-1.5 pt-2 border-t border-line-soft">
                 <View className="flex-row justify-between items-center mb-1">
                   <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Site Field/Court
@@ -865,7 +865,7 @@ export default function MatchForm({
 
               {/* Facility Selection */}
               {selectedSiteId ? (
-                <View className="space-y-2 pt-2 border-t border-line-soft">
+                <View className="gap-2 pt-2 border-t border-line-soft">
                   <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Select {getFacilityLabel()}
                   </Text>
@@ -880,8 +880,8 @@ export default function MatchForm({
               ) : null}
 
               {/* Match Date & Time */}
-              <View className="space-y-3 pt-2 border-t border-line-soft">
-                <View className="space-y-1.5">
+              <View className="gap-3 pt-2 border-t border-line-soft">
+                <View className="gap-1.5">
                   <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Match Date
                   </Text>
@@ -891,7 +891,7 @@ export default function MatchForm({
                   />
                 </View>
 
-                <View className="space-y-3 pt-2">
+                <View className="gap-3 pt-2">
                   <View className="flex-row justify-between items-center">
                     <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                       Match Start Time
@@ -990,11 +990,11 @@ export default function MatchForm({
         onRequestClose={() => setIsCreatingTeam(false)}
       >
         <View className="flex-1 bg-overlay/60 justify-center px-6">
-          <View className="bg-card rounded-2xl p-6 border border-line shadow-xl space-y-4">
+          <View className="bg-card rounded-2xl p-6 border border-line shadow-xl gap-4">
             <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider">
               Register Team
             </Text>
-            <View className="space-y-1.5">
+            <View className="gap-1.5">
               <Text className="font-orbitron text-[9px] text-ink-muted uppercase tracking-wider">Team Name</Text>
               <TextInput
                 placeholder="e.g. 1st Team"
@@ -1004,7 +1004,7 @@ export default function MatchForm({
                 className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
               />
             </View>
-            <View className="space-y-1.5">
+            <View className="gap-1.5">
               <Text className="font-orbitron text-[9px] text-ink-muted uppercase tracking-wider">Short Code / Abbreviation</Text>
               <TextInput
                 placeholder="e.g. 1ST"
@@ -1014,7 +1014,7 @@ export default function MatchForm({
                 className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
               />
             </View>
-            <View className="space-y-1.5">
+            <View className="gap-1.5">
               <Text className="font-orbitron text-[9px] text-ink-muted uppercase tracking-wider">Age Group</Text>
               <AgeGroupPicker
                 sportId={selectedSportId}

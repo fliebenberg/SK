@@ -263,7 +263,7 @@ export function InviteModal({
     <Modal transparent visible animationType="fade" onRequestClose={onClose}>
       <View className="flex-1 bg-overlay/75 items-center justify-center p-6">
         <GlassCard
-          className="w-full max-w-sm border border-line p-6 space-y-4 shadow-lg"
+          className="w-full max-w-sm border border-line p-6 gap-4 shadow-lg"
           style={{ backgroundColor: themeColor(isDark, 'popover') }}
         >
           <View className="items-center">
@@ -285,7 +285,7 @@ export function InviteModal({
               <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-1.5">
                 Who to invite
               </Text>
-              <View className="space-y-1.5">
+              <View className="gap-1.5">
                 {activeGuardians.map(link => (
                   <TargetOption
                     key={link.id}

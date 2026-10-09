@@ -174,7 +174,7 @@ export function SportEventsTab({
           <EmptyHint icon="flash-outline" text="Add a section above before adding events." />
         </GlassCard>
       ) : (
-        <View className="space-y-5">
+        <View className="gap-5">
           {grouped.map(({ section, items }) => (
             <View key={section.id || 'unfiled'}>
               <View className="flex-row items-center justify-between mb-2">
@@ -188,7 +188,7 @@ export function SportEventsTab({
                   No events in this section yet.
                 </Text>
               )}
-              <View className="space-y-2">
+              <View className="gap-2">
                 {items.map(({ template, index }) => (
                   <GlassCard
                     key={`${template.id || 'new'}-${index}`}

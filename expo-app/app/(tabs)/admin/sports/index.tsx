@@ -69,7 +69,7 @@ export default function SportsList() {
             </View>
           </GlassCard>
         ) : (
-          <View className="space-y-4">
+          <View className="gap-4">
             {sports.map((sport) => {
               const positionsCount = sport.defaultSettings?.positions?.length || 0;
               const hasRegistry = sport.eventTemplates && sport.eventTemplates.length > 0;

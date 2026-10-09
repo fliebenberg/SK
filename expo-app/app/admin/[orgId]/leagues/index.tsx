@@ -251,7 +251,7 @@ export default function OrgLeagues() {
           </View>
 
           {/* List */}
-          <View className="space-y-4">
+          <View className="gap-4">
             {filteredLeagues.map((league) => (
               <GlassCard key={league.id} className="border border-line p-4">
                 <View className="flex-row justify-between items-center">
@@ -323,7 +323,7 @@ export default function OrgLeagues() {
       {/* Create League Modal */}
       <Modal visible={isCreateModalOpen} animationType="slide" transparent>
         <View className="flex-1 justify-end bg-overlay/60">
-          <View className="bg-card rounded-t-3xl p-6 border-t border-line space-y-4">
+          <View className="bg-card rounded-t-3xl p-6 border-t border-line gap-4">
             <View className="flex-row justify-between items-center pb-2 border-b border-line-soft">
               <Text className="font-orbitron-bold text-lg text-ink uppercase">New League</Text>
               <TouchableOpacity onPress={() => setIsCreateModalOpen(false)}>
@@ -356,7 +356,7 @@ export default function OrgLeagues() {
               <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-widest mt-1.5">League Logo</Text>
             </View>
 
-            <View className="space-y-1">
+            <View className="gap-1">
               <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">League Name</Text>
               <TextInput
                 value={newLeagueName}
@@ -367,7 +367,7 @@ export default function OrgLeagues() {
               />
             </View>
 
-            <View className="space-y-1">
+            <View className="gap-1">
               <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Sport</Text>
               <CustomSelect
                 value={selectedSportId}
@@ -381,7 +381,7 @@ export default function OrgLeagues() {
               />
             </View>
 
-            <View className="space-y-1">
+            <View className="gap-1">
               <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Age Group</Text>
               <AgeGroupPicker
                 sportId={selectedSportId}
@@ -393,7 +393,7 @@ export default function OrgLeagues() {
               />
             </View>
 
-            <View className="space-y-1">
+            <View className="gap-1">
               <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Join Policy</Text>
               <CustomSelect
                 value={selectedJoinPolicy}

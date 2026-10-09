@@ -409,7 +409,7 @@ export default function EditGame() {
             Back
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase truncate flex-1 text-center px-4" numberOfLines={1}>
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase flex-1 text-center px-4" numberOfLines={1}>
           Edit Match Info
         </Text>
         <MatchViewSwitcher

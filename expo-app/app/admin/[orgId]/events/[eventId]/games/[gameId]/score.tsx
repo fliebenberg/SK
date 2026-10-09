@@ -147,7 +147,7 @@ export default function ScoreGameScreen() {
               Back
             </Text>
           </TouchableOpacity>
-          <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase truncate flex-1 text-center px-4">
+          <Text numberOfLines={1} className="font-orbitron-bold text-sm tracking-widest text-ink uppercase flex-1 text-center px-4">
             Game Control Room
           </Text>
           <MatchViewSwitcher

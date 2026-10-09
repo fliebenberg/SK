@@ -99,7 +99,7 @@ export default function TeamsPage() {
             <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-4">
               My Coached Teams
             </Text>
-            <View className="space-y-4">
+            <View className="gap-4">
               {coachedTeams.map((team) => (
                 <GlassCard key={team.id} className="border border-line shadow-sm p-4 relative overflow-hidden">
                   {/* Premium glowing highlight line for coaching state */}
@@ -146,7 +146,7 @@ export default function TeamsPage() {
         <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-4">
           All Teams
         </Text>
-        <View className="space-y-4">
+        <View className="gap-4">
           {teams.map((team) => {
             const isFollowing = followedTeams.includes(team.id);
             return (

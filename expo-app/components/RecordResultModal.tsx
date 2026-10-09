@@ -81,7 +81,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({ isOpen, on
     <Modal transparent visible={isOpen} animationType="fade" onRequestClose={onClose}>
       <View className="flex-1 bg-overlay/75 items-center justify-center p-6">
         <GlassCard
-          className="w-full max-w-sm border border-line p-6 space-y-4 shadow-lg"
+          className="w-full max-w-sm border border-line p-6 gap-4 shadow-lg"
           style={{ backgroundColor: themeColor(isDark, 'popover') }}
         >
           <View className="items-center">
@@ -101,7 +101,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({ isOpen, on
               Both sides must be known before a result can be recorded.
             </Text>
           ) : (
-            <View className="space-y-3">
+            <View className="gap-3">
               {sides.map((p, i) => (
                 <View key={p.id} className="flex-row items-center justify-between gap-3">
                   <Text className="font-inter-bold text-sm text-ink flex-1" numberOfLines={1}>

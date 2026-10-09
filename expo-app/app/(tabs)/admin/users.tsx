@@ -130,7 +130,7 @@ export default function UserManagement() {
             Search Filters
           </Text>
 
-          <View className="space-y-4">
+          <View className="gap-4">
             {/* NAME INPUT */}
             <View>
               <Text className="font-inter-bold text-[10px] text-ink-muted uppercase tracking-wider mb-1.5">
@@ -354,7 +354,7 @@ export default function UserManagement() {
 
                     {/* Expandable details area */}
                     {isExpanded && (
-                      <View className="mt-4 pt-4 border-t border-line-soft space-y-3 pl-1.5">
+                      <View className="mt-4 pt-4 border-t border-line-soft gap-3 pl-1.5">
                         {/* Basic details */}
                         <View className="flex-row flex-wrap gap-x-6 gap-y-2">
                           <View>
@@ -401,7 +401,7 @@ export default function UserManagement() {
                             Organization Membership Profiles
                           </Text>
                           {item.profiles && item.profiles.length > 0 ? (
-                            <View className="space-y-2.5">
+                            <View className="gap-2.5">
                               {item.profiles.map((profile) => (
                                 <View
                                   key={profile.id}

@@ -70,9 +70,9 @@ export function DivisionStandings({ divisionId, canEdit = false, showPoints = tr
   const named = stages.length > 1;
 
   return (
-    <View className="space-y-4">
+    <View className="gap-4">
       {stages.map(stage => (
-        <View key={stage.stageId} className="space-y-2">
+        <View key={stage.stageId} className="gap-2">
           {named && (
             <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest pl-1">
               {stage.name}

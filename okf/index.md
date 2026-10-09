@@ -21,7 +21,7 @@ Below are the key concept files in this bundle. AI agents should read these to g
 
 - **[Project Overview](file:///c:/Fred/Coding/SK/okf/project_overview.md)** (`type: concept`): High-level system context, user archetypes, and project-wide glossary.
 - **[Codebase Architecture](file:///c:/Fred/Coding/SK/okf/architecture.md)** (`type: concept`): The three packages and the rules that bind them.
-- **[Client Routing & Pages](file:///c:/Fred/Coding/SK/okf/client_routing.md)** (`type: concept`): Map of public and admin routes, layout structures, and navigation guard requirements.
+- **[Client Routing & Pages](file:///c:/Fred/Coding/SK/okf/client_routing.md)** (`type: concept`): Who can open each part of the app, how navigation works, notes on routes that need them, and navigation guard requirements. Not a route list — the `expo-app/app/` folder is that.
 - **[Authentication & Roles](file:///c:/Fred/Coding/SK/okf/auth_control.md)** (`type: concept`): Authentication strategy, JWT tokens, membership roles, and permission hierarchies.
 - **[Design System](file:///c:/Fred/Coding/SK/okf/design_system.md)** (`type: concept`): Visual/styling rules, colors, typography, and Light Mode AAA accessibility requirements.
 - **[Database & Persistence](file:///c:/Fred/Coding/SK/okf/database.md)** (`type: concept`): Persistence engines, PostgreSQL configurations, schema details, and migration steps.

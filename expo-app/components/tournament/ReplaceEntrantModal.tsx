@@ -185,7 +185,7 @@ export function ReplaceEntrantModal({
           </Text>
 
           <ScrollView className="max-h-[440px]" keyboardShouldPersistTaps="handled">
-            <View className="space-y-4">
+            <View className="gap-4">
               <View className="flex-row flex-wrap gap-2">
                 {lateEntrants.length > 0 && chip(kind === 'late', 'Already entered', () => setKind('late'))}
                 {chip(kind === 'team', 'A team', () => setKind('team'))}
@@ -193,7 +193,7 @@ export function ReplaceEntrantModal({
               </View>
 
               {kind === 'late' && (
-                <View className="space-y-2">
+                <View className="gap-2">
                   <FieldLabel
                     label="Entered, not in the draw"
                     help="Teams entered in this division after its fixtures were generated."
@@ -208,7 +208,7 @@ export function ReplaceEntrantModal({
               )}
 
               {kind === 'team' && (
-                <View className="space-y-2">
+                <View className="gap-2">
                   <FieldLabel
                     label="Team"
                     help="Teams that qualify for this division and are not playing anywhere else in the tournament."
@@ -234,7 +234,7 @@ export function ReplaceEntrantModal({
               )}
 
               {kind === 'placeholder' && (
-                <View className="space-y-2">
+                <View className="gap-2">
                   <FieldLabel
                     label="Description"
                     help="What goes in this place until it is known. Naming it later fills in every fixture at once."

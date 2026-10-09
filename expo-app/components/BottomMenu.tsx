@@ -32,6 +32,7 @@ export function BottomMenu({ onSettingsPress, confirmThenNavigate }: BottomMenuP
     if (segments.includes('teams')) {
       return 'teams';
     }
+    // Sites has no button here any more (2026-10-09), but its pages must not light up Live.
     if (segments.includes('sites')) {
       return 'sites';
     }
@@ -144,23 +145,6 @@ export function BottomMenu({ onSettingsPress, confirmThenNavigate }: BottomMenuP
           className="mt-1"
         >
           Teams
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity 
-        onPress={() => handleNavigate('/(tabs)/sites', 'sites')}
-        className="items-center justify-center flex-1"
-      >
-        <Ionicons 
-          name={activeTab === 'sites' ? "map" : "map-outline"} 
-          size={22} 
-          color={getIconColor('sites')} 
-        />
-        <Text 
-          style={{ fontSize: 10, color: getTextColor('sites'), fontFamily: 'Orbitron_700Bold' }} 
-          className="mt-1"
-        >
-          Sites
         </Text>
       </TouchableOpacity>
 

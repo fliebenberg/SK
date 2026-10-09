@@ -347,9 +347,9 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
     );
 
     return (
-      <View className="space-y-3">
+      <View className="gap-3">
         {orderedGroups.map(([groupLabel, groupGames]) => (
-          <View key={groupLabel} className="space-y-2">
+          <View key={groupLabel} className="gap-2">
             {orderedGroups.length > 1 && (
               <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest">
                 {groupLabel}
@@ -410,7 +410,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
           roster moves after it, this is where they are told — and offered the two ways out: hand a
           withdrawn team's fixtures to somebody, or regenerate below.
         */
-        <View className="mb-4 rounded-xl border border-warning-line bg-warning-soft p-3 space-y-2">
+        <View className="mb-4 rounded-xl border border-warning-line bg-warning-soft p-3 gap-2">
           <Text className="font-orbitron-bold text-[10px] text-warning-ink uppercase tracking-widest">
             Changes since the draw
           </Text>

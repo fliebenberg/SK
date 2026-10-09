@@ -60,33 +60,34 @@ The color system relies on a deep, dark foundation punctuated by highly saturate
 
 Because ScoreKeeper serves two distinct user archetypes (casual viewers vs. heavy administrators), the app employs a **Hybrid Navigation Model**:
 
-### 2.1 Viewer/Fan & Administrative Routing (Mobile Bottom Tabs -> Desktop Left Rail)
-- **Mobile (< 768px)**: A **Bottom Tab Bar** is the primary navigation mechanism. To guarantee clean ergonomics and avoid clutter, the tab bar MUST NOT exceed 5 buttons:
-  - **Live** (`index` tab): Real-time games feed with live scoring triggers.
-  - **Orgs** (`organizations` tab): Public directory list of registered sports organizations.
-  - **Teams** (`teams` tab): Public directory list of active teams and records.
-  - **Sites** (`sites` tab): Public directory of sites and their facilities.
-  - **Settings** (`settings` tab): PROGRAMMATIC INTERCEPTOR. Tapping the settings tab icon must not navigate directly. Instead, it must toggle a translucent backdrop-dimmed **Speed Dial Popover Menu** floating directly above the bottom tab. The popover displays:
-    1. **Admin Portal** (links to `/admin` dashboard stack)
-    2. **My Account** (links to `/settings` account screen)
-- **Large Screens / Web (>= 768px)**: The bottom tabs automatically reposition into a **Left Navigation Rail** (similar to Twitter/X web) for direct and seamless traversal.
+### 2.1 Main Navigation (Phone Bottom Menu -> Desktop Left Rail)
+Brought in line with the app 2026-10-09.
+- **Phone (< 768px)**: A **bottom menu** ([`BottomMenu`](file:///c:/Fred/Coding/SK/expo-app/components/BottomMenu.tsx), drawn as the tab bar of `app/(tabs)/_layout.tsx`) is the main navigation. To keep it uncluttered it aims for **no more than five buttons**:
+  - **Live** (`index`): the real-time games feed.
+  - **Orgs** (`organizations`): the public directory of organisations. Stays highlighted inside an org workspace.
+  - **Family** (`family`): shown only to a guardian of at least one child (`MEMBER-3`), making five.
+  - **Teams** (`teams`): the public directory of teams.
+  - **Settings** (`settings`): opens the account settings. **For a system admin only**, it instead opens a small backdrop-dimmed menu above the button with **Admin Portal** (`/admin`) and **My Account** (`/settings`).
+  - **Not on the bottom menu: Sites** (dropped 2026-10-09). The public sites directory was not worth a permanent button on a phone; it stays in the desktop rail. The bottom menu as a whole is due a closer look.
+- **Large screens / web (>= 768px)**: the same destinations, plus **Sites**, become a **left navigation rail** ([`LeftNavigationRail`](file:///c:/Fred/Coding/SK/expo-app/components/LeftNavigationRail.tsx)). A system admin gets **Admin Portal** as an ordinary item at the top, so no menu is needed there. The signed-in person sits at the foot of the rail and opens the account settings. The rail can be pinned open or collapsed to icons; collapsed, it widens on hover and pushes the page across rather than covering it.
 
-### 2.2 Admin Dashboard & Workspace Navigation (Mobile Drawer -> Desktop Pinned Sidebar)
-For deep administrative features:
-- **Mobile (< 768px)**: Handled via the `/admin` navigation stack. Pushing sub-panels (like dynamic workspaces `/admin/[orgId]`) mounts nested stack routers, keeping screen layout clean and relying on single native back routing triggers.
-- **Large Screens / Web (>= 768px)**: Renders a **Persistent Pinned Left Sidebar** for workspace context switching, list panels, and settings forms.
+### 2.2 The Org Workspace (Phone Workspace Menu -> Desktop Sidebar)
+An org's admin workspace (`/admin/[orgId]`) is entered from the org's public page (**Manage Workspace**) and has its own menu: Control Panel, Profile, Settings, People & Roles, Teams & Divisions, Sites and Facilities, Fixtures & Events, Leagues & Seasons — with an amber **Nominate admin** above them while the org has no administrator ([org-profile.md](file:///c:/Fred/Coding/SK/docs/org-profile.md) §6).
+- **Phone (< 768px)**: the bottom menu stays, and a round **workspace button** in the org's colour, showing its logo, floats bottom-right just above it. It opens the **workspace menu**: the *Active Workspace* banner and the list above. Its screens are a stack, each with its own [`ScreenHeader`](file:///c:/Fred/Coding/SK/expo-app/components/ScreenHeader.tsx) (§2.3).
+- **Large screens / web (>= 768px)**: the left rail swaps its main items for the workspace's: the *Active Workspace* banner, then the list, the current page marked with a bar in the org's colour.
+- **Leaving an org workspace** (2026-10-09): the way out sits with the workspace banner it leaves, never at the foot of the menu. In the open sidebar and the phone's workspace menu, a right-aligned **← Exit** link shares the *Active Workspace* heading line; in the collapsed sidebar, an ← icon sits directly under the org logo. There is one exit per menu, and it is a quiet link, not red: leaving loses nothing ([design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md), colour rules). Exit returns to the Orgs directory, asking first if there are unsaved changes.
+- **The system Admin Portal** (`/admin`: users, reports, sports) is a separate stack inside the main tabs with its own native header. It is for system admins only, not part of any org workspace.
 
-
-### 2.3 Mobile Header & Back Navigation Design
-To guarantee a clean, professional, and uncluttered layout on mobile viewports:
-1. **Single Native Header Bar**: The application must utilize a single native navigation header bar (configured in Expo Router's `<Stack>` layout, styled with the custom Orbitron font and primary Burnt Orange accent). Double headers (such as displaying both the root stack header and a nested router header) are strictly prohibited.
-2. **Prevent Heading Duplication**: Do not repeat the active screen title (e.g., "Control Center" or "My Organizations") as a large heading inside the scrollable screen body if it is already displayed in the native header above. This saves precious screen real estate on mobile devices.
-3. **Standardized Back Routing**: All back navigation is handled natively by the stack header's back arrow (`<-`) or iOS edge swipe-back gestures, popping the active screen from the stack. Custom "Back" buttons must not be added to the screen body unless part of a high-friction multi-step wizard (like live scoring exit guards).
+### 2.3 Phone Headers & Back Navigation
+To keep phone screens clean and uncluttered:
+1. **One header bar per screen — never two.** The main tabs and the Admin Portal use the native Expo Router header (Orbitron title). The org workspace turns the native header off and each screen draws a [`ScreenHeader`](file:///c:/Fred/Coding/SK/expo-app/components/ScreenHeader.tsx) instead, because its back so often has to ask about unsaved changes first, which the native back cannot. What is prohibited is a screen showing both. Some workspace screens still hand-write the same bar (`UI-10`).
+2. **Prevent heading duplication**: do not repeat the screen's title (e.g. "Control Center" or "My Organisations") as a large heading inside the scrolling body when the header above already shows it. This saves precious screen space on phones.
+3. **Back is in the header, never in the body.** Back is the header's ← (or the iOS edge swipe), popping the screen from its stack. On a workspace screen the `ScreenHeader` back routes through the unsaved-changes check. Do not add a separate "Back" button to the screen body unless it is part of a high-friction multi-step flow (like live scoring's exit guard).
 
 ### 2.4 Navigation Tabs vs Segmented Selectors vs Action Buttons
 To maintain a clear visual hierarchy across screens, the application distinguishes three distinct control types:
 1. **Navigation Tabs (`<Tabs>`)**: Used exclusively for switching active screen panels or section views (e.g. `Edit Profile / Security / Accounts` in settings, or `Overview / Play-by-Play / Lineups / Stats` in live matches). Uses a clean horizontal bar with active text colour (`text-primary-ink`) and a crisp bottom indicator bar (`h-0.5 bg-primary`). A tab may carry an optional `sublabel`, rendered as a muted second line under the label and truncated to one line — reserved for tabs that stand for something the user has *chosen* rather than somewhere they can go, as in the live scoring stepper, where each step shows the reason, player or outcome picked on it.
-2. **Segmented Option Selectors (`<SegmentedControl>`)**: Used for toggling option settings or state modes within a form card (e.g. `Auto / Dark / Light` theme selection or `Readonly / Edit Info / Score Match`). Enclosed inside a single rounded track (`bg-sunken p-1 rounded-xl`) with elevated selection indicators (`bg-raised border border-primary-line shadow-xs`).
+2. **Segmented Option Selectors (`<SegmentedControl>`)**: Used for toggling option settings or state modes within a form card (e.g. `Auto / Dark / Light` theme selection or `Readonly / Edit Info / Score Match`). Enclosed inside a single rounded track (`bg-sunken p-1 rounded-xl`) with elevated selection indicators (`bg-raised border border-line-selected shadow-sm`).
 3. **Action Buttons (`<Button>`)**: Used exclusively for explicit user triggers (e.g. "Save Profile", "Verify", "Change password", "Log Out"). Features solid filled accent colours (`bg-primary`, `bg-danger`).
 
 ---
@@ -161,7 +162,7 @@ The viewer interface must handle high-density data without feeling cluttered, co
 
 ## 4. The Admin Scoring Interface
 
-The `/admin/games/[id]/score` route is a crucial, high-stress interface used by officials actively watching a game. It prioritizes function, speed, and error prevention. For scoring and timing, the interface must be as clean and uncluttered as possible. Only the buttons and information strictly needed for scoring should be prominent on the page.
+The `/admin/[orgId]/events/[eventId]/games/[gameId]/score` route is a crucial, high-stress interface used by officials actively watching a game. It prioritizes function, speed, and error prevention. For scoring and timing, the interface must be as clean and uncluttered as possible. Only the buttons and information strictly needed for scoring should be prominent on the page.
 
 ### 4.1 Interaction Design (Strava / Garmin Inspiration)
 - **Massive Touch Targets**: Buttons must be large enough to tap accurately while moving or without looking closely.

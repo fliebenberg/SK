@@ -163,7 +163,7 @@ export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: Sport
         {official.length === 0 ? (
           <EmptyHint icon="people-outline" text="No official age groups. Add one below." />
         ) : (
-          <View className="space-y-3">
+          <View className="gap-3">
             {official.map((group, index) => (
               <View key={group.id} className="flex-row items-center gap-2.5">
                 <View className="flex-1">
@@ -215,7 +215,7 @@ export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: Sport
         {custom.length === 0 ? (
           <EmptyHint icon="checkmark-circle-outline" text="No custom age groups — nobody has needed one yet." />
         ) : (
-          <View className="space-y-4">
+          <View className="gap-4">
             {custom.map(group => (
               <View key={group.id}>
                 {renderName(group)}
@@ -258,7 +258,7 @@ export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: Sport
       <Modal transparent visible={!!mergeFrom} animationType="fade" onRequestClose={() => setMergeFrom(null)}>
         <View className="flex-1 bg-overlay/75 items-center justify-center p-6">
           <GlassCard
-            className="w-full max-w-sm border border-line p-6 space-y-4 shadow-lg"
+            className="w-full max-w-sm border border-line p-6 gap-4 shadow-lg"
             style={{ backgroundColor: themeColor(isDark, 'popover') }}
           >
             <Text className="font-orbitron-bold text-sm text-ink uppercase tracking-wider">

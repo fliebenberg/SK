@@ -179,7 +179,8 @@ This document is a space to jot down brilliant ideas for the application while w
     - **Selection acknowledgement** — "your child is selected, are they coming?", with the coach
       seeing who has answered. Addresses both the parent's risk and the coach's reciprocal problem.
     - **Attendance marking** — a teacher taps names, the guardian sees it. Cheap, and it serves both
-      ends of a handover that is currently blind at both.
+      ends of a handover that is currently blind at both. Gathered in the **Attendance and roll
+      call** entry below.
     - **Uniform / kit requirements per sporting code**, practice vs match day. The **only feature the
       parent volunteered unprompted**, and a reason to open the app midweek rather than on match day.
     - **Change and cancellation notices that carry the change**, so a moved kick-off updates the
@@ -238,8 +239,8 @@ This document is a space to jot down brilliant ideas for the application while w
     - **What the asker needs back:** a live tally, **who has not answered** (to chase them), and
       **answers changed after the deadline** made visible rather than discovered at the bus.
     - **Attach a poll to what it is about** — a game, a training session, an event — so the answer
-      travels with the fixture. The transport case pairs naturally with the coach-initiated roll call
-      below (*"confirming everyone who said they'd take the bus is actually on the bus"*).
+      travels with the fixture. The transport case pairs naturally with the **Attendance and roll
+      call** entry below (*"confirming everyone who said they'd take the bus is actually on the bus"*).
     - **Depends on** notification delivery (the unified notification inbox above) and on the consumer
       side, which is not built. Belongs in the communication workshop, not built piecemeal.
     - Open: single vs multiple choice, free-text answers, whether respondents see the tally, and
@@ -312,7 +313,8 @@ This document is a space to jot down brilliant ideas for the application while w
       applied to a non-match event — another reason to build polls as a service rather than a match
       feature.
     - **What it inherits for free once it exists:** a place on the organisation calendar (above),
-      the same guardian-scoped notifications a match would get, and roll call for who actually came.
+      the same guardian-scoped notifications a match would get, and roll call for who actually came
+      (the **Attendance and roll call** entry below).
     - **Still open:** how recurrence is expressed (a series with exceptions — a cancelled Tuesday, a
       moved session — or independent copies), and whether a change to the series updates events
       already in the past.
@@ -331,7 +333,48 @@ This document is a space to jot down brilliant ideas for the application while w
       (Central Table Tennis on LeagueRepublic) — an example of a public league site: fixtures,
       results, standings, divisions and club/team pages. Worth reviewing for what a league's public
       face needs to show and how it is navigated, before designing ours. Noted 2026-09-10.
-- [ ] Add a coach-initiated roll call so a coach can take attendance for a team on demand. Useful for practice attendance, and for ad-hoc headcounts (e.g. confirming everyone who said they'd take the bus is actually on the bus). Coach starts a roll call against a team (optionally tied to a game, practice or trip), marks each player present/absent/excused, and the result is stored for later review.
+- [ ] **Attendance and roll call — who actually came.** The single entry for recording attendance;
+  the other entries that touch it point here. A coach, teacher or organiser takes a roll call for a
+  group of people, marks each one, and the result is kept. Gathered 2026-10-09 from the entries below
+  and the interviews; nothing is built — there is no attendance or roll-call code in `shared/`,
+  `server/` or `expo-app/`.
+    - **Why.** A Wynberg Boys' Primary parent (2026-09-11) could not tell whether her son attended
+      07:00 cross country, and the teacher running it said attendance was poor while admitting *"we
+      don't know who, when, and what."* The handover is blind at both ends. At Van Riebeeckstrand
+      Primary (2026-09-14) the bus is the sharp case: transport is booked off a poll, and nobody checks
+      the poll against who actually boards.
+    - **The cases.** A **practice** (a recurring team event), a **match** (the selected squad), a
+      **trip or bus** (an ad-hoc headcount, often against a transport poll's answers), and any other
+      **team event** — a photo day, an outing.
+    - **Shape.** A roll call is a list of people, a mark per person, who took it, and when. Marks:
+      **present, absent, excused** at minimum; open whether *late* is worth a mark of its own.
+    - **What it is taken against.** Either **attached** to a game or team event — the list is that
+      fixture's selection or participants, so the record travels with it — or **ad hoc** against a
+      team, for a headcount nothing else describes. Open: whether an ad-hoc roll call is simply a
+      lightweight team event, so there is only one kind.
+    - **Compare against what was expected.** The point of the bus case is the *difference*: said they
+      would take the bus and are not on it, or are on it and did not say. A roll call attached to a
+      poll (the Polls entry above) or to a selection should show that difference, not just a list.
+    - **Who sees the result.** The coach and org admin. **The guardian of a minor sees their own
+      child's mark** — that is the parent's half of the problem — and so does a Trusted Contact with
+      view of that child (`MEMBER-5`). A player sees their own. Nobody sees another child's record.
+      Raised in docs/communication.md as a **Notice** ("attendance marked"): generated from the data,
+      not written by anyone.
+    - **Who answers for a player** is the shared rule from `MEMBER-6` (`guardians.ts` in
+      `@sk/shared`), relevant if a guardian can pre-mark *excused* in advance — open whether they can,
+      or whether that is availability (a different feature) rather than attendance.
+    - **Taken at the field, often offline.** Must work on a phone with poor signal and sync later;
+      tapping names should be one tap each. A bus headcount is taken standing in a car park.
+    - **Not a billable-member path.** Marking someone on a roll call must not create a membership —
+      the same counting-rule warning as the Team event entry.
+    - **Builds on:** the **Team event** type (training is one; selection and participants come from
+      it), **Polls** (the expected answers to compare against), `MEMBER-5` / `MEMBER-6` (who sees and
+      who answers), and notification delivery for the guardian notice. Roll call against a match
+      squad needs none of the first two, so it could come first.
+    - **Still open:** whether a record can be corrected after the fact and by whom (with a history);
+      how long records are kept, since they are minors' data; whether attendance feeds anything —
+      selection, a season attendance percentage on the player — or is only a record; and whether
+      several people can mark the same roll call at once (two teachers, one bus each).
 - [ ] **Lane-based race timing by consensus start.** Replace the stopwatch-and-shout process at
   non-professional meets: one timekeeper per lane in the app, each pressing start on the gun and stop
   on their competitor, with the app attributing the time to the right competitor automatically.

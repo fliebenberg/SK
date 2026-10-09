@@ -256,7 +256,7 @@ export function AddEntrantModal({
           </Text>
 
           <ScrollView className="max-h-[440px]" keyboardShouldPersistTaps="handled">
-            <View className="space-y-4">
+            <View className="gap-4">
               <View className="flex-row gap-2">
                 {chip(kind !== 'placeholder', isIndividual ? 'Entrant' : 'Team', () =>
                   setKind(isIndividual ? 'person' : 'team'), 'real')}
@@ -264,7 +264,7 @@ export function AddEntrantModal({
               </View>
 
               {kind === 'placeholder' && (
-                <View className="space-y-2">
+                <View className="gap-2">
                   <FieldLabel
                     label="Belongs to"
                     help="An open placeholder is a competitor nobody can name yet, like the winner of a qualifier. A placeholder for an organisation reserves a place in that school's name, for them to fill in."
@@ -277,7 +277,7 @@ export function AddEntrantModal({
               )}
 
               {kind !== 'placeholder' && (
-                <View className="space-y-2">
+                <View className="gap-2">
                   <FieldLabel
                     label="Sport"
                     help="Only the tournament's own sports — a team of a sport nobody is playing could never be entered."
@@ -292,7 +292,7 @@ export function AddEntrantModal({
               )}
 
               {(kind !== 'placeholder' || placeholderForOrg) && (
-                <View className="space-y-2">
+                <View className="gap-2">
                   <FieldLabel
                     label="Organisation"
                     help="The school or club this belongs to, from the organisations taking part."
@@ -316,7 +316,7 @@ export function AddEntrantModal({
                 offered in the same breath, because "you can't" without "but you can" is a dead end.
               */}
               {kind !== 'placeholder' && claimedByOthers && (
-                <View className="rounded-xl border border-line bg-sunken p-3 space-y-2">
+                <View className="rounded-xl border border-line bg-sunken p-3 gap-2">
                   <Text className="font-inter text-xs text-ink-soft">
                     {chosenOrg?.name} is run by its own admins, so their {isIndividual ? 'people' : 'teams'} are
                     theirs to add. You can reserve a place for them instead, and they fill it in.
@@ -337,7 +337,7 @@ export function AddEntrantModal({
               )}
 
               {kind === 'person' && !claimedByOthers && (
-                <View className="space-y-2">
+                <View className="gap-2">
                   <FieldLabel
                     label="Entrant"
                     help="Somebody on the organisation's roster, or a new name — which adds them to the organisation with that name alone."
@@ -361,7 +361,7 @@ export function AddEntrantModal({
               )}
 
               {(kind === 'placeholder' || (kind === 'team' && !claimedByOthers)) && (
-                <View className="space-y-2">
+                <View className="gap-2">
                   <FieldLabel
                     label={kind === 'placeholder' ? 'Description' : 'Team name'}
                     help={
@@ -387,7 +387,7 @@ export function AddEntrantModal({
               )}
 
               {kind === 'team' && !claimedByOthers && (
-                <View className="space-y-2">
+                <View className="gap-2">
                   <FieldLabel
                     label="Age group"
                     optional
@@ -406,7 +406,7 @@ export function AddEntrantModal({
               )}
 
               {!(kind !== 'placeholder' && claimedByOthers) && (
-                <View className="space-y-2">
+                <View className="gap-2">
                   <FieldLabel
                     label="Division"
                     optional={kind === 'team'}

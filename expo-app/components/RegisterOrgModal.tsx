@@ -106,7 +106,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
             until somebody from there claims it.
           </Text>
 
-          <View className="space-y-1.5">
+          <View className="gap-1.5">
             <FieldLabel label="Full name" />
             <TextInput
               value={name}
@@ -121,7 +121,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
           </View>
 
           {/* Required, but filled in from the name as it is typed — see `useOrgShortCode`. */}
-          <View className="space-y-1.5">
+          <View className="gap-1.5">
             <FieldLabel label="Short code" help="Used wherever the full name will not fit — tabs, columns and team flags." />
             <TextInput
               value={shortCode.shortCode}
@@ -142,7 +142,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
             onChange={({ primary, secondary }) => setColors({ primary, secondary })}
           />
 
-          <View className="space-y-1.5">
+          <View className="gap-1.5">
             <FieldLabel
               label="Contact email"
               optional

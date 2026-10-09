@@ -93,7 +93,7 @@ export default function CustomSelect({
           onPress={() => setIsOpen(false)}
         >
           <Pressable 
-            className="bg-card rounded-2xl p-5 border border-line w-full max-w-sm shadow-lg space-y-3"
+            className="bg-card rounded-2xl p-5 border border-line w-full max-w-sm shadow-lg gap-3"
             onPress={(e) => e.stopPropagation()}
           >
             <View className="flex-row justify-between items-center pb-3 border-b border-line-soft mb-1">
@@ -116,7 +116,6 @@ export default function CustomSelect({
             )}
 
             <ScrollView 
-              className="space-y-1.5"
               contentContainerStyle={{ gap: 6 }}
               showsVerticalScrollIndicator={true}
               style={{ maxHeight: 250 }}

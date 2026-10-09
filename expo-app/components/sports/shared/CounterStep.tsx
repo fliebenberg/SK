@@ -33,7 +33,7 @@ export function CounterStep({
   };
 
   return (
-    <View className="items-center justify-center space-y-3 py-4">
+    <View className="items-center justify-center gap-3 py-4">
       <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
         {label}
       </Text>

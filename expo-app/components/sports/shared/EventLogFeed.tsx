@@ -341,7 +341,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
         </View>
       ) : (
         <ScrollView className="flex-1 px-3 py-2">
-          <View className="space-y-2">
+          <View className="gap-2">
             {filteredEvents.map((evt) => {
               const eventData = evt.eventData || (evt as any).event_data || {};
               const snapshot = eventData.scoreSnapshot;
@@ -438,7 +438,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                     {/* TITLE, ACTOR, & REASON DETAILS */}
                     <View className="flex-1 min-w-0">
                       <View className="flex-row items-center gap-2 flex-wrap">
-                        <Text className="font-inter-bold text-xs text-ink truncate uppercase">
+                        <Text numberOfLines={1} className="font-inter-bold text-xs text-ink uppercase">
                           {title}
                         </Text>
                         {isDisputed && (
@@ -590,7 +590,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                         >
                           <Ionicons name={canUndo ? "arrow-undo-outline" : "trash-outline"} size={14} color={canUndo ? themeColor(isDark, 'warning-ink') : themeColor(isDark, 'danger')} />
                           {canUndo && (
-                            <Text className="font-mono font-bold text-[9px] text-warning-ink animate-pulse mt-0.5" style={{ lineHeight: 10 }}>{remainingSecs}s</Text>
+                            <Text className="font-mono font-bold text-[9px] text-warning-ink mt-0.5" style={{ lineHeight: 10 }}>{remainingSecs}s</Text>
                           )}
                         </TouchableOpacity>
                       )

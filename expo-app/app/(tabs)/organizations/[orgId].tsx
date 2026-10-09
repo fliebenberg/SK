@@ -373,7 +373,7 @@ export default function PublicOrgDetail() {
         {/* TAB CONTENTS */}
         <View className="mb-6">
           {activeTab === 'overview' && (
-            <View className="space-y-4">
+            <View className="gap-4">
               <GlassCard className="border border-line p-5">
                 <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-3">
                   About Organization
@@ -398,7 +398,7 @@ export default function PublicOrgDetail() {
           )}
 
           {activeTab === 'teams' && (
-            <View className="space-y-4">
+            <View className="gap-4">
               {org.teams.map((team) => (
                 <GlassCard key={team.id} className="border border-line p-4 flex-row justify-between items-center">
                   <View className="flex-1 mr-3">
@@ -428,7 +428,7 @@ export default function PublicOrgDetail() {
           )}
 
           {activeTab === 'fixtures' && (
-            <View className="space-y-4">
+            <View className="gap-4">
               {org.fixtures.map((fix) => (
                 <GlassCard key={fix.id} className="border border-line p-5">
                   <View className="flex-row justify-between items-center mb-3">
@@ -466,7 +466,7 @@ export default function PublicOrgDetail() {
           )}
 
           {activeTab === 'facilities' && (
-            <View className="space-y-4">
+            <View className="gap-4">
               {org.facilities.map((fac) => (
                 <GlassCard key={fac.id} className="border border-line p-4 flex-row items-center gap-3.5">
                   <View className="w-10 h-10 rounded-xl bg-special-soft border border-special-line items-center justify-center">
@@ -491,7 +491,7 @@ export default function PublicOrgDetail() {
           )}
 
           {activeTab === 'leagues' && (
-            <View className="space-y-4">
+            <View className="gap-4">
               {leagues.map((league) => (
                 <GlassCard key={league.id} className="border border-line p-4 flex-row items-center gap-3.5">
                   <View className="w-10 h-10 rounded-xl bg-primary-soft items-center justify-center border border-primary-line">

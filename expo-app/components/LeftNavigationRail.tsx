@@ -7,6 +7,7 @@ import { useActiveTheme, useSettingsStore } from '../store/settingsStore';
 import { useAuthStore } from '../store/authStore';
 import { getAvatarUrl } from '../services/assets';
 import { OrgLogo } from './OrgLogo';
+import { EditLink } from './ReadCard';
 import { useOrgSummary } from '../hooks/useOrgSummary';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 import { AnimatedBox } from './AnimatedBox';
@@ -79,6 +80,10 @@ export function LeftNavigationRail() {
   const confirmThenNavigate = useCallback((action: () => void) => {
     triggerDiscardPrompt(action);
   }, [triggerDiscardPrompt]);
+
+  const exitWorkspace = useCallback(() => {
+    confirmThenNavigate(() => router.replace('/(tabs)/organizations' as any));
+  }, [confirmThenNavigate, router]);
 
   // Check if we are in the org admin panel
   const isOrgAdmin = segments[0] === 'admin';
@@ -200,9 +205,13 @@ export function LeftNavigationRail() {
 
               return (
                 <View className="mb-6">
-                  <Text className="font-inter-bold text-[9px] uppercase tracking-widest text-ink-muted mb-2 px-1">
-                    Active Workspace
-                  </Text>
+                  {/* The way out sits with the workspace it leaves, not at the foot of the menu. */}
+                  <View className="flex-row items-center justify-between mb-2 px-1">
+                    <Text className="font-inter-bold text-[9px] uppercase tracking-widest text-ink-muted">
+                      Active Workspace
+                    </Text>
+                    <EditLink label="Exit" icon="arrow-back-outline" onPress={exitWorkspace} />
+                  </View>
                   <View 
                     className="p-1.5 px-2.5 rounded-xl border flex-row items-center gap-3 relative overflow-hidden"
                     style={{ 
@@ -238,7 +247,7 @@ export function LeftNavigationRail() {
               );
             })()}
 
-            <ScrollView className="flex-grow space-y-1.5" showsVerticalScrollIndicator={false}>
+            <ScrollView className="flex-grow" contentContainerClassName="gap-1.5" showsVerticalScrollIndicator={false}>
               {navConfig.items.map((item: any) => {
                 const isActive = orgSubTab === item.name;
                 const activeColor = orgColors(orgData).primary;
@@ -285,22 +294,10 @@ export function LeftNavigationRail() {
                   </TouchableOpacity>
                 );
               })}
-
-              <TouchableOpacity
-                 onPress={() => confirmThenNavigate(() => {
-                    router.replace('/(tabs)/organizations' as any);
-                 })}
-                className="flex-row items-center gap-3.5 px-3 py-3 mt-4 rounded-xl border border-dashed border-line-strong hover:bg-sunken active:opacity-85"
-              >
-                <Ionicons name="arrow-back-outline" size={20} color={themeColor(isDark, 'primary')} />
-                <Text className="font-inter-bold text-sm tracking-wide text-primary-ink">
-                  Exit Workspace
-                </Text>
-              </TouchableOpacity>
             </ScrollView>
           </>
         ) : (
-          <ScrollView className="flex-1 space-y-1.5" showsVerticalScrollIndicator={false}>
+          <ScrollView className="flex-1" contentContainerClassName="gap-1.5" showsVerticalScrollIndicator={false}>
             {navConfig.items.map((item) => {
               const isActive = activeTab === item.name;
               return (
@@ -392,27 +389,38 @@ export function LeftNavigationRail() {
 
         {/* Org Logo (If in Org Workspace) */}
         {navConfig.isOrg && (
-          <TouchableOpacity
-            onPress={() => confirmThenNavigate(() => router.push(`/admin/${orgId}` as any))}
-            className="mb-5 items-center justify-center active:opacity-85"
-            {...(Platform.OS === 'web' ? { title: orgData?.name || 'Organization Workspace' } : {})}
-          >
-            <View 
-              className="rounded-xl border flex items-center justify-center p-0.5"
-              style={{
-                backgroundColor: orgData ? orgColors(orgData).primary : 'transparent',
-                borderColor: orgData ? orgColors(orgData).secondary : themeColor(isDark, 'line'),
-                borderWidth: orgData?.primaryColor ? 2 : 1,
-              }}
+          <View className="mb-5 items-center gap-1">
+            <TouchableOpacity
+              onPress={() => confirmThenNavigate(() => router.push(`/admin/${orgId}` as any))}
+              className="items-center justify-center active:opacity-85"
+              {...(Platform.OS === 'web' ? { title: orgData?.name || 'Organization Workspace' } : {})}
             >
-              <OrgLogo 
-                logo={orgData?.logo} 
-                settings={orgData?.settings} 
-                size={36} 
-                className="rounded-lg shadow-sm"
-              />
-            </View>
-          </TouchableOpacity>
+              <View 
+                className="rounded-xl border flex items-center justify-center p-0.5"
+                style={{
+                  backgroundColor: orgData ? orgColors(orgData).primary : 'transparent',
+                  borderColor: orgData ? orgColors(orgData).secondary : themeColor(isDark, 'line'),
+                  borderWidth: orgData?.primaryColor ? 2 : 1,
+                }}
+              >
+                <OrgLogo 
+                  logo={orgData?.logo} 
+                  settings={orgData?.settings} 
+                  size={36} 
+                  className="rounded-lg shadow-sm"
+                />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={exitWorkspace}
+              className="w-10 h-8 rounded-xl items-center justify-center hover:bg-sunken"
+              accessibilityRole="button"
+              accessibilityLabel="Exit Workspace"
+              {...(Platform.OS === 'web' ? { title: 'Exit Workspace' } : {})}
+            >
+              <Ionicons name="arrow-back-outline" size={18} color={themeColor(isDark, 'primary')} />
+            </TouchableOpacity>
+          </View>
         )}
 
         {/* Menu Logos (Icons) */}
@@ -443,17 +451,6 @@ export function LeftNavigationRail() {
               </TouchableOpacity>
             );
           })}
-
-          {/* Exit Workspace Icon in Minimized View */}
-          {navConfig.isOrg && (
-            <TouchableOpacity
-              onPress={() => confirmThenNavigate(() => router.replace('/(tabs)/organizations' as any))}
-              className="w-10 h-10 rounded-xl items-center justify-center border border-dashed border-danger-line hover:bg-danger-soft"
-              {...(Platform.OS === 'web' ? { title: 'Exit Workspace' } : {})}
-            >
-              <Ionicons name="arrow-back-outline" size={20} color={themeColor(isDark, 'primary')} />
-            </TouchableOpacity>
-          )}
         </ScrollView>
       </View>
 

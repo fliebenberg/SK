@@ -26,7 +26,7 @@ export function PaginatedList<T>({
   emptyState,
   header,
   containerClassName = '',
-  itemSpacingClassName = 'space-y-1',
+  itemSpacingClassName = 'gap-1',
 }: PaginatedListProps<T>) {
   const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();

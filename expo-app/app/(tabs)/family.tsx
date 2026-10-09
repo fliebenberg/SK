@@ -54,7 +54,7 @@ export default function FamilyScreen() {
             </Text>
           </GlassCard>
         ) : (
-          <View className="space-y-6">
+          <View className="gap-6">
             {dependants.map(child => (
               <DependantCard key={`${child.orgId}:${child.playerProfileId}`} child={child} />
             ))}
@@ -72,7 +72,7 @@ function DependantCard({ child }: { child: Dependant }) {
   const firstName = child.name.split(' ')[0];
 
   return (
-    <GlassCard className="border border-line p-5 space-y-5">
+    <GlassCard className="border border-line p-5 gap-5">
       {/* Who */}
       <View className="flex-row items-center gap-4">
         <View className="w-14 h-14 rounded-full bg-primary-soft overflow-hidden items-center justify-center">
@@ -163,10 +163,10 @@ function ChildFixtures({ child }: { child: Dependant }) {
       ) : upcoming.length === 0 && recent.length === 0 ? (
         <Text className="font-inter text-xs text-ink-muted">No fixtures scheduled.</Text>
       ) : (
-        <View className="space-y-1.5">
+        <View className="gap-1.5">
           {upcoming.map(game => <FixtureRow key={game.id} game={game} />)}
           {recent.length ? (
-            <Text className="font-inter-bold text-[10px] text-ink-muted uppercase tracking-wider mt-2">Recent results</Text>
+            <Text className="font-inter-bold text-[10px] text-ink-muted uppercase tracking-wider">Recent results</Text>
           ) : null}
           {recent.map(game => <FixtureRow key={game.id} game={game} />)}
         </View>

@@ -499,7 +499,7 @@ export default function SeasonDetails() {
                   {standings.map((row, idx) => (
                     <View key={row.teamId} className="flex-row py-3 border-b border-line-soft items-center">
                       <Text className="w-8 font-orbitron-bold text-xs text-ink-muted text-center">{idx + 1}</Text>
-                      <Text className="flex-1 font-orbitron-bold text-xs text-ink truncate pr-2">{row.teamName}</Text>
+                      <Text numberOfLines={1} className="flex-1 font-orbitron-bold text-xs text-ink pr-2">{row.teamName}</Text>
                       <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.played}</Text>
                       <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.wins}</Text>
                       <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.draws}</Text>
@@ -524,7 +524,7 @@ export default function SeasonDetails() {
 
           {/* TAB 2: TEAMS */}
           {activeTab === 'teams' && (
-            <View className="space-y-4">
+            <View className="gap-4">
               <View className="flex-row justify-between items-center mb-1">
                 <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest">Season Roster</Text>
                 <TouchableOpacity
@@ -586,7 +586,7 @@ export default function SeasonDetails() {
 
           {/* TAB 3: GAMES */}
           {activeTab === 'games' && (
-            <View className="space-y-4">
+            <View className="gap-4">
               <View className="flex-row justify-between items-center mb-1">
                 <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest">Season Matches</Text>
                 <TouchableOpacity
@@ -648,7 +648,7 @@ export default function SeasonDetails() {
 
           {/* TAB 4: SETTINGS */}
           {activeTab === 'settings' && (
-            <GlassCard className="border border-line p-5 space-y-4">
+            <GlassCard className="border border-line p-5 gap-4">
               <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest">Season Settings</Text>
 
               {actionError && (
@@ -676,7 +676,7 @@ export default function SeasonDetails() {
                 <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mt-2">Season Branding Logo</Text>
               </View>
 
-              <View className="space-y-1">
+              <View className="gap-1">
                 <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Season Name</Text>
                 <TextInput
                   value={seasonName}
@@ -688,7 +688,7 @@ export default function SeasonDetails() {
               </View>
 
               <View className="grid grid-cols-2 gap-4">
-                <View className="space-y-1">
+                <View className="gap-1">
                   <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Start Date</Text>
                   <DatePicker
                     value={startDateStr}
@@ -696,7 +696,7 @@ export default function SeasonDetails() {
                     placeholder="YYYY-MM-DD"
                   />
                 </View>
-                <View className="space-y-1">
+                <View className="gap-1">
                   <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">End Date</Text>
                   <DatePicker
                     value={endDateStr}
@@ -706,7 +706,7 @@ export default function SeasonDetails() {
                 </View>
               </View>
 
-              <View className="space-y-1.5">
+              <View className="gap-1.5">
                 <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Season Status (Calculated)</Text>
                 <View className="flex-row items-center">
                   <View className={`px-3 py-1.5 rounded-lg ${
@@ -730,10 +730,10 @@ export default function SeasonDetails() {
               </View>
 
               {/* Point allocation settings */}
-              <View className="pt-2 border-t border-line-soft space-y-2">
+              <View className="pt-2 border-t border-line-soft gap-2">
                 <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase">Point Rules</Text>
                 <View className="grid grid-cols-3 gap-3">
-                  <View className="space-y-1">
+                  <View className="gap-1">
                     <Text className="font-inter-bold text-[8px] text-ink-muted uppercase">Win</Text>
                     <TextInput
                       value={ptsWin}
@@ -742,7 +742,7 @@ export default function SeasonDetails() {
                       className="bg-field border border-line rounded-xl px-3 py-2 font-inter text-xs text-center text-ink"
                     />
                   </View>
-                  <View className="space-y-1">
+                  <View className="gap-1">
                     <Text className="font-inter-bold text-[8px] text-ink-muted uppercase">Draw</Text>
                     <TextInput
                       value={ptsDraw}
@@ -751,7 +751,7 @@ export default function SeasonDetails() {
                       className="bg-field border border-line rounded-xl px-3 py-2 font-inter text-xs text-center text-ink"
                     />
                   </View>
-                  <View className="space-y-1">
+                  <View className="gap-1">
                     <Text className="font-inter-bold text-[8px] text-ink-muted uppercase">Loss</Text>
                     <TextInput
                       value={ptsLoss}
@@ -771,7 +771,7 @@ export default function SeasonDetails() {
       {/* Add Team Modal */}
       <Modal visible={isAddTeamOpen} animationType="slide" transparent>
         <View className="flex-1 justify-end bg-overlay/60">
-          <View className="bg-card rounded-t-3xl p-6 border-t border-line space-y-4 max-h-[80%]">
+          <View className="bg-card rounded-t-3xl p-6 border-t border-line gap-4 max-h-[80%]">
             <View className="flex-row justify-between items-center pb-2 border-b border-line-soft">
               <Text className="font-orbitron-bold text-lg text-ink uppercase">Register Team</Text>
               <TouchableOpacity onPress={() => setIsAddTeamOpen(false)}>
@@ -779,7 +779,7 @@ export default function SeasonDetails() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView className="space-y-3">
+            <ScrollView contentContainerClassName="gap-3">
               {availableTeams.map(team => (
                 <TouchableOpacity
                   key={team.id}
@@ -809,7 +809,7 @@ export default function SeasonDetails() {
       {/* Link Game Modal */}
       <Modal visible={isLinkGameOpen} animationType="slide" transparent>
         <View className="flex-1 justify-end bg-overlay/60">
-          <View className="bg-card rounded-t-3xl p-6 border-t border-line space-y-4 max-h-[80%]">
+          <View className="bg-card rounded-t-3xl p-6 border-t border-line gap-4 max-h-[80%]">
             <View className="flex-row justify-between items-center pb-2 border-b border-line-soft">
               <Text className="font-orbitron-bold text-lg text-ink uppercase">Link Match</Text>
               <TouchableOpacity onPress={() => setIsLinkGameOpen(false)}>
@@ -817,7 +817,7 @@ export default function SeasonDetails() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView className="space-y-3">
+            <ScrollView contentContainerClassName="gap-3">
               {availableGames.map(game => (
                 <TouchableOpacity
                   key={game.id}

@@ -260,7 +260,7 @@ export default function OrganizationsPage() {
           </View>
         ) : showTabs && activeTab === 'my' ? (
           <View className="mb-8">
-            <View className="space-y-4">
+            <View className="gap-4">
               {managedOrgs.length === 0 ? (
                 <GlassCard className="border border-line p-6 items-center">
                   <Ionicons name="business-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="mb-3" />
@@ -367,12 +367,12 @@ export default function OrganizationsPage() {
                 title="+ Add Organization"
                 variant="primary"
                 onPress={() => setModalVisible(true)}
-                className="w-full shadow-sm py-2.5 mt-2"
+                className="w-full shadow-sm py-2.5"
               />
             </View>
           </View>
         ) : (
-          <View className="space-y-4">
+          <View className="gap-4">
             {orgs.length === 0 ? (
               <GlassCard className="border border-line p-6 items-center">
                 <Ionicons name="business-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="mb-3" />

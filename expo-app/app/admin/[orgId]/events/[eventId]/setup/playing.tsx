@@ -329,12 +329,12 @@ export default function SetupPlaying() {
         </View>
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
-          <View className="space-y-6">
+          <View className="gap-6">
             <View className="bg-card border border-line rounded-2xl">
               {/* Which sports the tournament plays is the tournament's decision, so a sport's own
                   organiser does not get the chips — only the group for their sport, below. */}
               {canEdit && (
-              <View className="p-5 space-y-4">
+              <View className="p-5 gap-4">
                 <FieldLabel
                   label="Sports"
                   help="Choose every sport this tournament includes. Each sport gets its first division as soon as you choose it; add more under it for age groups. A sport can only be removed once it has no divisions left."
@@ -370,7 +370,7 @@ export default function SetupPlaying() {
               )}
 
               {/* Divisions, grouped under the sport each one plays (U52). */}
-              <View className={`p-5 space-y-4 ${canEdit ? 'border-t border-line' : ''}`}>
+              <View className={`p-5 gap-4 ${canEdit ? 'border-t border-line' : ''}`}>
                 <FieldLabel
                   label={
                     listedDivisions.length > 1 ? `Divisions · ${listedDivisions.length}` : 'Divisions'
@@ -387,7 +387,7 @@ export default function SetupPlaying() {
                 )}
 
                 {chosenSports.map(sport => (
-                  <View key={sport.id} className="space-y-2">
+                  <View key={sport.id} className="gap-2">
                     <Text className="font-inter-bold text-[11px] text-ink-soft">
                       {sport.name}
                     </Text>
@@ -415,7 +415,7 @@ export default function SetupPlaying() {
                 ))}
 
                 {canEdit && unplacedDivisions.length > 0 && (
-                  <View className="space-y-2">
+                  <View className="gap-2">
                     <Text className="font-inter-bold text-[11px] text-ink-soft">
                       Not playing one of the tournament's sports
                     </Text>
@@ -614,7 +614,7 @@ function RemoveSportModal({
     <Modal transparent visible={isOpen} animationType="fade" onRequestClose={onClose}>
       <View className="flex-1 bg-overlay/75 items-center justify-center p-6">
         <GlassCard
-          className="w-full max-w-sm border border-line p-6 space-y-4 shadow-lg"
+          className="w-full max-w-sm border border-line p-6 gap-4 shadow-lg"
           style={{ backgroundColor: themeColor(isDark, 'popover') }}
         >
           <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider">
@@ -631,7 +631,7 @@ function RemoveSportModal({
             kept, but no longer belong to a division. Tick each one to confirm.
           </Text>
 
-          <View className="space-y-2">
+          <View className="gap-2">
             {divisions.map(division => {
               const isOn = ticked.includes(division.id);
               return (

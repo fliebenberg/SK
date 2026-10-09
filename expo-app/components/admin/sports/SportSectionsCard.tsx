@@ -86,7 +86,7 @@ export function SportSectionsCard({ sections, onChange, templates, savedSectionI
         {sections.length === 0 ? (
           <EmptyHint icon="albums-outline" text="No sections yet. Add one before adding events." />
         ) : (
-          <View className="space-y-2">
+          <View className="gap-2">
             {sections.map((section, index) => {
               const filed = templates.filter((template) => template.section === section.id).length;
               return (

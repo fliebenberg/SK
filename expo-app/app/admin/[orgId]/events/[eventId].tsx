@@ -593,14 +593,14 @@ export default function EventDetails() {
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         {header}
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
-          <View className="space-y-6">
+          <View className="gap-6">
             <GlassCard className="border border-line p-5">
               <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-4">
                 Single Match Details
               </Text>
 
               {game ? (
-                <View className="space-y-6 items-center">
+                <View className="gap-6 items-center">
                   <View className="flex-row justify-between items-center w-full">
                     <View className="flex-1 items-center">
                       <Text className="font-orbitron-bold text-base text-ink text-center">
@@ -775,7 +775,7 @@ export default function EventDetails() {
           </View>
         )}
         {activeTab === 'schedule' && (
-          <View className="space-y-6">
+          <View className="gap-6">
             {/* THE COLLAPSE RULE (U15).
                 One division and its panel is shown here directly — no list of one to click through.
                 Several, and each is listed and opens its own screen. Setup names the division
@@ -789,7 +789,7 @@ export default function EventDetails() {
                 collapsed
               />
             ) : orderedDivisions.length > 1 ? (
-              <View className="space-y-3">
+              <View className="gap-3">
                 <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-widest pl-1">
                   Divisions
                 </Text>
@@ -846,7 +846,7 @@ export default function EventDetails() {
                 <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-3">
                   Not in a division
                 </Text>
-                <View className="space-y-2">
+                <View className="gap-2">
                   {games
                     .filter(g => !g.stageId)
                     .map(game => (
@@ -885,7 +885,7 @@ export default function EventDetails() {
         )}
 
         {activeTab === 'standings' && (
-          <View className="space-y-4">
+          <View className="gap-4">
             {/*
               One table with a division scope selector (U28), rather than a `By division / By
               organisation` toggle. **The scope decides the row, not just the filter** (U29): all
@@ -909,7 +909,7 @@ export default function EventDetails() {
             )}
 
             {standingsScope === 'all' ? (
-              <View className="space-y-2">
+              <View className="gap-2">
                 <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-widest pl-1">
                   Event Leaderboard
                 </Text>

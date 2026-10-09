@@ -64,7 +64,7 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
 
     return (
       <View
-        className={`flex-1 p-1 rounded-xl border transition-all ${
+        className={`flex-1 p-1 rounded-xl border ${
           isHome
             ? 'bg-info-soft border-info-line'
             : 'bg-danger-soft border-danger-line'
@@ -133,7 +133,7 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
           onRequestClose={() => setIsFinalScoreOpen(false)}
         >
           <View className="flex-1 bg-overlay/60 justify-center items-center px-6">
-            <View className="bg-card rounded-2xl p-6 border border-line w-full max-w-md shadow-lg space-y-4">
+            <View className="bg-card rounded-2xl p-6 border border-line w-full max-w-md shadow-lg gap-4">
               <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider text-center">
                 Final Score Override
               </Text>

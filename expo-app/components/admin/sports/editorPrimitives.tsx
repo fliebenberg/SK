@@ -318,7 +318,7 @@ export function Collapsible({
         </TouchableOpacity>
         {actions}
       </View>
-      {isOpen && <View className="px-3 pb-3 space-y-3">{children}</View>}
+      {isOpen && <View className="px-3 pb-3 gap-3">{children}</View>}
     </View>
   );
 }
@@ -383,7 +383,7 @@ export function KeyValueEditor({
       {entries.length === 0 ? (
         <Text className="font-inter text-[10px] text-ink-muted italic">None</Text>
       ) : (
-        <View className="space-y-2">
+        <View className="gap-2">
           {entries.map(([key, entryValue], index) => (
             <View key={index} className="flex-row items-center gap-2">
               <TextInput

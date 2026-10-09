@@ -654,10 +654,10 @@ export default function DivisionScreen() {
         </View>
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
-          <View className="space-y-6">
-            <GlassCard className="border border-line p-5 space-y-4">
+          <View className="gap-6">
+            <GlassCard className="border border-line p-5 gap-4">
               {canEditRecord && (
-                <View className="space-y-2">
+                <View className="gap-2">
                   <FieldLabel
                     label="Division Name"
                     help="Leave it to fill itself in from the sport and age group — Rugby U14 — and it follows them if they change. Or type your own, such as Girls' Open; clear it again to go back to the automatic name."
@@ -695,7 +695,7 @@ export default function DivisionScreen() {
                   automatic name is made of. Side by side: both are dropdowns, so neither needs the
                   full width, and reading them as one line matches how the division is named. */}
               <View className="flex-row gap-3">
-                <View className="flex-1 space-y-2">
+                <View className="flex-1 gap-2">
                   {/*
                     `FIX-17`'s explanation lives in the help rather than under the field.
 
@@ -748,7 +748,7 @@ export default function DivisionScreen() {
                   )}
                 </View>
 
-                <View className="flex-1 space-y-2">
+                <View className="flex-1 gap-2">
                   <FieldLabel
                     label="Age group"
                     optional
@@ -818,7 +818,7 @@ export default function DivisionScreen() {
               )}
             </GlassCard>
 
-            <GlassCard className="border border-line p-5 space-y-3">
+            <GlassCard className="border border-line p-5 gap-3">
               <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest">
                 Fields in play
               </Text>

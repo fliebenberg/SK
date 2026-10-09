@@ -394,7 +394,7 @@ export default function ScheduleGame() {
             Cancel
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase truncate flex-1 text-center px-4" numberOfLines={1}>
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase flex-1 text-center px-4" numberOfLines={1}>
           Schedule Game
         </Text>
         <TouchableOpacity 
@@ -413,7 +413,7 @@ export default function ScheduleGame() {
       </View>
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
-        <GlassCard className="border border-line p-5 space-y-5">
+        <GlassCard className="border border-line p-5 gap-5">
           <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-1">
             Game Setup for: {event.name}
           </Text>
@@ -423,7 +423,7 @@ export default function ScheduleGame() {
             division and one stage is the ordinary case and picks itself silently (U15, `FIX-12`).
           */}
           {!isCollapsed(divisions.length) && (
-            <View className="space-y-1.5">
+            <View className="gap-1.5">
               <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                 Division
               </Text>
@@ -460,7 +460,7 @@ export default function ScheduleGame() {
           )}
 
           {!isCollapsed(stages.length) && (
-            <View className="space-y-1.5">
+            <View className="gap-1.5">
               <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                 Stage
               </Text>
@@ -488,7 +488,7 @@ export default function ScheduleGame() {
           )}
 
           {/* Select Sport */}
-          <View className="space-y-1.5">
+          <View className="gap-1.5">
             <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
               Sport
             </Text>
@@ -519,7 +519,7 @@ export default function ScheduleGame() {
           </View>
 
           {/* Home Org Selection */}
-          <View className="space-y-1.5">
+          <View className="gap-1.5">
             <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
               Home Organization
             </Text>
@@ -550,7 +550,7 @@ export default function ScheduleGame() {
 
           {/* Home Team Selection */}
           {!!selectedHomeOrgId && (
-            <View className="space-y-1.5">
+            <View className="gap-1.5">
               <View className="flex-row justify-between items-center">
                 <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                   Home Team
@@ -588,7 +588,7 @@ export default function ScheduleGame() {
           )}
 
           {/* Away Org Selection */}
-          <View className="space-y-1.5 pt-2 border-t border-line-soft">
+          <View className="gap-1.5 pt-2 border-t border-line-soft">
             <View className="flex-row justify-between items-center">
               <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                 Away Organization
@@ -630,7 +630,7 @@ export default function ScheduleGame() {
 
           {/* Away Team Selection */}
           {!!selectedAwayOrgId && (
-            <View className="space-y-1.5">
+            <View className="gap-1.5">
               <View className="flex-row justify-between items-center">
                 <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                   Away Team
@@ -668,7 +668,7 @@ export default function ScheduleGame() {
           )}
 
           {/* Site selection */}
-          <View className="space-y-1.5 pt-2 border-t border-line-soft">
+          <View className="gap-1.5 pt-2 border-t border-line-soft">
             <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
               Site Field/Court
             </Text>
@@ -682,8 +682,8 @@ export default function ScheduleGame() {
           </View>
 
           {/* Match Date & Time */}
-          <View className="space-y-3 pt-2 border-t border-line-soft">
-            <View className="space-y-1.5">
+          <View className="gap-3 pt-2 border-t border-line-soft">
+            <View className="gap-1.5">
               <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                 Match Date
               </Text>
@@ -694,7 +694,7 @@ export default function ScheduleGame() {
               />
             </View>
 
-            <View className="space-y-3 pt-2">
+            <View className="gap-3 pt-2">
               <View className="flex-row justify-between items-center">
                 <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                   Start Time
@@ -759,11 +759,11 @@ export default function ScheduleGame() {
         onRequestClose={() => setIsCreatingTeam(false)}
       >
         <View className="flex-1 bg-overlay/60 justify-center px-6">
-          <View className="bg-card rounded-2xl p-6 border border-line shadow-xl space-y-4">
+          <View className="bg-card rounded-2xl p-6 border border-line shadow-xl gap-4">
             <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider">
               Register Team
             </Text>
-            <View className="space-y-1.5">
+            <View className="gap-1.5">
               <Text className="font-orbitron text-[9px] text-ink-muted uppercase tracking-wider">Team Name</Text>
               <TextInput
                 placeholder="e.g. 1st Team"
@@ -773,7 +773,7 @@ export default function ScheduleGame() {
                 className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
               />
             </View>
-            <View className="space-y-1.5">
+            <View className="gap-1.5">
               <Text className="font-orbitron text-[9px] text-ink-muted uppercase tracking-wider">Short Code / Abbreviation</Text>
               <TextInput
                 placeholder="e.g. 1ST"
@@ -783,7 +783,7 @@ export default function ScheduleGame() {
                 className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
               />
             </View>
-            <View className="space-y-1.5">
+            <View className="gap-1.5">
               <Text className="font-orbitron text-[9px] text-ink-muted uppercase tracking-wider">Age Group</Text>
               <AgeGroupPicker
                 sportId={selectedSportId}

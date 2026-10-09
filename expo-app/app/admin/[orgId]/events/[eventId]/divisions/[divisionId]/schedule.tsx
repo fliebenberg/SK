@@ -102,7 +102,7 @@ export default function DivisionScheduleScreen() {
         </View>
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
-          <View className="space-y-6">
+          <View className="gap-6">
             <DivisionPanel orgId={orgId} eventId={eventId} divisionId={divisionId} canEdit={canEdit} />
 
             {/*
@@ -111,7 +111,7 @@ export default function DivisionScheduleScreen() {
               the standings tab mounts when its scope selector names a division, so the two cannot
               drift.
             */}
-            <View className="space-y-2">
+            <View className="gap-2">
               <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-widest pl-1">
                 Standings
               </Text>

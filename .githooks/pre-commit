@@ -2,7 +2,7 @@
 #
 # ScoreKeeper pre-commit checks.
 #
-# Seven static checks that each exist because the thing they catch is invisible until much later:
+# Nine static checks that each exist because the thing they catch is invisible until much later:
 #
 #   check:actions     — a socket action sent outside `sendAction` interprets the reply on its own,
 #                       which is how the app came to have failures nobody saw (LIVE-19).
@@ -17,6 +17,12 @@
 #   check:colors      — a colour named by shade rather than purpose, or a class naming a shade that
 #                       does not exist, which applies no colour and is how fifty-one went unseen
 #                       (UI-24). Run with --strict: every colour must be a theme token.
+#   check:styles      — styling that silently misbehaves on a phone: `space-*` (works on web, does
+#                       nothing on a phone), `truncate`, NativeWind animations, a pseudo-class on a
+#                       plain View, `<Animated.*>` outside AnimatedBox (UI-2). Each rule was tested
+#                       against the installed NativeWind before it went in.
+#   check:routes      — a doc naming an app route that does not exist, which is how the routing doc
+#                       came to list nine screens that had gone.
 #   check:action-schemas — the server's payload check generated from types that have since changed,
 #                       so it refuses what the app now sends, or lets through what it no longer
 #                       should (SYNC-6). Compares a hash; `npm run gen:action-schemas` fixes it.
@@ -50,3 +56,5 @@ run expo-app/scripts/check-actions.js
 run expo-app/scripts/check-images.js
 run expo-app/scripts/check-dates.js
 run expo-app/scripts/check-colors.js --strict
+run expo-app/scripts/check-styles.js
+run expo-app/scripts/check-routes.js

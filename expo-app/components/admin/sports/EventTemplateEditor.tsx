@@ -177,7 +177,7 @@ export function EventTemplateEditor({
       step.type === ActionStepType.OUTCOME_SELECTION;
 
     return (
-      <View className="space-y-3">
+      <View className="gap-3">
         <SelectField
           label="Step Type"
           value={step.type}
@@ -249,7 +249,7 @@ export function EventTemplateEditor({
                 An empty group is dropped from the flow.
               </Text>
             ) : (
-              <View className="space-y-2">
+              <View className="gap-2">
                 {(step.steps || []).map((child, childIdx) => (
                   <Collapsible
                     key={childIdx}
@@ -406,7 +406,7 @@ export function EventTemplateEditor({
 
           {/* BASICS */}
           <SectionLabel className="mb-3">Event Basics</SectionLabel>
-          <GlassCard className="border border-line p-4 rounded-xl space-y-4 mb-6">
+          <GlassCard className="border border-line p-4 rounded-xl gap-4 mb-6">
             <TextField label="Name" value={draft.name || ''} onChangeText={setName} placeholder="e.g. Penalty Try" />
 
             {savedIds.isSaved ? (
@@ -488,7 +488,7 @@ export function EventTemplateEditor({
             {steps.length === 0 ? (
               <EmptyHint icon="layers-outline" text="No steps yet — the scorer would have nothing to answer." />
             ) : (
-              <View className="space-y-2">
+              <View className="gap-2">
                 {steps.map((step, index) => (
                   <Collapsible
                     key={index}
@@ -525,7 +525,7 @@ export function EventTemplateEditor({
             {outcomes.length === 0 ? (
               <EmptyHint icon="git-branch-outline" text="No outcomes — the event is recorded as soon as its steps are answered." />
             ) : (
-              <View className="space-y-2">
+              <View className="gap-2">
                 {outcomes.map((outcome, index) => (
                   <Collapsible
                     key={index}
@@ -640,7 +640,7 @@ export function EventTemplateEditor({
             {reasonGroups.length === 0 ? (
               <EmptyHint icon="pricetags-outline" text="No reasons — the event is not attributed to one." />
             ) : (
-              <View className="space-y-2">
+              <View className="gap-2">
                 {reasonGroups.map((group, groupIndex) => (
                   <Collapsible
                     key={groupIndex}
@@ -675,7 +675,7 @@ export function EventTemplateEditor({
                         A group with no reasons is rejected on save.
                       </Text>
                     ) : (
-                      <View className="space-y-2">
+                      <View className="gap-2">
                         {(group.options || []).map((option, optionIndex) => (
                           <Collapsible
                             key={optionIndex}
@@ -739,7 +739,7 @@ export function EventTemplateEditor({
 
           {/* TEMPLATE-LEVEL TRIGGER */}
           <SectionLabel className="mb-3">Always Triggers</SectionLabel>
-          <GlassCard className="border border-line p-4 rounded-xl space-y-4 mb-6">
+          <GlassCard className="border border-line p-4 rounded-xl gap-4 mb-6">
             <SelectField
               label="Follow-up Event"
               value={draft.triggerEventId || ''}
@@ -769,7 +769,7 @@ export function EventTemplateEditor({
 
           {/* DISPUTES */}
           <SectionLabel className="mb-3">Disputes</SectionLabel>
-          <GlassCard className="border border-line p-4 rounded-xl space-y-4 mb-6">
+          <GlassCard className="border border-line p-4 rounded-xl gap-4 mb-6">
             <ToggleField
               label="Disputable"
               value={!!dispute}

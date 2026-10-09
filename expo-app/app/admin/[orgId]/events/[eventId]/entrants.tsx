@@ -530,11 +530,11 @@ export default function EntrantsScreen() {
         </View>
       ) : (
         <ScrollView className={`flex-1 ${isLargeScreen ? 'px-6 py-6' : 'py-3'}`} contentContainerStyle={{ paddingBottom: 60 }}>
-          <View className="space-y-5">
+          <View className="gap-5">
             {/* Who is taking part, before which of their teams are in. Writes on press — see the
                 note at the top of this file for why this one list has no save bar. */}
             {canEditEvent && (
-              <GlassCard className={`border border-line ${cardClass} space-y-1.5`} style={cardStyle}>
+              <GlassCard className={`border border-line ${cardClass} gap-1.5`} style={cardStyle}>
                 <View className="flex-row items-center justify-between gap-3">
                   {/*
                     `UI-16`. The one field on this screen with something non-obvious to say: the
@@ -614,7 +614,7 @@ export default function EntrantsScreen() {
                   />
                 )}
                 {isAddingOrg && isSearchingOrgs && (
-                  <Text className="font-inter text-[10px] text-ink-muted mt-1">Searching...</Text>
+                  <Text className="font-inter text-[10px] text-ink-muted">Searching...</Text>
                 )}
                 {isAddingOrg &&
                   searchedOrgs.map(o => (
@@ -658,7 +658,7 @@ export default function EntrantsScreen() {
               of two layouts with two sets of controls. Neither is applied to begin with — a filter
               you chose is easier to understand than one that was already on when you arrived.
             */}
-            <GlassCard className={`border border-line ${cardClass} space-y-3`} style={cardStyle}>
+            <GlassCard className={`border border-line ${cardClass} gap-3`} style={cardStyle}>
               <View className="flex-row items-center justify-between gap-3">
                 <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                   Teams · {enteredCount} entered
@@ -677,7 +677,7 @@ export default function EntrantsScreen() {
                 )}
               </View>
 
-              <View className={isLargeScreen ? 'flex-row gap-3' : 'space-y-2'}>
+              <View className={isLargeScreen ? 'flex-row gap-3' : 'gap-2'}>
                 <View className={isLargeScreen ? 'flex-1' : ''}>
                   <CustomSelect
                     value={filterDivisionId}

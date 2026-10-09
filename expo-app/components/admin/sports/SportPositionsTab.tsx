@@ -44,7 +44,7 @@ export function SportPositionsTab({ positions, onChange }: SportPositionsTabProp
         {positions.length === 0 ? (
           <EmptyHint icon="people-outline" text='No positions added. Use "Add Position" above to configure some.' />
         ) : (
-          <View className="space-y-3">
+          <View className="gap-3">
             {positions.map((position, index) => (
               <View key={index} className="flex-row items-center gap-2.5">
                 <View className="w-16">

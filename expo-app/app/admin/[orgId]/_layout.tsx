@@ -7,6 +7,7 @@ import { LeftNavigationRail } from '../../../components/LeftNavigationRail';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { useWsStore } from '../../../store/wsStore';
 import { OrgLogo } from '../../../components/OrgLogo';
+import { EditLink } from '../../../components/ReadCard';
 import { Ionicons } from '@expo/vector-icons';
 import { useUnsavedChangesStore } from '../../../store/unsavedChangesStore';
 import { BottomMenu } from '../../../components/BottomMenu';
@@ -49,6 +50,10 @@ function OrgAdminWorkspace() {
     setWorkspaceMenuVisible(false);
     triggerDiscardPrompt(action);
   }, [triggerDiscardPrompt]);
+
+  const exitWorkspace = useCallback(() => {
+    confirmThenNavigate(() => router.replace('/(tabs)/organizations' as any));
+  }, [confirmThenNavigate, router]);
 
   // The workspace menu belongs to the org on screen; it should not survive a switch or a drop.
   useEffect(() => {
@@ -126,10 +131,14 @@ function OrgAdminWorkspace() {
             {/* Header section inside the menu */}
             {orgData && (
               <View className="mb-2.5">
-                <Text className="font-inter-bold text-[8px] uppercase tracking-widest text-ink-muted mb-1.5 px-1">
-                  Active Workspace
-                </Text>
-                
+                {/* The way out sits with the workspace it leaves, as in the sidebar. */}
+                <View className="flex-row items-center justify-between mb-1.5 px-1">
+                  <Text className="font-inter-bold text-[8px] uppercase tracking-widest text-ink-muted">
+                    Active Workspace
+                  </Text>
+                  <EditLink label="Exit" icon="arrow-back-outline" onPress={exitWorkspace} />
+                </View>
+
                 <View 
                   className="p-1.5 px-2.5 rounded-xl border flex-row items-center gap-2.5 relative overflow-hidden"
                   style={{ 
@@ -167,7 +176,7 @@ function OrgAdminWorkspace() {
             )}
 
             {/* List of administration modules */}
-            <View className="space-y-0.5">
+            <View className="gap-0.5">
               {/* While the org has no administrator: a temporary task, so set apart above the rest
                   and gone once it is done (docs/org-profile.md §6). */}
               {orgData?.isClaimed === false && (
@@ -180,7 +189,7 @@ function OrgAdminWorkspace() {
                     <Ionicons name="person-add-outline" size={16} color={themeColor(isDark, 'warning-ink')} />
                     <Text className="font-inter-bold text-sm text-warning-ink">Nominate admin</Text>
                   </TouchableOpacity>
-                  <View className="h-[1px] bg-sunken my-1" />
+                  <View className="h-[1px] bg-sunken mb-1" />
                 </>
               )}
               {[
@@ -207,22 +216,6 @@ function OrgAdminWorkspace() {
                   </Text>
                 </TouchableOpacity>
               ))}
-
-              <View className="h-[1px] bg-sunken my-1" />
-
-              {/* Exit Workspace */}
-              <TouchableOpacity
-                onPress={() => {
-                  confirmThenNavigate(() => router.replace('/(tabs)/organizations' as any));
-                }}
-                activeOpacity={0.7}
-                className="flex-row items-center gap-3 px-3 py-2 rounded-lg"
-              >
-                <Ionicons name="arrow-back-outline" size={16} color={themeColor(isDark, 'danger')} />
-                <Text className="font-inter-bold text-sm text-danger-ink">
-                  Exit Workspace
-                </Text>
-              </TouchableOpacity>
             </View>
           </View>
         </>

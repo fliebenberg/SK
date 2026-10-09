@@ -107,7 +107,7 @@ export function ChangeWhoPlayedCard({
         If another team turned out for one side, change it here. The result still counts for that
         place in the draw.
       </Text>
-      <View className="space-y-2">
+      <View className="gap-2">
         {sides.map(side => (
           <View key={side.id} className="flex-row items-center justify-between">
             <Text className="font-inter text-xs text-ink flex-1" numberOfLines={1}>

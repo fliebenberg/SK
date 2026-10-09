@@ -26,7 +26,7 @@ export function SportSettingsTab({ form, setField, showCardSettings }: SportSett
   return (
     <View>
       <SectionLabel className="mb-3">Sport General Details</SectionLabel>
-      <GlassCard className="border border-line p-4 rounded-xl space-y-4 mb-6">
+      <GlassCard className="border border-line p-4 rounded-xl gap-4 mb-6">
         <TextField
           label="Sport Name"
           value={form.name}
@@ -52,7 +52,7 @@ export function SportSettingsTab({ form, setField, showCardSettings }: SportSett
       </GlassCard>
 
       <SectionLabel className="mb-3">System Rules & Configuration</SectionLabel>
-      <GlassCard className="border border-line p-4 rounded-xl space-y-4 mb-6">
+      <GlassCard className="border border-line p-4 rounded-xl gap-4 mb-6">
         {/*
           These two describe the sport truthfully, but the app has not caught up with them yet:
           the multi-competitor screens have not been designed. Saying so on the control is the
@@ -116,7 +116,7 @@ export function SportSettingsTab({ form, setField, showCardSettings }: SportSett
             placeholder="e.g. 40"
           />
         </View>
-        <Text className="font-inter text-[10px] text-ink-muted -mt-2">
+        <Text className="font-inter text-[10px] text-ink-muted">
           Defaults for a new fixture. A game or event may override either, and a game already under
           way keeps the clock it started with.
         </Text>

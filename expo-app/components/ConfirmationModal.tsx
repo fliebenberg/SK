@@ -42,7 +42,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
     >
       <View className="flex-1 bg-overlay/75 items-center justify-center p-6">
         <GlassCard 
-          className="w-full max-w-sm border border-line p-6 space-y-4 shadow-lg"
+          className="w-full max-w-sm border border-line p-6 gap-4 shadow-lg"
           style={{ backgroundColor: themeColor(isDark, 'popover') }}
         >
           <View className="items-center justify-center mb-2">

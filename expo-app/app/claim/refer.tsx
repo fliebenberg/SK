@@ -156,7 +156,7 @@ export default function ReferScreen() {
           Know the right person to manage <Text className="font-inter-bold text-ink">{claimInfo?.organizationName}</Text>? Enter their email below and we'll send them an invitation.
         </Text>
 
-        <View className="space-y-4">
+        <View className="gap-4">
           <View className="mb-4">
             <Text className="text-ink-muted font-inter mb-2">Email Address</Text>
             <TextInput 
@@ -195,7 +195,7 @@ export default function ReferScreen() {
             title="Cancel" 
             variant="ghost" 
             onPress={() => safeBack('/landing')} 
-            className="w-full mt-2"
+            className="w-full"
           />
         </View>
       </View>

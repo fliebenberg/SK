@@ -135,8 +135,8 @@ export default function SetupFixtures() {
         </View>
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
-          <View className="space-y-6">
-            <View className="bg-card border border-line rounded-2xl p-5 space-y-4">
+          <View className="gap-6">
+            <View className="bg-card border border-line rounded-2xl p-5 gap-4">
               <Text className="font-inter text-xs text-ink-muted leading-relaxed">
                 Each division gets its own draw. Open one to set its format and generate its fixtures.
               </Text>
@@ -146,7 +146,7 @@ export default function SetupFixtures() {
                   No divisions yet. Choose the sports being played under Sports & Divisions first.
                 </Text>
               ) : (
-                <View className="space-y-2">
+                <View className="gap-2">
                   {orderedDivisions.map(division => (
                     <DivisionFixturesRow
                       key={division.id}

@@ -361,7 +361,7 @@ export default function LeagueDetails() {
               </View>
             )}
 
-            <View className="space-y-4">
+            <View className="gap-4">
               {/* League Logo Upload */}
               <View className="items-center py-2">
                 <TouchableOpacity
@@ -381,7 +381,7 @@ export default function LeagueDetails() {
                 <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mt-2">League Branding Logo</Text>
               </View>
 
-              <View className="space-y-1">
+              <View className="gap-1">
                 <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">League Name</Text>
                 <TextInput
                   value={leagueName}
@@ -390,7 +390,7 @@ export default function LeagueDetails() {
                 />
               </View>
 
-              <View className="flex-row items-center gap-2 mt-1">
+              <View className="flex-row items-center gap-2">
                 <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Sport:</Text>
                 <View className="bg-sunken px-2.5 py-0.5 rounded-full border border-line-soft">
                   <Text className="font-inter-bold text-[9px] text-ink-soft uppercase tracking-wider">
@@ -399,7 +399,7 @@ export default function LeagueDetails() {
                 </View>
               </View>
 
-              <View className="space-y-2 mt-4 pt-4 border-t border-line-soft">
+              <View className="gap-2 pt-4 border-t border-line-soft">
                 <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Join Policy</Text>
                 <View className="flex-row gap-2.5">
                   {(['CLOSED', 'INVITE', 'OPEN'] as const).map((policy) => {
@@ -449,7 +449,7 @@ export default function LeagueDetails() {
           </View>
 
           {/* Seasons List */}
-          <View className="space-y-4">
+          <View className="gap-4">
             {seasons.map((season) => (
               <GlassCard key={season.id} className="border border-line p-4">
                 <View className="flex-row justify-between items-center">
@@ -532,7 +532,7 @@ export default function LeagueDetails() {
       {/* Create Season Modal */}
       <Modal visible={isCreateModalOpen} animationType="slide" transparent>
         <View className="flex-1 justify-end bg-overlay/60">
-          <View className="bg-card rounded-t-3xl p-6 border-t border-line space-y-4 max-h-[90%]">
+          <View className="bg-card rounded-t-3xl p-6 border-t border-line gap-4 max-h-[90%]">
             <View className="flex-row justify-between items-center pb-2 border-b border-line-soft">
               <Text className="font-orbitron-bold text-lg text-ink uppercase">New Season</Text>
               <TouchableOpacity onPress={() => setIsCreateModalOpen(false)}>
@@ -546,7 +546,7 @@ export default function LeagueDetails() {
               </View>
             )}
 
-            <ScrollView className="space-y-4 pr-1">
+            <ScrollView className="pr-1" contentContainerClassName="gap-4">
               {/* Season Logo Upload */}
               <View className="items-center py-1">
                 <TouchableOpacity
@@ -566,7 +566,7 @@ export default function LeagueDetails() {
                 <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-widest mt-1.5">Season Logo</Text>
               </View>
 
-              <View className="space-y-1">
+              <View className="gap-1">
                 <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Season Name</Text>
                 <TextInput
                   value={newSeasonName}
@@ -578,7 +578,7 @@ export default function LeagueDetails() {
               </View>
 
               <View className="grid grid-cols-2 gap-4">
-                <View className="space-y-1">
+                <View className="gap-1">
                   <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Start Date</Text>
                   <DatePicker
                     value={startDateStr}
@@ -586,7 +586,7 @@ export default function LeagueDetails() {
                     placeholder="YYYY-MM-DD"
                   />
                 </View>
-                <View className="space-y-1">
+                <View className="gap-1">
                   <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">End Date</Text>
                   <DatePicker
                     value={endDateStr}
@@ -596,7 +596,7 @@ export default function LeagueDetails() {
                 </View>
               </View>
 
-              <View className="space-y-1.5">
+              <View className="gap-1.5">
                 <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Status (Calculated)</Text>
                 <View className="flex-row items-center">
                   <View className={`px-3 py-1.5 rounded-lg ${
@@ -620,10 +620,10 @@ export default function LeagueDetails() {
               </View>
 
               {/* Point settings */}
-              <View className="pt-2 border-t border-line-soft space-y-2">
+              <View className="pt-2 border-t border-line-soft gap-2">
                 <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase">Point Allocations</Text>
                 <View className="grid grid-cols-3 gap-3">
-                  <View className="space-y-1">
+                  <View className="gap-1">
                     <Text className="font-inter-bold text-[8px] text-ink-muted uppercase">Win</Text>
                     <TextInput
                       value={ptsWin}
@@ -632,7 +632,7 @@ export default function LeagueDetails() {
                       className="bg-field border border-line rounded-xl px-3 py-2 font-inter text-xs text-center text-ink"
                     />
                   </View>
-                  <View className="space-y-1">
+                  <View className="gap-1">
                     <Text className="font-inter-bold text-[8px] text-ink-muted uppercase">Draw</Text>
                     <TextInput
                       value={ptsDraw}
@@ -641,7 +641,7 @@ export default function LeagueDetails() {
                       className="bg-field border border-line rounded-xl px-3 py-2 font-inter text-xs text-center text-ink"
                     />
                   </View>
-                  <View className="space-y-1">
+                  <View className="gap-1">
                     <Text className="font-inter-bold text-[8px] text-ink-muted uppercase">Loss</Text>
                     <TextInput
                       value={ptsLoss}

@@ -24,7 +24,7 @@ export default function AdminDashboard() {
         <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-4">
           Quick Actions
         </Text>
-        <View className="space-y-4 mb-8">
+        <View className="gap-4 mb-8">
           {/* USER MANAGEMENT CARD */}
           <TouchableOpacity
             accessibilityRole="button"

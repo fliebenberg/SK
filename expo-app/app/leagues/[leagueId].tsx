@@ -142,7 +142,7 @@ export default function PublicLeagueStandings() {
           <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">Back</Text>
         </TouchableOpacity>
         <View className="items-center max-w-[65%]">
-          <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase truncate text-center">
+          <Text numberOfLines={1} className="font-orbitron-bold text-sm tracking-widest text-ink uppercase text-center">
             {league ? league.name : 'League Leaderboard'}
           </Text>
           <Text className="font-inter text-[9px] text-ink-muted uppercase mt-0.5 tracking-wider">
@@ -229,7 +229,7 @@ export default function PublicLeagueStandings() {
                       {standings.map((row, idx) => (
                         <View key={row.teamId} className="flex-row py-3 border-b border-line-soft items-center">
                           <Text className="w-8 font-orbitron-bold text-xs text-ink-muted text-center">{idx + 1}</Text>
-                          <Text className="flex-1 font-orbitron-bold text-xs text-ink truncate pr-2">{row.teamName}</Text>
+                          <Text numberOfLines={1} className="flex-1 font-orbitron-bold text-xs text-ink pr-2">{row.teamName}</Text>
                           <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.played}</Text>
                           <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.wins}</Text>
                           <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.draws}</Text>
@@ -253,7 +253,7 @@ export default function PublicLeagueStandings() {
               )}
 
               {activeTab === 'fixtures' && (
-                <View className="space-y-4">
+                <View className="gap-4">
                   {fixtures.map((game) => (
                     <GlassCard key={game.id} className="border border-line p-4">
                       <View className="flex-row justify-between items-center mb-2">

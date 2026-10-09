@@ -107,7 +107,7 @@ export default function SystemReports() {
         </View>
 
         {/* LIST OF AUDIT ITEMS */}
-        <View className="space-y-4">
+        <View className="gap-4">
           {filteredReports.map((report) => (
             <GlassCard 
               key={report.id} 

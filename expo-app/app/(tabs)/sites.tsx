@@ -55,7 +55,7 @@ export default function SitesPage() {
         </View>
 
         {/* LIST OF SITES */}
-        <View className="space-y-4">
+        <View className="gap-4">
           {sites.map((site) => (
             <GlassCard key={site.id} className="border border-line shadow-sm p-5">
               <View className="flex-row justify-between items-start mb-3">
