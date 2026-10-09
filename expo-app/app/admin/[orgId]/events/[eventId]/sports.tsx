@@ -56,7 +56,7 @@ function SportsPage({ orgId, event, data, onBack }: {
   const { divisions, games, entrants, entrantsByDivision, facilityIds, sports, sites, canEdit } = data;
   const { steps, complete } = useTournamentSteps({ event, divisions, games, entrants, entrantsByDivision, facilityIds, sports, sites });
   const setupMode = canEdit && !complete;
-  const section = useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode });
+  const section = useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode, complete, mySportIds: data.capabilities?.convenesSportIds || [] });
   const sportIds = event.sportIds || [];
   const divisionsOf = (id: string) => divisions.filter(d => d.sportId === id);
 
@@ -123,6 +123,7 @@ function SportsPage({ orgId, event, data, onBack }: {
                 columns={isWide ? 4 : 2}
                 onOpenDivision={section.openDivision}
                 onAddDivision={section.addDivision}
+                canAddDivision={section.canAddDivision}
                 sportMenu={section.sportMenu}
               />
             </View>

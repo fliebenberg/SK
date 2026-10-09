@@ -376,7 +376,7 @@ export function SportChip({ name, count, on, dot, onPress, onLayout }: {
  * ＋ Add a … division while setting up. The same on the Sports & divisions card, which shows the
  * chosen sport, and on the full page, which shows every sport.
  */
-export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, divisionState, columns, onOpenDivision, onAddDivision, sportMenu }: {
+export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, divisionState, columns, onOpenDivision, onAddDivision, canAddDivision, sportMenu }: {
   sportId: string;
   sportName: string;
   /** This sport's divisions. */
@@ -387,6 +387,8 @@ export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, 
   columns: number;
   onOpenDivision: (division: TournamentDivision) => void;
   onAddDivision?: (sportId: string) => void;
+  /** Which sports offer the ＋ — all of them unless said; a sport's organiser has only their own. */
+  canAddDivision?: (sportId: string) => boolean;
   sportMenu?: (sportId: string) => React.ReactNode;
 }) {
   const teamsIn = (d: TournamentDivision) => (entrantsByDivision.get(d.id) || []).filter(e => e.status !== 'withdrawn').length;
@@ -419,7 +421,7 @@ export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, 
             </View>
           </TouchableOpacity>
         ))}
-        {onAddDivision ? (
+        {onAddDivision && (canAddDivision?.(sportId) ?? true) ? (
           <TouchableOpacity
             onPress={() => onAddDivision(sportId)}
             accessibilityRole="button"
@@ -440,7 +442,7 @@ export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, 
  * *All N* list any more (2026-10-09): the arrows and the card's *See all ›* page cover jumping.
  */
 export function SportsDivisions({
-  sports, sportIds, divisions, entrantsByDivision, divisionState, isWide, attention, onOpenDivision, onAddDivision, sportMenu,
+  sports, sportIds, divisions, entrantsByDivision, divisionState, isWide, attention, onOpenDivision, onAddDivision, canAddDivision, sportMenu,
 }: {
   sports: Sport[];
   /** The tournament's sports, in its order. */
@@ -453,6 +455,8 @@ export function SportsDivisions({
   attention: (sportId: string) => 'wait' | 'live' | null;
   onOpenDivision: (division: TournamentDivision) => void;
   onAddDivision?: (sportId: string) => void;
+  /** Which sports offer the ＋ — all of them unless said; a sport's organiser has only their own. */
+  canAddDivision?: (sportId: string) => boolean;
   /** The ⋯ on the chosen sport's heading, for an organiser. */
   sportMenu?: (sportId: string) => React.ReactNode;
 }) {
@@ -494,6 +498,7 @@ export function SportsDivisions({
         columns={isWide ? 3 : 2}
         onOpenDivision={onOpenDivision}
         onAddDivision={onAddDivision}
+        canAddDivision={canAddDivision}
         sportMenu={sportMenu}
       />
     </View>

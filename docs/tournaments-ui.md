@@ -932,7 +932,8 @@ that spans weeks.
 > Built what U53 left to `UI-20`.
 >
 > - **The Fixtures step is the list of divisions,**
->   [setup/fixtures.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/setup/fixtures.tsx).
+>   [setup/fixtures.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/setup/fixtures.tsx)
+>   *(retired 2026-10-09 with `FIX-28`: Fixtures' full page is the Schedule tab).*
 >   Each row gives the division's stages (the format, in the organiser's words: *Pools → Knockout*),
 >   its entrant count, and one status: *Needs a sport*, *Needs entrants*, *Ready to draw*,
 >   *12 fixtures · 3 played*, or *2 changes since the draw*. A row opens the division's schedule
@@ -1300,7 +1301,8 @@ that spans weeks.
 >   of its data, so an unopened step was a heading with a status next to it. `purpose` lives beside
 >   the label and route in
 >   [setupSteps.ts](file:///c:/Fred/Coding/SK/expo-app/components/tournament/setupSteps.ts) and
->   shows until there is a `detail` to show instead.
+>   shows until there is a `detail` to show instead. *(The step list and `setupSteps.ts` were
+>   retired 2026-10-09 with `FIX-28`; the Overview's cards carry each section's status.)*
 > - **Every outstanding row is tinted, and the DONE / TO DO column is gone.** Five rows each ending
 >   in a status word is the same word five times: it costs a column, it makes every row equally
 >   loud, and "to do" as a *label* is noise on a list whose whole subject is what is still to do.
@@ -1363,7 +1365,8 @@ that spans weeks.
 >   label twice — its `<ScreenHeader>` and its `<SetupStepFooter>` — so a step was named in three
 >   files. They take it from `useSetupStepScreen().step` now, and
 >   [setupSteps.ts](file:///c:/Fred/Coding/SK/expo-app/components/tournament/setupSteps.ts) is the
->   only place a step is named. (`entrants.tsx` predates the hook and reads `stepByKey` directly.)
+>   only place a step is named. (`entrants.tsx` predates the hook and reads `stepByKey` directly.) *All of these were retired
+>   2026-10-09 with `FIX-28`.*
 >
 > - **Basic Info's three date controls became one.** `Starts`, a full-width `Ends`, and a
 >   `Runs over more than one day` switch *between them* were three sibling rows. They are not three

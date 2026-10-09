@@ -21,6 +21,8 @@ import { pickableSites } from '../sites/SiteBits';
 import { TEXT_INPUT } from '../formStyles';
 import { sendAction } from '../../services/actions';
 import { useToastStore } from '../../store/toastStore';
+import { useWsStore } from '../../store/wsStore';
+import { wsService } from '../../services/websocket';
 import { isCalendarDate } from '../../utils/dates';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
@@ -340,6 +342,57 @@ export function OrganizersDialog({ visible, event, orgId, organizers, onChange, 
         canManage
         label="Tournament organisers"
         help="Other people who will help run this tournament. An organiser can edit it, enter results and manage its divisions — they do not need to be an admin of your organisation, and they can come from any organisation taking part."
+        hasParticipatingOrgs={(event.participatingOrgs || []).length > 0}
+      />
+    </EditDialog>
+  );
+}
+
+/**
+ * Who runs one sport of this tournament (D33's third scope, 2026-09-20) — the sport's ⋯, on the
+ * Sports & divisions card and its full page (`FIX-28`; until then a fold on the old step screen).
+ *
+ * **It reads its own list, one sport at a time,** when it opens. `sport_organizers` is gated by the
+ * grant over the sport it names, so asking per sport is what lets a netball organiser read their own
+ * list without being handed the people running every other sport. No room owns it — organiser lists
+ * name people and `event:{id}` is public — so it is a one-shot read, kept current by the picker's
+ * own writes.
+ */
+export function SportOrganizersDialog({ visible, event, orgId, sport, onClose }: {
+  visible: boolean;
+  event: Event;
+  orgId: string;
+  sport: Sport | null;
+  onClose: () => void;
+}) {
+  const isConnected = useWsStore((state: any) => state.isConnected);
+  const [organizers, setOrganizers] = useState<TournamentOrganizer[]>([]);
+  const sportId = sport?.id;
+
+  useEffect(() => {
+    if (!visible || !isConnected || !sportId) return;
+    let active = true;
+    setOrganizers([]);
+    wsService.emit('get_data', { type: 'sport_organizers', eventId: event.id, sportId }, (res: any) => {
+      if (active) setOrganizers(Array.isArray(res) ? res : []);
+    });
+    return () => { active = false; };
+  }, [visible, isConnected, event.id, sportId]);
+
+  if (!sport) return null;
+  return (
+    <EditDialog visible={visible} title={`${sport.name} organisers`} onClose={onClose} doneLabel="Done">
+      <OrganizerPicker
+        eventId={event.id}
+        sportId={sport.id}
+        hostOrgId={event.orgId}
+        actingOrgId={orgId}
+        organizers={organizers}
+        onChange={setOrganizers}
+        canManage
+        label={`${sport.name} organisers`}
+        help={`People responsible for running the ${sport.name} at this tournament. They run every ${sport.name} division — including ones added later — and may add and remove ${sport.name} divisions, but not change anything else about the tournament. Added and removed at once.`}
+        optional
         hasParticipatingOrgs={(event.participatingOrgs || []).length > 0}
       />
     </EditDialog>

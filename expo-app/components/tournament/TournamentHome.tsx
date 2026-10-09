@@ -156,7 +156,7 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
 export function TournamentHome({
   event, orgId, canEdit, isWide, steps, complete, sports, sites, facilities, facilityIds,
   divisions, games, entrantsByDivision, organizers, onEditOrganizers, hostOrg, viewerOrgIds,
-  onOpenSchedule, onScrollTo,
+  onOpenSchedule, onScrollTo, mySportIds = [],
 }: {
   event: Event;
   orgId: string;
@@ -180,6 +180,8 @@ export function TournamentHome({
   onOpenSchedule: () => void;
   /** Scroll the page to a point measured from the top of this component — the progress bar's jumps. */
   onScrollTo: (y: number) => void;
+  /** The sports the viewer organises without running the tournament — theirs to run on the card. */
+  mySportIds?: string[];
 }) {
   const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
@@ -201,7 +203,7 @@ export function TournamentHome({
   const stepOf = (key: TournamentStep['key']) => steps.find(s => s.key === key);
   const statusOf = (key: TournamentStep['key']) => (setupMode ? stepOf(key)?.state ?? null : null);
 
-  const sportsSection = useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode });
+  const sportsSection = useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode, complete, mySportIds });
   const orgs = useOrganisationsSection({ event, orgId, sports, divisions, entrantsByDivision, hostOrg, viewerOrgIds, canEdit, setupMode });
   const openSportsPage = () => router.push(`/admin/${orgId}/events/${eventId}/sports` as any);
   const openOrgsPage = () => router.push(`/admin/${orgId}/events/${eventId}/organisations` as any);
@@ -463,6 +465,7 @@ export function TournamentHome({
           attention={sportsSection.attention}
           onOpenDivision={sportsSection.openDivision}
           onAddDivision={sportsSection.addDivision}
+          canAddDivision={sportsSection.canAddDivision}
           sportMenu={sportsSection.sportMenu}
         />
       </View>

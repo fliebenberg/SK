@@ -202,9 +202,11 @@ and where it has got to) — a single division too, beside the ＋ Add a … div
 sport is the card's heading action**, never a chip, and the *All N ▾* list is gone (2026-10-09): the
 arrows and the full page cover jumping to a sport. A sport's chip has an amber dot while one of its
 divisions needs more teams or has changed since its draw, a red one while one of its games is live.
-＋ Add a … division asks the age group, name and format first (`FIX-27`); the sport's ⋯ links to
-the Sports & Divisions screen for its organisers (until `FIX-28`), and removes a sport that has no
-divisions. **The full page** shows every sport at once, each exactly as the card shows its chosen
+＋ Add a … division asks the age group, name and format first (`FIX-27`); the sport's ⋯ opens
+**Sport organisers** in a dialog, and while setting up removes a sport that has no divisions — the
+⋯ stays after setup for the organisers (`FIX-28`). **A sport's organiser** who does not run the
+tournament gets the same for their own sports only — the ⋯ (without *Remove sport*) and, while
+setting up, ＋ Add a … division — and never chooses or removes sports, which shape the tournament. **The full page** shows every sport at once, each exactly as the card shows its chosen
 one, with the chips pinned at the top, jumping to a sport.
 
 **Organisations & teams** (`FIX-26`, agreed 2026-10-05 on `mockups/organisations-teams.html`, option
@@ -289,9 +291,10 @@ now and are to be designed properly (`FIX-24`, `FIX-25`).
 Cancel, and Delete, which is disabled with the reason once results are recorded.
 
 **Gone**: the Basic Info and Rules & scoring step screens (`setup/basics`, `setup/scoring`), the
-checklist component, and (2026-10-09) the *Setting up* tab with its numbered, folding step cards. The
-Sports & Divisions step screen remains, reached from a sport's ⋯ for its organisers, and the
-Fixtures step screen through the step chain, until `FIX-28` retires them. The event-level `format` is
+checklist component, and (2026-10-09) the *Setting up* tab with its numbered, folding step cards.  With
+`FIX-28` (2026-10-09) the last step screens went too — Sports & Divisions (`setup/playing`),
+Fixtures (`setup/fixtures`) and the old entrants screen — with their footer and step chain
+(`setupSteps.ts`, `useSetupStepScreen`). *Not needed* stays, read by the Overview's cards. The event-level `format` is
 no longer shown anywhere on the page: every tournament is created a Festival and the formats live on
 each division's stages.
 

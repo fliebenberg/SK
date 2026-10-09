@@ -642,6 +642,7 @@ export default function EventDetails() {
               hostOrg={hostOrg}
               viewerOrgIds={(orgMemberships || []).map((m: any) => m.orgId)}
               onOpenSchedule={() => setActiveTab('schedule')}
+              mySportIds={capabilities?.convenesSportIds}
               onScrollTo={y => scrollRef.current?.scrollTo({ y: Math.max(0, overviewTop.current + y - 8), animated: true })}
             />
           </View>

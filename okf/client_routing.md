@@ -89,14 +89,6 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     cannot be recognised shows an **error state rather than a Tournament** (U39 / `FIX-1`). Takes an
     optional `?tab=` (`setup` is the first tab) so a screen can return to it after a refresh or a
     deep link.
-*   `/admin/[orgId]/events/[eventId]/setup/playing`, `/admin/[orgId]/events/[eventId]/setup/fixtures`: the two step screens left
-    from U48 — **Sports & Divisions** (the sports, their organisers, removing a sport) and
-    **Fixtures** (each division's draw state) — the first reached from a sport's ⋯ for its
-    organisers, the second only through the step chain — until `FIX-28` retires them. Basic Info and Rules & scoring are
-    dialogs on the first tab since stage 2, and their routes are gone. The frame the two share is
-    [useSetupStepScreen](file:///c:/Fred/Coding/SK/expo-app/hooks/useSetupStepScreen.ts); the order
-    and the routes are
-    [setupSteps.ts](file:///c:/Fred/Coding/SK/expo-app/components/tournament/setupSteps.ts).
 *   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`: **One division, read first** (`FIX-27`,
     2026-10-09; docs/events.md §8) — a banner with its state in the same words as its tile, a
     what's-next strip, and cards: its **teams** (added, replaced, withdrawn and removed here — a
@@ -108,24 +100,16 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     **full pages** of the Overview's Sports & divisions and Organisations & teams cards (*See all ›*,
     2026-10-09) — the same things the card shows, the same way, with more room. They load what they
     need through [useTournamentData](file:///c:/Fred/Coding/SK/expo-app/hooks/useTournamentData.ts),
-    the same rooms the tournament page joins. Fixtures' full page is the Schedule tab.
+    the same rooms the tournament page joins. Fixtures' full page is the Schedule tab. A sport's
+    organiser who does not run the tournament gets their own sports here and on the card: the
+    sport's ⋯ (*Sport organisers*, a dialog) and, while setting up, ＋ Add a … division.
+    The U48 step screens (`setup/playing`, `setup/fixtures`, `entrants`) and their step chain were
+    retired with `FIX-28` (2026-10-09).
 *   `/admin/[orgId]/events/[eventId]/organisations/[participantOrgId]`: One organisation in a
     tournament (`FIX-26`, 2026-10-08) — its invitation and response, and its teams in every division,
     saved through a save bar. Reached from the Organisations & teams card and its full page. Two readers (`FIX-30`):
     the organisers, and the organisation's own members once it is invited — they answer, ask to
     withdraw, and see their teams read-only.
-*   `/admin/[orgId]/events/[eventId]/entrants` (`?divisionId=` to open filtered): **Since `FIX-26`
-    (2026-10-05) no longer reached from the tournament page**, whose step 3 adds and invites
-    organisations and enters each one's teams in dialogs (docs/events.md §7), and since `FIX-27` not
-    from a division either — the division page enters by division. Reached now only through the
-    step chain, and retired with it (`FIX-28`). Getting teams in, on **both axes over one dataset**
-    (U21) — *by division* ("who is in the u14 rugby?") and *by organisation* ("what is Northcliff
-    entering?"). The organisation axis is where **inline team creation** lives, because that is the
-    moment you discover a school has no u16 netball team. Also the **Entrants step** of the setup
-    checklist (U48), so it carries the invite list — which writes on press rather than through a
-    save bar, because every other control on the screen does. Convenors and sport organisers use it
-    too, for the divisions they run only and without the invite list (2026-09-24, `UI-20`); their
-    division's schedule screen links here rather than carrying its own editor.
 *   `/admin/[orgId]/events/[eventId]/games/new`, `/admin/[orgId]/events/[eventId]/games/[gameId]/edit`, `/admin/[orgId]/events/[eventId]/games/[gameId]/view`,
     `/admin/[orgId]/events/[eventId]/games/[gameId]/selection`, `/admin/[orgId]/events/[eventId]/games/[gameId]/score`: One fixture. `score` is the **Scorekeeper Console** for real-time event entry.
     `new` picks the division and stage a tournament fixture belongs to — silently where the

@@ -16,7 +16,7 @@ import {
 import { OverflowMenu } from '../OverflowMenu';
 import { RegisterOrgModal } from '../RegisterOrgModal';
 import { DivisionState, OrgRow, StepWarning, divisionStateOf } from './TournamentBits';
-import { SportsDialog } from './TournamentDialogs';
+import { SportOrganizersDialog, SportsDialog } from './TournamentDialogs';
 import { AddDivisionDialog } from './DivisionDialogs';
 import { AddOrganisationsDialog, InviteOrganisationsDialog, NominateFor } from './OrganisationDialogs';
 import { nominateOrgContact } from '../../services/nominations';
@@ -36,7 +36,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
  * Sports & divisions
  * ------------------------------------------------------------------------------------------- */
 
-export function useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode }: {
+export function useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode, complete, mySportIds }: {
   event: Event;
   orgId: string;
   sports: Sport[];
@@ -46,6 +46,10 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
   canEdit: boolean;
   /** An organiser, while the tournament is being set up. */
   setupMode: boolean;
+  /** Setup is finished — read the same way for a sport's organiser, who has no setup mode. */
+  complete: boolean;
+  /** The sports this viewer organises without running the tournament (`capabilities.convenesSportIds`). */
+  mySportIds: string[];
 }) {
   const router = useRouter();
   const eventId = event.id;
@@ -74,40 +78,55 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [firstFor, setFirstFor] = useState<string[]>([]);
   const firstDivision = firstFor.length ? divisions.find(d => d.sportId === firstFor[0]) || null : null;
+  const [organisersOf, setOrganisersOf] = useState<string | null>(null);
+  /* A sport's organiser runs their own sports here as the step screen let them (`FIX-28`): they
+     add its divisions while the tournament is being set up and appoint its organisers, but choose
+     and remove sports — the shape of the tournament — never. */
+  const runsSport = (sportId: string) => canEdit || mySportIds.includes(sportId);
   const removeSport = (sportId: string) =>
     sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { sportIds: (event.sportIds || []).filter(id => id !== sportId) } });
+  /** The ⋯ stays after setup for *Sport organisers*; *Remove sport* is the tournament's, while setting up. */
   const sportMenu = (sportId: string) => {
+    if (!runsSport(sportId)) return null;
     const count = divisions.filter(d => d.sportId === sportId).length;
     return (
       <OverflowMenu
         accessibilityLabel={`${sportName(sportId)} actions`}
         title={sportName(sportId)}
         items={[
-          // Still the step screen's until `FIX-28` gives sport organisers a dialog of their own.
-          { label: 'Sport organisers', description: 'Who runs this sport — appointed on the Sports & Divisions screen', icon: 'people-outline', onPress: () => router.push(`/admin/${orgId}/events/${eventId}/setup/playing`) },
-          {
+          { label: 'Sport organisers', description: `Who runs ${sportName(sportId) || 'this sport'} at this tournament`, icon: 'people-outline', onPress: () => setOrganisersOf(sportId) },
+          ...(!setupMode ? [] : [{
+            /* `as const` keeps the icon an Ionicons name inside the spread. */
             label: 'Remove sport',
             description: count ? `Not available: it has ${plural(count, 'division')}. Remove them first, from each division's page.` : 'Take it off this tournament.',
             icon: 'trash-outline',
             destructive: true,
             disabled: count > 0,
             onPress: () => removeSport(sportId),
-          },
+          } as const]),
         ]}
       />
     );
   };
 
-  const dialogs = canEdit ? (
+  const runsAny = canEdit || mySportIds.length > 0;
+  const dialogs = runsAny ? (
     <>
-      <SportsDialog
+      <SportOrganizersDialog
+        visible={!!organisersOf}
+        event={event}
+        orgId={orgId}
+        sport={sports.find(s => s.id === organisersOf) || null}
+        onClose={() => setOrganisersOf(null)}
+      />
+      {canEdit ? <SportsDialog
         visible={sportsOpen}
         event={event}
         orgId={orgId}
         sports={sports}
         divisionCount={id => divisions.filter(d => d.sportId === id).length}
         onClose={addedSportIds => { setSportsOpen(false); setFirstFor(addedSportIds); }}
-      />
+      /> : null}
       <AddDivisionDialog
         visible={!!addingTo}
         onClose={() => setAddingTo(null)}
@@ -117,7 +136,7 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
         sport={sports.find(s => s.id === addingTo) || null}
         divisions={divisions}
       />
-      <AddDivisionDialog
+      {canEdit ? <AddDivisionDialog
         visible={!!firstDivision && !sportsOpen}
         onClose={() => setFirstFor(prev => prev.slice(1))}
         orgId={orgId}
@@ -125,7 +144,7 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
         sport={sports.find(s => s.id === firstFor[0]) || null}
         divisions={divisions}
         existing={firstDivision}
-      />
+      /> : null}
     </>
   ) : null;
 
@@ -134,12 +153,13 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
     divisionState,
     attention,
     openDivision,
-    /** Adding is an organiser's while setting up, as the tiles' ＋ always was. */
-    addDivision: canEdit && setupMode ? (sportId: string) => setAddingTo(sportId) : undefined,
+    /** Adding is an organiser's while setting up, as the tiles' ＋ always was — a sport's organiser's for their own. */
+    addDivision: runsAny && !complete ? (sportId: string) => setAddingTo(sportId) : undefined,
+    canAddDivision: runsSport,
     addSport: canEdit && setupMode ? () => setSportsOpen(true) : undefined,
     /** Opens the Sports dialog regardless of phase — the empty card's and the strip's "＋ Add a sport". */
     chooseSports: () => setSportsOpen(true),
-    sportMenu: canEdit && setupMode ? sportMenu : undefined,
+    sportMenu: runsAny ? sportMenu : undefined,
     dialogs,
   };
 }
