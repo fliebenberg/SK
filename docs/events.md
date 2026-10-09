@@ -126,55 +126,86 @@ reopened — accepted 2026-10-04 (`LIVE-22`), since they change rarely.
 - Who-played and team changes on a tournament fixture (`FIX-21`) — stage 3.
 - Double-booking checks (`FIX-23`).
 
-## 7. The tournament page (stage 2)
+## 7. The tournament page (stage 2, redone as cards 2026-10-09)
 
 [events/[eventId].tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D.tsx), with the
 first tab in [TournamentHome.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentHome.tsx),
-its pieces in [TournamentBits.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentBits.tsx) and its
-dialogs in [TournamentDialogs.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentDialogs.tsx).
-Agreed on the mockup [tournament-read-first.html](file:///c:/Fred/Coding/SK/mockups/tournament-read-first.html), after three
-layouts were compared (option A chosen) and three for Sports & divisions (one sport at a time chosen).
+its pieces in [TournamentBits.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentBits.tsx), the two
+big sections (shared with their full pages) in
+[TournamentSections.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentSections.tsx), and its dialogs in
+[TournamentDialogs.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentDialogs.tsx).
+Stage 2 was agreed on [tournament-read-first.html](file:///c:/Fred/Coding/SK/mockups/tournament-read-first.html) as a
+*Setting up* tab of five numbered, folding step cards. On 2026-10-09 the user preferred the division
+page's card layout (`FIX-27`) and the page was redone on
+[tournament-cards.html](file:///c:/Fred/Coding/SK/mockups/tournament-cards.html): the decisions below.
 
-**Three tabs: the first, Schedule, Standings.** The first tab is **Setting up** for an organiser while
-the tournament is being set up, and **Overview** once it is — and for everyone else. Its key is still
-`setup`, so `?tab=setup` from a division or entrants screen lands on it, and it is the default tab in
-every phase. Schedule and Standings are unchanged (division work, stage 4).
+**Three tabs: Overview, Schedule, Standings.** The first tab is the **Overview** in every phase and
+for everyone — there is no separate *Setting up* tab: while the tournament is being set up, the same
+cards carry their status. Its key is still `setup`, so `?tab=setup` from a division or entrants screen
+lands on it. Schedule and Standings are unchanged (division work, stage 4).
 
-**Setting up is the setup itself** — separated from the tournament in time, not on the same page.
-Five numbered cards in the order the work is done, each saying in its heading where it stands and
-holding what it is about, read-first, with Edit. There is no checklist repeating the cards; it
-replaced the U48 checklist, whose rows each opened a step screen (closes `UI-11`).
+**One page of cards, read first**, as the division page is: a **banner** (name, dates, venue,
+sports; Edit), **one strip** for what the tournament needs next, then the cards — two columns on a
+wide screen, one on a phone (left column, then right).
 
-| Step | Holds | Edited in |
-|---|---|---|
-| 1 Where | The base site and the facilities it uses, as chips | *Where* dialog (site + `FacilityPicker`) |
-| 2 Sports & divisions | One sport at a time (below) | *Sports* dialog; a division's own page |
-| 3 Organisations & teams | Warnings, who is not invited yet, then each organisation with its invitation and teams (below) | *Add organisations*, and each organisation's own dialog |
-| 4 Rules & scoring | The points; *Confirm* while the default is unconfirmed | *Rules & scoring* dialog |
-| 5 Fixtures | Each division and whether it is drawn | Each division's schedule screen |
+| Card | Holds | Edited in | Full page |
+|---|---|---|---|
+| Where | The base site and the facilities it uses, as chips; the map once set up | *Where* dialog (site + `FacilityPicker`) | — |
+| Sports & divisions | One sport at a time (below) | *Sports* dialog; a division's own page | `…/sports` |
+| Organisations & teams | Warnings, who is not invited yet, then each organisation with its invitation and teams (below) | *Add organisations*; each organisation's page | `…/organisations` |
+| Rules & scoring | The points; *Confirm* while the default is unconfirmed | *Rules & scoring* dialog | — |
+| Fixtures | While setting up, the divisions still to draw first, then the drawn; once set up, each division; on the day, what is next up | Each division's page | The Schedule tab |
 
-- **Each step is in one of three states**, shown alike on its segment of the progress bar, its number
-  and its pill: **Done** (green, a tick), **In progress** (amber — teams entered with gaps, scoring on
-  the unconfirmed default, some divisions drawn) and **Not started** (grey). A dismissible step can
-  be marked **Not needed** (`settings.dismissedSetupSteps`), which counts as done. There is no
-  *Next* marker (dropped 2026-10-05): the steps are numbered, and the first unfinished one starts
-  open. Nothing is faded: a waiting step says so in words (design_system.md).
-- **Steps fold.** Finished and waiting steps start as one line with their summary ("Where · Main
-  Campus · 5 facilities"); the next step starts open. Any heading opens or closes its step; *Open
-  all / Close all*. What is open is remembered on the device per tournament.
+- **While setting up** (an organiser, until every section is finished) each card's heading carries
+  its status — **Done** (green), **In progress** (amber — scoring on the unconfirmed default, some
+  divisions drawn, organisations still to answer), **Not started** (grey) — and the banner a
+  progress bar, "Setting up · 2 of 5 done", with **one segment per card, labelled on a wide screen,
+  each a way to its card**. Organisations & teams, Rules & scoring and Fixtures can be marked
+  **Not needed** (`settings.dismissedSetupSteps`) from a ⋯ on the heading, which counts as done —
+  kept from U17, so an organiser who wants no points system is not nagged forever. Nothing is
+  faded: a waiting card says so in words (design_system.md).
+- **The order stays put while setting up** (2026-10-09: cards moving as they are finished would
+  confuse a page that already has a lot on it): Sports & divisions and Organisations & teams on the
+  left, Where, Rules & scoring, Fixtures and Organisers on the right. **On the day** — any day of the
+  tournament, or while a game is live — it rearranges: **Live now** leads, then Sports & divisions
+  and Fixtures; Where, Organisations and Rules to the side. For anyone who cannot edit: Sports &
+  divisions and Fixtures, then Where, who is taking part, and Rules.
+- **On a phone, while setting up, a finished card folds** to its heading and its summary ("Main
+  Campus · 5 facilities"); any heading opens or closes its card, remembered on the device per
+  tournament. A wide screen does not fold.
+- **The strip** names the first unfinished section's most important task, in the order the work is
+  done (Where, Sports & divisions, Organisations & teams, Rules & scoring, Fixtures), with the one
+  button that does it — "2 organisations are not invited yet … *Invite all 2*", and "N more things to
+  sort out" linking to the rest. Once set up, a green "Set up and ready." until the first day.
+- **Once set up** the statuses and the progress bar go — every card is done, so they would be
+  noise — and the Where card gains its map. That is the Overview everyone else sees.
+- **Section headings** are larger than the card's contents and on their own line; on a phone the
+  status and actions take a second line, on a wider screen they share the title's line when they
+  fit and drop under it when they do not, and long action labels shorten first in a narrow card
+  ("＋ Add organisation" → "＋ Add"). The rule is design_system.md's *Section headings*.
+- **Full pages.** Sports & divisions and Organisations & teams have a heading link — **See all ›**
+  (**All ›** on a phone), a link rather than an expand icon, since tapping the heading folds a card
+  on a phone — to a page of their own, `events/[eventId]/sports` and `events/[eventId]/organisations`,
+  which **show the same things the same way, with more room** (agreed 2026-10-09). Fixtures'
+  *Schedule ›* opens the Schedule tab. Where and Rules & scoring are short, and have none.
 - **The name and dates are the banner's**, edited in *Edit tournament*; a tournament has its first
-  day from the moment it is created, so there is no setup step for them. Step 1 is the venue only.
-- Steps 2 and 4 carry their explanation as text while field help is on (the Sports & divisions one:
-  "Choose the sports being played, then the divisions within each. A division is a group of teams
-  that compete against each other — usually an age group, e.g. Rugby U16. …").
+  day from the moment it is created, so there is no setup section for them. Where is the venue only.
+- Sports & divisions carries its explanation as text while field help is on ("Choose the sports
+  being played, then the divisions within each. A division is a group of teams that compete against
+  each other — usually an age group, e.g. Rugby U16. …").
 
-**Sports & divisions, one sport at a time.** The sports are one line that scrolls sideways and never
-wraps — arrows on a wide screen when the sports do not fit, a swipe on a phone — with **All N ▾**
-fixed at its end, a list to jump straight to a sport. Under it, only the chosen sport: its name,
+**Sports & divisions, one sport at a time.** The sports are a **carousel** of chips: one line that
+scrolls sideways and never wraps, **with no scrollbar** — ‹ › appear only when there are more sports
+than fit, each gone at its end, and a swipe works too. Under it, only the chosen sport: its name,
 divisions and teams, and its divisions as tiles (name, format from its stages, who can play, teams,
-and where it has got to) — a single division too, beside the ＋ Add a … division tile. ＋ Add a …
-division creates one with an automatic name and opens its page, as the Sports & Divisions screen did;
-the sport's ⋯ links to that screen for its organisers, and removes a sport that has no divisions.
+and where it has got to) — a single division too, beside the ＋ Add a … division tile. **＋ Add a
+sport is the card's heading action**, never a chip, and the *All N ▾* list is gone (2026-10-09): the
+arrows and the full page cover jumping to a sport. A sport's chip has an amber dot while one of its
+divisions needs more teams or has changed since its draw, a red one while one of its games is live.
+＋ Add a … division asks the age group, name and format first (`FIX-27`); the sport's ⋯ links to
+the Sports & Divisions screen for its organisers (until `FIX-28`), and removes a sport that has no
+divisions. **The full page** shows every sport at once, each exactly as the card shows its chosen
+one, with the chips pinned at the top, jumping to a sport.
 
 **Organisations & teams** (`FIX-26`, agreed 2026-10-05 on `mockups/organisations-teams.html`, option
 C of three; built in [OrganisationDialogs.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/OrganisationDialogs.tsx)).
@@ -185,14 +216,19 @@ Say *organisations*, never *schools*: clubs take part too.
   tournament at all (`FIX-29`, okf/database.md). Each has a status, shown as a badge: *Not invited
   yet* (the warning colour), *Invited*, *Accepted*, *Declined*. Inviting only grants visibility for
   now; telling the organisation is the communication work.
-- **The step**: a **⚠ N warnings** badge that opens one warning a line, each linking to its fix (a
-  division with fewer than two teams, an organisation with no teams, one that has not answered, one
-  that declined); a box for those **not invited yet** — "2 not invited yet" and *Invite all 2* on one
+- **The card**: the warnings, one a line, each linking to its fix — an organisation with no teams,
+  one that has not answered, one asking to withdraw — with **⚠ N** on the heading; the card lists the
+  first three and "N more warnings ›" to the full page. **A division with fewer than two teams is not
+  one of them** (2026-10-09): it is the division's, shown on its tile (*Needs more teams*), as an
+  amber dot on its sport's chip, and under Fixtures' *Still to draw*. Then a box for those **not
+  invited yet** — "2 not invited yet" and *Invite all 2* on one
   line, "They can't see this tournament until invited" under it; then one row per organisation —
   crest, name, badge, and what it has entered on **one line** that steps down until it fits: every
   sport with its divisions → each sport with its count → "x sports · y teams". Places belonging to
   nobody (*Winner of the regional qualifier*) are listed under *Still to be named*. The action is
-  **＋ Add organisation**, in the heading on a wide screen and on the warnings' line on a phone.
+  **＋ Add organisation**, on the heading. **The full page** lists every warning, shows each
+  organisation's entries in full rather than cut to one line, and filters by *Needs attention* and
+  by sport — a sport's filter also trims each row to that sport's entries.
 - **Add organisations**: a search with ticks, *Register* for one not found, and two buttons — *Add*
   is the main one until any invitation has gone out, *Add and invite* after. *Taken part before* was
   dropped for now.
@@ -229,21 +265,22 @@ Say *organisations*, never *schools*: clubs take part too.
   - **Withdrawing**: an organisation that accepted asks, with a reason ("Since your organisation has
     already accepted, Valley Prep will be informed and needs to confirm your withdrawal…"); while
     *Withdrawal pending* nothing changes and it can cancel; the organisers see who asked, when and
-    why, and *Confirm withdrawal* or *Keep them in*. A pending withdrawal is a step 3 warning. A
+    why, and *Confirm withdrawal* or *Keep them in*. A pending withdrawal is one of the Organisations & teams warnings. A
     reason longer than about 120 characters moves the response card under the banner.
   - **Who sees it**: its public lists show the tournament only once it has accepted; its members see
     an invitation, a decline or a withdrawal in the workspace; one that declined or withdrew keeps
     only the public view. The rules are `server/src/managers/eventVisibility.ts`.
   - The organisation's page is open to its own members once it is invited; its teams are read-only
     for them until teams answer for themselves (`FIX-31`).
-- **Done** when every organisation has accepted and has at least one entry, none that declined is
-  left, and every playing division has two or more entrants — a place to be named counts.
+- **Done** when every organisation still in it has accepted and has at least one entry, and none is
+  asking to withdraw. Since 2026-10-09 it no longer waits for every division to have two entrants:
+  that keeps **Fixtures** from being done instead, as such a division cannot be drawn.
 - Entering **by division**, and Replace / Withdraw / Remove, belong to the division page (`FIX-27`);
   a convenor enters teams there.
 
-**The Overview** — once set up, and for anyone who cannot edit: the banner (on the day, "Day 2 of 2 ·
-5 live"), **Live now** while games are being played, Sports & divisions (each tile saying where the
-division has got to), Organisations, Where with the map, Rules & scoring, and Organisers for an
+**Once set up, and for anyone who cannot edit**: the banner (on the day, "Day 2 of 2 · 5 live"),
+**Live now** while games are being played, Sports & divisions (each tile saying where the division
+has got to), Fixtures, Organisations, Where with the map, Rules & scoring, and Organisers for an
 organiser when there are any. Invitation badges are an organiser's; anyone else sees who is taking
 part, without declined organisations. A guest organisation sees its own first. These outside views are accepted for
 now and are to be designed properly (`FIX-24`, `FIX-25`).
@@ -251,9 +288,10 @@ now and are to be designed properly (`FIX-24`, `FIX-25`).
 **The ⋯ menu**: Organisers (appointed in a dialog — most tournaments have none, so no empty card),
 Cancel, and Delete, which is disabled with the reason once results are recorded.
 
-**Gone**: the Basic Info and Rules & scoring step screens (`setup/basics`, `setup/scoring`) and the
-checklist component. The Sports & Divisions and Fixtures step screens remain, reachable from the
-cards, until the drill-down work (`FIX-26`–`FIX-28`) decides their place. The event-level `format` is
+**Gone**: the Basic Info and Rules & scoring step screens (`setup/basics`, `setup/scoring`), the
+checklist component, and (2026-10-09) the *Setting up* tab with its numbered, folding step cards. The
+Sports & Divisions step screen remains, reached from a sport's ⋯ for its organisers, and the
+Fixtures step screen through the step chain, until `FIX-28` retires them. The event-level `format` is
 no longer shown anywhere on the page: every tournament is created a Festival and the formats live on
 each division's stages.
 

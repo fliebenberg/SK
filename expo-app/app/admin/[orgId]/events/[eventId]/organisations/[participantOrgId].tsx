@@ -221,9 +221,12 @@ export default function OrganisationInTournamentScreen() {
           {sideBySide ? <View className="flex-row gap-4 items-stretch">{banner}{response}</View> : <>{banner}{response}</>}
 
           <View className="rounded-2xl border border-line bg-card p-4 gap-2">
-            <View className="flex-row items-center gap-2">
-              <Text className="font-inter-bold text-[13px] text-ink-soft">Teams</Text>
-              <Text className="font-inter text-[13px] text-ink-muted">{entered.length}</Text>
+            {/* A section heading (design_system.md, *Section headings*): the control drops under it when it does not fit. */}
+            <View className="flex-row flex-wrap items-center gap-x-2.5 gap-y-1.5">
+              <View className="flex-row items-baseline gap-2">
+                <Text className="font-inter-bold text-[18px] text-ink">Teams</Text>
+                <Text className="font-inter text-[15px] text-ink-muted">{entered.length}</Text>
+              </View>
               <View className="flex-1" />
               <SegmentedControl
                 fit

@@ -94,7 +94,7 @@ Recorded in place in the section each belongs to. This table is the index.
 | **U16** | The implicit division is created silently with the tournament. | 6 |
 | **U17** | The wizard creates the shell; the event screen carries a setup checklist. | 7 |
 | **U18** | Copying an existing tournament is the first wizard question, with a choose-what-to-copy step. | 7 |
-| **U19** | One layout for v1, with tab order and default tab keyed off phase. **Revised 2026-10-04**: the first tab is the default in every phase — *Setting up* while there is setup to do, *Overview* after. | 8 |
+| **U19** | One layout for v1, with tab order and default tab keyed off phase. **Revised 2026-10-04**: the first tab is the default in every phase — *Setting up* while there is setup to do, *Overview* after. **Revised 2026-10-09**: the first tab is always *Overview*; while setting up its cards carry their status (docs/events.md §7). | 8 |
 | **U20** | Reading the schedule survives a dropped connection; entering a result queues; generating does not. | 8 |
 | **U21** | Entrants are entered on two axes — by division and by organisation. | 9 |
 | **U22** | One shared fixture-side component renders all three entrant states, and is built first. | 10 |

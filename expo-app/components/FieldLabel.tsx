@@ -123,9 +123,14 @@ export interface FieldLabelProps {
    * other field, which reads as a form full of demands.
    */
   optional?: boolean;
+  /**
+   * A card's heading rather than a field's label: larger, in Inter and the main text colour, so a
+   * section stands out from the text inside it (design_system.md, *Section headings*; 2026-10-09).
+   */
+  heading?: boolean;
 }
 
-export function FieldLabel({ label, help, required, optional }: FieldLabelProps) {
+export function FieldLabel({ label, help, required, optional, heading }: FieldLabelProps) {
   const isDark = useActiveTheme() === 'dark';
   const showByDefault = useShowFieldHelp();
   const setLocalOverride = useSettingsStore((state: any) => state.setLocalOverride);
@@ -212,7 +217,7 @@ export function FieldLabel({ label, help, required, optional }: FieldLabelProps)
       style={hovered ? { zIndex: 50 } : undefined}
     >
       <View className="flex-row items-center gap-1.5">
-        <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
+        <Text className={heading ? 'font-inter-bold text-[18px] text-ink' : 'font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider'}>
           {label}
         </Text>
         {required && <Text className="font-inter text-[10px] text-primary-ink">*</Text>}

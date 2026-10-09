@@ -175,7 +175,7 @@ export function OrganisationResponse({ event, orgId, org, isHost, viewer, canAns
 
   return (
     <View className="rounded-2xl border border-line bg-card p-4 gap-2" style={wide ? { width: 300 } : undefined}>
-      <Text className="font-inter-bold text-[13px] text-ink-soft">{title}</Text>
+      <Text className="font-inter-bold text-[18px] text-ink">{title}</Text>
       {body}
 
       <DeclineDialog

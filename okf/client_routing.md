@@ -83,16 +83,16 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     (D1/U34) and opened on its own Setup tab, where the format and everything else is edited
     (U45). The route no longer takes a `type`.
 *   `/admin/[orgId]/events/[eventId]`: One event. A `SingleMatch` shows its game; a `Tournament` is
-    read-first (stage 2, [events.md](file:///c:/Fred/Coding/SK/docs/events.md) §7): its first tab is
-    **Setting up** — five step cards, the setup itself — for an organiser while it is being set up,
-    and **Overview** after and for everyone else, then `Schedule / Standings`. An event whose `type`
+    read-first ([events.md](file:///c:/Fred/Coding/SK/docs/events.md) §7): its first tab is the
+    **Overview** — cards that carry their status while it is being set up (2026-10-09; the
+    *Setting up* tab of step cards is gone) — then `Schedule / Standings`. An event whose `type`
     cannot be recognised shows an **error state rather than a Tournament** (U39 / `FIX-1`). Takes an
     optional `?tab=` (`setup` is the first tab) so a screen can return to it after a refresh or a
     deep link.
 *   `/admin/[orgId]/events/[eventId]/setup/playing`, `/admin/[orgId]/events/[eventId]/setup/fixtures`: the two step screens left
     from U48 — **Sports & Divisions** (the sports, their organisers, removing a sport) and
-    **Fixtures** (each division's draw state), reached from the Setting up cards until the
-    drill-down work (`FIX-26`–`FIX-28`) decides their place. Basic Info and Rules & scoring are
+    **Fixtures** (each division's draw state) — the first reached from a sport's ⋯ for its
+    organisers, the second only through the step chain — until `FIX-28` retires them. Basic Info and Rules & scoring are
     dialogs on the first tab since stage 2, and their routes are gone. The frame the two share is
     [useSetupStepScreen](file:///c:/Fred/Coding/SK/expo-app/hooks/useSetupStepScreen.ts); the order
     and the routes are
@@ -104,9 +104,14 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     fixtures**, the **table**, and its **organisers and courts**. Its details and its format are
     dialogs; deleting it is in the ⋯ menu. Opened from a division tile, the draw step and the
     Schedule tab. It replaced the division's basics form and its schedule screen (U53).
+*   `/admin/[orgId]/events/[eventId]/sports`, `/admin/[orgId]/events/[eventId]/organisations`: the
+    **full pages** of the Overview's Sports & divisions and Organisations & teams cards (*See all ›*,
+    2026-10-09) — the same things the card shows, the same way, with more room. They load what they
+    need through [useTournamentData](file:///c:/Fred/Coding/SK/expo-app/hooks/useTournamentData.ts),
+    the same rooms the tournament page joins. Fixtures' full page is the Schedule tab.
 *   `/admin/[orgId]/events/[eventId]/organisations/[participantOrgId]`: One organisation in a
     tournament (`FIX-26`, 2026-10-08) — its invitation and response, and its teams in every division,
-    saved through a save bar. Reached from step 3 and the Organisations card. Two readers (`FIX-30`):
+    saved through a save bar. Reached from the Organisations & teams card and its full page. Two readers (`FIX-30`):
     the organisers, and the organisation's own members once it is invited — they answer, ask to
     withdraw, and see their teams read-only.
 *   `/admin/[orgId]/events/[eventId]/entrants` (`?divisionId=` to open filtered): **Since `FIX-26`

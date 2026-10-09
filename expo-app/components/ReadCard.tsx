@@ -9,8 +9,9 @@ import { themeColor } from '../constants/Colors';
  * One card of a read-first page: a label, the values as text, and an Edit link that opens the
  * card's `EditDialog` (design_system.md, *Read-first record pages*).
  *
- * The label is a `FieldLabel`, so a card that needs explaining gets the info icon rather than a
- * standing paragraph. Leave `onEdit` out when the reader cannot edit, or when the card is empty and
+ * The label is a `FieldLabel` set as a heading — larger than the card's contents, so each card reads
+ * as a section (design_system.md, *Section headings*) — and a card that needs explaining gets the
+ * info icon rather than a standing paragraph. Leave `onEdit` out when the reader cannot edit, or when the card is empty and
  * its empty state carries the action instead (`ReadCardEmpty`) — an empty card with an Edit link
  * offers two ways to do one thing.
  */
@@ -36,9 +37,9 @@ export function ReadCard({ label, help, onEdit, editLabel = 'Edit', editIcon = '
           : 'bg-card border-line'
       }`}
     >
-      <View className="flex-row items-start justify-between gap-3">
+      <View className="flex-row items-center justify-between gap-3">
         <View className="flex-1 min-w-0">
-          <FieldLabel label={label} help={help} />
+          <FieldLabel label={label} help={help} heading />
         </View>
         {onEdit ? <EditLink label={editLabel} onPress={onEdit} icon={editIcon} /> : null}
       </View>

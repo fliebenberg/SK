@@ -1,24 +1,22 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   DEFAULT_SCORING_SYSTEM,
   Event,
-  EventOrgBadge,
   Facility,
   GameSummary,
   Organization,
-  Site,
   SocketAction,
   Sport,
+  Site,
   TournamentDivision,
   TournamentEntrant,
   TournamentOrganizer,
   divisionFullName,
   drawChanges,
   hasLeft,
-  isTakingPart,
 } from '@sk/shared';
 import { OverflowMenu } from '../OverflowMenu';
 import { AddressMap } from '../address/AddressMap';
@@ -27,32 +25,30 @@ import { FacilityIcon, addressText } from '../sites/SiteBits';
 import { FixtureSideFitted, RowTag, TournamentMark, fixtureSideNames, sideScores } from '../events/EventBits';
 import { useShowFieldHelp } from '../FieldLabel';
 import {
-  DivisionState, DivisionStateLine, NotInvitedBox, OrgRow, OrgsList, SportsDivisions, StepNumber, StepPills, StepProgressBar, StepState, StepWarning,
-  TournamentCard, UnnamedList, WarningsBadge, WarningsList, divisionStateOf, isFinished,
+  DivisionStateLine, NotInvitedBox, OrgsList, SetupProgress, SportsDivisions, StepState, TournamentCard, UnnamedList,
+  WarningsCount, WarningsList, isFinished,
 } from './TournamentBits';
-import { EditTournamentDialog, ScoringDialog, SportsDialog, WhereDialog } from './TournamentDialogs';
-import { AddDivisionDialog } from './DivisionDialogs';
-import { AddOrganisationsDialog, InviteOrganisationsDialog, NominateFor } from './OrganisationDialogs';
+import { useOrganisationsSection, useSportsSection } from './TournamentSections';
+import { EditTournamentDialog, ScoringDialog, WhereDialog } from './TournamentDialogs';
 import { OrganisationResponse } from './OrganisationResponse';
 import { useAuthStore } from '../../store/authStore';
-import { RegisterOrgModal } from '../RegisterOrgModal';
-import { nominateOrgContact } from '../../services/nominations';
 import { sendAction } from '../../services/actions';
 import { useActiveTheme, useSettingsStore } from '../../store/settingsStore';
-import { calendarRangeStatus, dateCountdown, eventDayOfRange, formatDateRange } from '../../utils/dates';
+import { calendarRangeStatus, dateCountdown, eventDayOfRange, formatDateRange, formatKickoffTime, whenMs } from '../../utils/dates';
 import { themeColor } from '../../constants/Colors';
 
 /**
- * The tournament page's first tab (docs/events.md, stage 2; mockups/tournament-read-first.html).
+ * The tournament page's first tab, *Overview* (docs/events.md §7; agreed 2026-10-09 on
+ * `mockups/tournament-cards.html`, which replaced the numbered step cards of stage 2).
  *
- * **While it is being set up** an organiser's first tab is *Setting up*, and that tab is the setup
- * itself: five numbered cards in the order the work is done, each saying in its heading whether it
- * is done and holding what it is about, read-first, with Edit. There is no separate checklist —
- * the numbers, the pills and the segmented bar are the checklist (closes `UI-11`). Done and
- * waiting steps fold to one line; the step to do next is open.
- *
- * **Once every step is finished** — or for anyone who cannot edit — it is the *Overview*: the
- * tournament as everyone sees it. Every card keeps its Edit for an organiser.
+ * One page of cards in every phase, read first, as the division page is: a banner that says what
+ * the tournament is and where it has got to, **one strip** for what it needs next, then cards in
+ * two columns on a wide screen. **While it is being set up** an organiser sees each card's status
+ * on its heading — Done, In progress, Not started, Not needed — and a progress bar in the banner
+ * with a segment per card; the cards keep **one fixed order**, so nothing moves while the work is
+ * done, and on a phone a finished card folds to its heading. **Once set up** the statuses go and
+ * the page is the tournament as everyone sees it; **on the day** it rearranges around what is live.
+ * Sports & divisions and Organisations & teams open as full pages; Fixtures opens the Schedule tab.
  */
 
 export type StepKey = 'basics' | 'divisions' | 'entrants' | 'scoring' | 'fixtures';
@@ -61,15 +57,15 @@ export interface TournamentStep {
   key: StepKey;
   title: string;
   state: StepState;
-  /** The folded line: what has been decided, or what it waits for. */
+  /** A folded card's line: what has been decided, or what it waits for. */
   summary: string;
-  /** A step the organiser may mark "not needed" (`settings.dismissedSetupSteps`). */
+  /** A section the organiser may mark "not needed" (`settings.dismissedSetupSteps`). */
   dismissible: boolean;
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-/** Where each setup step stands, from the state of the data — never from having been visited (U17). */
+/** Where each section of setting up stands, from the state of the data — never from having been visited (U17). */
 export function useTournamentSteps({ event, divisions, games, entrants, entrantsByDivision, facilityIds, sports, sites }: {
   event: Event | null;
   divisions: TournamentDivision[];
@@ -85,9 +81,7 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
     const dismissed = event.settings?.dismissedSetupSteps || [];
     const sportIds = event.sportIds || [];
     const playing = divisions.filter(d => !!d.sportId);
-    const active = (d: TournamentDivision) => (entrantsByDivision.get(d.id) || []).filter(e => e.status !== 'withdrawn');
     const entered = entrants.filter(e => e.status !== 'withdrawn');
-    const thin = playing.filter(d => active(d).length < 2);
     // The host takes part by hosting; every other organisation has an invitation (`FIX-29`).
     // One that declined or withdrew stays listed as the record, but is out of it (`FIX-30`).
     const others = (event.participatingOrgs || []).filter(o => o.id !== event.orgId && !hasLeft(o.invitation));
@@ -96,13 +90,14 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
     const unanswered = others.filter(o => o.invitation === 'invited');
     const leaving = others.filter(o => o.invitation === 'withdrawal_pending');
     const empty = others.filter(o => !teamsOf(o.id));
-    const warnings = thin.length + empty.length + unanswered.length + leaving.length;
+    const warnings = empty.length + unanswered.length + leaving.length;
     /*
-     * Done (agreed 2026-10-05, `FIX-26`; `FIX-30`): every organisation still in it has accepted and
-     * entered something, none is asking to withdraw, and every playing division has two or more
-     * entrants — a place still to be named counts, since it is drawn like any team.
+     * Done (`FIX-26`, `FIX-30`; narrowed 2026-10-09): every organisation still in it has accepted and
+     * entered something, and none is asking to withdraw. A division with fewer than two teams no
+     * longer holds this up — it is the division's, and it keeps Fixtures from being done instead,
+     * since such a division cannot be drawn.
      */
-    const entrantsDone = playing.length > 0 && entered.length > 0 && !thin.length && !notInvited.length && !unanswered.length && !leaving.length && !empty.length;
+    const entrantsDone = playing.length > 0 && entered.length > 0 && !notInvited.length && !unanswered.length && !leaving.length && !empty.length;
     const drawn = playing.filter(d => games.some(g => g.divisionId === d.id));
     // The whole roster: a team that withdrew after the draw is one of the changes (`drawChanges`).
     const changed = playing.filter(d => drawChanges(d.firstStageId, games.filter(g => g.divisionId === d.id), entrantsByDivision.get(d.id) || []).count > 0);
@@ -159,15 +154,15 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
 }
 
 export function TournamentHome({
-  event, orgId, canEdit, isWide, steps, nextIndex, complete, sports, sites, facilities, facilityIds,
+  event, orgId, canEdit, isWide, steps, complete, sports, sites, facilities, facilityIds,
   divisions, games, entrantsByDivision, organizers, onEditOrganizers, hostOrg, viewerOrgIds,
+  onOpenSchedule, onScrollTo,
 }: {
   event: Event;
   orgId: string;
   canEdit: boolean;
   isWide: boolean;
   steps: TournamentStep[];
-  nextIndex: number;
   complete: boolean;
   sports: Sport[];
   sites: Site[];
@@ -179,162 +174,69 @@ export function TournamentHome({
   organizers: TournamentOrganizer[];
   onEditOrganizers: () => void;
   hostOrg: Organization | null;
-  /** The viewer's organisations, to put theirs first in Schools. */
+  /** The viewer's organisations, to put theirs first. */
   viewerOrgIds: string[];
+  /** Fixtures' *Schedule ›*: the Schedule tab is Fixtures' full page. */
+  onOpenSchedule: () => void;
+  /** Scroll the page to a point measured from the top of this component — the progress bar's jumps. */
+  onScrollTo: (y: number) => void;
 }) {
   const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
   const showHelp = useShowFieldHelp();
-  const [dialog, setDialog] = useState<null | 'details' | 'where' | 'scoring' | 'sports'>(null);
+  const [dialog, setDialog] = useState<null | 'details' | 'where' | 'scoring'>(null);
   const close = () => setDialog(null);
   const eventId = event.id;
   const setupMode = canEdit && !complete;
+  const phone = !isWide;
 
   const sportName = (id?: string | null) => sports.find(s => s.id === id)?.name || '';
   const site = sites.find(s => s.id === event.siteId) || null;
   const usedFacilities = facilities.filter(f => facilityIds.includes(f.id));
-  const active = (d: TournamentDivision) => (entrantsByDivision.get(d.id) || []).filter(e => e.status !== 'withdrawn');
+  const playing = divisions.filter(d => !!d.sportId);
   const gamesIn = (d: TournamentDivision) => games.filter(g => g.divisionId === d.id);
   const liveGames = games.filter(g => g.status === 'Live');
+  const today = calendarRangeStatus(event.startDate, event.endDate);
+  const onTheDay = !setupMode && (today === 'during' || liveGames.length > 0);
+  const stepOf = (key: TournamentStep['key']) => steps.find(s => s.key === key);
+  const statusOf = (key: TournamentStep['key']) => (setupMode ? stepOf(key)?.state ?? null : null);
 
-  /* ------------------------------------------------------------------ divisions, schools --- */
-  // One rule with the division's own page (`divisionStateOf`), so the tile and the page agree.
-  const divisionState = (d: TournamentDivision): DivisionState =>
-    divisionStateOf({ setupMode, games: gamesIn(d), entrants: entrantsByDivision.get(d.id) || [], firstStageId: d.firstStageId });
-  const attention = (sportId: string): 'wait' | 'live' | null => {
-    const own = divisions.filter(d => d.sportId === sportId);
-    if (!setupMode) return own.some(d => gamesIn(d).some(g => g.status === 'Live')) ? 'live' : null;
-    return own.some(d => divisionState(d).tone !== 'ok') ? 'wait' : null;
+  const sportsSection = useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode });
+  const orgs = useOrganisationsSection({ event, orgId, sports, divisions, entrantsByDivision, hostOrg, viewerOrgIds, canEdit, setupMode });
+  const openSportsPage = () => router.push(`/admin/${orgId}/events/${eventId}/sports` as any);
+  const openOrgsPage = () => router.push(`/admin/${orgId}/events/${eventId}/organisations` as any);
+
+  /* ---------------------------------------------------------------- folding and jumping --- */
+  /*
+   * On a phone, while setting up, a finished card starts folded to its heading and summary; any
+   * heading opens or closes it, remembered on the device per tournament (2026-10-09). A wide
+   * screen does not fold: two columns keep a long card from pushing the rest out of sight.
+   */
+  const foldKey = `tournamentCardsFolded:${eventId}`;
+  const savedFolds = (useSettingsStore(state => state.localOverrides[foldKey]) || {}) as Record<string, boolean>;
+  const setLocalOverride = useSettingsStore(state => state.setLocalOverride);
+  const folds = phone && setupMode;
+  const isFolded = (key: TournamentStep['key']) => {
+    if (!folds) return undefined;
+    const st = stepOf(key)?.state;
+    return savedFolds[key] ?? (!!st && isFinished(st));
   };
-  /* Adding a division asks first — age group, name, how it is played — rather than creating one
-     called after the sport (`FIX-27`). A sport just ticked gets its first division the same way:
-     the server makes it, called Open, and the same dialog names it, one sport at a time. */
-  const [addingTo, setAddingTo] = useState<string | null>(null);
-  const [firstFor, setFirstFor] = useState<string[]>([]);
-  const firstDivision = firstFor.length ? divisions.find(d => d.sportId === firstFor[0]) || null : null;
-  const addDivision = (sportId: string) => setAddingTo(sportId);
-  const removeSport = (sportId: string) =>
-    sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { sportIds: (event.sportIds || []).filter(id => id !== sportId) } });
-  const sportMenu = (sportId: string) => {
-    const count = divisions.filter(d => d.sportId === sportId).length;
-    return (
-      <OverflowMenu
-        accessibilityLabel={`${sportName(sportId)} actions`}
-        title={sportName(sportId)}
-        items={[
-          { label: 'Sport organisers', description: 'Who runs this sport — appointed on the Sports & Divisions screen', icon: 'people-outline', onPress: () => router.push(`/admin/${orgId}/events/${eventId}/setup/playing`) },
-          {
-            label: 'Remove sport',
-            description: count ? `Not available: it has ${plural(count, 'division')}. Remove them first, from each division's page.` : 'Take it off this tournament.',
-            icon: 'trash-outline',
-            destructive: true,
-            disabled: count > 0,
-            onPress: () => removeSport(sportId),
-          },
-        ]}
-      />
-    );
+  const setFolded = (key: string, folded: boolean) => setLocalOverride(foldKey, { ...savedFolds, [key]: folded });
+
+  const rootRef = useRef<View>(null);
+  const cardRefs = useRef<Record<string, View | null>>({});
+  const jump = (key: TournamentStep['key']) => {
+    if (isFolded(key)) setFolded(key, false);
+    const card = cardRefs.current[key];
+    if (!card || !rootRef.current) return;
+    card.measureLayout(rootRef.current as any, (_x, y) => onScrollTo(y), () => {});
   };
+  const anchor = (key: string, node: React.ReactNode) =>
+    node ? <View key={key} ref={ref => { cardRefs.current[key] = ref; }} collapsable={false}>{node}</View> : null;
 
-  /* --------------------------------------------------------- organisations & teams (FIX-26) --- */
-  const allEntrants = useMemo(() => Array.from(entrantsByDivision.values()).flat(), [entrantsByDivision]);
-  const activeEntrants = allEntrants.filter(e => e.status !== 'withdrawn');
-  const takingPart = event.participatingOrgs || [];
-  const divisionName = (id: string) => {
-    const d = divisions.find(x => x.id === id);
-    return d ? divisionFullName(d.name, sportName(d.sportId)) : '';
-  };
-
-  const orgRows: OrgRow[] = useMemo(() => {
-    const sportOrder = event.sportIds || [];
-    const rowFor = (org: OrgRow['org'], isHost: boolean, invitation?: OrgRow['invitation']): OrgRow => {
-      const mine = activeEntrants.filter(e => e.orgId === org.id);
-      const bySport: Array<[string, string[]]> = [];
-      for (const sportId of sportOrder) {
-        const names = mine
-          .map(e => divisions.find(d => d.id === e.divisionId))
-          .filter((d): d is TournamentDivision => !!d && d.sportId === sportId)
-          .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-          .map(d => d.name);
-        if (names.length) bySport.push([sportName(sportId), names]);
-      }
-      return {
-        org, isHost, invitation, bySport,
-        teams: mine.filter(e => e.teamId).length,
-        players: mine.filter(e => e.orgProfileId).length,
-        toBeNamed: mine.filter(e => !e.teamId && !e.orgProfileId).length,
-      };
-    };
-    const rows: OrgRow[] = [];
-    if (hostOrg) rows.push(rowFor({ id: hostOrg.id, name: hostOrg.name, logo: hostOrg.logo, logoConfig: (hostOrg.settings as any)?.logoConfig, primaryColor: hostOrg.primaryColor }, true));
-    for (const org of takingPart) {
-      if (org.id === event.orgId) continue;
-      rows.push(rowFor(org, false, org.invitation));
-    }
-    // The viewer's own organisation first, after the host, when they are a guest.
-    const mine = rows.filter(r => !r.isHost && viewerOrgIds.includes(r.org.id));
-    // Those that declined or withdrew last: kept as the record, but out of it (`FIX-30`).
-    const left = (r: OrgRow) => !!r.invitation && hasLeft(r.invitation);
-    const others = rows.filter(r => !r.isHost && !viewerOrgIds.includes(r.org.id));
-    return [...rows.filter(r => r.isHost), ...mine, ...others.filter(r => !left(r)), ...others.filter(left)];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hostOrg, takingPart, allEntrants, divisions, sports, viewerOrgIds, event.orgId, event.sportIds]);
-
-  /** Competitors that belong to nobody yet — *Winner of the regional qualifier*. */
-  const unnamed = activeEntrants.filter(e => !e.orgId && !e.teamId && !e.orgProfileId);
-  const notInvited = takingPart.filter(o => o.id !== event.orgId && o.invitation === 'not_invited');
-  const nobodyInvited = takingPart.every(o => o.id === event.orgId || o.invitation === 'not_invited');
-
-  type OrgDialog =
-    | null
-    | { kind: 'add' }
-    | { kind: 'inviteAll' }
-    | { kind: 'register'; name: string }
-    | { kind: 'nominate'; orgId: string };
-  const [orgDialog, setOrgDialog] = useState<OrgDialog>(null);
-  const closeOrgDialog = () => setOrgDialog(null);
-  const badgeFor = (id: string) => takingPart.find(o => o.id === id) || null;
-  // The host may have been taken off the list (it can run a tournament it does not play in), but it
-  // still opens: its dialog is where its teams are entered again.
-  const hostBadge: EventOrgBadge | null = hostOrg
-    ? badgeFor(hostOrg.id) || { id: hostOrg.id, name: hostOrg.name, shortName: hostOrg.shortName || hostOrg.name, logo: hostOrg.logo, logoConfig: (hostOrg.settings as any)?.logoConfig, primaryColor: hostOrg.primaryColor, isClaimed: true, invitation: 'accepted' }
-    : null;
-  /** An organisation's own page: its invitation and its teams (`FIX-26`, 2026-10-08). */
-  const myUserId = useAuthStore((state: any) => state.user?.id);
-  const myMemberships = useAuthStore((state: any) => state.orgMemberships) || [];
-  /** An admin of that organisation — who may answer for it; staff may not (`FIX-31`). */
-  const adminsOrg = (id: string) => myMemberships.some((m: any) => m.orgId === id && m.roleId === 'role-org-admin' && (!m.endDate || new Date(m.endDate) > new Date()));
-  const openOrg = (id: string) => router.push(`/admin/${orgId}/events/${eventId}/organisations/${id}` as any);
-  const dialogOrg = orgDialog && 'orgId' in orgDialog ? (orgDialog.orgId === event.orgId ? hostBadge : badgeFor(orgDialog.orgId)) : null;
-
-  /** What keeps step 3 from being done, one line each, with where to put it right. */
-  const warnings: StepWarning[] = (() => {
-    if (!setupMode) return [];
-    const list: StepWarning[] = [];
-    for (const d of divisions.filter(x => x.sportId && active(x).length < 2)) {
-      list.push({
-        text: `${divisionFullName(d.name, sportName(d.sportId))} has ${active(d).length ? 'only one team' : 'no teams'}.`,
-        actionLabel: 'Division',
-        onAction: () => router.push(`/admin/${orgId}/events/${eventId}/divisions/${d.id}`),
-      });
-    }
-    // Declined and withdrawn are not warnings: they are answers (`FIX-30`), listed at the bottom.
-    for (const row of orgRows.filter(r => !r.isHost && !(r.invitation && hasLeft(r.invitation)))) {
-      const entered = row.teams + row.players + row.toBeNamed;
-      if (row.invitation === 'withdrawal_pending') {
-        list.push({ text: `${row.org.name} asks to withdraw.`, actionLabel: 'Review', onAction: () => openOrg(row.org.id) });
-        continue;
-      }
-      if (!entered) list.push({ text: `${row.org.name} has no teams yet.`, actionLabel: 'Enter teams', onAction: () => openOrg(row.org.id) });
-      if (row.invitation === 'invited') list.push({ text: `${row.org.name} has not answered its invitation.`, actionLabel: 'Record answer', onAction: () => openOrg(row.org.id) });
-    }
-    return list;
-  })();
-  const [warningsOpen, setWarningsOpen] = useState(false);
-
-  /* ------------------------------------------------------------------------------ pieces --- */
+  /* ---------------------------------------------------------------------------- pieces --- */
   const edit = (onPress: () => void, label = 'Edit') => (
-    <TouchableOpacity onPress={onPress} accessibilityRole="button" className="flex-row items-center gap-1">
+    <TouchableOpacity onPress={onPress} accessibilityRole="button" className="flex-row items-center gap-1" hitSlop={8}>
       {label === 'Edit' ? <Ionicons name="pencil" size={13} color={themeColor(isDark, 'primary')} /> : null}
       <Text className="font-inter-bold text-sm text-primary-ink">{label}</Text>
     </TouchableOpacity>
@@ -344,14 +246,37 @@ export function TournamentHome({
       <Text className="font-inter-bold text-[13px] text-primary-ink">{label}</Text>
     </TouchableOpacity>
   );
-  /** "＋ Add organisation" — one action, since the dialog offers both Add and Add and invite. */
-  const addOrgAction = edit(() => setOrgDialog({ kind: 'add' }), '＋ Add organisation');
+  /** A heading's way to the section's full page — a link, not a bare icon (2026-10-09). */
+  const seeAll = (onPress: () => void, label?: string) => edit(onPress, `${label || (phone ? 'All' : 'See all')} ›`);
   const scoring = event.settings?.scoring;
   const points = scoring?.mode === 'byResult' ? scoring : DEFAULT_SCORING_SYSTEM.mode === 'byResult' ? DEFAULT_SCORING_SYSTEM : null;
   const confirmScoring = () =>
     sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { settings: { ...(event.settings || {}), scoring: DEFAULT_SCORING_SYSTEM } } });
+  const dismissed = event.settings?.dismissedSetupSteps || [];
   const saveDismissed = (next: string[]) =>
     sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { settings: { ...(event.settings || {}), dismissedSetupSteps: next } } });
+  /**
+   * *Not needed* (U17, kept from the steps): a section that does not apply to this tournament — no
+   * points system, say — counts as done instead of nagging forever. A ⋯ on its heading.
+   */
+  const notNeededMenu = (key: TournamentStep['key']) => {
+    const step = stepOf(key);
+    if (!setupMode || !step?.dismissible || step.state === 'done') return null;
+    const skipped = step.state === 'skip';
+    return (
+      <OverflowMenu
+        key="not-needed"
+        accessibilityLabel={`${step.title} actions`}
+        title={step.title}
+        items={[{
+          label: skipped ? 'Needed after all' : 'Not needed for this tournament',
+          description: skipped ? 'Count it as part of setting up again.' : 'Count it as done, so setting up can finish without it.',
+          icon: skipped ? 'arrow-undo-outline' : 'remove-circle-outline',
+          onPress: () => saveDismissed(skipped ? dismissed.filter(k => k !== key) : [...dismissed, key]),
+        }]}
+      />
+    );
+  };
 
   const pointsTiles = scoring?.mode === 'byPlacing' ? (
     <Text className="font-inter text-sm text-ink-soft">Points are awarded by finishing position.</Text>
@@ -377,9 +302,110 @@ export function TournamentHome({
     </View>
   ) : null;
 
-  const whereBody = (withMap: boolean) => {
-    const markers = facilityMarkers(usedFacilities, sports, isDark);
-    return (
+  /* ---------------------------------------------------------------------------- banner --- */
+  const dayOf = eventDayOfRange(event.startDate, event.endDate);
+  const banner = (
+    <View className="rounded-2xl border border-line bg-card p-4 gap-3">
+      <View className="flex-row gap-3.5 items-center">
+        <TournamentMark size={isWide ? 60 : 48} />
+        <View className="flex-1 min-w-0 gap-0.5">
+          <View className="flex-row items-center gap-2 flex-wrap">
+            <Text className="font-inter-bold text-ink" style={{ fontSize: isWide ? 22 : 19 }}>{event.name}</Text>
+            {event.status === 'Cancelled' ? <RowTag tone="cancelled" label="Cancelled" /> : null}
+          </View>
+          <View className="flex-row flex-wrap items-center gap-3">
+            <Text className="font-inter-semibold text-sm text-ink">{formatDateRange(event.startDate, event.endDate, { compact: true })}</Text>
+            {today === 'during' && (liveGames.length || dayOf) ? (
+              <Text className="font-inter-bold text-sm text-danger-ink">{[dayOf, liveGames.length ? `${liveGames.length} live` : ''].filter(Boolean).join(' · ')}</Text>
+            ) : dateCountdown(event.startDate, event.endDate) ? (
+              <Text className="font-inter text-sm text-ink-muted">{dateCountdown(event.startDate, event.endDate)}</Text>
+            ) : null}
+          </View>
+          <Text className="font-inter text-sm text-ink-muted" numberOfLines={2}>
+            {[site?.name || (setupMode ? 'No venue yet' : ''), (event.sportIds || []).map(sportName).filter(Boolean).join(' · ')].filter(Boolean).join('   ')}
+          </Text>
+        </View>
+        {canEdit ? <View className="self-start">{edit(() => setDialog('details'))}</View> : null}
+      </View>
+      {setupMode ? (
+        <SetupProgress sections={steps.map(s => ({ key: s.key, title: s.title, state: s.state }))} phone={phone} onJump={key => jump(key as TournamentStep['key'])} />
+      ) : null}
+    </View>
+  );
+
+  /* ---------------------------------------------------------------------- the one strip --- */
+  /*
+   * What the tournament needs next: the first section not finished, in the order the work is done,
+   * and its most important task — with the one button that does it (2026-10-09, as on the
+   * division page). Once set up, a green line until the tournament starts.
+   */
+  const strip = (tone: 'wait' | 'go', text: React.ReactNode, action?: { label: string; onPress: () => void }, more?: { label: string; onPress: () => void }) => (
+    <View className={`rounded-xl px-3.5 py-2.5 flex-row flex-wrap items-center gap-2.5 ${tone === 'wait' ? 'bg-warning-soft' : 'bg-success-soft'}`}>
+      <View className="flex-1 gap-0.5" style={{ minWidth: 200 }}>
+        <Text className={`font-inter text-sm leading-snug ${tone === 'wait' ? 'text-warning-ink' : 'text-success-ink'}`}>{text}</Text>
+        {more ? (
+          <TouchableOpacity onPress={more.onPress} accessibilityRole="link" className="self-start">
+            <Text className="font-inter-bold text-sm text-warning-ink underline">{more.label}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      {action ? (
+        <TouchableOpacity onPress={action.onPress} accessibilityRole="button" className="rounded-xl bg-primary px-3.5 py-2">
+          <Text className="font-inter-bold text-[13px] text-on-primary">{action.label}</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+  const bold = (s: string) => <Text className="font-inter-bold">{s}</Text>;
+  const nextStrip = (() => {
+    if (!canEdit) return null;
+    if (!setupMode) {
+      return today === 'before' ? strip('go', <>{bold('Set up and ready.')} Every organisation has accepted and every division is drawn.</>) : null;
+    }
+    const next = steps.find(s => !isFinished(s.state));
+    if (!next) return null;
+    switch (next.key) {
+      case 'basics':
+        return strip('wait', <>{bold("Start with where it's played")} — the base site and the courts and fields it uses.</>, { label: '＋ Add venue', onPress: () => setDialog('where') });
+      case 'divisions':
+        return (event.sportIds || []).length
+          ? strip('wait', <>{bold('A division has no sport.')} Open it from Sports & divisions and choose one.</>, undefined, { label: 'Sports & divisions', onPress: () => jump('divisions') })
+          : strip('wait', <>{bold('Choose the sports being played')} — each gets its first division straight away.</>, { label: '＋ Add a sport', onPress: sportsSection.chooseSports });
+      case 'entrants': {
+        if (!playing.length && !orgs.orgRows.some(r => !r.isHost)) {
+          return strip('wait', <>{bold('Add the organisations taking part.')} You can enter their teams once there are divisions.</>, orgs.addOrganisation ? { label: '＋ Add organisation', onPress: orgs.addOrganisation } : undefined);
+        }
+        const more = orgs.warnings.length ? { label: `${plural(orgs.warnings.length, 'more thing')} to sort out`, onPress: () => jump('entrants') } : undefined;
+        if (orgs.notInvited.length) {
+          const n = orgs.notInvited.length;
+          return strip('wait', <>{bold(n === 1 ? `${orgs.notInvited[0].name} is not invited yet` : `${n} organisations are not invited yet`)} — {n === 1 ? 'it' : 'they'} can't see this tournament until invited.</>, { label: n === 1 ? 'Invite' : `Invite all ${n}`, onPress: orgs.inviteAll }, more);
+        }
+        const [first, ...rest] = orgs.warnings;
+        if (first) {
+          return strip('wait', bold(first.text), first.actionLabel && first.onAction ? { label: first.actionLabel, onPress: first.onAction } : undefined,
+            rest.length ? { label: `${plural(rest.length, 'more thing')} to sort out`, onPress: () => jump('entrants') } : undefined);
+        }
+        return strip('wait', <>{bold('Enter the teams taking part')} — from each organisation's page, or each division's.</>, undefined, { label: 'Organisations & teams', onPress: () => jump('entrants') });
+      }
+      case 'scoring':
+        return strip('wait', <>{bold('Scoring runs on the default 3 / 1 / 0.')} Confirm it, or change it, before the first result is entered.</>, { label: 'Confirm', onPress: confirmScoring });
+      case 'fixtures': {
+        const undrawn = playing.filter(d => !gamesIn(d).length).length;
+        return strip('wait', <>{bold(undrawn ? `${plural(undrawn, 'division')} still to draw.` : 'Some draws have changed since they were made.')} Each division is drawn on its own page.</>, undefined, { label: 'Fixtures', onPress: () => jump('fixtures') });
+      }
+    }
+  })();
+
+  /* ----------------------------------------------------------------------------- cards --- */
+  const cardProps = (key: TournamentStep['key']) => ({
+    status: statusOf(key),
+    folded: isFolded(key),
+    summary: stepOf(key)?.summary,
+    onToggle: () => setFolded(key, !isFolded(key)),
+  });
+
+  const whereCard = site || usedFacilities.length ? (
+    <TournamentCard title="Where" {...cardProps('basics')} right={canEdit ? edit(() => setDialog('where')) : undefined}>
       <View className="gap-2.5">
         {site ? (
           <View>
@@ -388,269 +414,265 @@ export function TournamentHome({
           </View>
         ) : null}
         {facilityChips}
-        {withMap && site?.address?.latitude != null && site?.address?.longitude != null ? (
-          <AddressMap latitude={site.address.latitude} longitude={site.address.longitude} title={site.name} interactive={false} height={isWide ? 200 : 170} markers={markers} />
+        {/* The map is for the people coming: not while it is being set up. */}
+        {!setupMode && site?.address?.latitude != null && site?.address?.longitude != null ? (
+          <AddressMap latitude={site.address.latitude} longitude={site.address.longitude} title={site.name} interactive={false} height={isWide ? 200 : 170} markers={facilityMarkers(usedFacilities, sports, isDark)} />
         ) : null}
       </View>
-    );
-  };
+    </TournamentCard>
+  ) : canEdit ? (
+    <TournamentCard title="Where" {...cardProps('basics')}>
+      <View className="gap-1">
+        <Text className="font-inter text-[13px] text-ink-muted">Add where it is played — the base site, and the courts, fields and amenities it uses.</Text>
+        {link('＋ Add venue', () => setDialog('where'))}
+      </View>
+    </TournamentCard>
+  ) : null;
 
-  const sportsBlock = (mode: 'setup' | 'public') => (
-    <View className="gap-3">
-      {(mode === 'setup' ? showHelp : true) ? (
-        <Text className="font-inter text-[13px] text-ink-muted leading-relaxed">
-          {mode === 'setup' ? (
-            <>
-              <Text className="font-inter-semibold text-ink-soft">Choose the sports being played, then the divisions within each. </Text>
-              A division is a group of teams that compete against each other — usually an age group, e.g. Rugby U16. Each division has its own draw and table, and teams are entered into a division. A sport can have one division or several.
-            </>
-          ) : 'A division is a group of teams that compete against each other — usually an age group, e.g. Rugby U16.'}
-        </Text>
-      ) : null}
-      <SportsDivisions
-        sports={sports}
-        sportIds={event.sportIds || []}
-        divisions={divisions}
-        entrantsByDivision={entrantsByDivision}
-        divisionState={divisionState}
-        isWide={isWide}
-        canEdit={canEdit}
-        setupMode={mode === 'setup'}
-        attention={attention}
-        onOpenDivision={d => router.push(`/admin/${orgId}/events/${eventId}/divisions/${d.id}`)}
-        onAddDivision={canEdit ? addDivision : undefined}
-        onAddSport={canEdit ? () => setDialog('sports') : undefined}
-        sportMenu={canEdit && mode === 'setup' ? sportMenu : undefined}
-      />
+  const hasSports = (event.sportIds || []).length > 0;
+  const sportsCard = hasSports ? (
+    <TournamentCard
+      title="Sports & divisions"
+      count={divisions.length}
+      {...cardProps('divisions')}
+      right={narrow => (
+        <>
+          {sportsSection.addSport ? edit(sportsSection.addSport, narrow || phone ? '＋ Add' : '＋ Add a sport') : null}
+          {seeAll(openSportsPage)}
+        </>
+      )}
+    >
+      <View className="gap-3">
+        {(setupMode ? showHelp : true) ? (
+          <Text className="font-inter text-[13px] text-ink-muted leading-relaxed">
+            {setupMode ? (
+              <>
+                <Text className="font-inter-semibold text-ink-soft">Choose the sports being played, then the divisions within each. </Text>
+                A division is a group of teams that compete against each other — usually an age group, e.g. Rugby U16. Each division has its own draw and table, and teams are entered into a division. A sport can have one division or several.
+              </>
+            ) : 'A division is a group of teams that compete against each other — usually an age group, e.g. Rugby U16.'}
+          </Text>
+        ) : null}
+        <SportsDivisions
+          sports={sports}
+          sportIds={event.sportIds || []}
+          divisions={divisions}
+          entrantsByDivision={entrantsByDivision}
+          divisionState={sportsSection.divisionState}
+          isWide={isWide}
+          attention={sportsSection.attention}
+          onOpenDivision={sportsSection.openDivision}
+          onAddDivision={sportsSection.addDivision}
+          sportMenu={sportsSection.sportMenu}
+        />
+      </View>
+    </TournamentCard>
+  ) : canEdit ? (
+    <TournamentCard title="Sports & divisions" {...cardProps('divisions')}>
+      <View className="gap-1">
+        <Text className="font-inter text-[13px] text-ink-muted">Choose the sports being played — each gets its first division straight away.</Text>
+        {link('＋ Add a sport', sportsSection.chooseSports)}
+      </View>
+    </TournamentCard>
+  ) : null;
+
+  const beforeDivisions = !playing.length;
+  const orgsCard = orgs.visibleRows.length || canEdit ? (
+    <TournamentCard
+      title={canEdit ? 'Organisations & teams' : 'Taking part'}
+      count={orgs.visibleRows.length}
+      {...cardProps('entrants')}
+      right={narrow => (
+        <>
+          {setupMode ? <WarningsCount count={orgs.warnings.length} /> : null}
+          {notNeededMenu('entrants')}
+          {orgs.addOrganisation && !onTheDay ? edit(orgs.addOrganisation, narrow || phone ? '＋ Add' : '＋ Add organisation') : null}
+          {orgs.visibleRows.length ? seeAll(openOrgsPage) : null}
+        </>
+      )}
+    >
+      <View className="gap-2.5">
+        {setupMode && beforeDivisions ? (
+          <Text className="font-inter text-[13px] text-ink-muted">Teams are entered into divisions, so entering starts once there are some. Organisations can be added and invited now.</Text>
+        ) : null}
+        <WarningsList warnings={orgs.warnings} limit={3} onMore={openOrgsPage} />
+        {canEdit ? <NotInvitedBox count={orgs.notInvited.length} nobodyYet={orgs.nobodyInvited} onInviteAll={orgs.inviteAll} /> : null}
+        <View>
+          <OrgsList rows={orgs.visibleRows} isWide={isWide} showInvitations={canEdit} onOpen={canEdit ? orgs.openOrg : undefined} highlightOrgId={orgs.highlightOrgId} beforeDivisions={setupMode && beforeDivisions} />
+          <UnnamedList entrants={orgs.unnamed} divisionName={orgs.divisionName} onOpen={canEdit ? orgs.openUnnamed : undefined} />
+        </View>
+        {setupMode && !beforeDivisions ? (
+          <Text className="font-inter text-xs text-ink-muted">Tap an organisation to enter its teams or change its invitation. To enter teams one division at a time, open the division under Sports & divisions.</Text>
+        ) : null}
+      </View>
+    </TournamentCard>
+  ) : null;
+
+  const rulesCard = (
+    <TournamentCard
+      title="Rules & scoring"
+      {...cardProps('scoring')}
+      right={canEdit ? <>{notNeededMenu('scoring')}{edit(() => setDialog('scoring'))}</> : undefined}
+    >
+      <View className="gap-2.5">
+        {pointsTiles}
+        {canEdit && !scoring ? (
+          <View className="flex-row items-center gap-2.5 flex-wrap rounded-xl bg-sunken px-3 py-2">
+            <Text className="font-inter text-[13px] text-ink-soft flex-1" style={{ minWidth: 160 }}>The default. Confirm it, or change it, before the first result is entered.</Text>
+            <TouchableOpacity onPress={confirmScoring} accessibilityRole="button" className="rounded-xl border border-line bg-card px-3 py-1.5">
+              <Text className="font-inter-bold text-[13px] text-ink">Confirm</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </View>
+    </TournamentCard>
+  );
+
+  /*
+   * Fixtures, in every phase (2026-10-09). While setting up, the divisions still to draw come
+   * first, so what is outstanding is at the top. On the day, what is next up. Its full page is the
+   * Schedule tab.
+   */
+  const divisionRow = (d: TournamentDivision, i: number) => (
+    <TouchableOpacity key={d.id} onPress={() => sportsSection.openDivision(d)} accessibilityRole="link" className={`flex-row items-center gap-2 py-2 ${i ? 'border-t border-line-soft' : ''}`}>
+      <Text className="flex-1 font-inter-semibold text-sm text-ink" numberOfLines={1}>{divisionFullName(d.name, sportName(d.sportId))}</Text>
+      <DivisionStateLine state={sportsSection.divisionState(d)} />
+      <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-muted')} />
+    </TouchableOpacity>
+  );
+  const groupLabel = (label: string) => (
+    <Text className="font-inter-bold text-[11px] text-ink-muted uppercase tracking-wider mt-2">{label}</Text>
+  );
+  const meter = (done: number, total: number) => (
+    <View className="h-1.5 rounded-full bg-line-strong overflow-hidden">
+      <View className="h-full bg-success" style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }} />
     </View>
   );
-
-  const card = (title: string, body: React.ReactNode, right?: React.ReactNode, count?: number) => (
-    <TournamentCard title={title} count={count} right={right}>{body}</TournamentCard>
-  );
-
-  /* ------------------------------------------------------------------------------ banner --- */
-  const today = calendarRangeStatus(event.startDate, event.endDate) === 'during';
-  const dayOf = eventDayOfRange(event.startDate, event.endDate);
-  const banner = (
-    <View className="rounded-2xl border border-line bg-card p-4 flex-row gap-3.5 items-center">
-      <TournamentMark size={isWide ? 60 : 48} />
-      <View className="flex-1 min-w-0 gap-0.5">
-        <View className="flex-row items-center gap-2 flex-wrap">
-          <Text className="font-inter-bold text-ink" style={{ fontSize: isWide ? 22 : 19 }}>{event.name}</Text>
-          {event.status === 'Cancelled' ? <RowTag tone="cancelled" label="Cancelled" /> : null}
+  const fixturesBody = (() => {
+    if (!playing.length) {
+      return <Text className="font-inter text-[13px] text-ink-muted">Each division is drawn on its own, once its teams are in.</Text>;
+    }
+    if (setupMode) {
+      const toDraw = playing.filter(d => !gamesIn(d).length);
+      const drawn = playing.filter(d => gamesIn(d).length);
+      // A draw that has changed since it was made is outstanding too: it leads the drawn ones.
+      const drawnSorted = [...drawn].sort((a, b) => Number(sportsSection.divisionState(b).tone === 'wait') - Number(sportsSection.divisionState(a).tone === 'wait'));
+      return (
+        <View className="gap-1.5">
+          {meter(drawn.length, playing.length)}
+          <Text className="font-inter text-[13px] text-ink-muted">{drawn.length} of {plural(playing.length, 'division')} drawn. Each division is drawn on its own page, once its teams are in.</Text>
+          {toDraw.length ? <View>{groupLabel(`Still to draw · ${toDraw.length}`)}{toDraw.map(divisionRow)}</View> : null}
+          {drawn.length ? <View>{groupLabel(`Drawn · ${drawn.length}`)}{drawnSorted.map(divisionRow)}</View> : null}
+          {link('＋ Add a fixture by hand', () => router.push(`/admin/${orgId}/events/${eventId}/games/new`))}
         </View>
-        <View className="flex-row flex-wrap items-center gap-3">
-          <Text className="font-inter-semibold text-sm text-ink">{formatDateRange(event.startDate, event.endDate, { compact: true })}</Text>
-          {today && (liveGames.length || dayOf) ? (
-            <Text className="font-inter-bold text-sm text-danger-ink">{[dayOf, liveGames.length ? `${liveGames.length} live` : ''].filter(Boolean).join(' · ')}</Text>
-          ) : dateCountdown(event.startDate, event.endDate) ? (
-            <Text className="font-inter text-sm text-ink-muted">{dateCountdown(event.startDate, event.endDate)}</Text>
+      );
+    }
+    if (onTheDay) {
+      const played = games.filter(g => g.status === 'Finished').length;
+      const counted = games.filter(g => g.status !== 'Cancelled').length;
+      const nextUp = games
+        .filter(g => g.status === 'Scheduled' && g.startTime && whenMs(g.startTime) >= Date.now() - 60 * 60 * 1000)
+        .sort((a, b) => whenMs(a.startTime) - whenMs(b.startTime))
+        .slice(0, 3);
+      return (
+        <View className="gap-1.5">
+          {meter(played, counted)}
+          <Text className="font-inter text-[13px] text-ink-muted">{played} of {counted} played</Text>
+          {nextUp.length ? (
+            <View>
+              {groupLabel('Next up')}
+              {nextUp.map((g, i) => {
+                const [home, away] = g.participants || [];
+                const division = divisions.find(d => d.id === g.divisionId);
+                return (
+                  <TouchableOpacity key={g.id} onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}/view`)} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`}>
+                    <View className="flex-row items-center gap-2">
+                      <FixtureSideFitted names={fixtureSideNames(home, orgId)} participant={home} align="left" />
+                      <Text className="font-inter-semibold text-xs text-ink-muted" style={{ minWidth: 40, textAlign: 'center' }}>{g.timeTbd ? 'TBD' : formatKickoffTime(g.startTime)}</Text>
+                      <FixtureSideFitted names={fixtureSideNames(away, orgId)} participant={away} align="right" />
+                    </View>
+                    <Text className="font-inter text-xs text-ink-muted mt-1" numberOfLines={1}>
+                      {[division ? divisionFullName(division.name, sportName(division.sportId)) : '', facilities.find(f => f.id === g.facilityId)?.name].filter(Boolean).join(' · ')}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           ) : null}
         </View>
-        <Text className="font-inter text-sm text-ink-muted" numberOfLines={2}>
-          {[site?.name || (setupMode ? 'No venue yet' : ''), (event.sportIds || []).map(sportName).filter(Boolean).join(' · ')].filter(Boolean).join('   ')}
-        </Text>
-      </View>
-      {canEdit ? <View className="self-start">{edit(() => setDialog('details'))}</View> : null}
-    </View>
-  );
-
-  /* ------------------------------------------------------------------------ setting up --- */
-  const openKey = `tournamentSetupOpen:${eventId}`;
-  const savedOpen = useSettingsStore(state => state.localOverrides[openKey]) as number[] | undefined;
-  const setLocalOverride = useSettingsStore(state => state.setLocalOverride);
-  const open = new Set<number>(savedOpen ?? (nextIndex >= 0 ? [nextIndex] : []));
-  const toggle = (i: number) => {
-    const next = new Set(open);
-    next.has(i) ? next.delete(i) : next.add(i);
-    setLocalOverride(openKey, Array.from(next));
-  };
-  const dismissed = event.settings?.dismissedSetupSteps || [];
-
-  const stepBody = (step: TournamentStep): React.ReactNode => {
-    switch (step.key) {
-      case 'basics':
-        return site || usedFacilities.length
-          ? whereBody(false)
-          : <View className="gap-1"><Text className="font-inter text-[13px] text-ink-muted">Add where it is played — the base site, and the courts, fields and amenities it uses.</Text>{link('＋ Add venue', () => setDialog('where'))}</View>;
-      case 'divisions':
-        return (event.sportIds || []).length
-          ? sportsBlock('setup')
-          : <View className="gap-1"><Text className="font-inter text-[13px] text-ink-muted">Choose the sports being played — each gets its first division straight away.</Text>{link('＋ Add a sport', () => setDialog('sports'))}</View>;
-      case 'entrants': {
-        const beforeDivisions = !divisions.some(d => d.sportId);
-        return (
-          <View className="gap-2.5">
-            {beforeDivisions ? (
-              <Text className="font-inter text-[13px] text-ink-muted">Teams are entered into divisions, so entering starts once there are some. Organisations can be added and invited now.</Text>
-            ) : null}
-            {/* On a phone the heading has no room for the step's action, so it joins the warnings' line. */}
-            {warnings.length || !isWide ? (
-              <View className="flex-row items-center gap-2.5">
-                <WarningsBadge warnings={warnings} open={warningsOpen} onToggle={() => setWarningsOpen(o => !o)} />
-                <View className="flex-1" />
-                {!isWide ? addOrgAction : null}
-              </View>
-            ) : null}
-            {warningsOpen && warnings.length ? <WarningsList warnings={warnings} /> : null}
-            <NotInvitedBox count={notInvited.length} nobodyYet={nobodyInvited} onInviteAll={() => setOrgDialog({ kind: 'inviteAll' })} />
-            <View>
-              <OrgsList rows={orgRows} isWide={isWide} showInvitations onOpen={openOrg} beforeDivisions={beforeDivisions} />
-              <UnnamedList entrants={unnamed} divisionName={divisionName} onOpen={e => router.push(`/admin/${orgId}/events/${eventId}/divisions/${e.divisionId}`)} />
-            </View>
-            {!beforeDivisions ? (
-              <Text className="font-inter text-xs text-ink-muted">Tap an organisation to enter its teams or change its invitation. To enter teams one division at a time, open the division in step 2.</Text>
-            ) : null}
-          </View>
-        );
-      }
-      case 'scoring':
-        return (
-          <View className="gap-2.5">
-            {pointsTiles}
-            {!scoring ? (
-              <View className="flex-row items-center gap-2 flex-wrap">
-                <Text className="font-inter text-[13px] text-ink-muted flex-1">The default. Confirm it, or change it, before the first result is entered.</Text>
-                <TouchableOpacity onPress={confirmScoring} accessibilityRole="button"><Text className="font-inter-bold text-[13px] text-primary-ink">Confirm</Text></TouchableOpacity>
-              </View>
-            ) : null}
-          </View>
-        );
-      case 'fixtures': {
-        const playing = divisions.filter(d => !!d.sportId);
-        return (
-          <View className="gap-1">
-            <Text className="font-inter text-[13px] text-ink-muted">Each division is drawn on its own, once its teams are in. Nothing is drawn for you, so a late entry does not force a redraw.</Text>
-            {playing.map((d, i) => {
-              const st = divisionState(d);
-              return (
-                <TouchableOpacity key={d.id} onPress={() => router.push(`/admin/${orgId}/events/${eventId}/divisions/${d.id}`)} accessibilityRole="link" className={`flex-row items-center gap-2 py-2 ${i ? 'border-t border-line-soft' : ''}`}>
-                  <Text className="flex-1 font-inter-semibold text-sm text-ink" numberOfLines={1}>{divisionFullName(d.name, sportName(d.sportId))}</Text>
-                  <DivisionStateLine state={st} />
-                  <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-muted')} />
-                </TouchableOpacity>
-              );
-            })}
-            {link('＋ Add a fixture by hand', () => router.push(`/admin/${orgId}/events/${eventId}/games/new`))}
-          </View>
-        );
-      }
+      );
     }
-  };
-  const stepRight = (step: TournamentStep): React.ReactNode => {
-    if (step.key === 'basics') return edit(() => setDialog('where'));
-    if (step.key === 'scoring') return edit(() => setDialog('scoring'));
-    if (step.key === 'entrants') return isWide ? addOrgAction : null;
-    return null;
-  };
-
-  const settingUp = (
-    <>
-      <View className="flex-row flex-wrap items-center gap-3">
-        <Text className="font-inter-bold text-[15px] text-ink">Setting up</Text>
-        <Text className="font-inter text-[13px] text-ink-muted">{steps.filter(s => isFinished(s.state)).length} of {steps.length} done</Text>
-        <StepProgressBar states={steps.map(s => s.state)} />
-        <View className="flex-row items-center gap-3.5 ml-auto">
-          <TouchableOpacity onPress={() => setLocalOverride(openKey, open.size === steps.length ? [] : steps.map((_, i) => i))} accessibilityRole="button">
-            <Text className="font-inter-semibold text-[13px] text-ink-soft">{open.size === steps.length ? 'Close all' : 'Open all'}</Text>
-          </TouchableOpacity>
-        </View>
+    const total = games.filter(g => g.status !== 'Cancelled').length;
+    return (
+      <View className="gap-1.5">
+        <Text className="font-inter text-[13px] text-ink-muted">{plural(playing.length, 'division')} · {plural(total, 'fixture')}</Text>
+        <View>{playing.map(divisionRow)}</View>
       </View>
-      {steps.map((step, i) => {
-        const isOpen = open.has(i);
-        return (
-          <View key={step.key} className={`rounded-2xl border border-line bg-card px-4 ${isOpen ? 'py-4 gap-3' : 'py-3'}`}>
-            <View className="flex-row items-center gap-2.5">
-              <TouchableOpacity onPress={() => toggle(i)} accessibilityRole="button" accessibilityState={{ expanded: isOpen }} accessibilityLabel={`${i + 1}. ${step.title}, ${step.summary}`} className="flex-1 min-w-0 flex-row items-center gap-2.5">
-                <StepNumber index={i} state={step.state} />
-                <Text className="font-inter-bold text-[15px] text-ink">{step.title}</Text>
-                <StepPills state={step.state} />
-                {!isOpen && isWide ? <Text className="flex-1 font-inter text-[13px] text-ink-muted ml-1" numberOfLines={1}>{step.summary}</Text> : null}
-              </TouchableOpacity>
-              {isOpen ? stepRight(step) : null}
-              <TouchableOpacity onPress={() => toggle(i)} accessibilityLabel={isOpen ? `Close ${step.title}` : `Open ${step.title}`} hitSlop={8}>
-                <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color={themeColor(isDark, 'ink-muted')} />
-              </TouchableOpacity>
-            </View>
-            {!isOpen && !isWide ? <Text className="font-inter text-[13px] text-ink-muted mt-1" style={{ marginLeft: 34 }} numberOfLines={2}>{step.summary}</Text> : null}
-            {isOpen ? (
-              <View style={{ marginLeft: isWide ? 34 : 0 }} className="gap-3">
-                {stepBody(step)}
-                {step.dismissible && step.state !== 'done' ? (
-                  <TouchableOpacity
-                    onPress={() => saveDismissed(step.state === 'skip' ? dismissed.filter(k => k !== step.key) : [...dismissed, step.key])}
-                    accessibilityRole="button"
-                    className="self-start"
-                  >
-                    <Text className="font-inter-semibold text-xs text-ink-muted">{step.state === 'skip' ? 'Needed after all' : 'Not needed for this tournament'}</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ) : null}
-          </View>
-        );
-      })}
-    </>
+    );
+  })();
+  const fixturesCard = (
+    <TournamentCard
+      title="Fixtures"
+      {...cardProps('fixtures')}
+      right={<>{notNeededMenu('fixtures')}{playing.length ? seeAll(onOpenSchedule, 'Schedule') : null}</>}
+    >
+      {fixturesBody}
+    </TournamentCard>
   );
 
-  /* ---------------------------------------------------------------------------- overview --- */
-  const liveCard = liveGames.length ? card('● Live now', (
-    <View>
-      {liveGames.slice(0, 6).map((g, i) => {
-        const [home, away] = g.participants || [];
-        const scores = sideScores(g);
-        const division = divisions.find(d => d.id === g.divisionId);
-        return (
-          <TouchableOpacity key={g.id} onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}/view`)} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`} style={{ maxWidth: 560 }}>
-            <View className="flex-row items-center gap-2">
-              <FixtureSideFitted names={fixtureSideNames(home, orgId)} participant={home} align="left" />
-              <View className="items-center" style={{ minWidth: 52 }}>
-                <Text className="font-orbitron-bold text-[15px] text-danger-ink">{scores ? `${scores[0]} – ${scores[1]}` : 'Live'}</Text>
+  const liveCard = liveGames.length ? (
+    <TournamentCard
+      title={<View className="flex-row items-center gap-2"><View className="w-2 h-2 rounded-full bg-danger" /><Text className="font-inter-bold text-[18px] text-ink">Live now</Text></View>}
+      count={liveGames.length}
+      right={seeAll(onOpenSchedule, 'Schedule')}
+    >
+      <View>
+        {liveGames.slice(0, 6).map((g, i) => {
+          const [home, away] = g.participants || [];
+          const scores = sideScores(g);
+          const division = divisions.find(d => d.id === g.divisionId);
+          return (
+            <TouchableOpacity key={g.id} onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}/view`)} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`} style={{ maxWidth: 560 }}>
+              <View className="flex-row items-center gap-2">
+                <FixtureSideFitted names={fixtureSideNames(home, orgId)} participant={home} align="left" />
+                <View className="items-center" style={{ minWidth: 52 }}>
+                  <Text className="font-orbitron-bold text-[15px] text-danger-ink">{scores ? `${scores[0]} – ${scores[1]}` : 'Live'}</Text>
+                </View>
+                <FixtureSideFitted names={fixtureSideNames(away, orgId)} participant={away} align="right" />
               </View>
-              <FixtureSideFitted names={fixtureSideNames(away, orgId)} participant={away} align="right" />
-            </View>
-            <Text className="font-inter text-xs text-ink-muted mt-1" numberOfLines={1}>
-              {[g.periodLabel, facilities.find(f => f.id === g.facilityId)?.name, division ? divisionFullName(division.name, sportName(division.sportId)) : ''].filter(Boolean).join(' · ')}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  ), undefined, liveGames.length) : null;
-
-  const sportsCard = (event.sportIds || []).length ? card('Sports & divisions', sportsBlock('public'), undefined, divisions.length) : null;
-  // Invitations are an organiser's business; anyone else sees who is taking part.
-  const highlight = canEdit ? undefined : orgRows.find(r => !r.isHost && viewerOrgIds.includes(r.org.id))?.org.id;
-  const schoolsCard = orgRows.length ? card(
-    'Organisations',
-    <View>
-      <OrgsList rows={canEdit ? orgRows : orgRows.filter(r => r.isHost || (!!r.invitation && isTakingPart(r.invitation)))} isWide={isWide} showInvitations={canEdit} onOpen={canEdit ? openOrg : undefined} highlightOrgId={highlight} />
-      <UnnamedList entrants={unnamed} divisionName={divisionName} />
-    </View>,
-    canEdit ? addOrgAction : undefined,
-    orgRows.length,
+              <Text className="font-inter text-xs text-ink-muted mt-1" numberOfLines={1}>
+                {[g.periodLabel, facilities.find(f => f.id === g.facilityId)?.name, division ? divisionFullName(division.name, sportName(division.sportId)) : ''].filter(Boolean).join(' · ')}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </TournamentCard>
   ) : null;
-  const whereCard = site || usedFacilities.length ? card('Where', whereBody(true), canEdit ? edit(() => setDialog('where')) : undefined) : null;
-  const rulesCard = card('Rules & scoring', pointsTiles, canEdit ? edit(() => setDialog('scoring')) : undefined);
-  const organizersCard = canEdit && organizers.length ? card('Organisers', (
-    <View>
-      {organizers.map((o, i) => (
-        <View key={o.orgProfileId} className={`flex-row items-center gap-2 py-1.5 ${i ? 'border-t border-line-soft' : ''}`}>
-          <Text className="flex-1 font-inter text-sm text-ink" numberOfLines={1}>{o.name || 'Organiser'}</Text>
-          {o.orgShortName ? <Text className="font-inter text-xs text-ink-muted">{o.orgShortName}</Text> : null}
-        </View>
-      ))}
-    </View>
-  ), edit(onEditOrganizers)) : null;
 
-  const isGuest = !canEdit && viewerOrgIds.some(id => (event.participatingOrgs || []).some(o => o.id === id));
+  const organizersCard = canEdit && organizers.length ? (
+    <TournamentCard title="Organisers" right={edit(onEditOrganizers)}>
+      <View>
+        {organizers.map((o, i) => (
+          <View key={o.orgProfileId} className={`flex-row items-center gap-2 py-1.5 ${i ? 'border-t border-line-soft' : ''}`}>
+            <Text className="flex-1 font-inter text-sm text-ink" numberOfLines={1}>{o.name || 'Organiser'}</Text>
+            {o.orgShortName ? <Text className="font-inter text-xs text-ink-muted">{o.orgShortName}</Text> : null}
+          </View>
+        ))}
+      </View>
+    </TournamentCard>
+  ) : null;
+
   /*
    * The viewer's own organisation, invited and not simply taking part (`FIX-30`): "Valley Prep has
    * invited you", with Accept and Decline — or where its request to withdraw, or its answer, stands.
    * The same card as on its page, which this links to for its teams.
    */
-  const myInvitations = canEdit ? [] : takingPart.filter(o => o.id !== event.orgId && viewerOrgIds.includes(o.id) && o.invitation !== 'accepted' && o.invitation !== 'not_invited');
+  const myUserId = useAuthStore((state: any) => state.user?.id);
+  const myMemberships = useAuthStore((state: any) => state.orgMemberships) || [];
+  /** An admin of that organisation — who may answer for it; staff may not (`FIX-31`). */
+  const adminsOrg = (id: string) => myMemberships.some((m: any) => m.orgId === id && m.roleId === 'role-org-admin' && (!m.endDate || new Date(m.endDate) > new Date()));
+  const myInvitations = canEdit ? [] : (event.participatingOrgs || []).filter(o => o.id !== event.orgId && viewerOrgIds.includes(o.id) && o.invitation !== 'accepted' && o.invitation !== 'not_invited');
   const invitationBanners = myInvitations.map(o => (
     <View key={o.id} className="gap-1.5">
       <OrganisationResponse
@@ -666,86 +688,44 @@ export function TournamentHome({
         wide={false}
         onRemove={() => {}}
       />
-      {link(`${o.name}'s page in this tournament ›`, () => openOrg(o.id))}
+      {link(`${o.name}'s page in this tournament ›`, () => orgs.openOrg(o.id))}
     </View>
   ));
-  const overview = (
-    <>
-      {invitationBanners}
-      {liveCard}
-      {isGuest && !isWide ? whereCard : null}
-      {sportsCard}
-      {isWide ? (
-        <View className="flex-row gap-4 items-start">
-          <View className="flex-1 gap-4">{schoolsCard}{organizersCard}</View>
-          <View className="flex-1 gap-4">{whereCard}{rulesCard}</View>
-        </View>
-      ) : (
-        <>{schoolsCard}{isGuest ? null : whereCard}{rulesCard}{organizersCard}</>
-      )}
-    </>
-  );
+
+  /* ---------------------------------------------------------------------------- layout --- */
+  /*
+   * The order follows the moment, but stays put while setting up (2026-10-09: sections jumping
+   * around as they are finished would confuse). Setting up and set up: the big sections on the
+   * left, the small ones on the right. On the day: Live now leads. For anyone who cannot edit:
+   * what is played and where, then who is taking part.
+   */
+  const [left, right] = onTheDay
+    ? [[anchor('live', liveCard), anchor('divisions', sportsCard), anchor('fixtures', fixturesCard)], [anchor('basics', whereCard), anchor('entrants', orgsCard), anchor('scoring', rulesCard), anchor('organizers', organizersCard)]]
+    : !canEdit
+      ? [[anchor('divisions', sportsCard), anchor('fixtures', fixturesCard)], [anchor('basics', whereCard), anchor('entrants', orgsCard), anchor('scoring', rulesCard)]]
+      : [[anchor('divisions', sportsCard), anchor('entrants', orgsCard)], [anchor('basics', whereCard), anchor('scoring', rulesCard), anchor('fixtures', fixturesCard), anchor('organizers', organizersCard)]];
 
   return (
-    <View className="gap-4">
+    <View ref={rootRef} collapsable={false} className="gap-4">
+      {invitationBanners}
       {banner}
-      {setupMode ? settingUp : overview}
+      {nextStrip}
+      {isWide ? (
+        <View className="flex-row gap-4 items-start">
+          <View className="gap-4 min-w-0" style={{ flex: 1.15 }}>{left}</View>
+          <View className="gap-4 min-w-0" style={{ flex: 1 }}>{right}</View>
+        </View>
+      ) : (
+        <>{left}{right}</>
+      )}
 
+      {sportsSection.dialogs}
+      {orgs.dialogs}
       {canEdit ? (
         <>
           <EditTournamentDialog visible={dialog === 'details'} event={event} orgId={orgId} onClose={close} />
           <WhereDialog visible={dialog === 'where'} event={event} orgId={orgId} sites={sites} facilities={facilities} facilityIds={facilityIds} onClose={close} />
           <ScoringDialog visible={dialog === 'scoring'} event={event} orgId={orgId} onClose={close} />
-          <SportsDialog visible={dialog === 'sports'} event={event} orgId={orgId} sports={sports} divisionCount={id => divisions.filter(d => d.sportId === id).length} onClose={addedSportIds => { close(); setFirstFor(addedSportIds); }} />
-          <AddDivisionDialog
-            visible={!!addingTo}
-            onClose={() => setAddingTo(null)}
-            onAdded={id => router.push(`/admin/${orgId}/events/${eventId}/divisions/${id}`)}
-            orgId={orgId}
-            event={event}
-            sport={sports.find(s => s.id === addingTo) || null}
-            divisions={divisions}
-          />
-          <AddDivisionDialog
-            visible={!!firstDivision && dialog === null}
-            onClose={() => setFirstFor(prev => prev.slice(1))}
-            orgId={orgId}
-            event={event}
-            sport={sports.find(s => s.id === firstFor[0]) || null}
-            divisions={divisions}
-            existing={firstDivision}
-          />
-
-          {/* Organisations & teams — one dialog at a time, each handing on to the next. */}
-          <AddOrganisationsDialog
-            visible={orgDialog?.kind === 'add'}
-            event={event}
-            orgId={orgId}
-            onClose={closeOrgDialog}
-            onRegister={name => setOrgDialog({ kind: 'register', name })}
-          />
-          <InviteOrganisationsDialog
-            visible={orgDialog?.kind === 'inviteAll'}
-            event={event}
-            orgId={orgId}
-            onClose={closeOrgDialog}
-            onNominate={org => setOrgDialog({ kind: 'nominate', orgId: org.id })}
-          />
-          {/* A school the search did not find: registered, then added — invited too once invitations have started. */}
-          <RegisterOrgModal
-            isOpen={orgDialog?.kind === 'register'}
-            onClose={closeOrgDialog}
-            initialName={orgDialog?.kind === 'register' ? orgDialog.name : ''}
-            sportId={(event.sportIds || []).length === 1 ? event.sportIds![0] : undefined}
-            onRegistered={async (org, contactEmail) => {
-              const result = await sendAction(SocketAction.ADD_EVENT_ORGS, { eventId, orgId, participantOrgIds: [org.id], invite: !nobodyInvited });
-              if (result.ok && contactEmail) void nominateOrgContact(org.id, contactEmail);
-              closeOrgDialog();
-            }}
-          />
-          {orgDialog?.kind === 'nominate' && dialogOrg ? (
-            <NominateFor org={dialogOrg} onClose={closeOrgDialog} />
-          ) : null}
         </>
       ) : null}
     </View>

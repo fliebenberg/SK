@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { EventOrgInvitation, GameSummary, OrgBadge, Sport, TournamentDivision, TournamentEntrant, drawChanges } from '@sk/shared';
 import { FixtureCrest } from '../events/EventBits';
@@ -32,47 +32,55 @@ const STATE_LABEL: Record<StepState, string> = {
   skip: 'Not needed',
 };
 
-/** One segment per step, with gaps: green finished, amber in progress, grey not started. */
-export function StepProgressBar({ states }: { states: StepState[] }) {
-  return (
-    <View className="flex-row gap-1 flex-1" style={{ maxWidth: 300, minWidth: 120 }} accessibilityElementsHidden>
-      {states.map((state, i) => (
-        <View
-          key={i}
-          className={`flex-1 h-1.5 rounded-full ${isFinished(state) ? 'bg-success' : state === 'part' ? 'bg-warning' : 'bg-line-strong'}`}
-        />
-      ))}
-    </View>
-  );
-}
+const SEGMENT_FILL: Record<StepState, string> = {
+  done: 'bg-success',
+  skip: 'bg-success',
+  part: 'bg-warning',
+  none: 'bg-line-strong',
+};
+const SEGMENT_TEXT: Record<StepState, string> = {
+  done: 'text-success-ink',
+  skip: 'text-success-ink',
+  part: 'text-warning-ink',
+  none: 'text-ink-muted',
+};
 
 /**
- * A step's number in a ring, in its state's colour — a tick on green once finished. The number is
- * text and stays at a readable shade in every state (`ink-muted` at the least); only the ring of a
- * step not started is the quiet line colour (design_system.md: never fade content).
+ * How far setting up has got, in the banner (2026-10-09): "Setting up · 2 of 5 done", then one
+ * segment per section — green finished, amber in progress, grey not started — each labelled on a
+ * wide screen and each a way to its card.
  */
-export function StepNumber({ index, state }: { index: number; state: StepState }) {
-  const isDark = useActiveTheme() === 'dark';
-  if (isFinished(state)) {
-    return (
-      <View className="w-6 h-6 rounded-full bg-success items-center justify-center flex-shrink-0">
-        <Ionicons name="checkmark" size={14} color={themeColor(isDark, 'on-success')} />
+export function SetupProgress({ sections, phone, onJump }: {
+  sections: Array<{ key: string; title: string; state: StepState }>;
+  phone: boolean;
+  onJump: (key: string) => void;
+}) {
+  const done = sections.filter(s => isFinished(s.state)).length;
+  return (
+    <View className="border-t border-line-soft pt-3 gap-2">
+      <View className="flex-row items-baseline gap-2.5">
+        <Text className="font-inter-bold text-[13px] text-ink">Setting up</Text>
+        <Text className="font-inter text-[13px] text-ink-muted">{done} of {sections.length} done</Text>
       </View>
-    );
-  }
-  const ring = state === 'part' ? 'border-warning' : 'border-line-strong';
-  const text = state === 'part' ? 'text-warning-ink' : 'text-ink-muted';
-  return (
-    <View className={`w-6 h-6 rounded-full border-2 items-center justify-center flex-shrink-0 ${ring}`}>
-      <Text className={`font-inter-bold text-xs ${text}`}>{index + 1}</Text>
+      <View className="flex-row gap-1.5">
+        {sections.map(s => (
+          <TouchableOpacity
+            key={s.key}
+            onPress={() => onJump(s.key)}
+            accessibilityRole="link"
+            accessibilityLabel={`${s.title}, ${STATE_LABEL[s.state]}`}
+            className="flex-1 min-w-0 gap-1.5 py-1"
+          >
+            <View className={`h-1.5 rounded-full ${SEGMENT_FILL[s.state]}`} />
+            {phone ? null : <Text className={`font-inter-semibold text-xs ${SEGMENT_TEXT[s.state]}`} numberOfLines={1}>{s.title}</Text>}
+          </TouchableOpacity>
+        ))}
+      </View>
     </View>
   );
 }
 
-/**
- * The step's state in words. No *Next* beside it (2026-10-05, `FIX-26`): the steps are numbered,
- * which already says what order they go in, and the step to do next is the one that starts open.
- */
+/** A section's state in words, on its heading while the tournament is being set up. */
 export function StepPills({ state }: { state: StepState }) {
   const box = isFinished(state) ? 'bg-success-soft' : state === 'part' ? 'bg-warning-soft' : 'bg-sunken';
   const text = isFinished(state) ? 'text-success-ink' : state === 'part' ? 'text-warning-ink' : 'text-ink-muted';
@@ -164,39 +172,275 @@ export function DivisionStateLine({ state, large }: { state: DivisionState; larg
   );
 }
 
+/** Below this width a card's heading actions use their short labels ("＋ Add" for "＋ Add organisation"). */
+const NARROW_CARD = 560;
+
 /**
- * A card on the tournament's pages: a title, an optional count beside it, an optional action at
- * the right, and its body. The tournament page and the division page both build from it.
+ * A section's heading: the title larger than anything inside the card and on a line of its own, so
+ * each section reads as one (agreed 2026-10-09, `mockups/tournament-cards.html`; design_system.md,
+ * *Section headings*). On a phone the status and the actions take a second line. On a wider screen
+ * they share the title's line when they fit and drop to a second line when they do not — the title
+ * never wraps into them.
  */
-export function TournamentCard({ title, count, right, children }: {
-  title: string;
+export function SectionHeading({ title, count, status, right, caret, onToggle, phone, accessibilityLabel }: {
+  title: React.ReactNode;
   count?: number | string;
+  /** Where a setup section stands — only while the tournament is being set up. */
+  status?: StepState | null;
   right?: React.ReactNode;
-  children?: React.ReactNode;
+  /** A folding card's chevron, on the title's line. */
+  caret?: 'open' | 'closed';
+  onToggle?: () => void;
+  phone: boolean;
+  accessibilityLabel?: string;
 }) {
+  const isDark = useActiveTheme() === 'dark';
+  const titleEl = (
+    <View className="flex-row items-baseline gap-2 flex-shrink min-w-0">
+      {typeof title === 'string' ? (
+        <Text className="font-inter-bold text-[18px] text-ink flex-shrink" numberOfLines={1}>{title}</Text>
+      ) : title}
+      {count !== undefined ? <Text className="font-inter text-[15px] text-ink-muted">{count}</Text> : null}
+    </View>
+  );
+  const pill = status ? <StepPills state={status} /> : null;
+  const chevron = caret ? (
+    <Ionicons name={caret === 'open' ? 'chevron-up' : 'chevron-down'} size={16} color={themeColor(isDark, 'ink-muted')} />
+  ) : null;
+  const meta = pill || right ? (
+    <View className="flex-row items-center gap-2.5 flex-wrap" style={{ flexGrow: 1 }}>
+      {pill}
+      <View className="flex-1" />
+      {right ? <View className="flex-row items-center gap-3.5 flex-wrap justify-end">{right}</View> : null}
+    </View>
+  ) : null;
+  // The title's line toggles a folding card; the actions beside it stay their own buttons.
+  const titleLine = onToggle ? (
+    <TouchableOpacity onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: caret === 'open' }} accessibilityLabel={accessibilityLabel} className="flex-row items-center gap-2.5">
+      {titleEl}
+      <View className="flex-1" />
+      {chevron}
+    </TouchableOpacity>
+  ) : (
+    <View className="flex-row items-center gap-2.5">{titleEl}<View className="flex-1" />{chevron}</View>
+  );
+  if (phone) return <View className="gap-1.5">{titleLine}{meta}</View>;
   return (
-    <View className="rounded-2xl border border-line bg-card p-4 gap-3">
-      <View className="flex-row items-center gap-2">
-        <Text className="font-inter-bold text-[13px] text-ink-soft">{title}</Text>
-        {count !== undefined ? <Text className="font-inter text-[13px] text-ink-muted">{count}</Text> : null}
-        <View className="flex-1" />
-        {right}
-      </View>
-      {children}
+    <View className="flex-row flex-wrap items-center gap-x-2.5 gap-y-1.5">
+      {onToggle ? <View style={{ flexShrink: 1, minWidth: 0 }}>{titleLine}</View> : titleEl}
+      {meta}
     </View>
   );
 }
 
 /**
- * Sports & divisions, one sport at a time (agreed 2026-10-04). The sports are one line that
- * scrolls sideways and never wraps — arrows on a wide screen, a swipe on a phone — with "All N ▾"
- * fixed at its end for a quick jump. Under it, only the chosen sport: its heading and its
- * divisions as tiles. A sport with one division shows it whole, as one wide panel, rather than a
- * grid of one.
+ * The heading of a section's full page (`events/[eventId]/sports`, `…/organisations`): the card's
+ * own heading, larger — title, count, status and actions — so the page reads as that card opened up.
+ */
+export function SectionPageHeading({ title, count, status, right, phone }: {
+  title: string;
+  count?: number;
+  status?: StepState | null;
+  right?: React.ReactNode;
+  phone: boolean;
+}) {
+  return (
+    <View className="flex-row flex-wrap items-center gap-x-3 gap-y-2 px-0.5">
+      <View className="flex-row items-baseline gap-2 flex-shrink min-w-0">
+        <Text className="font-inter-bold text-ink" style={{ fontSize: phone ? 21 : 24 }} numberOfLines={2}>{title}</Text>
+        {count !== undefined ? <Text className="font-inter text-base text-ink-muted">{count}</Text> : null}
+      </View>
+      {status ? <StepPills state={status} /> : null}
+      <View className="flex-1" />
+      {right ? <View className="flex-row items-center gap-3 flex-wrap">{right}</View> : null}
+    </View>
+  );
+}
+
+/**
+ * A card on the tournament's pages: a section heading (title, count, status, actions) and its body.
+ * The tournament page, its full pages and the division page all build from it. `right` may be a
+ * function, given whether the card is narrow, so an action can shorten its label before it wraps.
+ * `folded` shows only the heading and `summary`.
+ */
+export function TournamentCard({ title, count, right, status, folded, summary, onToggle, children }: {
+  title: React.ReactNode;
+  count?: number | string;
+  right?: React.ReactNode | ((narrow: boolean) => React.ReactNode);
+  status?: StepState | null;
+  /** Folding, on a phone while setting up: `undefined` for a card that does not fold. */
+  folded?: boolean;
+  summary?: string;
+  onToggle?: () => void;
+  children?: React.ReactNode;
+}) {
+  const { width: windowWidth } = useWindowDimensions();
+  const [width, setWidth] = useState(0);
+  const narrow = width > 0 && width < NARROW_CARD;
+  const folds = folded !== undefined && !!onToggle;
+  return (
+    <View className="rounded-2xl border border-line bg-card p-4 gap-3" onLayout={e => setWidth(e.nativeEvent.layout.width)}>
+      <SectionHeading
+        title={title}
+        count={count}
+        status={status}
+        right={typeof right === 'function' ? right(narrow) : right}
+        caret={folds ? (folded ? 'closed' : 'open') : undefined}
+        onToggle={folds ? onToggle : undefined}
+        phone={windowWidth < 768}
+        accessibilityLabel={typeof title === 'string' ? `${title}${summary ? `, ${summary}` : ''}` : undefined}
+      />
+      {folds && folded ? (
+        summary ? <Text className="font-inter text-[13px] text-ink-muted -mt-1.5" numberOfLines={2}>{summary}</Text> : null
+      ) : children}
+    </View>
+  );
+}
+
+/**
+ * A row of chips that never shows a scrollbar (agreed 2026-10-09): one line that scrolls sideways,
+ * with ‹ › only when there is more than fits, each gone at its end. A swipe works too. `focusX` is
+ * brought into view, so choosing never leaves the chosen chip behind an arrow.
+ */
+export function ChipCarousel({ children, focusX }: { children: React.ReactNode; focusX?: number }) {
+  const isDark = useActiveTheme() === 'dark';
+  const ref = useRef<ScrollView>(null);
+  const [x, setX] = useState(0);
+  const [viewW, setViewW] = useState(0);
+  const [contentW, setContentW] = useState(0);
+  const overflows = contentW > viewW + 1;
+  const atStart = x <= 1;
+  const atEnd = x + viewW >= contentW - 1;
+  useEffect(() => {
+    if (focusX === undefined || !viewW) return;
+    if (focusX < x || focusX > x + viewW - 80) ref.current?.scrollTo({ x: Math.max(0, focusX - 8), animated: true });
+    // Only when the chosen chip changes, not on every scroll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusX, viewW]);
+  const arrow = (dir: -1 | 1) => (
+    <TouchableOpacity
+      onPress={() => ref.current?.scrollTo({ x: Math.max(0, x + dir * viewW * 0.8), animated: true })}
+      accessibilityLabel={dir < 0 ? 'Earlier' : 'More'}
+      className="w-8 h-8 rounded-full border border-line bg-card items-center justify-center"
+    >
+      <Ionicons name={dir < 0 ? 'chevron-back' : 'chevron-forward'} size={14} color={themeColor(isDark, 'ink-soft')} />
+    </TouchableOpacity>
+  );
+  return (
+    <View className="flex-row items-center gap-1.5">
+      {overflows && !atStart ? arrow(-1) : null}
+      <ScrollView
+        ref={ref}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        onScroll={e => setX(e.nativeEvent.contentOffset.x)}
+        scrollEventThrottle={32}
+        onLayout={e => setViewW(e.nativeEvent.layout.width)}
+        onContentSizeChange={w => setContentW(w)}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ gap: 6, paddingVertical: 2, paddingHorizontal: 2 }}
+      >
+        {children}
+      </ScrollView>
+      {overflows && !atEnd ? arrow(1) : null}
+    </View>
+  );
+}
+
+/** One sport's chip: its name, its division count, and a dot when it needs seeing to. */
+export function SportChip({ name, count, on, dot, onPress, onLayout }: {
+  name: string;
+  count: number;
+  on: boolean;
+  dot?: 'wait' | 'live' | null;
+  onPress: () => void;
+  onLayout?: (x: number) => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      onLayout={onLayout ? e => onLayout(e.nativeEvent.layout.x) : undefined}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: on }}
+      className={`flex-row items-center gap-2 rounded-xl border px-3 py-2 ${on ? 'bg-raised border-line-selected shadow-sm' : 'bg-card border-line shadow-none'}`}
+    >
+      <Text className={`font-inter-semibold text-sm ${on ? 'text-ink' : 'text-ink-muted'}`}>{name}</Text>
+      <Text className="font-inter text-xs text-ink-muted">{count}</Text>
+      {dot ? <View className={`w-2 h-2 rounded-full ${dot === 'live' ? 'bg-danger' : 'bg-warning'}`} /> : null}
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * One sport: its heading (name, divisions and teams, its ⋯) and its divisions as tiles, with
+ * ＋ Add a … division while setting up. The same on the Sports & divisions card, which shows the
+ * chosen sport, and on the full page, which shows every sport.
+ */
+export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, divisionState, columns, onOpenDivision, onAddDivision, sportMenu }: {
+  sportId: string;
+  sportName: string;
+  /** This sport's divisions. */
+  divisions: TournamentDivision[];
+  entrantsByDivision: Map<string, TournamentEntrant[]>;
+  divisionState: (division: TournamentDivision) => DivisionState;
+  /** Tiles across: 2 on a phone, 3 in a card on a wide screen, 4 on the full page. */
+  columns: number;
+  onOpenDivision: (division: TournamentDivision) => void;
+  onAddDivision?: (sportId: string) => void;
+  sportMenu?: (sportId: string) => React.ReactNode;
+}) {
+  const teamsIn = (d: TournamentDivision) => (entrantsByDivision.get(d.id) || []).filter(e => e.status !== 'withdrawn').length;
+  const teamTotal = divisions.reduce((sum, d) => sum + teamsIn(d), 0);
+  const tileWidth = columns === 4 ? '23.6%' : columns === 3 ? '31.8%' : '48.5%';
+  return (
+    <View className="gap-3">
+      <View className="flex-row items-center gap-2.5">
+        <View className="flex-1 min-w-0">
+          <Text className="font-inter-bold text-base text-ink">{sportName}</Text>
+          <Text className="font-inter text-xs text-ink-muted">{plural(divisions.length, 'division')} · {plural(teamTotal, 'team')}</Text>
+        </View>
+        {sportMenu ? sportMenu(sportId) : null}
+      </View>
+      <View className="flex-row flex-wrap gap-2.5">
+        {divisions.map(d => (
+          <TouchableOpacity
+            key={d.id}
+            onPress={() => onOpenDivision(d)}
+            accessibilityRole="link"
+            className="rounded-2xl border border-line bg-card p-3 gap-1.5"
+            style={{ width: tileWidth, minHeight: 104 }}
+          >
+            <Text className="font-inter-bold text-lg text-ink" numberOfLines={1}>{d.name}</Text>
+            <Text className="font-inter text-xs text-ink-muted" numberOfLines={2}>
+              {divisionFormatLabel(d)}{'\n'}{d.ageGroup || 'Any age'} · {plural(teamsIn(d), 'team')}
+            </Text>
+            <View className="mt-auto">
+              <DivisionStateLine state={divisionState(d)} />
+            </View>
+          </TouchableOpacity>
+        ))}
+        {onAddDivision ? (
+          <TouchableOpacity
+            onPress={() => onAddDivision(sportId)}
+            accessibilityRole="button"
+            className="rounded-2xl border border-dashed border-line-strong items-center justify-center p-3"
+            style={{ width: tileWidth, minHeight: 104 }}
+          >
+            <Text className="font-inter-bold text-sm text-primary-ink text-center">＋ Add a {sportName} division</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Sports & divisions, one sport at a time (agreed 2026-10-04): the sports as a carousel of chips,
+ * then the chosen sport. Adding a sport is the card's heading action, never a chip, and there is no
+ * *All N* list any more (2026-10-09): the arrows and the card's *See all ›* page cover jumping.
  */
 export function SportsDivisions({
-  sports, sportIds, divisions, entrantsByDivision, divisionState, isWide, canEdit, setupMode,
-  attention, onOpenDivision, onAddDivision, onAddSport, sportMenu,
+  sports, sportIds, divisions, entrantsByDivision, divisionState, isWide, attention, onOpenDivision, onAddDivision, sportMenu,
 }: {
   sports: Sport[];
   /** The tournament's sports, in its order. */
@@ -205,41 +449,19 @@ export function SportsDivisions({
   entrantsByDivision: Map<string, TournamentEntrant[]>;
   divisionState: (division: TournamentDivision) => DivisionState;
   isWide: boolean;
-  canEdit: boolean;
-  /** While setting up: the explanation, the add tiles and the ＋ Sport chip. */
-  setupMode: boolean;
   /** A sport with something to see to — a dot on its chip. */
   attention: (sportId: string) => 'wait' | 'live' | null;
   onOpenDivision: (division: TournamentDivision) => void;
   onAddDivision?: (sportId: string) => void;
-  onAddSport?: () => void;
   /** The ⋯ on the chosen sport's heading, for an organiser. */
   sportMenu?: (sportId: string) => React.ReactNode;
 }) {
-  const isDark = useActiveTheme() === 'dark';
   const [selected, setSelected] = useState<string | undefined>(sportIds[0]);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const stripRef = useRef<ScrollView>(null);
   const chipX = useRef<Record<string, number>>({});
-  const scrollX = useRef(0);
-  // Arrows only when the sports do not fit: measured against the room left without them, so showing
-  // the arrows cannot itself make the strip fit and flip them off again.
-  const [rowW, setRowW] = useState(0);
-  const [allW, setAllW] = useState(0);
-  const [stripW, setStripW] = useState(0);
-  const overflows = stripW > rowW - allW - 6;
-
+  const [focusX, setFocusX] = useState<number | undefined>(undefined);
   const current = sportIds.includes(selected || '') ? selected! : sportIds[0];
   const sportName = (id: string) => sports.find(s => s.id === id)?.name || 'Sport';
   const divisionsOf = (id: string) => divisions.filter(d => d.sportId === id);
-  const teamsIn = (d: TournamentDivision) => (entrantsByDivision.get(d.id) || []).filter(e => e.status !== 'withdrawn').length;
-
-  const choose = (id: string) => {
-    setSelected(id);
-    setPickerOpen(false);
-    const x = chipX.current[id];
-    if (x !== undefined) stripRef.current?.scrollTo({ x: Math.max(0, x - 40), animated: true });
-  };
 
   if (!sportIds.length) {
     return (
@@ -248,131 +470,32 @@ export function SportsDivisions({
       </Text>
     );
   }
-
-  const chosen = divisionsOf(current);
-  const teamTotal = chosen.reduce((sum, d) => sum + teamsIn(d), 0);
-  const dot = (tone: 'wait' | 'live' | null) => (tone ? <View className={`w-2 h-2 rounded-full ${tone === 'live' ? 'bg-danger' : 'bg-warning'}`} /> : null);
-
-  const chip = (id: string) => {
-    const on = id === current;
-    return (
-      <TouchableOpacity
-        key={id}
-        onPress={() => choose(id)}
-        onLayout={e => { chipX.current[id] = e.nativeEvent.layout.x; }}
-        accessibilityRole="tab"
-        accessibilityState={{ selected: on }}
-        className={`flex-row items-center gap-2 rounded-xl border px-3 py-2 ${on ? 'bg-raised border-line-selected shadow-sm' : 'bg-card border-line shadow-none'}`}
-      >
-        <Text className={`font-inter-semibold text-sm ${on ? 'text-ink' : 'text-ink-muted'}`}>{sportName(id)}</Text>
-        <Text className="font-inter text-xs text-ink-muted">{divisionsOf(id).length}</Text>
-        {dot(attention(id))}
-      </TouchableOpacity>
-    );
-  };
-
-  const tile = (d: TournamentDivision) => {
-    const state = divisionState(d);
-    return (
-      <TouchableOpacity
-        key={d.id}
-        onPress={() => onOpenDivision(d)}
-        accessibilityRole="link"
-        className="rounded-2xl border border-line bg-card p-3 gap-1.5"
-        style={{ width: isWide ? '31.8%' : '48.5%', minHeight: 104 }}
-      >
-        <Text className="font-inter-bold text-lg text-ink" numberOfLines={1}>{d.name}</Text>
-        <Text className="font-inter text-xs text-ink-muted" numberOfLines={2}>
-          {divisionFormatLabel(d)}{'\n'}{d.ageGroup || 'Any age'} · {plural(teamsIn(d), 'team')}
-        </Text>
-        <View className="mt-auto">
-          <DivisionStateLine state={state} />
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
   return (
     <View className="gap-3">
-      {/* The sports, one line that scrolls sideways; "All" stays put at its end. */}
-      <View className="flex-row items-center gap-1.5" onLayout={e => setRowW(e.nativeEvent.layout.width)}>
-        {isWide && overflows ? (
-          <TouchableOpacity onPress={() => stripRef.current?.scrollTo({ x: Math.max(0, scrollX.current - 220), animated: true })} accessibilityLabel="Earlier sports" className="w-8 h-8 rounded-full border border-line bg-card items-center justify-center">
-            <Ionicons name="chevron-back" size={14} color={themeColor(isDark, 'ink-soft')} />
-          </TouchableOpacity>
-        ) : null}
-        <ScrollView
-          ref={stripRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          onScroll={e => { scrollX.current = e.nativeEvent.contentOffset.x; }}
-          scrollEventThrottle={32}
-          onContentSizeChange={w => setStripW(w)}
-          style={{ flex: 1 }}
-          contentContainerStyle={{ gap: 6, paddingVertical: 2, paddingHorizontal: 2 }}
-        >
-          {sportIds.map(chip)}
-          {setupMode && canEdit && onAddSport ? (
-            <TouchableOpacity onPress={onAddSport} accessibilityRole="button" className="flex-row items-center gap-1 rounded-xl border border-dashed border-line-strong px-3 py-2">
-              <Ionicons name="add" size={14} color={themeColor(isDark, 'primary-ink')} />
-              <Text className="font-inter-bold text-sm text-primary-ink">Sport</Text>
-            </TouchableOpacity>
-          ) : null}
-        </ScrollView>
-        {isWide && overflows ? (
-          <TouchableOpacity onPress={() => stripRef.current?.scrollTo({ x: scrollX.current + 220, animated: true })} accessibilityLabel="More sports" className="w-8 h-8 rounded-full border border-line bg-card items-center justify-center">
-            <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-soft')} />
-          </TouchableOpacity>
-        ) : null}
-        <TouchableOpacity onPress={() => setPickerOpen(true)} onLayout={e => setAllW(e.nativeEvent.layout.width)} accessibilityRole="button" accessibilityLabel="All sports" className="flex-row items-center gap-1 rounded-xl border border-line bg-card px-2.5 py-2">
-          <Text className="font-inter-semibold text-[13px] text-ink-soft">All {sportIds.length}</Text>
-          <Ionicons name="chevron-down" size={13} color={themeColor(isDark, 'ink-muted')} />
-        </TouchableOpacity>
-      </View>
-
-      {/* The chosen sport. */}
-      <View className="flex-row items-center gap-2.5">
-        <View className="flex-1 min-w-0">
-          <Text className="font-inter-bold text-base text-ink">{sportName(current)}</Text>
-          <Text className="font-inter text-xs text-ink-muted">{plural(chosen.length, 'division')} · {plural(teamTotal, 'team')}</Text>
-        </View>
-        {sportMenu ? sportMenu(current) : null}
-      </View>
-
-      <View className="flex-row flex-wrap gap-2.5">
-        {chosen.map(tile)}
-        {setupMode && canEdit && onAddDivision ? (
-          <TouchableOpacity
-            onPress={() => onAddDivision(current)}
-            accessibilityRole="button"
-            className="rounded-2xl border border-dashed border-line-strong items-center justify-center p-3"
-            style={{ width: isWide ? '31.8%' : '48.5%', minHeight: 104 }}
-          >
-            <Text className="font-inter-bold text-sm text-primary-ink text-center">＋ Add a {sportName(current)} division</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-
-      {/* "All ▾": every sport at once, to jump straight to one. */}
-      <Modal transparent visible={pickerOpen} animationType="fade" onRequestClose={() => setPickerOpen(false)}>
-        <Pressable onPress={() => setPickerOpen(false)} className="flex-1 bg-overlay/60 items-center justify-center px-6">
-          <Pressable onPress={() => {}} className="w-full max-w-sm rounded-2xl overflow-hidden bg-card border border-line p-1.5">
-            <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider px-3 pt-2.5 pb-1.5">Sports</Text>
-            {sportIds.map(id => (
-              <TouchableOpacity key={id} onPress={() => choose(id)} className={`flex-row items-center gap-2.5 px-3 py-2.5 rounded-xl ${id === current ? 'bg-sunken' : ''}`}>
-                <Text className={`text-sm flex-1 ${id === current ? 'font-inter-bold text-ink' : 'font-inter text-ink'}`}>{sportName(id)}</Text>
-                {dot(attention(id))}
-                <Text className="font-inter text-xs text-ink-muted">{plural(divisionsOf(id).length, 'division')}</Text>
-              </TouchableOpacity>
-            ))}
-            {setupMode && canEdit && onAddSport ? (
-              <TouchableOpacity onPress={() => { setPickerOpen(false); onAddSport(); }} className="px-3 py-2.5 border-t border-line-soft mt-1">
-                <Text className="font-inter-bold text-sm text-primary-ink">＋ Add a sport</Text>
-              </TouchableOpacity>
-            ) : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <ChipCarousel focusX={focusX}>
+        {sportIds.map(id => (
+          <SportChip
+            key={id}
+            name={sportName(id)}
+            count={divisionsOf(id).length}
+            on={id === current}
+            dot={attention(id)}
+            onPress={() => { setSelected(id); setFocusX(chipX.current[id]); }}
+            onLayout={x => { chipX.current[id] = x; }}
+          />
+        ))}
+      </ChipCarousel>
+      <SportBlock
+        sportId={current}
+        sportName={sportName(current)}
+        divisions={divisionsOf(current)}
+        entrantsByDivision={entrantsByDivision}
+        divisionState={divisionState}
+        columns={isWide ? 3 : 2}
+        onOpenDivision={onOpenDivision}
+        onAddDivision={onAddDivision}
+        sportMenu={sportMenu}
+      />
     </View>
   );
 }
@@ -508,7 +631,7 @@ function enteredVersions(row: OrgRow): LinePart[][] {
  * given. `isWide` puts the team count at the right; on a phone the shortest version of the line
  * carries it, so the name keeps the first line's width.
  */
-export function OrgsList({ rows, isWide, showInvitations, onOpen, highlightOrgId, beforeDivisions }: {
+export function OrgsList({ rows, isWide, showInvitations, onOpen, highlightOrgId, beforeDivisions, fullEntries }: {
   rows: OrgRow[];
   isWide: boolean;
   showInvitations: boolean;
@@ -516,6 +639,8 @@ export function OrgsList({ rows, isWide, showInvitations, onOpen, highlightOrgId
   highlightOrgId?: string;
   /** Nothing can be entered yet, so the second line says so rather than counting nothing. */
   beforeDivisions?: boolean;
+  /** The full page has room: every entry, wrapping, rather than the line that steps down to fit. */
+  fullEntries?: boolean;
 }) {
   const isDark = useActiveTheme() === 'dark';
   return (
@@ -533,6 +658,11 @@ export function OrgsList({ rows, isWide, showInvitations, onOpen, highlightOrgId
         const contact = noContact && showInvitations && !isWide ? ' · No contact yet' : '';
         const second = beforeDivisions ? (
           <Text className="font-inter text-xs text-ink-muted">{row.isHost ? 'Hosting' : 'Nothing to enter yet'}</Text>
+        ) : entered && fullEntries ? (
+          <Text className="font-inter text-xs text-ink-muted">
+            {[...enteredVersions(row)[0], ...(contact ? [contact] : [])].map((part, k) =>
+              typeof part === 'string' ? part : <Text key={k} className="font-inter-semibold text-ink-soft">{part.strong}</Text>)}
+          </Text>
         ) : entered ? (
           <FittedLine versions={enteredVersions(row).map(v => [...v, ...(contact ? [contact] : [])])} />
         ) : (
@@ -611,31 +741,30 @@ export interface StepWarning {
 }
 
 /**
- * What needs seeing to, as one badge — "⚠ 3 warnings" — that opens the list, one warning a line,
- * each with where to fix it (agreed 2026-10-05: a paragraph of gaps did not fit a phone).
+ * How many things need seeing to, as a small amber count — "⚠ 2" — on a section's heading. The
+ * warnings themselves are listed in the section, one a line (2026-10-09: listed, not folded away
+ * behind the badge, now that the section is a card of its own).
  */
-export function WarningsBadge({ warnings, open, onToggle }: { warnings: StepWarning[]; open: boolean; onToggle: () => void }) {
+export function WarningsCount({ count }: { count: number }) {
   const isDark = useActiveTheme() === 'dark';
-  if (!warnings.length) return null;
+  if (!count) return null;
   return (
-    <TouchableOpacity
-      onPress={onToggle}
-      accessibilityRole="button"
-      accessibilityState={{ expanded: open }}
-      className="flex-row items-center gap-1.5 self-start rounded-full bg-warning-soft px-2.5 py-1"
-    >
-      <Ionicons name="warning-outline" size={13} color={themeColor(isDark, 'warning-ink')} />
-      <Text className="font-inter-bold text-xs text-warning-ink">{plural(warnings.length, 'warning')}</Text>
-      <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={12} color={themeColor(isDark, 'warning-ink')} />
-    </TouchableOpacity>
+    <View className="flex-row items-center gap-1 rounded-full bg-warning-soft px-2.5 py-0.5" accessibilityLabel={plural(count, 'warning')}>
+      <Ionicons name="warning-outline" size={12} color={themeColor(isDark, 'warning-ink')} />
+      <Text className="font-inter-bold text-xs text-warning-ink">{count}</Text>
+    </View>
   );
 }
 
-export function WarningsList({ warnings }: { warnings: StepWarning[] }) {
+/** The warnings, one a line, each with where to put it right. `limit` shows the first few and how many more. */
+export function WarningsList({ warnings, limit, onMore }: { warnings: StepWarning[]; limit?: number; onMore?: () => void }) {
   const isDark = useActiveTheme() === 'dark';
+  if (!warnings.length) return null;
+  const shown = limit && warnings.length > limit ? warnings.slice(0, limit) : warnings;
+  const hidden = warnings.length - shown.length;
   return (
     <View className="rounded-xl bg-warning-soft px-3 py-1">
-      {warnings.map((w, i) => (
+      {shown.map((w, i) => (
         <View key={i} className={`flex-row items-start gap-2 py-2 ${i ? 'border-t border-warning/30' : ''}`}>
           <Ionicons name="warning-outline" size={14} color={themeColor(isDark, 'warning-ink')} style={{ marginTop: 1 }} />
           <Text className="flex-1 font-inter text-[13px] text-ink-soft">{w.text}</Text>
@@ -646,6 +775,11 @@ export function WarningsList({ warnings }: { warnings: StepWarning[] }) {
           ) : null}
         </View>
       ))}
+      {hidden > 0 && onMore ? (
+        <TouchableOpacity onPress={onMore} accessibilityRole="link" className="py-2 border-t border-warning/30">
+          <Text className="font-inter-bold text-[13px] text-warning-ink">{plural(hidden, 'more warning')} ›</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }

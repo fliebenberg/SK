@@ -53,7 +53,7 @@ export const SETUP_STEPS: SetupStepRoute[] = [
   {
     key: 'basics',
     // The name and dates are the banner's; this step is the venue (stage 2, docs/events.md). It is
-    // edited in a dialog on the tournament's Setting up tab, so its "screen" is that tab.
+    // edited in a dialog on the tournament's Overview tab, so its "screen" is that tab.
     label: 'Where',
     purpose: 'Where it is played',
     icon: 'location-outline',
@@ -82,7 +82,7 @@ export const SETUP_STEPS: SetupStepRoute[] = [
     purpose: 'How points are awarded and tables are ranked',
     icon: 'calculator-outline',
     dismissible: true,
-    // A dialog on the Setting up tab since stage 2.
+    // A dialog on the Overview tab since stage 2 (the Setting up tab until 2026-10-09).
     href: (orgId, eventId) => setupChecklistHref(orgId, eventId),
   },
   {

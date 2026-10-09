@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
@@ -52,10 +52,11 @@ import { themeColor } from '../../../../constants/Colors';
  *
  * A `SingleMatch` is one game and shows it. A `Tournament` is a structure — divisions, stages and
  * the fixtures under them — and shows that, with the collapse rule (U15) hiding every level that
- * has only one child. A tournament's first tab is read-first (stage 2, docs/events.md): *Setting up*
- * — five step cards, the setup itself — while there is setup to do, and the *Overview* after and
- * for everyone else ([TournamentHome](../../../../components/tournament/TournamentHome.tsx)). It
- * replaced the U48 checklist, whose rows each opened a step screen of their own (closes `UI-11`).
+ * has only one child. A tournament's first tab is the read-first *Overview* (docs/events.md §7):
+ * cards that, while it is being set up, carry their status — the setup itself
+ * ([TournamentHome](../../../../components/tournament/TournamentHome.tsx)). It replaced the U48
+ * checklist, whose rows each opened a step screen of their own (closes `UI-11`), and then the
+ * numbered step cards of stage 2 (2026-10-09).
  * Creation is a name and a date on the events list (U45). A type we cannot name shows an error
  * rather than guessing at Tournament, which is `FIX-1` / U39.
  *
@@ -277,15 +278,18 @@ export default function EventDetails() {
   /**
    * The first tab, then `Schedule / Standings` (docs/events.md, stage 2).
    *
-   * The first tab is *Setting up* for an organiser while the tournament is being set up — the setup
-   * itself, five step cards — and *Overview* once it is set up, and for everyone else: the
-   * tournament as everyone sees it. Its key stays `setup`, so `?tab=setup` from a division or
-   * entrants screen still lands on it. It is the default tab in every phase.
+   * The first tab is the *Overview* in every phase (2026-10-09): while the tournament is being set
+   * up its cards carry their status, so there is no separate *Setting up* tab. Its key stays
+   * `setup`, so `?tab=setup` from a division or entrants screen still lands on it. It is the
+   * default tab.
    */
   const [activeTab, setActiveTab] = useState<'setup' | 'schedule' | 'standings'>(
     () => (tabParam === 'schedule' || tabParam === 'standings' ? tabParam : 'setup')
   );
   const [organizersOpen, setOrganizersOpen] = useState(false);
+  /** The page's scroll, and where the Overview starts in it — for the progress bar's jumps to a card. */
+  const scrollRef = useRef<ScrollView>(null);
+  const overviewTop = useRef(0);
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
 
@@ -381,7 +385,7 @@ export default function EventDetails() {
   const standingsRows: LeagueStandingRow[] = serverStandings;
 
   /** Where each setup step stands, and the tournament's host for the Schools list. */
-  const { steps: setupSteps, complete: setupComplete, nextIndex } = useTournamentSteps({
+  const { steps: setupSteps, complete: setupComplete } = useTournamentSteps({
     event,
     divisions: orderedDivisions,
     games,
@@ -734,7 +738,7 @@ export default function EventDetails() {
       <View className="bg-card">
         <Tabs
           items={[
-            { key: 'setup', label: canEdit && !setupComplete ? 'Setting up' : 'Overview' },
+            { key: 'setup', label: 'Overview' },
             { key: 'schedule', label: 'Schedule' },
             { key: 'standings', label: 'Standings' },
           ]}
@@ -747,18 +751,17 @@ export default function EventDetails() {
           `stickyHeaderIndices` addresses a scroll's children by position and a `false` sibling is
           stripped on native but kept on web — so the pinned row differed between platforms. With
           the steps on their own screens there is nothing to pin and nothing to index (U48). */}
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}>
-        {/* The first tab (stage 2): Setting up while there is setup to do, the Overview after. Each
-            card saves itself through its own dialog, so the tab is never dirty. */}
+      <ScrollView ref={scrollRef} className="flex-1" contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}>
+        {/* The first tab, the Overview: cards in two columns on a wide screen. Each card saves itself
+            through its own dialog, so the tab is never dirty. */}
         {activeTab === 'setup' && (
-          <View className="w-full self-center" style={{ maxWidth: canEdit && !setupComplete ? 780 : 960 }}>
+          <View className="w-full self-center" style={{ maxWidth: 1060 }} onLayout={e => { overviewTop.current = e.nativeEvent.layout.y; }}>
             <TournamentHome
               event={event}
               orgId={orgId}
               canEdit={canEdit}
               isWide={isWide}
               steps={setupSteps}
-              nextIndex={nextIndex}
               complete={setupComplete}
               sports={sports}
               sites={sites}
@@ -771,6 +774,8 @@ export default function EventDetails() {
               onEditOrganizers={() => setOrganizersOpen(true)}
               hostOrg={hostOrg}
               viewerOrgIds={(orgMemberships || []).map((m: any) => m.orgId)}
+              onOpenSchedule={() => setActiveTab('schedule')}
+              onScrollTo={y => scrollRef.current?.scrollTo({ y: Math.max(0, overviewTop.current + y - 8), animated: true })}
             />
           </View>
         )}
