@@ -29,6 +29,46 @@ This list tracks the tasks we need to accomplish in your application.
     - A **plain-text summary** to paste where a preview will not render — final score, scorers, next fixture.
     - Whether a shared link needs to work for someone with **no account** (it should) and whether anything on those screens is not safe to expose publicly — minors' names in particular, which the research did **not** cover (see the interview summary §14).
     - Possibly an **image card** for the final score, since images travel better than links in group chats.
+    - **Since 2026-10-05 in-app communication is designed** ([docs/communication.md](file:///c:/Fred/Coding/SK/docs/communication.md)). It leaves WhatsApp to manual copying (`C24`) and plans a "copy for WhatsApp" action on every message (§8.3), so this task is that action's foundation, not a stopgap.
+- [ ] `COM-1` **Implement communication: channels, private conversations, surveys, notifications.** Designed in three review rounds (2026-10-04 and 2026-10-05) in [docs/communication.md](file:///c:/Fred/Coding/SK/docs/communication.md). **Start with its §15**, decisions `C1`–`C35`, which is the agreed design; §1 holds the principles every feature must pass. Nothing is built yet. The parts are:
+    - **Channels** attached to a subject (team, fixture, organisation, tournament), several per subject, each with its own audience, posters, reply rule, owner, admins and lifetime.
+    - **Private conversations**, only between a channel's admins and its members.
+    - **Rules** set at org, team, channel and person level, where each level can only narrow the one above.
+    - **Surveys**, each belonging to one channel, optionally anonymous.
+    - **The inbox**: one list of pointers, grouped per person.
+    - **Email copies and a digest.**
+    - **Expiry and archive**, with a system-admin **Archived messages** section for retrieval and deletion.
+    - **A ScoreKeeper system channel.**
+    - **Where to begin, as agreed when the design closed:**
+        1. **Mockups first**, in the git-excluded `mockups/` folder, never as claude.ai artifacts. Mock up:
+            - the per-person inbox and a person's channel list (§8.2)
+            - a team's channels, with "Message the coach" and "reply privately" (§2, §3)
+            - creating, answering and reading back a survey (§7)
+            - the system-admin Archived messages section (§9)
+
+           These settle the details the doc leaves to the mockups: how the channel list looks, quiet hours, and one survey sent to several channels.
+        2. **Then cut the whole into parts that can be built one at a time** and log each here. The foundation is channels, audiences, notification records and push, since every other part depends on it (§12). Selection notice plus acknowledgement is the obvious first user-facing part, because it also unblocks `MEMBER-6`.
+    - **What exists to build on** (§14):
+        - A bare `notifications` table and [NotificationManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/NotificationManager.ts). They are likely to be replaced, not extended.
+        - [EmailService.ts](file:///c:/Fred/Coding/SK/server/src/services/EmailService.ts).
+        - Guardian links and the rule for who answers for a player ([guardians.ts](file:///c:/Fred/Coding/SK/shared/src/utils/guardians.ts), [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.3).
+        - Rosters, game squads and officials.
+        - `UserPreferences.followedTeams`, with nothing behind it.
+        - **Not built:** push notifications and device tokens, following an org or team, and the consumer side of the app.
+    - **Related items to pull in or keep in step:**
+        - `MEMBER-6`: a guardian acting for a child (answering surveys, acknowledging selection).
+        - `MEMBER-5`: Trusted Contacts as an audience.
+        - The `REP-*` group: moderation of channels and conversations.
+        - The two tasks above: shareable results, and hiding results. Every notice that carries a score must respect the hide-results setting.
+        - The email infrastructure task above, and the production mail service in [FUTURE_IDEAS.md](file:///c:/Fred/Coding/SK/FUTURE_IDEAS.md).
+        - The Team event / Training type, which attendance notices and training channels need.
+        - In FUTURE_IDEAS: the Organisation calendar entry, the tournament main contact, and the tournament-scoped site map, which the festival day view needs.
+    - **Before production:**
+        - Check the retention periods (§9) and the email copies an org can require (§8.3) against POPIA, and against how long schools must keep safeguarding records.
+        - Write the ScoreKeeper channel's posting policy (§2.3).
+        - Final deletion stays a manual system-admin action until those checks are done (`C35`).
+    - **One point to confirm with the user at kickoff:** `C14` ("a guardian can read their minor's conversations") was recorded from the user's note that guardians can read "the messages of their delegates", read as their *children*. Check it wasn't meant to cover Trusted Contacts.
+    - The research behind the design: the communication entries in [FUTURE_IDEAS.md](file:///c:/Fred/Coding/SK/FUTURE_IDEAS.md) and the three interview summaries (Tableview FC, Wynberg Boys' Primary, Van Riebeeckstrand Primary), whose §5 / §13 sections are the source of the evidence.
 - [ ] **Let an organisation hide game results, or show only won / lost / drawn.** User research (Van Riebeeckstrand Primary sports office, 2026-09-14) found a school that **records every score and reports win/loss/draw to its governing body, but deliberately never publishes scores** — primary school sport is about participation, and a 43–1 netball result is humiliating for the losing side. Wynberg Boys' Primary (2026-09-11) does the same for lower grades only. So capture stays exactly as it is; what is missing is control over **who sees the score**. Nothing in `shared/`, `server/` or `expo-app/` expresses this today.
     - **Three levels:** full score / **outcome only** (won, lost, drawn) / hidden.
     - **Set per organisation as a default, overridable per game.** An org default alone cannot cover a school that publishes senior scores but not junior ones; a per-game override can. Whether an **age-group or division** default is worth having between the two is open — Wynberg's cut is by grade.

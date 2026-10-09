@@ -91,8 +91,9 @@ This document is a space to jot down brilliant ideas for the application while w
 
 - [ ] Add the ability to create sub-rooms for specific regions (e.g., `games-za`, `games-usa`) to further optimize data usage.
 
-- [ ] Build a user notification system for in-app notifications (e.g., claim invitations, report updates, org activity). This would replace the need for custom per-feature notification handling and provide a unified notification inbox.
-- [ ] **In-app communication — a major feature, deliberately parked.** User research (Tableview FC,
+- [ ] Build a user notification system for in-app notifications (e.g., claim invitations, report updates, org activity). This would replace the need for custom per-feature notification handling and provide a unified notification inbox. **Folded into the communication design on 2026-10-04**: the inbox and notification records are §8 of [docs/communication.md](file:///c:/Fred/Coding/SK/docs/communication.md), and building them is part of the "Implement communication" task in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md).
+- [ ] **In-app communication — a major feature, deliberately parked.** Design in progress since
+  2026-10-04 in [docs/communication.md](file:///c:/Fred/Coding/SK/docs/communication.md). User research (Tableview FC,
   2026-09-09) put this higher than expected: **running a club is mostly communication**, and
   essentially all of it happens in WhatsApp groups — committee to committee, coordinator to coaches,
   coaches to parents, club to supporters. The fixtures coordinator posts the week's opponent, time
@@ -125,6 +126,8 @@ This document is a space to jot down brilliant ideas for the application while w
   **Not a plan and not a commitment.** Both interviews so far put communication ahead of scoring, so
   this entry exists to stop the evidence evaporating before we sit down and design a communication
   strategy and feature plan properly. Pull it together then; do not build from this list piecemeal.
+  **Design in progress since 2026-10-04:**
+  [docs/communication.md](file:///c:/Fred/Coding/SK/docs/communication.md).
 
     **The governing constraint — avoid the D6 trap.** D6 is the school communicator at Wynberg. It
     is installed, sanctioned, carries the newsletter, and the parent **does not open it**: *"I
@@ -218,7 +221,8 @@ This document is a space to jot down brilliant ideas for the application while w
     minors' data, notification preferences, and the unified notification inbox above.
 
 - [ ] **Polls — a general way for coaches and organisers to get structured answers from players and
-  parents.** Requested repeatedly in interviews. The clearest case is **match transport** (Van
+  parents.** Absorbed 2026-10-04 into **surveys** in
+  [docs/communication.md](file:///c:/Fred/Coding/SK/docs/communication.md) §7. Requested repeatedly in interviews. The clearest case is **match transport** (Van
   Riebeeckstrand Primary sports office, 2026-09-14): coaches build a WhatsApp poll per team every
   week — *drive self*, *bus there and back*, *bus there only*, *bus back only* — and the sports office
   books buses off the counts by a Tuesday 11:00 deadline. Buses cost R30,000–R40,000 a trip, and
