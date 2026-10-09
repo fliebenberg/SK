@@ -8,8 +8,6 @@ import {
   EventOrgBadge,
   EventOrgHistory,
   hasLeft,
-  Sport,
-  TournamentDivision,
 } from '@sk/shared';
 import { ScreenHeader } from '../../../../../../components/ScreenHeader';
 import { AccessDenied } from '../../../../../../components/AccessDenied';
@@ -21,7 +19,7 @@ import { InvitationBadge } from '../../../../../../components/tournament/Tournam
 import { NominateFor, RemoveOrganisationDialog, useCanWriteInto } from '../../../../../../components/tournament/OrganisationDialogs';
 import { OrgTeamsByDivision, useOrgTeamPicks } from '../../../../../../components/tournament/OrganisationTeams';
 import { OrganisationResponse, isLongReason } from '../../../../../../components/tournament/OrganisationResponse';
-import { useLiveRoom } from '../../../../../../hooks/useLiveRoom';
+import { useEventDivisions, useEventRecord, useSports } from '../../../../../../hooks/useEventRooms';
 import { useEventEntrants } from '../../../../../../hooks/useEventEntrants';
 import { useEventCapabilities } from '../../../../../../hooks/useEventCapabilities';
 import { useOrgSummary } from '../../../../../../hooks/useOrgSummary';
@@ -78,39 +76,14 @@ export default function OrganisationInTournamentScreen() {
   const adminsOwnOrg = memberships.some((m: any) => current(m) && m.roleId === 'role-org-admin');
 
   /* -- data ------------------------------------------------------------------------------- */
-  const { items: eventItems, isLoading: eventLoading } = useLiveRoom<Event>(eventId ? `event:${eventId}` : null, {
-    reduce: message =>
-      message.type === 'EVENT_ADDED' || message.type === 'EVENT_UPDATED'
-        ? { kind: 'upsert', item: message.data }
-        : message.type === 'EVENT_DELETED'
-          ? { kind: 'remove', id: message.data?.id }
-          : { kind: 'ignore' },
-  });
-  const event = eventItems.find(e => e?.id === eventId) || null;
-
-  const { items: divisions } = useLiveRoom<TournamentDivision>(eventId ? `event:${eventId}:divisions` : null, {
-    reduce: message => {
-      switch (message.type) {
-        case 'DIVISIONS_SYNC': return { kind: 'replace', items: message.data || [] };
-        case 'DIVISION_ADDED':
-        case 'DIVISION_UPDATED': return { kind: 'upsert', item: message.data };
-        case 'DIVISION_DELETED': return { kind: 'remove', id: message.data?.id };
-        default: return { kind: 'ignore' };
-      }
-    },
-  });
+  const { event, items: eventItems, isLoading: eventLoading } = useEventRecord(eventId);
+  const divisions = useEventDivisions(eventId);
   // Its teams: the organisers', and an invited or taking-part organisation's own (its members' room).
   const ownStatus = useLiveRoomOwnStatus(eventItems, eventId, participantOrgId);
   const { entrants } = useEventEntrants(eventId, canEdit || (isOwnOrg && !!ownStatus && ['invited', 'accepted', 'withdrawal_pending'].includes(ownStatus)));
 
-  const [sports, setSports] = useState<Sport[]>([]);
+  const sports = useSports();
   const [candidateTeams, setCandidateTeams] = useState<CandidateTeam[]>([]);
-  useEffect(() => {
-    if (!isConnected) return;
-    let live = true;
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => { if (live && Array.isArray(res)) setSports(res); });
-    return () => { live = false; };
-  }, [isConnected]);
   // The teams that could be entered: a one-shot read, as no room owns that set (`FIX-2`).
   useEffect(() => {
     if (!isConnected || !canEdit || !eventId) return;

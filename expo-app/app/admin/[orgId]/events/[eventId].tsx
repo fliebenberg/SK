@@ -14,12 +14,6 @@ import { useWsStore } from '../../../../store/wsStore';
 import { useAuthStore } from '../../../../store/authStore';
 import {
   SocketAction,
-  Event,
-  GameSummary,
-  Sport,
-  Site,
-  Facility,
-  TournamentDivision,
   TournamentOrganizer,
   LeagueStandingRow,
   participantLabel,
@@ -33,14 +27,13 @@ import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { formatDateRange, dateCountdown } from '../../../../utils/dates';
 import { TournamentHome, useTournamentSteps } from '../../../../components/tournament/TournamentHome';
 import { OrganizersDialog } from '../../../../components/tournament/TournamentDialogs';
-import { useOrgSummary } from '../../../../hooks/useOrgSummary';
+import { useTournamentData } from '../../../../hooks/useTournamentData';
 import { StandingsTable } from '../../../../components/tournament/StandingsTable';
 import { DivisionStandings } from '../../../../components/tournament/DivisionStandings';
 import { DivisionPanel } from '../../../../components/tournament/DivisionPanel';
 import { EventRoleChips } from '../../../../components/EventRoleChips';
 import { useLiveRoom } from '../../../../hooks/useLiveRoom';
-import { useEventCapabilities, useMyEventGrants } from '../../../../hooks/useEventCapabilities';
-import { useEventEntrants } from '../../../../hooks/useEventEntrants';
+import { useMyEventGrants } from '../../../../hooks/useEventCapabilities';
 import { getMatchPermissions } from '../../../../utils/matchPermissions';
 import { deriveEventRoles } from '@sk/shared';
 import { resolveEventType, unknownEventTypeMessage } from '@sk/shared';
@@ -108,86 +101,20 @@ export default function EventDetails() {
   // screen wants the event and its divisions and was paying for the fixture list, the facilities
   // and the standings table too. Five joins cost five socket frames and the same five queries the
   // single join already ran, against one identity lookup, so the split is close to free.
+  //
+  // The rooms, and how each message is read, live in `useTournamentData` (2026-10-09), shared with
+  // the Overview's full pages so the two can never read an update differently. The facilities in
+  // play (U47) are a **set**, and the base site beside them is not a filter on it: a tournament
+  // based at the school may still play half its fixtures on the fields next door. Only the
+  // standings table is this screen's alone.
   // ------------------------------------------------------------------------------------------
 
-  const eventRoom = eventId ? `event:${eventId}` : null;
-  const eventFixturesRoom = eventId ? `event:${eventId}:fixtures` : null;
-  const eventDivisionsRoom = eventId ? `event:${eventId}:divisions` : null;
-  const eventFacilitiesRoom = eventId ? `event:${eventId}:facilities` : null;
-  const eventStandingsRoom = eventId ? `event:${eventId}:standings` : null;
+  const {
+    event, eventLoading, accessDenied, games, divisions, facilityIds: savedFacilityIds, sites, facilities, sports,
+    capabilities, canEdit, entrants, entrantsByDivision, hostOrg,
+  } = useTournamentData(orgId, eventId);
 
-  const { items: eventItems, isLoading: eventLoading, accessDenied } = useLiveRoom<Event>(eventRoom, {
-    reduce: (message) => {
-      switch (message.type) {
-        case 'EVENT_ADDED':
-        case 'EVENT_UPDATED':
-          return { kind: 'upsert', item: message.data };
-        case 'EVENT_DELETED':
-          return { kind: 'remove', id: message.data?.id };
-        default:
-          return { kind: 'ignore' };
-      }
-    },
-  });
-  const event = eventItems.find(e => e?.id === eventId) || null;
-
-  const { items: games } = useLiveRoom<GameSummary>(eventFixturesRoom, {
-    reduce: (message) => {
-      switch (message.type) {
-        case 'GAME_SUMMARIES_SYNC':
-          return { kind: 'replace', items: message.data || [] };
-        case 'STAGE_FIXTURES_SYNC':
-          return { kind: 'upsertMany', items: message.data?.games || [] };
-        case 'GAME_SUMMARY_UPDATED':
-          return { kind: 'upsert', item: message.data };
-        case 'GAME_SUMMARY_REMOVED':
-        case 'GAME_DELETED':
-          return { kind: 'remove', id: message.data?.id };
-        default:
-          return { kind: 'ignore' };
-      }
-    },
-  });
-
-  // The divisions room hands these over on join, so the screen never has to join a division's own
-  // room just to learn that it exists.
-  const { items: divisions } = useLiveRoom<TournamentDivision>(eventDivisionsRoom, {
-    reduce: (message) => {
-      switch (message.type) {
-        case 'DIVISIONS_SYNC':
-          return { kind: 'replace', items: message.data || [] };
-        case 'DIVISION_ADDED':
-        case 'DIVISION_UPDATED':
-          return { kind: 'upsert', item: message.data };
-        case 'DIVISION_DELETED':
-          return { kind: 'remove', id: message.data?.id };
-        default:
-          return { kind: 'ignore' };
-      }
-    },
-  });
-
-  /**
-   * The facilities in play (U47).
-   *
-   * A **set**, and the base site beside it is not a filter on it: a tournament based at the school
-   * may still play half its fixtures on the fields next door. `event:{id}:facilities` owns this, so
-   * it arrives on join and again whenever anybody changes it, like everything else on this screen.
-   *
-   * Held as `{ id }` rows because that is the shape `useLiveRoom` addresses items by; the ids
-   * themselves are what every consumer wants, which is what `savedFacilityIds` unwraps.
-   */
-  const { items: eventFacilityRows } = useLiveRoom<{ id: string }>(eventFacilitiesRoom, {
-    reduce: (message) =>
-      message.type === 'EVENT_FACILITIES_SYNC'
-        ? {
-            kind: 'replace',
-            items: (message.data?.facilityIds || []).map((id: string) => ({ id })),
-          }
-        : { kind: 'ignore' },
-  });
-
-  const { items: serverStandings } = useLiveRoom<LeagueStandingRow>(eventStandingsRoom, {
+  const { items: serverStandings } = useLiveRoom<LeagueStandingRow>(eventId ? `event:${eventId}:standings` : null, {
     reduce: (message) =>
       message.type === 'EVENT_STANDINGS_UPDATED'
         ? { kind: 'replace', items: message.data?.rows || [] }
@@ -195,73 +122,18 @@ export default function EventDetails() {
     getId: (row: any) => row?.teamId,
   });
 
-  const { items: sites } = useLiveRoom<Site>(orgId ? `org:${orgId}:sites` : null, {
-    reduce: (message) => {
-      switch (message.type) {
-        case 'SITES_SYNC':
-          return { kind: 'replace', items: message.data || [] };
-        case 'SITE_ADDED':
-        case 'SITE_UPDATED':
-          return { kind: 'upsert', item: message.data };
-        case 'SITE_DELETED':
-          return { kind: 'remove', id: message.data?.id };
-        default:
-          return { kind: 'ignore' };
-      }
-    },
-  });
-
-  const { items: facilities } = useLiveRoom<Facility>(orgId ? `org:${orgId}:facilities` : null, {
-    reduce: (message) => {
-      switch (message.type) {
-        case 'FACILITIES_SYNC':
-          return { kind: 'replace', items: message.data || [] };
-        case 'FACILITY_ADDED':
-        case 'FACILITY_UPDATED':
-          return { kind: 'upsert', item: message.data };
-        case 'FACILITY_DELETED':
-          return { kind: 'remove', id: message.data?.id };
-        default:
-          return { kind: 'ignore' };
-      }
-    },
-  });
-
-  // Sports are global reference data that no room owns, so this stays a one-shot read.
-  const [sports, setSports] = useState<Sport[]>([]);
-  useEffect(() => {
-    if (!isConnected) return;
-    let active = true;
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-      if (active && Array.isArray(res)) setSports(res);
-    });
-    return () => {
-      active = false;
-    };
-  }, [isConnected]);
-
   // ------------------------------------------------------------------------------------------
   // Permissions
   // ------------------------------------------------------------------------------------------
 
-  const { capabilities } = useEventCapabilities(eventId);
   const grants = useMyEventGrants();
-  /**
-   * What the server says, rather than `event.orgId === orgId`, which was the old test.
-   *
-   * That question cannot see an appointed organiser who is not an org admin (D33), and it answered
-   * "yes" for any member of the hosting org whether or not they could actually write anything.
+  /*
+   * `canEdit` is what the server says (`capabilities.canEditEvent`), rather than
+   * `event.orgId === orgId`, which was the old test. That question cannot see an appointed organiser
+   * who is not an org admin (D33), and it answered "yes" for any member of the hosting org whether or
+   * not they could actually write anything. The roster is joined only for a viewer who may edit: it
+   * is the organiser's tier.
    */
-  const canEdit = !!capabilities?.canEditEvent;
-
-  /**
-   * How many competitors have been entered, for the checklist.
-   *
-   * Joined only for a viewer who may edit, because the roster is the organiser's tier — and only
-   * a viewer who may edit sees the checklist at all, so there is nothing to load for anybody else.
-   */
-  const { entrants, byDivision: entrantsByDivision } = useEventEntrants(eventId, canEdit);
-  const entrantCount = entrants.filter(entrant => entrant.status !== 'withdrawn').length;
 
   const roles = useMemo(
     () =>
@@ -330,10 +202,6 @@ export default function EventDetails() {
     };
   }, [isConnected, eventId, canEdit]);
 
-  const savedFacilityIds = useMemo(
-    () => eventFacilityRows.map(row => row.id),
-    [eventFacilityRows]
-  );
 
   // ------------------------------------------------------------------------------------------
   // Derived
@@ -395,7 +263,6 @@ export default function EventDetails() {
     sports,
     sites,
   });
-  const { org: hostOrg } = useOrgSummary(event?.orgId);
 
   // ------------------------------------------------------------------------------------------
   // Actions

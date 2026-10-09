@@ -59,6 +59,15 @@ into a late subscriber's handler: `subscribeToRoom(room, onReplay)`. `useLiveRoo
 you. **Do not call `subscribeToRoom` directly in new code** — without a replay handler a screen
 still inherits the gap.
 
+**One reducer per room, in a hook.** Several screens join the same rooms, and a room's messages are
+read once, in its hook — never in a copy on each screen, where a message type taught to one copy
+and not another shows the same record differently on each (2026-10-09). The event rooms are in
+[useEventRooms.ts](file:///c:/Fred/Coding/SK/expo-app/hooks/useEventRooms.ts) (`useEventRecord`,
+`useEventDivisions`, `useEventFixtures`, `useEventFacilityIds`), an org's sites and facilities in
+[useOrgSites](file:///c:/Fred/Coding/SK/expo-app/hooks/useOrgSites.ts), and a tournament's pages
+take the set from [useTournamentData](file:///c:/Fred/Coding/SK/expo-app/hooks/useTournamentData.ts).
+A room only one screen reads (the event's standings) may stay on that screen.
+
 ## 3. Rooms are the read boundary, and every room is declared.
 
 Because a broadcast carries data, whatever a socket can join, it can read. Room access is

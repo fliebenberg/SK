@@ -4,14 +4,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   CandidateTeam,
-  Event,
   EventCandidateTeams,
-  Facility,
   GameSummary,
   OrgBadge,
-  Site,
   SocketAction,
-  Sport,
   TournamentDivision,
   TournamentEntrant,
   TournamentOrganizer,
@@ -31,6 +27,8 @@ import { DivisionTeamsCard } from '../../../../../../../components/tournament/Di
 import { DivisionFixturesCard } from '../../../../../../../components/tournament/DivisionFixtures';
 import { DivisionStandings } from '../../../../../../../components/tournament/DivisionStandings';
 import { useLiveRoom } from '../../../../../../../hooks/useLiveRoom';
+import { useEventDivisions, useEventRecord, useSports } from '../../../../../../../hooks/useEventRooms';
+import { useOrgSites } from '../../../../../../../hooks/useOrgSites';
 import { useDivisionEntrants } from '../../../../../../../hooks/useDivisionEntrants';
 import { useEventEntrants } from '../../../../../../../hooks/useEventEntrants';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
@@ -80,29 +78,11 @@ export default function DivisionScreen() {
   });
   const division = divisionItems.find(d => d.id === divisionId);
 
-  const { items: eventItems } = useLiveRoom<Event>(eventId ? `event:${eventId}` : null, {
-    reduce: message =>
-      message.type === 'EVENT_ADDED' || message.type === 'EVENT_UPDATED'
-        ? { kind: 'upsert', item: message.data }
-        : message.type === 'EVENT_DELETED'
-          ? { kind: 'remove', id: message.data?.id }
-          : { kind: 'ignore' },
-  });
-  const event = eventItems.find(e => e?.id === eventId);
+  const event = useEventRecord(eventId).event || undefined;
 
   // The tournament's other divisions: names are unique within a sport, and the last division of a
   // sport takes the sport with it when it goes.
-  const { items: eventDivisions } = useLiveRoom<TournamentDivision>(eventId ? `event:${eventId}:divisions` : null, {
-    reduce: message => {
-      switch (message.type) {
-        case 'DIVISIONS_SYNC': return { kind: 'replace', items: message.data || [] };
-        case 'DIVISION_ADDED':
-        case 'DIVISION_UPDATED': return { kind: 'upsert', item: message.data };
-        case 'DIVISION_DELETED': return { kind: 'remove', id: message.data?.id };
-        default: return { kind: 'ignore' };
-      }
-    },
-  });
+  const eventDivisions = useEventDivisions(eventId);
   const siblings = eventDivisions.filter(d => d.id !== divisionId);
 
   const { items: stages } = useLiveRoom<TournamentStage>(divisionId ? `division:${divisionId}:stages` : null, {
@@ -136,13 +116,7 @@ export default function DivisionScreen() {
   const { entrants: eventEntrantsAll } = useEventEntrants(eventId, canEditEvent);
   const eventEntrants = canEditEvent ? eventEntrantsAll : null;
 
-  const [sports, setSports] = useState<Sport[]>([]);
-  useEffect(() => {
-    if (!isConnected) return;
-    let live = true;
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => { if (live && Array.isArray(res)) setSports(res); });
-    return () => { live = false; };
-  }, [isConnected]);
+  const sports = useSports();
 
   // The organisations that may enter, and their teams: a one-shot read, as no room owns that set.
   // Addressed by division too, so a division organiser is answered.
@@ -164,28 +138,7 @@ export default function DivisionScreen() {
     return () => { live = false; };
   }, [isConnected, divisionId, canEdit]);
 
-  const { items: sites } = useLiveRoom<Site>(orgId ? `org:${orgId}:sites` : null, {
-    reduce: message => {
-      switch (message.type) {
-        case 'SITES_SYNC': return { kind: 'replace', items: message.data || [] };
-        case 'SITE_ADDED':
-        case 'SITE_UPDATED': return { kind: 'upsert', item: message.data };
-        case 'SITE_DELETED': return { kind: 'remove', id: message.data?.id };
-        default: return { kind: 'ignore' };
-      }
-    },
-  });
-  const { items: facilities } = useLiveRoom<Facility>(orgId ? `org:${orgId}:facilities` : null, {
-    reduce: message => {
-      switch (message.type) {
-        case 'FACILITIES_SYNC': return { kind: 'replace', items: message.data || [] };
-        case 'FACILITY_ADDED':
-        case 'FACILITY_UPDATED': return { kind: 'upsert', item: message.data };
-        case 'FACILITY_DELETED': return { kind: 'remove', id: message.data?.id };
-        default: return { kind: 'ignore' };
-      }
-    },
-  });
+  const { sites, facilities } = useOrgSites(orgId);
 
   /* -- where it has got to ------------------------------------------------------------------ */
   const ordered = useMemo(() => [...stages].sort((a, b) => (a.sequence || 0) - (b.sequence || 0)), [stages]);
