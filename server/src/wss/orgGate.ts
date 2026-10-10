@@ -73,6 +73,12 @@ type Rule =
    * invited organisation's own admins and staff, for theirs.
    */
   | { kind: 'answer-invitation' }
+  /** A team's answer: its organisation's admins, its coach, or the division's organisers (`FIX-31`). */
+  | { kind: 'answer-entrant' }
+  /** The team's organisation's own: its admins, or the team's coach. */
+  | { kind: 'entrant-own-org' }
+  /** Asking to enter a team (`FIX-33`): its organisation's admins, or its coach. */
+  | { kind: 'request-entry' }
   | { kind: 'app-admin' }
   | { kind: 'signed-in' }
   /** A payload that names a user must name the caller. */
@@ -171,6 +177,13 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   [SocketAction.SET_EVENT_ORG_ANSWER]: { kind: 'answer-invitation' },
   [SocketAction.REQUEST_EVENT_WITHDRAWAL]: { kind: 'answer-invitation' },
   [SocketAction.CANCEL_EVENT_WITHDRAWAL]: { kind: 'answer-invitation' },
+  // A team's answer (`FIX-31`): its organisation's admins for any of its teams, its coach for their
+  // own, or the division's organisers — the manager holds each side to its rules. Asking to withdraw
+  // a team, cancelling a request, and asking to enter one (`FIX-33`) are the organisation's own.
+  [SocketAction.SET_ENTRANT_ANSWER]: { kind: 'answer-entrant' },
+  [SocketAction.REQUEST_ENTRANT_WITHDRAWAL]: { kind: 'entrant-own-org' },
+  [SocketAction.CANCEL_ENTRANT_REQUEST]: { kind: 'entrant-own-org' },
+  [SocketAction.REQUEST_ENTRY]: { kind: 'request-entry' },
   // Planning only since 2026-09-21 — the result is `RECORD_GAME_RESULT`'s, under the scoring gate.
   [SocketAction.UPDATE_GAME]: { kind: 'edit-fixture' },
   [SocketAction.DELETE_GAME]: { kind: 'edit-fixture' },
@@ -213,6 +226,16 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   [SocketAction.RESET_CACHE]: { kind: 'app-admin' },
   [SocketAction.GLOBAL_CACHE_REFRESH]: { kind: 'app-admin' },
 };
+
+/**
+ * Who answers for a team on its organisation's side (`FIX-31`): the organisation's **admins**, for
+ * any of its teams, and the team's **coach**, for their own. Staff do not — an answer commits the
+ * team, as `answer-invitation` holds for the organisation.
+ */
+async function speaksForTeam(userId: string, orgId: string | null, teamId: string | null): Promise<boolean> {
+  if (orgId && (await accessManager.isOrganizationAdmin(userId, orgId))) return true;
+  return !!teamId && (await accessManager.isTeamCoach(userId, teamId));
+}
 
 export function isOrgAction(type: SocketAction): boolean {
   return type in RULES;
@@ -328,6 +351,30 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
       throw refuse(
         "Unauthorized: Only the event's organisers, or the invited organisation's admins, may answer its invitation."
       );
+    }
+
+    case 'answer-entrant':
+    case 'entrant-own-org': {
+      const res = await pool.query(
+        'SELECT org_id, team_id FROM division_entrants WHERE id = $1 AND division_id = $2',
+        [payload?.entrantId, payload?.divisionId]
+      );
+      const entrant = res.rows[0];
+      if (!entrant) throw refuse('Bad request: that team is not in this division.');
+      if (await speaksForTeam(userId, entrant.org_id, entrant.team_id)) return;
+      if (rule.kind === 'answer-entrant' && (await accessManager.canOrganizeDivision(userId, payload.divisionId))) return;
+      throw refuse(
+        rule.kind === 'answer-entrant'
+          ? "Unauthorized: Only the team's organisation admins, its coach, or the division's organisers may answer for it."
+          : "Unauthorized: Only the team's organisation admins or its coach may do that."
+      );
+    }
+
+    case 'request-entry': {
+      const res = await pool.query('SELECT org_id FROM teams WHERE id = $1', [payload?.teamId]);
+      if (!res.rows.length) throw refuse('Bad request: that team does not exist.');
+      if (await speaksForTeam(userId, res.rows[0].org_id, payload.teamId)) return;
+      throw refuse("Unauthorized: Only the team's organisation admins or its coach may ask to enter it.");
     }
 
     case 'minor-access': {

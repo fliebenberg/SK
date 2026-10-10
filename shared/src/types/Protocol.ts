@@ -689,7 +689,12 @@ export interface DivisionEntrantInput {
     orgId?: string;
     label?: string;
     seed?: number;
-    status?: TournamentEntrant['status'];
+    /**
+     * Only `withdrawn` is read: the organisers withdrawing a team, and a withdrawn team sent back
+     * without it is put back in, as accepted. Every other answer is kept as stored — a roster write
+     * never sets one (`FIX-31`); the answer actions do. `active` is what older clients send.
+     */
+    status?: 'active' | 'withdrawn';
 }
 
 export interface SetDivisionEntrantsPayload extends BatchPayload {
@@ -871,6 +876,75 @@ export interface SetEventOrgAnswerPayload {
      * answer an invitation (`accepted` / `declined`) — the gate holds the rest for the organisers.
      */
     answer: 'invited' | 'accepted' | 'declined' | 'withdrawn';
+    /**
+     * With `accepted`: also accept every team of the organisation still invited (`FIX-31`). Teams
+     * already answered keep their answer.
+     */
+    acceptTeams?: boolean;
+}
+
+/** Answer for one team (`FIX-31`). */
+export interface SetEntrantAnswerPayload {
+    divisionId: string;
+    entrantId: string;
+    orgId: string;
+    answer: 'accepted' | 'declined';
+    reason?: string;
+}
+
+/** After the lock, an organisation asks to withdraw one of its teams (`FIX-31`). */
+export interface RequestEntrantWithdrawalPayload {
+    divisionId: string;
+    entrantId: string;
+    orgId: string;
+    reason: string;
+}
+
+/** The organisation takes back a request the organisers have not answered. */
+export interface CancelEntrantRequestPayload {
+    divisionId: string;
+    entrantId: string;
+    orgId: string;
+}
+
+/** An invited organisation asks to add one of its teams, or to enter it late (`FIX-33`, `FIX-31`). */
+export interface RequestEntryPayload {
+    divisionId: string;
+    teamId: string;
+    orgId: string;
+    reason?: string;
+}
+
+/** The organisers answer a request to add, to enter late, or to withdraw. */
+export interface RespondEntrantRequestPayload {
+    divisionId: string;
+    entrantId: string;
+    orgId: string;
+    accept: boolean;
+}
+
+export interface SetDivisionLockPayload {
+    divisionId: string;
+    orgId: string;
+    locked: boolean;
+}
+
+export interface LockEventDivisionsPayload {
+    eventId: string;
+    orgId: string;
+}
+
+/** What Lock all did: the divisions it locked, and why each of the rest stays open. */
+export interface LockEventDivisionsResult {
+    lockedIds: string[];
+    notLocked: Array<{ divisionId: string; reason: string }>;
+}
+
+export interface SetDivisionOrgAddingPayload {
+    divisionId: string;
+    orgId: string;
+    /** `null` follows the tournament's setting again. */
+    allow: boolean | null;
 }
 
 /** An organisation that accepted asks to withdraw (`FIX-30`). The organisers confirm it. */
@@ -1081,6 +1155,14 @@ export interface ProtocolMap {
     [SocketAction.REMOVE_EVENT_ORG]: { payload: RemoveEventOrgPayload; response: Event };
     [SocketAction.REQUEST_EVENT_WITHDRAWAL]: { payload: RequestEventWithdrawalPayload; response: Event };
     [SocketAction.CANCEL_EVENT_WITHDRAWAL]: { payload: CancelEventWithdrawalPayload; response: Event };
+    [SocketAction.SET_ENTRANT_ANSWER]: { payload: SetEntrantAnswerPayload; response: TournamentEntrant };
+    [SocketAction.REQUEST_ENTRANT_WITHDRAWAL]: { payload: RequestEntrantWithdrawalPayload; response: TournamentEntrant };
+    [SocketAction.CANCEL_ENTRANT_REQUEST]: { payload: CancelEntrantRequestPayload; response: { id: string } };
+    [SocketAction.REQUEST_ENTRY]: { payload: RequestEntryPayload; response: TournamentEntrant };
+    [SocketAction.RESPOND_ENTRANT_REQUEST]: { payload: RespondEntrantRequestPayload; response: TournamentEntrant };
+    [SocketAction.SET_DIVISION_LOCK]: { payload: SetDivisionLockPayload; response: TournamentDivision };
+    [SocketAction.LOCK_EVENT_DIVISIONS]: { payload: LockEventDivisionsPayload; response: LockEventDivisionsResult };
+    [SocketAction.SET_DIVISION_ORG_ADDING]: { payload: SetDivisionOrgAddingPayload; response: TournamentDivision };
     [SocketAction.APPOINT_ORGANIZER]: { payload: AppointOrganizerPayload; response: OrganizersResult };
     [SocketAction.WITHDRAW_ORGANIZER]: { payload: WithdrawOrganizerPayload; response: OrganizersResult };
 

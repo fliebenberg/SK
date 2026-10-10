@@ -17,6 +17,11 @@ import {
   TournamentAdjustment,
   TournamentDivision,
   TournamentEntrant,
+  EntrantStatus,
+  LockEventDivisionsResult,
+  isEntrantEntered,
+  isEntrantInPlay,
+  divisionAllowsOrgAdding,
   TournamentOrganizer,
   TournamentStage,
   TournamentStandingRow,
@@ -58,6 +63,15 @@ const EMPTY_LIVE_STATE =
  * is the same reading generation's "these have results" count uses.
  */
 const PLAYED_GAME = `(g.status IN ('Finished', 'Live') OR g.final_score_data IS NOT NULL)`;
+
+/**
+ * A team's answer, in SQL (`FIX-31`). **In play** is drawn, ranked and counted — what `active` meant
+ * before teams answered for themselves. **Taking a place** is anything that holds the team to this
+ * division: entered and waiting, in play, or asked for — so the one-division rule counts an invited
+ * team as entered.
+ */
+const IN_PLAY = `('accepted', 'withdrawal_pending')`;
+const TAKES_A_PLACE = `('invited', 'accepted', 'withdrawal_pending', 'requested')`;
 
 /** What a knockout round is called, from how many entrants are still in it. */
 function roundName(slotsRemaining: number): string {
@@ -152,7 +166,13 @@ export class TournamentManager extends BaseManager {
         ORDER BY s.sequence, s.created_at LIMIT 1) as "firstStageId",
       COALESCE((SELECT json_agg(json_build_object('name', s.name, 'format', s.format, 'sequence', s.sequence, 'settings', s.settings)
                          ORDER BY s.sequence, s.created_at)
-                  FROM division_stages s WHERE s.division_id = d.id), '[]'::json) as "stageShapes"`;
+                  FROM division_stages s WHERE s.division_id = d.id), '[]'::json) as "stageShapes",
+      d.entries_locked_at as "entriesLockedAt",
+      CASE WHEN d.entries_locked_by_user_id IS NULL THEN NULL
+           ELSE json_build_object('userId', d.entries_locked_by_user_id,
+                                  'name', COALESCE((SELECT u.name FROM users u WHERE u.id = d.entries_locked_by_user_id), 'Someone'))
+      END as "entriesLockedBy",
+      d.orgs_may_add_teams as "orgsMayAddTeams"`;
 
   private STAGE_COLUMNS = `
       s.id, s.division_id as "divisionId", s.name, s.format, s.sequence, s.status,
@@ -171,13 +191,24 @@ export class TournamentManager extends BaseManager {
       COALESCE(t.name, op.name, e.label) as "name", o.short_name as "orgShortName",
       t.age_group_id as "teamAgeGroupId",
       (SELECT count(DISTINCT g.id)::int FROM game_participants gp JOIN games g ON g.id = gp.game_id
-        WHERE gp.entrant_id = e.id AND ${PLAYED_GAME}) as "playedCount"`;
+        WHERE gp.entrant_id = e.id AND ${PLAYED_GAME}) as "playedCount",
+      e.answered_at as "answeredAt",
+      CASE WHEN e.answered_by_user_id IS NULL THEN NULL
+           ELSE json_build_object('userId', e.answered_by_user_id, 'name', COALESCE(au.name, 'Someone'), 'orgName', ao.name)
+      END as "answeredBy",
+      e.reason, e.requested_at as "requestedAt",
+      CASE WHEN e.requested_by_user_id IS NULL THEN NULL
+           ELSE json_build_object('userId', e.requested_by_user_id, 'name', COALESCE(ru.name, 'Someone'), 'orgName', o.name)
+      END as "requestedBy"`;
 
   private ENTRANT_JOINS = `
       FROM division_entrants e
       LEFT JOIN teams t ON t.id = e.team_id
       LEFT JOIN org_profiles op ON op.id = e.org_profile_id
-      LEFT JOIN organizations o ON o.id = e.org_id`;
+      LEFT JOIN organizations o ON o.id = e.org_id
+      LEFT JOIN users au ON au.id = e.answered_by_user_id
+      LEFT JOIN organizations ao ON ao.id = e.answered_by_org_id
+      LEFT JOIN users ru ON ru.id = e.requested_by_user_id`;
 
   // ============================================================================================
   // Divisions
@@ -653,6 +684,7 @@ export class TournamentManager extends BaseManager {
       orgId?: string;
       label?: string;
       seed?: number;
+      /** Only `withdrawn` is read — see `DivisionEntrantInput`. */
       status?: 'active' | 'withdrawn';
     }>,
     options: { takeFromOtherDivisions?: boolean; removeEntrantIds?: string[] } = {}
@@ -720,9 +752,9 @@ export class TournamentManager extends BaseManager {
             WHERE d.event_id = (SELECT event_id FROM tournament_divisions WHERE id = $1)
               AND d.id <> $1
               AND e.team_id = ANY($2::text[])
-              -- A team that withdrew from a division after playing has left it; the row is
-              -- only there to hold its results, and does not stop it being entered elsewhere.
-              AND e.status = 'active'`,
+              -- A team that withdrew, declined or was turned down has left it; the row is only
+              -- there as the record, and does not stop it being entered elsewhere.
+              AND e.status IN ${TAKES_A_PLACE}`,
           [divisionId, incomingTeamIds]
         );
 
@@ -743,12 +775,13 @@ export class TournamentManager extends BaseManager {
       }
 
       const existing = await tx(
-        `SELECT id, team_id, org_profile_id FROM division_entrants WHERE division_id = $1`,
+        `SELECT id, team_id, org_profile_id, status FROM division_entrants WHERE division_id = $1`,
         [divisionId]
       );
-      const existingById = new Map<string, { team_id: string | null; org_profile_id: string | null }>(
+      const existingById = new Map<string, { team_id: string | null; org_profile_id: string | null; status: EntrantStatus }>(
         existing.rows.map((r: any) => [r.id, r])
       );
+      const entry = await this.entryContext(tx, divisionId);
 
       const keptIds: string[] = [];
       const changedIdentityIds: string[] = [];
@@ -797,6 +830,20 @@ export class TournamentManager extends BaseManager {
           changedIdentityIds.push(id);
         }
 
+        /*
+         * The answer is never the roster's to set (`FIX-31`): a team keeps the one it has, and only
+         * the answer actions change it. The roster says one thing — withdrawn or not — so the
+         * organisers can withdraw a team and put a withdrawn one back in, as accepted. A new team
+         * starts invited, unless nobody need answer for it (`newEntrantStatus`).
+         */
+        const status: EntrantStatus = !previous
+          ? this.newEntrantStatus(entry, teamId, orgProfileId, orgId)
+          : entrant.status === 'withdrawn'
+            ? 'withdrawn'
+            : previous.status === 'withdrawn'
+              ? 'accepted'
+              : previous.status;
+
         await tx(
           `INSERT INTO division_entrants (id, division_id, team_id, org_profile_id, org_id, label, seed, status)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -816,7 +863,7 @@ export class TournamentManager extends BaseManager {
             orgId,
             entrant.label || null,
             entrant.seed ?? null,
-            entrant.status || 'active',
+            status,
           ]
         );
         keptIds.push(id);
@@ -934,31 +981,47 @@ export class TournamentManager extends BaseManager {
   }
 
   /**
-   * Take every entrant an organisation has in an event out of its division (`FIX-30`): when it
-   * declines, or its withdrawal is confirmed. As taking a team off a roster does: one that has
-   * played is withdrawn and keeps its results, the rest are deleted, and drawn fixtures that named
-   * them show an empty side until the organisers redraw or replace. Returns each division whose
+   * Every team an organisation has in an event, when it declines or its withdrawal is confirmed
+   * (`FIX-30`, revised by `FIX-31`): **kept, as the record** — no longer deleted. Declining makes them
+   * `declined`; a confirmed withdrawal `withdrawn`. A team **already in the draw** becomes `withdrawn`
+   * either way: it stays in the draw shown as withdrawn, its results stand, and the organisers redo
+   * the draw or leave it (FIX-31). A request still waiting goes with them. Returns each division whose
    * roster changed, with the stage it re-mirrored, for the caller to rebuild and publish.
    */
   async retireOrgEntrants(
     eventId: string,
-    orgId: string
+    orgId: string,
+    outcome: 'declined' | 'withdrawn' = 'declined',
+    actor?: { userId?: string | null; orgId?: string | null }
   ): Promise<{ divisions: Array<{ divisionId: string; syncedStageIds: string[] }> }> {
     const entrants = await this.query(
-      `SELECT e.id, e.division_id AS "divisionId"
+      `SELECT e.id, e.division_id AS "divisionId",
+              EXISTS (SELECT 1 FROM game_participants gp WHERE gp.entrant_id = e.id) AS "drawn"
          FROM division_entrants e JOIN tournament_divisions d ON d.id = e.division_id
-        WHERE d.event_id = $1 AND e.org_id = $2 AND e.status = 'active'`,
+        WHERE d.event_id = $1 AND e.org_id = $2 AND e.status IN ${TAKES_A_PLACE}`,
       [eventId, orgId]
     );
     if (!entrants.rows.length) return { divisions: [] };
     await this.transaction(async (tx) => {
-      await this.retireEntrants(tx, entrants.rows.map((r: any) => r.id));
+      for (const row of entrants.rows) {
+        await tx(
+          `UPDATE division_entrants
+              SET status = $2, answered_at = NOW(), answered_by_user_id = $3, answered_by_org_id = $4, updated_at = NOW()
+            WHERE id = $1`,
+          [row.id, row.drawn ? 'withdrawn' : outcome, actor?.userId || null, actor?.orgId || null]
+        );
+      }
     });
+    return { divisions: await this.syncDivisions(entrants.rows.map((r: any) => r.divisionId)) };
+  }
+
+  /** Re-mirror each division's open stage after its roster changed, once per division. */
+  private async syncDivisions(divisionIds: string[]): Promise<Array<{ divisionId: string; syncedStageIds: string[] }>> {
     const divisions: Array<{ divisionId: string; syncedStageIds: string[] }> = [];
-    for (const divisionId of [...new Set<string>(entrants.rows.map((r: any) => r.divisionId))]) {
+    for (const divisionId of [...new Set<string>(divisionIds)]) {
       divisions.push({ divisionId, syncedStageIds: await this.syncOpenStageEntrants(divisionId) });
     }
-    return { divisions };
+    return divisions;
   }
 
   /**
@@ -1069,8 +1132,8 @@ export class TournamentManager extends BaseManager {
         if (!replacement || replacement.id === entrantId) {
           throw new Error('The replacement has to be another entrant in this division.');
         }
-        if (replacement.status !== 'active') {
-          throw new Error('That entrant has withdrawn, so it cannot take over fixtures.');
+        if (!isEntrantInPlay(replacement.status)) {
+          throw new Error('That entrant is not playing in this division, so it cannot take over fixtures.');
         }
         const drawn = await tx(
           `SELECT 1 FROM game_participants gp JOIN games g ON g.id = gp.game_id
@@ -1102,7 +1165,7 @@ export class TournamentManager extends BaseManager {
             `SELECT d.name FROM division_entrants e
                JOIN tournament_divisions d ON d.id = e.division_id
               WHERE d.event_id = (SELECT event_id FROM tournament_divisions WHERE id = $1)
-                AND e.team_id = $2 AND e.status = 'active' AND e.id <> $3`,
+                AND e.team_id = $2 AND e.status IN ${TAKES_A_PLACE} AND e.id <> $3`,
             [divisionId, teamId, entrantId]
           );
           if (clash.rows.length) {
@@ -1120,10 +1183,10 @@ export class TournamentManager extends BaseManager {
 
       // --- Nothing played: the replacement becomes this entrant --------------------------------
       if (keptResults === 0) {
-        if (current.status !== 'active') {
-          // A withdrawn entrant with no results is not a state this code leaves behind, but one
-          // could exist from before; there is nothing of it worth keeping.
-          throw new Error('That entrant has already been withdrawn.');
+        if (!isEntrantEntered(current.status)) {
+          // A team out of the division — withdrawn, declined, turned down — or only asked for has
+          // no place to hand on.
+          throw new Error('That entrant is not in the division, so there is no place to hand on.');
         }
         if (replacementId) {
           // Keep the replacement's own row — it may carry a label, adjustments or a person — and
@@ -1133,11 +1196,15 @@ export class TournamentManager extends BaseManager {
           await tx(`DELETE FROM division_entrants WHERE id = $1`, [entrantId]);
           return { entrantId: replacementId, inPlace: false, movedFixtures: unplayed.rows.length, keptResults, games: unplayed.rows };
         }
+        // Whoever comes in answers for themselves, as any newly entered team does (`FIX-31`).
+        const incoming = this.newEntrantStatus(await this.entryContext(tx, divisionId), teamId, orgProfileId, orgId);
         await tx(
           `UPDATE division_entrants
-              SET team_id = $2, org_profile_id = $3, org_id = $4, label = $5, updated_at = NOW()
+              SET team_id = $2, org_profile_id = $3, org_id = $4, label = $5, status = $6,
+                  answered_at = NULL, answered_by_user_id = NULL, answered_by_org_id = NULL,
+                  reason = NULL, requested_at = NULL, requested_by_user_id = NULL, updated_at = NOW()
             WHERE id = $1`,
-          [entrantId, teamId, orgProfileId, orgId, label]
+          [entrantId, teamId, orgProfileId, orgId, label, incoming]
         );
         const all = await tx(
           `UPDATE game_participants SET team_id = $2, org_profile_id = $3 WHERE entrant_id = $1
@@ -1148,15 +1215,16 @@ export class TournamentManager extends BaseManager {
       }
 
       // --- Something played: withdraw this entrant, and hand on what is left ------------------
-      if (!unplayed.rows.length && current.status !== 'active') {
+      if (!unplayed.rows.length && !isEntrantInPlay(current.status)) {
         throw new Error('That entrant has no fixtures left to play, so there is nothing to hand over.');
       }
       if (!replacementId) {
         replacementId = `ent-${uuidv4()}`;
         await tx(
           `INSERT INTO division_entrants (id, division_id, team_id, org_profile_id, org_id, label, seed, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')`,
-          [replacementId, divisionId, teamId, orgProfileId, orgId, label, current.seed]
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [replacementId, divisionId, teamId, orgProfileId, orgId, label, current.seed,
+            this.newEntrantStatus(await this.entryContext(tx, divisionId), teamId, orgProfileId, orgId)]
         );
       } else {
         await tx(`UPDATE division_entrants SET seed = $2, updated_at = NOW() WHERE id = $1`, [replacementId, current.seed]);
@@ -1171,6 +1239,319 @@ export class TournamentManager extends BaseManager {
 
     const { games, ...rest } = outcome;
     return { ...rest, changedGameIds: [...new Set<string>(games.map((g: any) => g.gameId))] };
+  }
+
+  // ============================================================================================
+  // Teams' answers and locked entries (FIX-31, FIX-33)
+  // ============================================================================================
+
+  /** What deciding a newly entered team's answer needs about its division. */
+  private async entryContext(tx: Tx, divisionId: string): Promise<{ locked: boolean; hostOrgId: string | null }> {
+    const res = await tx(
+      `SELECT d.entries_locked_at IS NOT NULL AS locked, ev.org_id AS "hostOrgId"
+         FROM tournament_divisions d JOIN events ev ON ev.id = d.event_id WHERE d.id = $1`,
+      [divisionId]
+    );
+    return { locked: !!res.rows[0]?.locked, hostOrgId: res.rows[0]?.hostOrgId ?? null };
+  }
+
+  /**
+   * A team the organisers enter starts `invited` — its organisation, or its coach, answers for it
+   * (`FIX-31`). Nobody need answer, so it starts `accepted`, for a placeholder (the organisers' own
+   * promise of a team), the host's own team, and any team entered once the division is locked: the
+   * organisers have spoken to the organisation (rule: a late addition goes straight in).
+   */
+  private newEntrantStatus(
+    entry: { locked: boolean; hostOrgId: string | null },
+    teamId: string | null,
+    orgProfileId: string | null,
+    orgId: string | null
+  ): EntrantStatus {
+    if (entry.locked) return 'accepted';
+    if (!teamId && !orgProfileId) return 'accepted';
+    if (orgId && orgId === entry.hostOrgId) return 'accepted';
+    return 'invited';
+  }
+
+  /** One team, with what its rules turn on: its division's lock, the host, its organisation's answer. */
+  private async entrantContext(divisionId: string, entrantId: string) {
+    const res = await this.query(
+      `SELECT e.id, e.status, e.org_id AS "orgId", e.team_id AS "teamId", d.event_id AS "eventId",
+              d.entries_locked_at IS NOT NULL AS locked, ev.org_id AS "hostOrgId",
+              (SELECT eo.invitation FROM event_organizations eo
+                WHERE eo.event_id = d.event_id AND eo.org_id = e.org_id) AS invitation
+         FROM division_entrants e
+         JOIN tournament_divisions d ON d.id = e.division_id
+         JOIN events ev ON ev.id = d.event_id
+        WHERE e.id = $1 AND e.division_id = $2`,
+      [entrantId, divisionId]
+    );
+    const row = res.rows[0];
+    if (!row) throw new Error('That team is no longer in this division.');
+    return row as {
+      id: string; status: EntrantStatus; orgId: string | null; teamId: string | null; eventId: string;
+      locked: boolean; hostOrgId: string | null; invitation: string | null;
+    };
+  }
+
+  async getEntrant(entrantId: string): Promise<TournamentEntrant | null> {
+    const res = await this.query(`SELECT ${this.ENTRANT_COLUMNS} ${this.ENTRANT_JOINS} WHERE e.id = $1`, [entrantId]);
+    return res.rows[0] || null;
+  }
+
+  /**
+   * Answer for one team (`FIX-31`). Before the lock either side may, and change it freely:
+   *
+   * - **The organisation** (`side: 'organisation'` — its admins, or the team's coach): accept or
+   *   decline, unless the organisation has declined or withdrawn, which answered for every team.
+   * - **The organisers**: decline at any time; accept only once the team's organisation has accepted
+   *   (rule 6) — before that the organisation may still decline.
+   *
+   * After the lock an accepted team leaves only by withdrawing.
+   */
+  async setEntrantAnswer(
+    divisionId: string,
+    entrantId: string,
+    answer: 'accepted' | 'declined',
+    side: 'organisers' | 'organisation',
+    actor: { userId?: string | null; orgId?: string | null },
+    reason?: string
+  ): Promise<{ entrant: TournamentEntrant; divisions: Array<{ divisionId: string; syncedStageIds: string[] }> }> {
+    const team = await this.entrantContext(divisionId, entrantId);
+    if (team.locked) {
+      throw new Error("This division's entries are locked, so a team leaves only by withdrawing.");
+    }
+    if (!['invited', 'accepted', 'declined'].includes(team.status)) {
+      throw new Error('That team has no invitation to answer.');
+    }
+    const ownTeamOfHost = !team.orgId || team.orgId === team.hostOrgId;
+    if (side === 'organisation' && (team.invitation === 'declined' || team.invitation === 'withdrawn')) {
+      throw new Error("Your organisation is no longer taking part, so its teams can't be answered for. Contact the organisers.");
+    }
+    if (side === 'organisers' && answer === 'accepted' && !ownTeamOfHost
+        && team.invitation !== 'accepted' && team.invitation !== 'withdrawal_pending') {
+      throw new Error("A team can be marked accepted once its organisation has accepted the invitation.");
+    }
+    await this.query(
+      `UPDATE division_entrants
+          SET status = $2, answered_at = NOW(), answered_by_user_id = $3, answered_by_org_id = $4,
+              reason = $5, requested_at = NULL, requested_by_user_id = NULL, updated_at = NOW()
+        WHERE id = $1`,
+      [entrantId, answer, actor.userId || null, actor.orgId || null, answer === 'declined' ? reason?.trim() || null : null]
+    );
+    return { entrant: (await this.getEntrant(entrantId))!, divisions: await this.syncDivisions([divisionId]) };
+  }
+
+  /** After the lock, an organisation asks to withdraw an accepted team (`FIX-31`); nothing changes yet. */
+  async requestEntrantWithdrawal(
+    divisionId: string,
+    entrantId: string,
+    reason: string,
+    actor: { userId?: string | null }
+  ): Promise<TournamentEntrant> {
+    const team = await this.entrantContext(divisionId, entrantId);
+    if (!team.locked) throw new Error("Entries are still open, so decline the team instead.");
+    if (team.status !== 'accepted') throw new Error('Only a team that is taking part can be withdrawn.');
+    if (!reason?.trim()) throw new Error('Say why the team is withdrawing — the organisers need it to decide.');
+    await this.query(
+      `UPDATE division_entrants
+          SET status = 'withdrawal_pending', reason = $2, requested_at = NOW(), requested_by_user_id = $3, updated_at = NOW()
+        WHERE id = $1`,
+      [entrantId, reason.trim(), actor.userId || null]
+    );
+    return (await this.getEntrant(entrantId))!;
+  }
+
+  /**
+   * The organisation takes back a request the organisers have not answered: a withdrawal (the team
+   * stays accepted, as if never asked) or a team it asked to add (the request goes — it was never in).
+   */
+  async cancelEntrantRequest(divisionId: string, entrantId: string): Promise<{ id: string; removed: boolean }> {
+    const team = await this.entrantContext(divisionId, entrantId);
+    if (team.status === 'withdrawal_pending') {
+      await this.query(
+        `UPDATE division_entrants
+            SET status = 'accepted', reason = NULL, requested_at = NULL, requested_by_user_id = NULL, updated_at = NOW()
+          WHERE id = $1`,
+        [entrantId]
+      );
+      return { id: entrantId, removed: false };
+    }
+    if (team.status === 'requested') {
+      await this.query(`DELETE FROM division_entrants WHERE id = $1`, [entrantId]);
+      return { id: entrantId, removed: true };
+    }
+    throw new Error('There is no request to cancel: the organisers have already answered it.');
+  }
+
+  /**
+   * An invited organisation asks to add one of its teams (`FIX-33`): while the division is open and
+   * allows it, or **late**, after the lock, whatever the setting (`FIX-31`). It goes in `requested`,
+   * for the organisers to accept or turn down. Who may ask — its admins, or the team's coach — is the
+   * gate's; whether the team may be asked for is here.
+   */
+  async requestEntry(
+    divisionId: string,
+    teamId: string,
+    actor: { userId?: string | null },
+    reason?: string
+  ): Promise<TournamentEntrant> {
+    const res = await this.query(
+      `SELECT d.event_id AS "eventId", d.entries_locked_at IS NOT NULL AS locked, d.orgs_may_add_teams AS "divisionAllows",
+              ev.orgs_may_add_teams AS "eventAllows", t.org_id AS "teamOrgId", t.name AS "teamName",
+              (SELECT eo.invitation FROM event_organizations eo WHERE eo.event_id = d.event_id AND eo.org_id = t.org_id) AS invitation
+         FROM tournament_divisions d JOIN events ev ON ev.id = d.event_id, teams t
+        WHERE d.id = $1 AND t.id = $2`,
+      [divisionId, teamId]
+    );
+    const ctx = res.rows[0];
+    if (!ctx) throw new Error('That team or division no longer exists.');
+    if (!['invited', 'accepted', 'withdrawal_pending'].includes(ctx.invitation)) {
+      throw new Error('Only an organisation invited to this tournament can ask to enter a team.');
+    }
+    if (!ctx.locked && !divisionAllowsOrgAdding({ orgsMayAddTeams: ctx.divisionAllows }, { orgsMayAddTeams: ctx.eventAllows })) {
+      throw new Error("This division's organisers enter its teams. Ask them to add yours.");
+    }
+    const clash = await this.query(
+      `SELECT d.name FROM division_entrants e JOIN tournament_divisions d ON d.id = e.division_id
+        WHERE d.event_id = $1 AND e.team_id = $2 AND e.status IN ${TAKES_A_PLACE} LIMIT 1`,
+      [ctx.eventId, teamId]
+    );
+    if (clash.rows.length) {
+      throw new Error(`${ctx.teamName || 'That team'} is already entered in ${clash.rows[0].name}.`);
+    }
+    const id = `ent-${uuidv4()}`;
+    await this.query(
+      `INSERT INTO division_entrants (id, division_id, team_id, org_id, status, reason, requested_at, requested_by_user_id)
+       VALUES ($1, $2, $3, $4, 'requested', $5, NOW(), $6)`,
+      [id, divisionId, teamId, ctx.teamOrgId, reason?.trim() || null, actor.userId || null]
+    );
+    return (await this.getEntrant(id))!;
+  }
+
+  /**
+   * The organisers answer a request: a team asked to be added or entered late — accepted, or turned
+   * down and kept as the record (`rejected`) — or a withdrawal: confirmed (`withdrawn`, results kept,
+   * still in the draw for the organisers to redo or leave) or kept in (`accepted`).
+   */
+  async respondEntrantRequest(
+    divisionId: string,
+    entrantId: string,
+    accept: boolean,
+    actor: { userId?: string | null; orgId?: string | null }
+  ): Promise<{ entrant: TournamentEntrant; divisions: Array<{ divisionId: string; syncedStageIds: string[] }> }> {
+    const team = await this.entrantContext(divisionId, entrantId);
+    let status: EntrantStatus;
+    if (team.status === 'requested') status = accept ? 'accepted' : 'rejected';
+    else if (team.status === 'withdrawal_pending') status = accept ? 'withdrawn' : 'accepted';
+    else throw new Error('There is no request waiting for this team.');
+    const keepsReason = team.status === 'requested' || accept;
+    await this.query(
+      `UPDATE division_entrants
+          SET status = $2, answered_at = NOW(), answered_by_user_id = $3, answered_by_org_id = $4,
+              reason = CASE WHEN $5 THEN reason ELSE NULL END,
+              requested_at = CASE WHEN $5 THEN requested_at ELSE NULL END,
+              requested_by_user_id = CASE WHEN $5 THEN requested_by_user_id ELSE NULL END,
+              updated_at = NOW()
+        WHERE id = $1`,
+      [entrantId, status, actor.userId || null, actor.orgId || null, keepsReason]
+    );
+    return { entrant: (await this.getEntrant(entrantId))!, divisions: await this.syncDivisions([divisionId]) };
+  }
+
+  /**
+   * Why a division's entries cannot be locked yet, or null when they can (`FIX-31`): a team still to
+   * answer, a request still waiting (`FIX-33` rule 7), or a team whose organisation has not accepted.
+   */
+  async entryLockProblem(divisionId: string): Promise<string | null> {
+    const res = await this.query(
+      `SELECT e.status, COALESCE(t.name, e.label, 'A team') AS name, o.name AS "orgName",
+              (e.org_id IS NOT NULL AND e.org_id <> ev.org_id
+                AND COALESCE((SELECT eo.invitation FROM event_organizations eo
+                               WHERE eo.event_id = d.event_id AND eo.org_id = e.org_id), 'accepted')
+                    NOT IN ('accepted', 'withdrawal_pending')) AS "orgNotIn"
+         FROM division_entrants e
+         JOIN tournament_divisions d ON d.id = e.division_id
+         JOIN events ev ON ev.id = d.event_id
+         LEFT JOIN teams t ON t.id = e.team_id
+         LEFT JOIN organizations o ON o.id = e.org_id
+        WHERE e.division_id = $1`,
+      [divisionId]
+    );
+    const invited = res.rows.filter((r: any) => r.status === 'invited');
+    const requested = res.rows.filter((r: any) => r.status === 'requested');
+    const orgs = [...new Set<string>(res.rows.filter((r: any) => isEntrantInPlay(r.status) && r.orgNotIn).map((r: any) => r.orgName || 'An organisation'))];
+    const problems: string[] = [];
+    if (invited.length) problems.push(`${invited.length} ${invited.length === 1 ? 'team' : 'teams'} still to answer`);
+    if (requested.length) problems.push(`${requested.length} added ${requested.length === 1 ? 'team' : 'teams'} waiting for your approval`);
+    if (orgs.length) problems.push(`${orgs.join(', ')} ${orgs.length === 1 ? 'has' : 'have'} not accepted the invitation`);
+    return problems.length ? problems.join('; ') : null;
+  }
+
+  /** Lock or unlock a division's entries, by hand (`FIX-31`). Locking is refused while anything waits. */
+  async setDivisionLock(divisionId: string, locked: boolean, actor: { userId?: string | null }): Promise<TournamentDivision> {
+    if (locked) {
+      const problem = await this.entryLockProblem(divisionId);
+      if (problem) throw new Error(`Entries can't be locked yet: ${problem}.`);
+      await this.query(
+        `UPDATE tournament_divisions SET entries_locked_at = NOW(), entries_locked_by_user_id = $2, updated_at = NOW()
+          WHERE id = $1 AND entries_locked_at IS NULL`,
+        [divisionId, actor.userId || null]
+      );
+    } else {
+      await this.query(
+        `UPDATE tournament_divisions SET entries_locked_at = NULL, entries_locked_by_user_id = NULL, updated_at = NOW() WHERE id = $1`,
+        [divisionId]
+      );
+    }
+    const division = await this.getDivision(divisionId);
+    if (!division) throw new Error('That division no longer exists.');
+    return division;
+  }
+
+  /** Lock every division that can be locked, and say why each of the rest stays open (`FIX-31`). */
+  async lockEventDivisions(eventId: string, actor: { userId?: string | null }): Promise<LockEventDivisionsResult> {
+    const result: LockEventDivisionsResult = { lockedIds: [], notLocked: [] };
+    for (const division of await this.getDivisions(eventId)) {
+      if (division.entriesLockedAt) continue;
+      const problem = await this.entryLockProblem(division.id);
+      if (problem) {
+        result.notLocked.push({ divisionId: division.id, reason: problem });
+        continue;
+      }
+      await this.setDivisionLock(division.id, true, actor);
+      result.lockedIds.push(division.id);
+    }
+    return result;
+  }
+
+  /** A division's own choice on organisations adding teams (`FIX-33`); null follows the tournament. */
+  async setDivisionOrgAdding(divisionId: string, allow: boolean | null): Promise<TournamentDivision> {
+    await this.query(`UPDATE tournament_divisions SET orgs_may_add_teams = $2, updated_at = NOW() WHERE id = $1`, [divisionId, allow]);
+    const division = await this.getDivision(divisionId);
+    if (!division) throw new Error('That division no longer exists.');
+    return division;
+  }
+
+  /**
+   * An organisation accepting with *Also accept our invited teams* (`FIX-31`): every team of it still
+   * invited, in a division still open, becomes accepted. Teams already answered keep their answer.
+   */
+  async acceptOrgTeams(
+    eventId: string,
+    orgId: string,
+    actor: { userId?: string | null; orgId?: string | null }
+  ): Promise<Array<{ divisionId: string; syncedStageIds: string[] }>> {
+    const res = await this.query(
+      `UPDATE division_entrants e
+          SET status = 'accepted', answered_at = NOW(), answered_by_user_id = $3, answered_by_org_id = $4, updated_at = NOW()
+         FROM tournament_divisions d
+        WHERE d.id = e.division_id AND d.event_id = $1 AND e.org_id = $2
+          AND e.status = 'invited' AND d.entries_locked_at IS NULL
+        RETURNING e.division_id AS "divisionId"`,
+      [eventId, orgId, actor.userId || null, actor.orgId || null]
+    );
+    return this.syncDivisions(res.rows.map((r: any) => r.divisionId));
   }
 
   /**
@@ -1230,7 +1611,7 @@ export class TournamentManager extends BaseManager {
 
     const changed = await this.transaction(async (tx) => {
       const roster = await tx(
-        `SELECT id FROM division_entrants WHERE division_id = $1 AND status = 'active'
+        `SELECT id FROM division_entrants WHERE division_id = $1 AND status IN ${IN_PLAY}
           ORDER BY seed NULLS LAST, created_at`,
         [divisionId]
       );
@@ -1315,7 +1696,7 @@ export class TournamentManager extends BaseManager {
          LEFT JOIN teams t ON t.id = e.team_id
          LEFT JOIN org_profiles op ON op.id = e.org_profile_id
         WHERE se.stage_id = $1
-          AND (e.status = 'active' OR EXISTS (
+          AND (e.status IN ${IN_PLAY} OR EXISTS (
                 SELECT 1 FROM game_participants gp JOIN games g ON g.id = gp.game_id
                  WHERE gp.entrant_id = e.id AND g.stage_id = $1 AND ${PLAYED_GAME}))
         ORDER BY se.sort_order, se.entrant_id`,
@@ -1327,7 +1708,7 @@ export class TournamentManager extends BaseManager {
       entrantId: r.id,
       orgId: r.orgId || undefined,
       poolKey: r.poolKey || undefined,
-      withdrawn: r.status === 'withdrawn' || undefined,
+      withdrawn: !isEntrantInPlay(r.status) || undefined,
     }));
   }
 
@@ -1800,6 +2181,11 @@ export class TournamentManager extends BaseManager {
     if (!stage) throw new Error(`Stage ${stageId} not found.`);
     const division = await this.getDivision(stage.divisionId);
     if (!division) throw new Error(`Division ${stage.divisionId} not found.`);
+    // The draw is made from locked entries (`FIX-31`): a draw from a roster still answering is a draw
+    // that has to be made again with every late answer.
+    if (!division.entriesLockedAt) {
+      throw new Error('Lock the entries first: the draw is made from locked entries.');
+    }
 
     const existing = await this.query(
       `SELECT count(*)::int AS total,
@@ -1924,7 +2310,7 @@ export class TournamentManager extends BaseManager {
     // A withdrawn entrant keeps its stage row so its results stay in the table, and must not be
     // drawn again because of it.
     const active = await this.query(
-      `SELECT id FROM division_entrants WHERE division_id = $1 AND status = 'active'`,
+      `SELECT id FROM division_entrants WHERE division_id = $1 AND status IN ${IN_PLAY}`,
       [division.id]
     );
     const activeIds = new Set<string>(active.rows.map((r: any) => r.id));
@@ -2466,7 +2852,7 @@ export class TournamentManager extends BaseManager {
          LEFT JOIN teams t ON t.id = e.team_id
          LEFT JOIN org_profiles op ON op.id = e.org_profile_id
         WHERE e.division_id = $1
-          AND (e.status = 'active' OR EXISTS (
+          AND (e.status IN ${IN_PLAY} OR EXISTS (
                 SELECT 1 FROM game_participants gp JOIN games g ON g.id = gp.game_id
                  WHERE gp.entrant_id = e.id AND ${PLAYED_GAME}))`,
       [divisionId]
@@ -2476,7 +2862,7 @@ export class TournamentManager extends BaseManager {
       name: r.name,
       entrantId: r.id,
       orgId: r.orgId || undefined,
-      withdrawn: r.status === 'withdrawn' || undefined,
+      withdrawn: !isEntrantInPlay(r.status) || undefined,
     }));
   }
 

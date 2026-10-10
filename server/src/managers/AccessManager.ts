@@ -202,6 +202,22 @@ export class AccessManager extends BaseManager {
     return res.rows[0]?.org_id || null;
   }
 
+  /**
+   * True when this user coaches the team (coach or assistant coach, current) — who answers for it in
+   * a tournament besides its organisation's admins (`FIX-31`), and may ask to enter it (`FIX-33`).
+   */
+  async isTeamCoach(userId: string, teamId: string): Promise<boolean> {
+    if (!userId || !teamId) return false;
+    const res = await this.query(`
+      SELECT 1 FROM team_memberships
+       WHERE team_id = $2 AND role_id IN ('role-coach', 'role-assistant-coach')
+         AND org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+         AND (end_date IS NULL OR end_date > NOW())
+       LIMIT 1
+    `, [userId, teamId]);
+    return res.rows.length > 0;
+  }
+
   async canManageTeam(userId: string, teamId: string): Promise<boolean> {
     if (await this.isAppAdmin(userId)) return true;
     

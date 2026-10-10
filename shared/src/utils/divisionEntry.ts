@@ -1,4 +1,4 @@
-import { CandidateTeam } from '../models/event/Tournament';
+import { CandidateTeam, EntrantStatus } from '../models/event/Tournament';
 import type { DivisionEntrantInput } from '../types/Protocol';
 
 /**
@@ -75,9 +75,10 @@ export function toEntrantInput(entrant: {
   orgId?: string | null;
   label?: string | null;
   seed?: number | null;
-  status?: 'active' | 'withdrawn' | null;
+  status?: EntrantStatus | 'active' | null;
 }): DivisionEntrantInput {
-  const input: DivisionEntrantInput = { status: entrant.status || 'active' };
+  // A roster write only says whether a team is withdrawn; its answer is kept as stored (`FIX-31`).
+  const input: DivisionEntrantInput = { status: entrant.status === 'withdrawn' ? 'withdrawn' : 'active' };
   if (entrant.id) input.id = entrant.id;
   if (entrant.teamId) input.teamId = entrant.teamId;
   if (entrant.orgProfileId) input.orgProfileId = entrant.orgProfileId;

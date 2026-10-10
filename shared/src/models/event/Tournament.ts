@@ -122,6 +122,26 @@ export interface TournamentDivision {
    */
   stageShapes?: Array<Pick<TournamentStage, 'name' | 'format' | 'sequence' | 'settings'>>;
   entrants?: TournamentEntrant[];
+  /**
+   * When its entries were locked, and by whom — null while open (`FIX-31`). Locked by hand, never
+   * by date. A locked division's teams leave only by withdrawing, an organisation can only ask to
+   * enter late, and the draw needs the lock.
+   */
+  entriesLockedAt?: string | null;
+  entriesLockedBy?: PersonRef | null;
+  /**
+   * May invited organisations add teams to this division themselves (`FIX-33`)? `null` follows the
+   * tournament's `Event.orgsMayAddTeams`, including when that changes later; only a division
+   * organiser's explicit choice overrides it. See `divisionAllowsOrgAdding`.
+   */
+  orgsMayAddTeams?: boolean | null;
+}
+
+/** A person named on a record — who answered, asked or locked — with the organisation they acted from. */
+export interface PersonRef {
+  userId: string;
+  name: string;
+  orgName?: string | null;
 }
 
 export interface StagePool {
@@ -167,6 +187,41 @@ export interface TournamentStage {
  * §2.0: fixtures can be generated and scheduled against it, and when the school confirms, every
  * fixture updates at once because they all point at this one row.
  */
+/**
+ * A team's answer to its invitation (`FIX-31`), mirroring the organisation's (`EventOrgInvitation`).
+ *
+ * - `invited` — entered, no answer yet. *Not invited yet* is not a status: it is `invited` while its
+ *   organisation's own invitation is `not_invited`, and reads so (`entrantStatusShown`).
+ * - `accepted`, `declined` — answered, by the organisation, the team's coach, or the organisers.
+ * - `withdrawal_pending` — after the lock, the organisation has asked to withdraw it; nothing changes
+ *   until the organisers confirm (`withdrawn`) or keep it in (`accepted`).
+ * - `withdrawn` — out, with any results it played kept (2026-09-24). Also what a team already in the
+ *   draw becomes when its organisation declines.
+ * - `requested` — an organisation asking to add a team (`FIX-33`), or to enter one late; the
+ *   organisers accept it or turn it down.
+ * - `rejected` — a request turned down, kept as the record.
+ */
+export type EntrantStatus =
+  | 'invited'
+  | 'accepted'
+  | 'declined'
+  | 'withdrawal_pending'
+  | 'withdrawn'
+  | 'requested'
+  | 'rejected';
+
+/** In play: drawn, ranked and counted — what `active` meant before `FIX-31`. */
+export const ENTRANT_IN_PLAY: EntrantStatus[] = ['accepted', 'withdrawal_pending'];
+export const isEntrantInPlay = (status?: EntrantStatus | null) => status === 'accepted' || status === 'withdrawal_pending';
+
+/** Entered: in the division, or invited and still to answer — what a roster lists as its teams. */
+export const isEntrantEntered = (status?: EntrantStatus | null) =>
+  status === 'invited' || status === 'accepted' || status === 'withdrawal_pending';
+
+/** Waiting for the organisers: a request to add or enter late, or to withdraw. */
+export const isEntrantRequest = (status?: EntrantStatus | null) =>
+  status === 'requested' || status === 'withdrawal_pending';
+
 export interface TournamentEntrant {
   id: string;
   divisionId: string;
@@ -176,7 +231,15 @@ export interface TournamentEntrant {
   /** Printed while unresolved. */
   label?: string;
   seed?: number;
-  status: 'active' | 'withdrawn';
+  status: EntrantStatus;
+  /** Who gave its answer, and when — the organisation's people, its coach, or the organisers. */
+  answeredAt?: string | null;
+  answeredBy?: PersonRef | null;
+  /** A decline's, a withdrawal's or a request's reason, as written. */
+  reason?: string | null;
+  /** Who asked — to withdraw it, or to add or enter it late — and when. */
+  requestedAt?: string | null;
+  requestedBy?: PersonRef | null;
   /**
    * Derived, never stored: the team's or the person's name, falling back to `label`.
    *
@@ -475,4 +538,34 @@ export function stagePlanForFormat(
     default:
       return [{ name: 'Fixtures', format: 'Festival', sequence: 1 }];
   }
+}
+
+/** May invited organisations add teams to this division (`FIX-33`): its own choice, else the tournament's. */
+export function divisionAllowsOrgAdding(
+  division: Pick<TournamentDivision, 'orgsMayAddTeams'>,
+  event: { orgsMayAddTeams?: boolean | null }
+): boolean {
+  return division.orgsMayAddTeams ?? !!event.orgsMayAddTeams;
+}
+
+/**
+ * What a team's answer reads as, for whoever is looking (`FIX-31` rules 5 and 7).
+ *
+ * - **Not invited yet** while its organisation has not been invited: the team's invitation goes out
+ *   with the organisation's.
+ * - **Until its organisation accepts, anyone outside it sees an accepted team as invited**: the
+ *   organisation may still decline. A decline shows at once, to everyone. The organisation's own
+ *   people (`viewerIsOwnOrg`) see the answer as given.
+ *
+ * Presentation only — the stored answer travels to every reader of the roster.
+ */
+export function entrantStatusShown(
+  status: EntrantStatus,
+  orgInvitation: string | null | undefined,
+  viewerIsOwnOrg: boolean
+): EntrantStatus | 'not_invited' {
+  if (status === 'invited' && orgInvitation === 'not_invited') return 'not_invited';
+  if (viewerIsOwnOrg || !orgInvitation) return status;
+  if (status === 'accepted' && (orgInvitation === 'invited' || orgInvitation === 'not_invited')) return 'invited';
+  return status;
 }

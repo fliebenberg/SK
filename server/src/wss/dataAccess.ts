@@ -194,9 +194,11 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   division_games:       { room: (req: any) => (req.divisionId ? `division:${req.divisionId}:fixtures` : null) },
   division_facilities:  { room: (req: any) => (req.divisionId ? `division:${req.divisionId}:fixtures` : null) },
   division_standings:   { room: (req: any) => (req.divisionId ? `division:${req.divisionId}:standings` : null) },
-  // The roster and the adjustments are the organiser's tier.
-  division_entrants:    { room: (req: any) => (req.divisionId ? `division:${req.divisionId}` : null) },
-  division_adjustments: { room: (req: any) => (req.divisionId ? `division:${req.divisionId}` : null) },
+  // The roster and the adjustments are the members' tier, in rooms of their own since 2026-09-11.
+  // They pointed at the base room until `LIVE-20` (fixed 2026-10-10 with `FIX-31`), which went public
+  // in that split — so a stranger could read through `get_data` what the room itself refused them.
+  division_entrants:    { room: (req: any) => (req.divisionId ? `division:${req.divisionId}:entrants` : null) },
+  division_adjustments: { room: (req: any) => (req.divisionId ? `division:${req.divisionId}:adjustments` : null) },
   // Addressed by stage, so resolve its division first — the same shape as `game_roster`, which is
   // addressed by participant.
   stage:                { room: (req: any) => stageRoom(req.stageId, 'fixtures') },
@@ -240,7 +242,8 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   },
   stage_games:          { room: (req: any) => stageRoom(req.stageId, 'fixtures') },
   // Pool membership is roster data: it names which competitors are in the division at all.
-  stage_entrants:       { room: (req: any) => stageRoom(req.stageId) },
+  // Pool membership is the members' tier, in its own room (`LIVE-20`): the base room went public.
+  stage_entrants:       { room: (req: any) => stageRoom(req.stageId, 'stage_entrants') },
 
   // --- Entry (Phase 6) -----------------------------------------------------
   // The whole tournament's roster defers to the room that owns it, which is the ordinary case: one

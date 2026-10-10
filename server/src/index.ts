@@ -3667,8 +3667,12 @@ io.on('connection', (socket) => {
                     result = (await dataManager.inviteEventOrgs(p.eventId, touched, actor)).event;
                 } else if (action.type === SocketAction.SET_EVENT_ORG_ANSWER) {
                     result = await dataManager.setEventOrgAnswer(p.eventId, p.participantOrgId, p.answer, actor);
+                    // Declining, or a confirmed withdrawal, answers for every team — kept as the record
+                    // (`FIX-31`). Accepting may accept its invited teams too.
                     if (p.answer === 'declined' || p.answer === 'withdrawn') {
-                        rosterChanges = (await tournamentManager.retireOrgEntrants(p.eventId, p.participantOrgId)).divisions;
+                        rosterChanges = (await tournamentManager.retireOrgEntrants(p.eventId, p.participantOrgId, p.answer, actor)).divisions;
+                    } else if (p.answer === 'accepted' && p.acceptTeams) {
+                        rosterChanges = await tournamentManager.acceptOrgTeams(p.eventId, p.participantOrgId, actor);
                     }
                 } else if (action.type === SocketAction.REQUEST_EVENT_WITHDRAWAL) {
                     result = await dataManager.requestEventWithdrawal(p.eventId, p.participantOrgId, p.reason, actor);
@@ -3696,6 +3700,68 @@ io.on('connection', (socket) => {
                 if (touched.some((id: string) => statusOf(before, id) !== statusOf(result, id))) {
                     const eventGames = await pool.query('SELECT id FROM games WHERE event_id = $1', [result.id]);
                     for (const row of eventGames.rows) await publishGameSummary(row.id);
+                }
+                break;
+            }
+
+            /*
+             * Teams' answers and locked entries (`FIX-31`, `FIX-33`). Who may is the gates'; each side's
+             * rules are the manager's. A change of answer can move a team in or out of play, so it is
+             * published as a roster write is — the roster, the stage it mirrors, the table, the fixtures.
+             */
+            case SocketAction.SET_ENTRANT_ANSWER:
+            case SocketAction.REQUEST_ENTRANT_WITHDRAWAL:
+            case SocketAction.CANCEL_ENTRANT_REQUEST:
+            case SocketAction.REQUEST_ENTRY:
+            case SocketAction.RESPOND_ENTRANT_REQUEST: {
+                const p = action.payload as any;
+                const actor = { userId: authUserId || null, orgId: p.orgId || null };
+                const entryEventId = await dataManager.getDivisionEventId(p.divisionId);
+                if (!entryEventId) throw new Error('That division no longer exists.');
+                let changed: Array<{ divisionId: string; syncedStageIds: string[] }> = [{ divisionId: p.divisionId, syncedStageIds: [] }];
+                if (action.type === SocketAction.SET_ENTRANT_ANSWER) {
+                    // The organisation's side when the caller speaks for the team — its admins, its coach.
+                    const team = (await pool.query('SELECT org_id, team_id FROM division_entrants WHERE id = $1', [p.entrantId])).rows[0];
+                    const ownSide = !!team && (
+                        (!!team.org_id && (await accessManager.isOrganizationAdmin(authUserId!, team.org_id))) ||
+                        (!!team.team_id && (await accessManager.isTeamCoach(authUserId!, team.team_id)))
+                    );
+                    const outcome = await tournamentManager.setEntrantAnswer(
+                        p.divisionId, p.entrantId, p.answer, ownSide ? 'organisation' : 'organisers', actor, p.reason
+                    );
+                    result = outcome.entrant;
+                    changed = outcome.divisions;
+                } else if (action.type === SocketAction.REQUEST_ENTRANT_WITHDRAWAL) {
+                    result = await tournamentManager.requestEntrantWithdrawal(p.divisionId, p.entrantId, p.reason, actor);
+                } else if (action.type === SocketAction.CANCEL_ENTRANT_REQUEST) {
+                    result = { id: (await tournamentManager.cancelEntrantRequest(p.divisionId, p.entrantId)).id };
+                } else if (action.type === SocketAction.REQUEST_ENTRY) {
+                    result = await tournamentManager.requestEntry(p.divisionId, p.teamId, actor, p.reason);
+                } else {
+                    const outcome = await tournamentManager.respondEntrantRequest(p.divisionId, p.entrantId, !!p.accept, actor);
+                    result = outcome.entrant;
+                    changed = outcome.divisions;
+                }
+                await publishRosterChanges(changed, entryEventId);
+                break;
+            }
+
+            case SocketAction.SET_DIVISION_LOCK:
+            case SocketAction.SET_DIVISION_ORG_ADDING: {
+                const p = action.payload as any;
+                result = action.type === SocketAction.SET_DIVISION_LOCK
+                    ? await tournamentManager.setDivisionLock(p.divisionId, !!p.locked, { userId: authUserId || null })
+                    : await tournamentManager.setDivisionOrgAdding(p.divisionId, p.allow ?? null);
+                await publishDivision(p.divisionId, 'DIVISION_UPDATED', result, result.eventId);
+                break;
+            }
+
+            case SocketAction.LOCK_EVENT_DIVISIONS: {
+                const p = action.payload as any;
+                result = await tournamentManager.lockEventDivisions(p.eventId, { userId: authUserId || null });
+                for (const lockedId of result.lockedIds) {
+                    const lockedDivision = await dataManager.getDivision(lockedId);
+                    if (lockedDivision) await publishDivision(lockedId, 'DIVISION_UPDATED', lockedDivision, p.eventId);
                 }
                 break;
             }

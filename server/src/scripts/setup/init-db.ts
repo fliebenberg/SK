@@ -308,6 +308,8 @@ const createTables = async () => {
                 -- pg_dump. "format" is a column rather than a settings key (plan §0.2).
                 cached_standings JSONB DEFAULT '[]'::jsonb,
                 format TEXT,
+                -- FIX-33: may invited organisations add teams themselves (20261010_team_answers_and_entry_locks.ts).
+                orgs_may_add_teams BOOLEAN NOT NULL DEFAULT FALSE,
                 CONSTRAINT events_type_check CHECK (type IN ('SingleMatch', 'Tournament'))
             );
         `);
@@ -371,6 +373,10 @@ const createTables = async () => {
                 sort_order INTEGER NOT NULL DEFAULT 0,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW(),
+                -- FIX-31: entries locked by hand; FIX-33: the division's own choice, NULL follows the event.
+                entries_locked_at TIMESTAMPTZ,
+                entries_locked_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+                orgs_may_add_teams BOOLEAN,
                 CONSTRAINT tournament_divisions_age_group_fk FOREIGN KEY (sport_id, age_group_id)
                     REFERENCES sport_age_groups (sport_id, id)
             );
@@ -407,9 +413,19 @@ const createTables = async () => {
                 org_id TEXT REFERENCES organizations(id),
                 label TEXT,
                 seed INTEGER,
-                status TEXT NOT NULL DEFAULT 'active',   -- 'active' | 'withdrawn'
+                -- A team's answer (FIX-31): 'withdrawn' is out with its results kept; 'requested' an
+                -- organisation asking to add a team (FIX-33) or to enter late; 'rejected' one turned down.
+                status TEXT NOT NULL DEFAULT 'invited'
+                    CONSTRAINT division_entrants_status_check
+                    CHECK (status IN ('invited', 'accepted', 'declined', 'withdrawal_pending', 'withdrawn', 'requested', 'rejected')),
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW(),
+                answered_at TIMESTAMPTZ,
+                answered_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+                answered_by_org_id TEXT REFERENCES organizations(id) ON DELETE SET NULL,
+                reason TEXT,
+                requested_at TIMESTAMPTZ,
+                requested_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT entrant_is_team_or_person CHECK (team_id IS NULL OR org_profile_id IS NULL)
             );
         `);

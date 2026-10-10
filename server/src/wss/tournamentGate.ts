@@ -57,6 +57,17 @@ export const TOURNAMENT_ACTION_EVENT: Partial<Record<SocketAction, (payload: any
   [SocketAction.REMOVE_EVENT_ORG]: async (p) => p?.eventId ?? null,
   [SocketAction.SET_DIVISION_FACILITIES]: async (p) =>
     p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
+  // Teams' answers and locked entries (`FIX-31`, `FIX-33`): the organisers' half. Answering a
+  // request, locking a division and its adding setting are its organisers' — delegated below;
+  // Lock all is the tournament's alone. Answering for a team, and the organisation's own requests,
+  // are the org gate's, since the team's organisation may act too.
+  [SocketAction.RESPOND_ENTRANT_REQUEST]: async (p) =>
+    p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
+  [SocketAction.SET_DIVISION_LOCK]: async (p) =>
+    p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
+  [SocketAction.SET_DIVISION_ORG_ADDING]: async (p) =>
+    p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
+  [SocketAction.LOCK_EVENT_DIVISIONS]: async (p) => p?.eventId ?? null,
   // Appointing is authorized as the event at every scope. Since 2026-09-19 a convenor may also
   // appoint and withdraw *within their own division*, and since 2026-09-20 a sport's organiser
   // within their own sport (the two maps below) — but each may only withdraw the people they
@@ -194,6 +205,9 @@ export const TOURNAMENT_ACTION_DIVISION: Partial<Record<SocketAction, (payload: 
     return res.rows[0]?.division_id ?? null;
   },
   [SocketAction.SET_DIVISION_FACILITIES]: async (p) => p?.divisionId ?? null,
+  [SocketAction.RESPOND_ENTRANT_REQUEST]: async (p) => p?.divisionId ?? null,
+  [SocketAction.SET_DIVISION_LOCK]: async (p) => p?.divisionId ?? null,
+  [SocketAction.SET_DIVISION_ORG_ADDING]: async (p) => p?.divisionId ?? null,
   // Co-convenors (D33, revised 2026-09-19). Only a division-scope payload resolves to a division;
   // an event-scope one resolves to none and is refused, so a convenor cannot appoint upwards.
   [SocketAction.APPOINT_ORGANIZER]: async (p) => (p?.eventId ? null : p?.divisionId ?? null),
@@ -322,7 +336,8 @@ async function divisionsVacatedBy(payload: any): Promise<string[]> {
         `SELECT DISTINCT e.division_id FROM division_entrants e
            JOIN tournament_divisions d ON d.id = e.division_id
           WHERE d.event_id = (SELECT event_id FROM tournament_divisions WHERE id = $1)
-            AND d.id <> $1 AND e.team_id = ANY($2::text[]) AND e.status = 'active'`,
+            AND d.id <> $1 AND e.team_id = ANY($2::text[])
+            AND e.status IN ('invited', 'accepted', 'withdrawal_pending', 'requested')`,
         [payload.divisionId, teamIds]
       );
       res.rows.forEach((r: any) => found.add(r.division_id));

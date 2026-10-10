@@ -66,6 +66,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20261008_event_org_who.ts`: Adds `event_organizations.invited_by_user_id`, `invited_by_org_id`, `answered_by_user_id` and `answered_by_org_id` (`FIX-26`), all `ON DELETE SET NULL`: who sent the invitation and who gave the answer, with the organisation each acted from. Read only through `get_data` `event_org_history`, never on the public event record.
     - `20261008_event_org_withdrawal.ts`: `event_organizations.invitation` gains `withdrawal_pending` and `withdrawn` (`FIX-30`), and the row gains `withdrawal_reason`, `withdrawal_requested_at` and `withdrawal_requested_by_user_id`: an organisation that accepted asks to withdraw, with a reason, and the organisers confirm it or keep it in.
     - `20261009_division_default_round_robin.ts`: **Data only, no schema change.** A division whose only stage is an untouched `Festival` with no fixtures becomes round robin (`FIX-27`): a `Festival` stage now means *set fixtures by hand*, chosen on purpose, and a division nobody set a format for starts as round robin (`defaultDivisionFormat`).
+    - `20261010_team_answers_and_entry_locks.ts`: A team's answer to its invitation (`FIX-31`): `division_entrants.status` becomes `invited` / `accepted` / `declined` / `withdrawal_pending` / `withdrawn` / `requested` / `rejected` (`active` → `accepted`), with `answered_at` / `answered_by_user_id` / `answered_by_org_id` and `reason` / `requested_at` / `requested_by_user_id`. `tournament_divisions.entries_locked_at` / `entries_locked_by_user_id` (a division with fixtures is locked on the way in, since the draw needs the lock) and `orgs_may_add_teams` (NULL follows the tournament); `events.orgs_may_add_teams` (`FIX-33`, default off).
 
 ## The tournaments schema
 
@@ -236,6 +237,32 @@ tournament — before it is **invited**. Who sees what at each status is one mod
   tells organisations about an event goes through it. `Event.participatingOrgs` is everyone
   taking part, each with its invitation.
 - The column defaults to `accepted`, which is what a row meant before invitations: the migration
+
+**Each team answers too (`FIX-31`, `FIX-33`, 2026-10-10).** `division_entrants.status` is a team's
+answer, mirroring its organisation's: `invited`, `accepted`, `declined`, `withdrawal_pending`,
+`withdrawn`, plus `requested` (an organisation asking to add a team, or to enter one late) and
+`rejected` (turned down, kept as the record). **In play** — drawn, ranked, counted — is `accepted` and
+`withdrawal_pending`, what `active` meant before (`isEntrantInPlay`; `IN_PLAY` in TournamentManager).
+**Taking a place** — the one-division rule — is anything entered or asked for (`TAKES_A_PLACE`).
+
+- **Who sets it.** Never a roster write: `SET_DIVISION_ENTRANTS` keeps each team's answer, reading
+  only `withdrawn` (the organisers withdrawing, or putting a withdrawn team back in as accepted). A
+  new team starts `invited` — `accepted` if it is a placeholder, the host's own team, or entered once
+  the division is locked. The answer actions change it, each side to its rules
+  (`TournamentManager.setEntrantAnswer` and the rest): the organisation's admins and a team's coach
+  (org gate `answer-entrant`), the organisers (decline any time, accept once the organisation has).
+- **Who answered** is kept (`answered_*`), and a reason and who asked (`reason`, `requested_*`).
+- **The lock.** `tournament_divisions.entries_locked_at` is set by hand (`SET_DIVISION_LOCK`,
+  `LOCK_EVENT_DIVISIONS`) and refused while a team is invited, a request waits, or a team's
+  organisation has not accepted (`entryLockProblem`). The draw needs it. After it a team leaves only
+  by withdrawing, and an organisation can only ask to enter late.
+- **Adding teams (`FIX-33`).** `events.orgs_may_add_teams` (off by default) and
+  `tournament_divisions.orgs_may_add_teams` (NULL follows the tournament) — `divisionAllowsOrgAdding`.
+- **An organisation declining** (or its withdrawal confirmed) **keeps its teams, as the record**:
+  `declined` (or `withdrawn`); one already in the draw becomes `withdrawn`, results kept.
+- **What a team's answer reads as** to someone outside its organisation — *Invited* while its
+  organisation has not accepted, *Not invited yet* while it is not invited — is presentation
+  (`entrantStatusShown`): the stored answer travels to every reader of the roster.
   marked every existing row so, and the host's row and rows written because a team plays stay so.
   Only `ADD_EVENT_ORGS` writes `not_invited`.
 - **An answer is final for the organisation** (`FIX-30`): its admins (not staff, `FIX-31`) may

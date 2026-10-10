@@ -12,7 +12,7 @@ const team = (id: string, name: string, orgId: string): CandidateTeam =>
   ({ id, name, orgId, orgName: orgId, orgShortName: orgId, sportId: 'rugby' } as CandidateTeam);
 
 const entrant = (over: Partial<TournamentEntrant>): TournamentEntrant =>
-  ({ id: 'e', divisionId: 'div-1', status: 'active', ...over } as TournamentEntrant);
+  ({ id: 'e', divisionId: 'div-1', status: 'accepted', ...over } as TournamentEntrant);
 
 describe('the rows of the entry table', () => {
   it('lists every candidate team, entered or not, because the table is where you enter them', () => {

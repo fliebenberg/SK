@@ -97,12 +97,13 @@ async function main() {
   expect(await canJoinRoom(ANON, `division:${division.id}:standings`), true, 'anon may join the standings room');
   expect(await canJoinRoom(MEMBER, `division:${division.id}:fixtures`), true, 'a member may join the fixtures room');
 
-  // Member: the roster and the adjustments.
-  expect(await canJoinRoom(ANON, `division:${division.id}`), false, 'anon may NOT join the roster room');
-  expect(await canJoinRoom(MEMBER, `division:${division.id}`), true, 'a member of the hosting org may join it');
+  // Member: the roster, in its own room since the 2026-09-11 split — the base room is the division
+  // record, which is public (`LIVE-20`, these checks updated 2026-10-10).
+  expect(await canJoinRoom(ANON, `division:${division.id}:entrants`), false, 'anon may NOT join the roster room');
+  expect(await canJoinRoom(MEMBER, `division:${division.id}:entrants`), true, 'a member of the hosting org may join it');
 
   // Undeclared shapes stay refused, which is the safety net rather than an oversight.
-  expect(await canJoinRoom(MEMBER, `division:${division.id}:entrants`), false, 'an undeclared sub-room is refused');
+  expect(await canJoinRoom(MEMBER, `division:${division.id}:nonsense`), false, 'an undeclared sub-room is refused');
   expect(await canJoinRoom(MEMBER, 'division:'), false, 'a division room with no id is refused');
   expect(await canJoinRoom(MEMBER, `stage:${stage.id}`), false, 'there is no stage room; it is refused');
 

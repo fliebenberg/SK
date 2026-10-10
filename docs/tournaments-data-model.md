@@ -312,9 +312,13 @@ CREATE TABLE IF NOT EXISTS division_entrants (
     org_id TEXT REFERENCES organizations(id),
     label TEXT,                     -- shown while unresolved: 'TBC — awaiting confirmation'
     seed INTEGER,
-    status TEXT NOT NULL DEFAULT 'active',   -- 'active' | 'withdrawn'
+    status TEXT NOT NULL DEFAULT 'invited',  -- a team's answer, FIX-31 (2026-10-10): 'invited' | 'accepted'
+                                             -- | 'declined' | 'withdrawal_pending' | 'withdrawn'
+                                             -- | 'requested' | 'rejected'; was 'active' | 'withdrawn'
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    answered_at TIMESTAMPTZ, answered_by_user_id TEXT, answered_by_org_id TEXT,   -- FIX-31
+    reason TEXT, requested_at TIMESTAMPTZ, requested_by_user_id TEXT,
     CONSTRAINT entrant_is_team_or_person CHECK (team_id IS NULL OR org_profile_id IS NULL)
 );
 CREATE INDEX IF NOT EXISTS idx_division_entrants_division ON division_entrants(division_id);
@@ -719,7 +723,7 @@ export interface TournamentEntrant {
   orgId?: string;
   label?: string;                    // printed while unresolved
   seed?: number;
-  status: 'active' | 'withdrawn';
+  status: EntrantStatus;   // FIX-31: was 'active' | 'withdrawn' — see okf/database.md
 }
 
 /** How an unfilled fixture slot knows what will fill it (D26). */

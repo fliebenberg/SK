@@ -146,6 +146,13 @@ export interface Event {
    */
   participatingOrgs?: EventOrgBadge[];
   sportIds?: string[];
+  /**
+   * May the organisations it invites add teams to its divisions themselves (`FIX-33`)? Off by
+   * default. Only a default: each division's organisers can choose otherwise for their division
+   * (`TournamentDivision.orgsMayAddTeams`). A team an organisation adds waits for the organisers'
+   * approval, and adding closes when the division is locked.
+   */
+  orgsMayAddTeams?: boolean;
   settings?: {
     /**
      * The tournament's points system (D17), which every division inherits unless it carries its

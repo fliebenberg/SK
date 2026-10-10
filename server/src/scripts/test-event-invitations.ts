@@ -158,7 +158,7 @@ async function run() {
     const pending = await eventManager.requestEventWithdrawal(event.id, guest, 'Two players injured.', { userId: guestAdmin, orgId: guest });
     check(pending.participatingOrgs?.find(o => o.id === guest)?.invitation === 'withdrawal_pending', 'asking makes it a pending withdrawal');
     check((await sees(guest, event.id, game.id, division.id)).events, '…which leaves it on its public lists');
-    const pendingEntrants = await q("SELECT count(*)::int n FROM division_entrants WHERE division_id = $1 AND org_id = $2 AND status = 'active'", [division.id, guest]);
+    const pendingEntrants = await q("SELECT count(*)::int n FROM division_entrants WHERE division_id = $1 AND org_id = $2 AND status IN ('invited', 'accepted', 'withdrawal_pending')", [division.id, guest]);
     check(pendingEntrants.rows[0].n === 1, '…and its teams where they are');
     const history2 = await eventManager.getEventOrgHistory(event.id, guest);
     check(history2?.withdrawal?.reason === 'Two players injured.' && history2?.withdrawal?.requestedBy?.userId === guestAdmin, 'the reason and who asked are recorded');
@@ -177,15 +177,17 @@ async function run() {
     check(await rejects(() => tournamentManager.removeEventOrg(event.id, guest), /record/), 'one that withdrew cannot be removed: its row is the record');
     check(await rejects(() => eventManager.requestEventWithdrawal(event.id, guest, 'x')), 'only an accepted organisation can ask to withdraw');
 
-    // --- Declining takes its teams out, and keeps it listed.
+    // --- Declining answers for its teams — kept as the record, declined (FIX-31) — and keeps it listed.
     await eventManager.addEventOrgs(event.id, [late], true, { userId: hostAdmin, orgId: host });
     const lateTeam = await makeTeam('late', late, sportId);
     const lateRoster = (await tournamentManager.getEntrants(division.id)).map((e: any) => ({ id: e.id, teamId: e.teamId, status: e.status }));
     await tournamentManager.setDivisionEntrants(division.id, [...lateRoster, { teamId: lateTeam }]);
     await eventManager.setEventOrgAnswer(event.id, late, 'declined', { userId: lateAdmin, orgId: late });
-    await tournamentManager.retireOrgEntrants(event.id, late);
-    const lateLeft = await q("SELECT count(*)::int n FROM division_entrants WHERE division_id = $1 AND org_id = $2", [division.id, late]);
-    check(lateLeft.rows[0].n === 0, 'declining takes its teams out');
+    await tournamentManager.retireOrgEntrants(event.id, late, 'declined', { userId: lateAdmin, orgId: late });
+    const lateLeft = await q("SELECT status FROM division_entrants WHERE division_id = $1 AND org_id = $2", [division.id, late]);
+    check(lateLeft.rows.length === 1 && lateLeft.rows[0].status === 'declined', 'declining keeps its team as the record, declined (FIX-31)');
+    const lateDrawn = await q('SELECT count(*)::int n FROM stage_entrants se JOIN division_entrants e ON e.id = se.entrant_id WHERE e.team_id = $1', [lateTeam]);
+    check(lateDrawn.rows[0].n === 0, '…and out of play: in no stage of the draw');
     check((await invitationOf(event.id, late)) === 'declined', '…and it stays listed, declined');
 
     // --- Adding without inviting again; the whole-list write keeps everybody's status.

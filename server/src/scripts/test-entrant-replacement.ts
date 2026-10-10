@@ -1,4 +1,4 @@
-import { APP_TEST_ORG_ID } from '@sk/shared';
+import { APP_TEST_ORG_ID, toEntrantInput } from '@sk/shared';
 import { query } from '../db';
 import pool from '../db';
 import { setIo } from '../wss/sockets';
@@ -48,6 +48,16 @@ async function expectThrows(fn: () => Promise<unknown>, matching: RegExp, what: 
 const created = { eventIds: [] as string[], orgIds: [] as string[], teamIds: [] as string[] };
 
 /** Participant rows of a stage's fixtures, as `{ gameId, status, entrantId, teamId }`. */
+/**
+ * The draw is made from locked entries (`FIX-31`): every team answered, then the lock. These tests are
+ * about the draw, not the answers, so the teams are accepted as their organisations would.
+ */
+async function lockForDraw(divisionId: string) {
+  await pool.query(`UPDATE division_entrants SET status = 'accepted' WHERE division_id = $1 AND status = 'invited'`, [divisionId]);
+  await (tournamentManager as any).syncOpenStageEntrants(divisionId); // what an answer action does after it
+  await tournamentManager.setDivisionLock(divisionId, true, {});
+}
+
 async function sides(stageId: string) {
   const res = await query(
     `SELECT g.id AS "gameId", g.status, gp.id AS "participantId", gp.entrant_id AS "entrantId",
@@ -138,6 +148,7 @@ async function main() {
     { teamId: teams.B, seed: 2 },
     { label: 'Winner of the qualifier', seed: 3 },
   ]);
+  await lockForDraw(open.id);
   await tournamentManager.generateStageFixtures(open.stageId, 'create');
   const placeholder = (await tournamentManager.getEntrants(open.id)).find(e => !e.teamId)!;
   expect(placeholder.playedCount, 0, 'an entrant that has not played carries playedCount 0');
@@ -185,6 +196,7 @@ async function main() {
     { teamId: extra.G, seed: 3 },
     { teamId: extra.H, seed: 4 },
   ]);
+  await lockForDraw(pool4.id);
   await tournamentManager.generateStageFixtures(pool4.stageId, 'create');
   expect(
     (await tournamentManager.getDivision(pool4.id))?.firstStageId,
@@ -247,7 +259,7 @@ async function main() {
   const current = await tournamentManager.getEntrants(pool4.id);
   await tournamentManager.setDivisionEntrants(
     pool4.id,
-    current.filter(e => e.id !== d).map(e => ({ id: e.id, teamId: e.teamId, seed: e.seed, status: e.status }))
+    current.filter(e => e.id !== d).map(e => ({ id: e.id, teamId: e.teamId, seed: e.seed, status: toEntrantInput(e).status }))
   );
   // What the SET_DIVISION_ENTRANTS handler does after every roster write.
   await tournamentManager.recalculateDivision(pool4.id);
@@ -284,7 +296,7 @@ async function main() {
   created.teamIds.push(lateTeam);
   const beforeLate = await tournamentManager.getEntrants(pool4.id);
   await tournamentManager.setDivisionEntrants(pool4.id, [
-    ...beforeLate.map(e => ({ id: e.id, teamId: e.teamId, seed: e.seed, status: e.status })),
+    ...beforeLate.map(e => ({ id: e.id, teamId: e.teamId, seed: e.seed, status: toEntrantInput(e).status })),
     { teamId: lateTeam, seed: 9 },
   ]);
   const late = (await tournamentManager.getEntrants(pool4.id)).find(e => e.teamId === lateTeam)!;
@@ -331,7 +343,7 @@ async function main() {
   const resend = await tournamentManager.getEntrants(pool4.id);
   await tournamentManager.setDivisionEntrants(
     pool4.id,
-    resend.map(e => ({ id: e.id, teamId: e.teamId, seed: e.seed, status: e.status }))
+    resend.map(e => ({ id: e.id, teamId: e.teamId, seed: e.seed, status: toEntrantInput(e).status }))
   );
   expect(
     (await sides(pool4.stageId)).find(s => s.participantId === gSide.participantId)?.teamId,
@@ -343,7 +355,7 @@ async function main() {
     () =>
       tournamentManager.setDivisionEntrants(
         pool4.id,
-        resend.map(e => ({ id: e.id, teamId: e.id === g ? standIn : e.teamId, seed: e.seed, status: e.status }))
+        resend.map(e => ({ id: e.id, teamId: e.id === g ? standIn : e.teamId, seed: e.seed, status: toEntrantInput(e).status }))
       ),
     /has results/,
     'the roster refuses to change who an entrant is once it has results — that would re-attribute them'

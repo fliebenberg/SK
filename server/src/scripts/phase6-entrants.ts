@@ -72,6 +72,21 @@ function expect(actual: unknown, expected: unknown, what: string): void {
   if (a !== b) failures.push(`${what}: expected ${b}, got ${a}`);
 }
 
+
+/**
+ * The draw is made from locked entries (`FIX-31`): every team answered, then the lock. These tests are
+ * about the draw, not the answers, so the teams are accepted as their organisations would.
+ */
+async function acceptAll(divisionId: string) {
+  await pool.query(`UPDATE division_entrants SET status = 'accepted' WHERE division_id = $1 AND status = 'invited'`, [divisionId]);
+  await (tournamentManager as any).syncOpenStageEntrants(divisionId); // what an answer action does after it
+}
+async function lockForDraw(divisionId: string) {
+  await pool.query(`UPDATE division_entrants SET status = 'accepted' WHERE division_id = $1 AND status = 'invited'`, [divisionId]);
+  await (tournamentManager as any).syncOpenStageEntrants(divisionId); // what an answer action does after it
+  await tournamentManager.setDivisionLock(divisionId, true, {});
+}
+
 async function expectThrows(fn: () => Promise<unknown>, matching: RegExp, what: string): Promise<void> {
   checks++;
   try {
@@ -319,13 +334,27 @@ async function main() {
     'each entrant already named, so the grid resolves nothing client-side'
   );
 
+  // A team the organisers enter is invited until it answers (`FIX-31`), and only a team in play is
+  // drawn — so the stage takes nobody yet.
+  expect(
+    allEntrants.filter(entrant => entrant.status === 'invited').length,
+    60,
+    'a team entered by the organisers starts invited, to answer for itself (FIX-31)'
+  );
+  expect(
+    (await tournamentManager.getStageEntrants(divisions[0].stageId)).length,
+    0,
+    'and an invited team is not mirrored into the stage: only a team in play is drawn'
+  );
+  for (const division of divisions) await acceptAll(division.id);
+
   // The one check the whole feature rests on: `planFixtures` reads `stage_entrants`, not the
   // roster, so without the mirror pressing Generate finds an empty stage.
   const firstStageEntrants = await tournamentManager.getStageEntrants(divisions[0].stageId);
   expect(
     firstStageEntrants.length,
     4,
-    'entering a roster mirrors it into the stage that simply takes it'
+    'once its teams accept, the roster is mirrored into the stage that simply takes it'
   );
 
   // Pool assignments are the organiser\'s work, and adding a fifth entrant must not discard them.
@@ -360,6 +389,7 @@ async function main() {
   const startedAt = Date.now();
   let totalCreated = 0;
   for (const division of divisions) {
+    await lockForDraw(division.id);
     const outcome = await tournamentManager.generateStageFixtures(division.stageId, 'create');
     totalCreated += outcome.created;
   }

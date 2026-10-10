@@ -626,6 +626,59 @@ export enum SocketAction {
      */
     CANCEL_EVENT_WITHDRAWAL = 'CANCEL_EVENT_WITHDRAWAL',
 
+    // --- Tournaments: teams' answers and locked entries (FIX-31, FIX-33) ---
+
+    /**
+     * Answer for one team: accept or decline. Before its division is locked, either side may — the
+     * team's organisation (its admins for any team, a coach for their own) or the organisers (accept
+     * only once the organisation has accepted; decline at any time).
+     * Expects payload: `{ divisionId, entrantId, orgId, answer, reason? }`
+     */
+    SET_ENTRANT_ANSWER = 'SET_ENTRANT_ANSWER',
+    /**
+     * After the lock, the team's organisation asks to withdraw an accepted team, with a reason; the
+     * organisers confirm or keep it in (`RESPOND_ENTRANT_REQUEST`).
+     * Expects payload: `{ divisionId, entrantId, orgId, reason }`
+     */
+    REQUEST_ENTRANT_WITHDRAWAL = 'REQUEST_ENTRANT_WITHDRAWAL',
+    /**
+     * The organisation takes back a request the organisers have not answered: a withdrawal (the team
+     * stays accepted) or a team it asked to add (the request goes).
+     * Expects payload: `{ divisionId, entrantId, orgId }`
+     */
+    CANCEL_ENTRANT_REQUEST = 'CANCEL_ENTRANT_REQUEST',
+    /**
+     * An invited organisation asks to add one of its teams to a division (`FIX-33`): while the
+     * division is open and allows it, or late, after the lock, whatever the setting. Its admins for
+     * any of its teams, a coach for a team they coach. The organisers accept or turn it down.
+     * Expects payload: `{ divisionId, teamId, orgId, reason? }`
+     */
+    REQUEST_ENTRY = 'REQUEST_ENTRY',
+    /**
+     * The organisers answer a request: a team asked to be added or entered late (`accepted` /
+     * `rejected`), or a withdrawal (`withdrawn`, or kept in as `accepted`).
+     * Expects payload: `{ divisionId, entrantId, orgId, accept }`
+     */
+    RESPOND_ENTRANT_REQUEST = 'RESPOND_ENTRANT_REQUEST',
+    /**
+     * Lock or unlock a division's entries. Refused while any team is still invited or a request
+     * waits, or any team's organisation has not accepted.
+     * Expects payload: `{ divisionId, orgId, locked }`
+     */
+    SET_DIVISION_LOCK = 'SET_DIVISION_LOCK',
+    /**
+     * Lock every division of a tournament that can be locked, leaving the rest open with the reason.
+     * The tournament's organisers only.
+     * Expects payload: `{ eventId, orgId }`
+     */
+    LOCK_EVENT_DIVISIONS = 'LOCK_EVENT_DIVISIONS',
+    /**
+     * A division's own choice on whether invited organisations may add teams (`FIX-33`); `null`
+     * goes back to following the tournament.
+     * Expects payload: `{ divisionId, orgId, allow }`
+     */
+    SET_DIVISION_ORG_ADDING = 'SET_DIVISION_ORG_ADDING',
+
     // --- Tournaments: organiser assignments (D33) ---
     //
     // One mechanism, two scopes: naming `eventId` appoints an organiser of the whole tournament,

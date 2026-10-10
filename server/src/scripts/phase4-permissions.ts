@@ -470,10 +470,12 @@ async function main() {
     true,
     'a convenor may join their own division room (they hold no membership at all)'
   );
+  // The base room is the division record, public since 2026-09-11; the roster is the members' tier,
+  // in a room of its own (`LIVE-20`, 2026-10-10).
   expect(
-    await canJoinRoom(specialist.userId, `division:${divisionB.id}`),
+    await canJoinRoom(specialist.userId, `division:${divisionB.id}:entrants`),
     false,
-    "a convenor may NOT join another division's room"
+    "a convenor may NOT join another division's roster room"
   );
   expect(
     await canJoinRoom(member.userId, `division:${divisionB.id}`),
