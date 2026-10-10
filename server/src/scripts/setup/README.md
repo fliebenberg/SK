@@ -46,6 +46,15 @@ its admin, a staff member, its U16 rugby coach and one 1st XV (U19) player. For 
 lists every person with `account: true`.
 
 **Deliberate cases in the base data:**
+- **A tournament** (`FIX-31`, `FIX-33`): *Test Spring Festival* (`fx-tour-spring`), hosted by
+  Doringkloof — St Aldric's accepted, Riverbend invited, Kwaggafontein added but not invited yet;
+  organisations may add teams. Every team answer is in it: **Rugby U16** (open) has the host's team,
+  St Aldric's accepted by its coach Brendan O'Neill, Riverbend's still invited, Kwaggafontein's *Not
+  invited yet* and St Aldric's 1st XV added by the organisation, waiting for approval; **Netball
+  U14** is locked, with St Aldric's asking to withdraw its team and to enter its U16 team late;
+  **Netball U16** (adding turned off for the division) has St Aldric's declined and Riverbend's
+  invited. Defined in `TEST_TOURNAMENTS`. A test that counts a fixture team's tournaments must
+  allow for this one.
 - Lerato Mokoena has one account and a profile in two organisations: staff at Doringkloof, and
   netball coach at Kwaggafontein.
 - Ethan Murray left Riverbend's 1st XV on 2026-03-31, so his organisation and team memberships

@@ -16,6 +16,7 @@ import {
     FixturePlayer,
     TEST_ORGS,
     fixtureIds,
+    TEST_TOURNAMENTS,
 } from './testOrgs';
 
 /** A pinned test site's timezone, as the server would find it from the pin (`DATE-2`). */
@@ -372,6 +373,58 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
                  facility ? fixtureIds.facility(host.key, facility.key) : null, result, game.timeTbd ? { timeTbd: true } : {}]);
             await insert('game_participants', ['id', 'game_id', 'team_id', 'sort_order'], [homeId, fixtureIds.game(org.key, game.key), homeTeam, 0]);
             await insert('game_participants', ['id', 'game_id', 'team_id', 'sort_order'], [awayId, fixtureIds.game(org.key, game.key), awayTeam, 1]);
+        }
+    }
+
+    // Tournaments after games: they reference teams of several organisations (`FIX-31`, `FIX-33`).
+    for (const tour of TEST_TOURNAMENTS) {
+        const tourId = fixtureIds.tournament(tour.key);
+        const host = TEST_ORGS.find(o => o.key === tour.host);
+        if (!host) throw new Error(`Tournament ${tour.key}: there is no organisation ${tour.host}.`);
+        const userOf = (name?: string) => {
+            if (!name) return null;
+            const id = fixtureIds.user(name);
+            if (!accounts.has(id)) throw new Error(`Tournament ${tour.key}: ${name} has no account to answer with.`);
+            return id;
+        };
+        await insert('events',
+            ['id', 'name', 'type', 'format', 'start_date', 'end_date', 'site_id', 'org_id', 'settings', 'status', 'orgs_may_add_teams'],
+            [tourId, tour.name, 'Tournament', 'Festival', tour.startDate, tour.endDate, fixtureIds.site(host.key), fixtureIds.org(host.key), {}, 'Scheduled', tour.orgsMayAddTeams]);
+        for (const sportId of tour.sportIds) await insert('event_sports', ['event_id', 'sport_id'], [tourId, sportId]);
+        await insert('event_organizations', ['event_id', 'org_id', 'invitation'], [tourId, fixtureIds.org(host.key), 'accepted']);
+        for (const taking of tour.orgs) {
+            const invited = taking.invitation !== 'not_invited';
+            const answered = taking.invitation === 'accepted' || taking.invitation === 'declined';
+            await insert('event_organizations',
+                ['event_id', 'org_id', 'invitation', 'invited_at', 'invited_by_user_id', 'invited_by_org_id', 'answered_at', 'answered_by_user_id', 'answered_by_org_id'],
+                [tourId, fixtureIds.org(taking.org), taking.invitation,
+                 invited ? FIXTURE_MEMBERSHIP_START : null, invited ? userOf(host.admin.name) : null, invited ? fixtureIds.org(host.key) : null,
+                 answered ? FIXTURE_MEMBERSHIP_START : null, answered ? userOf(taking.by) : null, answered ? fixtureIds.org(taking.org) : null]);
+        }
+        for (const [sortOrder, division] of tour.divisions.entries()) {
+            const divisionId = fixtureIds.division(tour.key, division.key);
+            const stageId = fixtureIds.stage(tour.key, division.key);
+            await insert('tournament_divisions',
+                ['id', 'event_id', 'name', 'sport_id', 'age_group_id', 'sort_order', 'entries_locked_at', 'entries_locked_by_user_id', 'orgs_may_add_teams'],
+                [divisionId, tourId, division.name, division.sportId, starterAgeGroupId(division.sportId, division.ageGroup), sortOrder,
+                 division.locked ? FIXTURE_MEMBERSHIP_START : null, division.locked ? userOf(host.admin.name) : null, division.orgsMayAddTeams ?? null]);
+            await insert('division_stages', ['id', 'division_id', 'name', 'format', 'sequence'], [stageId, divisionId, 'Fixtures', 'RoundRobin', 1]);
+            for (const [seed, entry] of division.teams.entries()) {
+                const org = TEST_ORGS.find(o => o.key === entry.org);
+                if (!org?.teams.some(t => t.key === entry.team)) throw new Error(`Tournament ${tour.key}: there is no team ${entry.team} in ${entry.org}.`);
+                const entrantId = fixtureIds.entrant(tour.key, division.key, entry.org, entry.team);
+                const asked = entry.status === 'requested' || entry.status === 'withdrawal_pending';
+                const answered = !asked && entry.status !== 'invited' && !!entry.by;
+                await insert('division_entrants',
+                    ['id', 'division_id', 'team_id', 'org_id', 'seed', 'status', 'answered_at', 'answered_by_user_id', 'answered_by_org_id', 'reason', 'requested_at', 'requested_by_user_id'],
+                    [entrantId, divisionId, fixtureIds.team(entry.org, entry.team), fixtureIds.org(entry.org), seed + 1, entry.status,
+                     answered ? FIXTURE_MEMBERSHIP_START : null, answered ? userOf(entry.by) : null, answered ? fixtureIds.org(entry.org) : null,
+                     entry.reason ?? null, asked ? FIXTURE_MEMBERSHIP_START : null, asked ? userOf(entry.by) : null]);
+                // The stage takes the teams in play, as `syncOpenStageEntrants` would.
+                if (entry.status === 'accepted' || entry.status === 'withdrawal_pending') {
+                    await insert('stage_entrants', ['stage_id', 'entrant_id', 'seed', 'sort_order'], [stageId, entrantId, seed + 1, seed]);
+                }
+            }
         }
     }
 

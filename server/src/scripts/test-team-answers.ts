@@ -108,7 +108,7 @@ async function run() {
   const sacInvites = await tournamentManager.getTeamEntries({ orgId: SAC, invitedOnly: true });
   check(sacInvites.some(e => e.teamId === T.sac && e.eventName === `${P} Cup` && e.divisionName === 'U16'),
     "an organisation's invitations list names each team still invited, with its tournament and division");
-  check((await tournamentManager.getTeamEntries({ teamId: T.dkl })).length === 1, "a team's own entries list its tournaments");
+  check((await tournamentManager.getTeamEntries({ teamId: T.dkl })).some(e => e.eventId === event.id), "a team's own entries list its tournaments");
 
   // --- Who may answer for a team ----------------------------------------------------------------
   const answer = (entrantId: string, ans = 'accepted') => ({ divisionId: division.id, entrantId, orgId: SAC, answer: ans });

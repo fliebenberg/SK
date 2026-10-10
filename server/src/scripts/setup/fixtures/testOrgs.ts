@@ -545,6 +545,94 @@ export const TEST_ORGS: FixtureOrg[] = [
 ];
 
 /** "Jandré Nieuwoudt" → "jandre-nieuwoudt". */
+/**
+ * A tournament in the test data, with every state a team's answer can be in (`FIX-31`, `FIX-33`), so
+ * the screens can be tried — and the end-to-end pass run — without building one by hand.
+ */
+export interface FixtureTournamentTeam {
+    org: string;
+    team: string;
+    status: 'invited' | 'accepted' | 'declined' | 'withdrawal_pending' | 'withdrawn' | 'requested' | 'rejected';
+    /** Who answered, or asked — someone listed with an account. */
+    by?: string;
+    reason?: string;
+}
+export interface FixtureTournamentDivision {
+    key: string;
+    name: string;
+    sportId: string;
+    ageGroup: string;
+    locked?: boolean;
+    /** The division's own choice on organisations adding teams; absent follows the tournament. */
+    orgsMayAddTeams?: boolean;
+    teams: FixtureTournamentTeam[];
+}
+export interface FixtureTournament {
+    key: string;
+    name: string;
+    /** The hosting organisation's key; it takes part as accepted. */
+    host: string;
+    startDate: string;
+    endDate: string;
+    sportIds: string[];
+    orgsMayAddTeams: boolean;
+    /** Everyone else taking part, and where their invitation stands. */
+    orgs: Array<{ org: string; invitation: 'not_invited' | 'invited' | 'accepted' | 'declined'; by?: string }>;
+    divisions: FixtureTournamentDivision[];
+}
+
+/**
+ * *Test Spring Festival*: Doringkloof hosting, St Aldric's accepted, Riverbend invited, Kwaggafontein
+ * added but not invited yet. Between them its divisions hold every answer:
+ *
+ * - **Rugby U16**, open: the host's team accepted, St Aldric's accepted by its coach, Riverbend's
+ *   still invited, Kwaggafontein's *Not invited yet*, and St Aldric's 1st XV added by the organisation
+ *   and waiting for approval (the tournament lets organisations add teams).
+ * - **Netball U14**, locked: St Aldric's asks to withdraw its team, with a reason, and asks to enter
+ *   its U16 netball team late.
+ * - **Netball U16**, open, with adding turned off for this division: St Aldric's declined, with a
+ *   reason; Riverbend's still invited.
+ */
+export const TEST_TOURNAMENTS: FixtureTournament[] = [
+    {
+        key: 'spring', name: 'Test Spring Festival', host: 'dkl', startDate: '2026-11-21', endDate: '2026-11-22',
+        sportIds: ['rugby', 'netball'], orgsMayAddTeams: true,
+        orgs: [
+            { org: 'sac', invitation: 'accepted', by: 'Catherine Whitfield' },
+            { org: 'rbh', invitation: 'invited' },
+            { org: 'ksc', invitation: 'not_invited' },
+        ],
+        divisions: [
+            {
+                key: 'rugby-u16', name: 'U16', sportId: 'rugby', ageGroup: 'U16',
+                teams: [
+                    { org: 'dkl', team: 'rugby-u16a', status: 'accepted' },
+                    { org: 'sac', team: 'rugby-u16a', status: 'accepted', by: "Brendan O'Neill" },
+                    { org: 'rbh', team: 'rugby-u16a', status: 'invited' },
+                    { org: 'ksc', team: 'rugby-u16', status: 'invited' },
+                    { org: 'sac', team: 'rugby-1stxv', status: 'requested', by: 'Catherine Whitfield', reason: 'Our 1st XV would like a run before the season.' },
+                ],
+            },
+            {
+                key: 'netball-u14', name: 'U14', sportId: 'netball', ageGroup: 'U14', locked: true,
+                teams: [
+                    { org: 'dkl', team: 'netball-u14a', status: 'accepted' },
+                    { org: 'sac', team: 'netball-u14a', status: 'withdrawal_pending', by: 'Catherine Whitfield', reason: 'Two of our players are injured and we cannot field a full side.' },
+                    { org: 'sac', team: 'netball-u16a', status: 'requested', by: 'Catherine Whitfield', reason: 'Our U16 squad is short of games and would like to play up.' },
+                ],
+            },
+            {
+                key: 'netball-u16', name: 'U16', sportId: 'netball', ageGroup: 'U16', orgsMayAddTeams: false,
+                teams: [
+                    { org: 'dkl', team: 'netball-u16a', status: 'accepted' },
+                    { org: 'sac', team: 'netball-u16a', status: 'declined', by: 'Catherine Whitfield', reason: 'Exams that weekend.' },
+                    { org: 'rbh', team: 'netball-u16a', status: 'invited' },
+                ],
+            },
+        ],
+    },
+];
+
 export function fixtureSlug(text: string): string {
     return text
         .normalize('NFD')
@@ -568,6 +656,11 @@ export const fixtureIds = {
     teamMembership: (orgKey: string, teamKey: string, name: string) =>
         `fx-tm-${orgKey}-${teamKey}-${fixtureSlug(name)}`,
     event: (orgKey: string, gameKey: string) => `fx-event-${orgKey}-${gameKey}`,
+    tournament: (key: string) => `fx-tour-${key}`,
+    division: (tournamentKey: string, divisionKey: string) => `fx-div-${tournamentKey}-${divisionKey}`,
+    stage: (tournamentKey: string, divisionKey: string) => `fx-stage-${tournamentKey}-${divisionKey}`,
+    entrant: (tournamentKey: string, divisionKey: string, orgKey: string, teamKey: string) =>
+        `fx-ent-${tournamentKey}-${divisionKey}-${orgKey}-${teamKey}`,
     game: (orgKey: string, gameKey: string) => `fx-game-${orgKey}-${gameKey}`,
     gameParticipant: (orgKey: string, gameKey: string, side: 'home' | 'away') => `fx-gp-${orgKey}-${gameKey}-${side}`,
     guardianLink: (orgKey: string, guardianName: string, childName: string) =>
