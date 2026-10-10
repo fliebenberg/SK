@@ -18,29 +18,27 @@ import { themeColor } from '../../constants/Colors';
 
 /**
  * Where a setup step stands. `part` is under way but not finished — teams entered with gaps left,
- * scoring running on the unconfirmed default, some divisions drawn. `skip` is a step the organiser
- * said this tournament does not need (`settings.dismissedSetupSteps`); it counts as finished.
+ * scoring running on the unconfirmed default, some divisions drawn. There is no *Not needed*: every
+ * section applies to every tournament, and one that may be switched off says so with an option of
+ * its own (2026-10-10).
  */
-export type StepState = 'done' | 'part' | 'none' | 'skip';
+export type StepState = 'done' | 'part' | 'none';
 
-export const isFinished = (state: StepState) => state === 'done' || state === 'skip';
+export const isFinished = (state: StepState) => state === 'done';
 
 const STATE_LABEL: Record<StepState, string> = {
   done: 'Done',
   part: 'In progress',
   none: 'Not started',
-  skip: 'Not needed',
 };
 
 const SEGMENT_FILL: Record<StepState, string> = {
   done: 'bg-success',
-  skip: 'bg-success',
   part: 'bg-warning',
   none: 'bg-line-strong',
 };
 const SEGMENT_TEXT: Record<StepState, string> = {
   done: 'text-success-ink',
-  skip: 'text-success-ink',
   part: 'text-warning-ink',
   none: 'text-ink-muted',
 };
@@ -178,9 +176,9 @@ const NARROW_CARD = 560;
 /**
  * A section's heading: the title larger than anything inside the card and on a line of its own, so
  * each section reads as one (agreed 2026-10-09, `mockups/tournament-cards.html`; design_system.md,
- * *Section headings*). On a phone the status and the actions take a second line. On a wider screen
- * they share the title's line when they fit and drop to a second line when they do not — the title
- * never wraps into them.
+ * *Section headings*). The status sits beside the title whenever it fits (2026-10-10). On a phone
+ * the actions take a second line; on a wider screen they share the title's line when they fit and
+ * drop to a second line when they do not — the title never wraps into them.
  */
 export function SectionHeading({ title, count, status, right, caret, onToggle, phone, accessibilityLabel }: {
   title: React.ReactNode;
@@ -195,24 +193,23 @@ export function SectionHeading({ title, count, status, right, caret, onToggle, p
   accessibilityLabel?: string;
 }) {
   const isDark = useActiveTheme() === 'dark';
+  // The status rides with the title, wrapping under it only when the two do not fit on one line.
   const titleEl = (
-    <View className="flex-row items-baseline gap-2 flex-shrink min-w-0">
-      {typeof title === 'string' ? (
-        <Text className="font-inter-bold text-[18px] text-ink flex-shrink" numberOfLines={1}>{title}</Text>
-      ) : title}
-      {count !== undefined ? <Text className="font-inter text-[15px] text-ink-muted">{count}</Text> : null}
+    <View className="flex-row flex-wrap items-center gap-x-2.5 gap-y-1 flex-shrink min-w-0">
+      <View className="flex-row items-baseline gap-2 flex-shrink min-w-0">
+        {typeof title === 'string' ? (
+          <Text className="font-inter-bold text-[18px] text-ink flex-shrink" numberOfLines={1}>{title}</Text>
+        ) : title}
+        {count !== undefined ? <Text className="font-inter text-[15px] text-ink-muted">{count}</Text> : null}
+      </View>
+      {status ? <StepPills state={status} /> : null}
     </View>
   );
-  const pill = status ? <StepPills state={status} /> : null;
   const chevron = caret ? (
     <Ionicons name={caret === 'open' ? 'chevron-up' : 'chevron-down'} size={16} color={themeColor(isDark, 'ink-muted')} />
   ) : null;
-  const meta = pill || right ? (
-    <View className="flex-row items-center gap-2.5 flex-wrap" style={{ flexGrow: 1 }}>
-      {pill}
-      <View className="flex-1" />
-      {right ? <View className="flex-row items-center gap-3.5 flex-wrap justify-end">{right}</View> : null}
-    </View>
+  const meta = right ? (
+    <View className="flex-row items-center gap-3.5 flex-wrap justify-end" style={{ flexGrow: 1 }}>{right}</View>
   ) : null;
   // The title's line toggles a folding card; the actions beside it stay their own buttons.
   const titleLine = onToggle ? (
@@ -412,7 +409,7 @@ export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, 
             className="rounded-2xl border border-line bg-card p-3 gap-1.5"
             style={{ width: tileWidth, minHeight: 104 }}
           >
-            <Text className="font-inter-bold text-lg text-ink" numberOfLines={1}>{d.name}</Text>
+            <Text className="font-inter-bold text-[15px] text-ink" numberOfLines={1}>{d.name}</Text>
             <Text className="font-inter text-xs text-ink-muted" numberOfLines={2}>
               {divisionFormatLabel(d)}{'\n'}{d.ageGroup || 'Any age'} · {plural(teamsIn(d), 'team')}
             </Text>

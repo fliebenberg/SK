@@ -158,15 +158,6 @@ export interface Event {
     pointsPerDraw?: number;
     levelWeighting?: Record<string, number>;
     positions?: { id: string; name: string }[];
-    /**
-     * Setup checklist steps the organiser has dismissed (U17).
-     *
-     * On the event rather than on the viewer: a step that does not apply — a festival with no
-     * points system — does not apply for *anybody* organising it, and the alternative nags every
-     * co-organiser separately. Dismissing is not completing; a dismissed step is hidden, and the
-     * checklist says how many were.
-     */
-    dismissedSetupSteps?: string[];
   };
   status?: 'Scheduled' | 'Cancelled' | 'Finished';
 }

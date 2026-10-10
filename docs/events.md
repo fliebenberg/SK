@@ -160,9 +160,10 @@ wide screen, one on a phone (left column, then right).
   its status — **Done** (green), **In progress** (amber — scoring on the unconfirmed default, some
   divisions drawn, organisations still to answer), **Not started** (grey) — and the banner a
   progress bar, "Setting up · 2 of 5 done", with **one segment per card, labelled on a wide screen,
-  each a way to its card**. Organisations & teams, Rules & scoring and Fixtures can be marked
-  **Not needed** (`settings.dismissedSetupSteps`) from a ⋯ on the heading, which counts as done —
-  kept from U17, so an organiser who wants no points system is not nagged forever. Nothing is
+  each a way to its card**. **No section can be marked *Not needed*** (2026-10-10; U17's
+  `settings.dismissedSetupSteps` is gone, and events that still carry it are ignored): every
+  tournament has teams and fixtures, and a section that may be switched off says so with an option of
+  its own — a *None* scoring option is the to-do `SCORE-18`. Nothing is
   faded: a waiting card says so in words (design_system.md).
 - **The order stays put while setting up** (2026-10-09: cards moving as they are finished would
   confuse a page that already has a lot on it): Sports & divisions and Organisations & teams on the
@@ -294,7 +295,7 @@ Cancel, and Delete, which is disabled with the reason once results are recorded.
 checklist component, and (2026-10-09) the *Setting up* tab with its numbered, folding step cards.  With
 `FIX-28` (2026-10-09) the last step screens went too — Sports & Divisions (`setup/playing`),
 Fixtures (`setup/fixtures`) and the old entrants screen — with their footer and step chain
-(`setupSteps.ts`, `useSetupStepScreen`). *Not needed* stays, read by the Overview's cards. The event-level `format` is
+(`setupSteps.ts`, `useSetupStepScreen`). *Not needed* went on 2026-10-10. The event-level `format` is
 no longer shown anywhere on the page: every tournament is created a Festival and the formats live on
 each division's stages.
 

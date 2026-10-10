@@ -18,7 +18,6 @@ import {
   drawChanges,
   hasLeft,
 } from '@sk/shared';
-import { OverflowMenu } from '../OverflowMenu';
 import { AddressMap } from '../address/AddressMap';
 import { facilityMarkers } from '../address/facilityMarker';
 import { FacilityIcon, addressText } from '../sites/SiteBits';
@@ -44,7 +43,7 @@ import { themeColor } from '../../constants/Colors';
  * One page of cards in every phase, read first, as the division page is: a banner that says what
  * the tournament is and where it has got to, **one strip** for what it needs next, then cards in
  * two columns on a wide screen. **While it is being set up** an organiser sees each card's status
- * on its heading — Done, In progress, Not started, Not needed — and a progress bar in the banner
+ * on its heading — Done, In progress, Not started — and a progress bar in the banner
  * with a segment per card; the cards keep **one fixed order**, so nothing moves while the work is
  * done, and on a phone a finished card folds to its heading. **Once set up** the statuses go and
  * the page is the tournament as everyone sees it; **on the day** it rearranges around what is live.
@@ -59,8 +58,6 @@ export interface TournamentStep {
   state: StepState;
   /** A folded card's line: what has been decided, or what it waits for. */
   summary: string;
-  /** A section the organiser may mark "not needed" (`settings.dismissedSetupSteps`). */
-  dismissible: boolean;
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -78,7 +75,6 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
 }): { steps: TournamentStep[]; complete: boolean; nextIndex: number } {
   return useMemo(() => {
     if (!event) return { steps: [], complete: false, nextIndex: -1 };
-    const dismissed = event.settings?.dismissedSetupSteps || [];
     const sportIds = event.sportIds || [];
     const playing = divisions.filter(d => !!d.sportId);
     const entered = entrants.filter(e => e.status !== 'withdrawn');
@@ -104,21 +100,21 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
     const scoring = event.settings?.scoring;
     const sportName = (id: string) => sports.find(s => s.id === id)?.name;
 
-    const raw: Array<Omit<TournamentStep, 'state'> & { state: Exclude<StepState, 'skip'> }> = [
+    const steps: TournamentStep[] = [
       {
-        key: 'basics', title: 'Where', dismissible: false,
+        key: 'basics', title: 'Where',
         state: event.siteId || facilityIds.length ? 'done' : 'none',
         summary: event.siteId || facilityIds.length
           ? [sites.find(s => s.id === event.siteId)?.name, `${facilityIds.length} ${facilityIds.length === 1 ? 'facility' : 'facilities'}`].filter(Boolean).join(' · ')
           : 'No venue yet',
       },
       {
-        key: 'divisions', title: 'Sports & divisions', dismissible: false,
+        key: 'divisions', title: 'Sports & divisions',
         state: !sportIds.length ? 'none' : divisions.some(d => !d.sportId) ? 'part' : 'done',
         summary: sportIds.length ? `${sportIds.map(sportName).filter(Boolean).join(', ')} · ${plural(divisions.length, 'division')}` : 'No sports yet',
       },
       {
-        key: 'entrants', title: 'Organisations & teams', dismissible: true,
+        key: 'entrants', title: 'Organisations & teams',
         state: !playing.length ? 'none' : entrantsDone ? 'done' : entered.length || others.length ? 'part' : 'none',
         summary: !playing.length
           ? others.length
@@ -132,22 +128,18 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
             ].filter(Boolean).join(' · '),
       },
       {
-        key: 'scoring', title: 'Rules & scoring', dismissible: true,
+        key: 'scoring', title: 'Rules & scoring',
         state: scoring ? 'done' : 'part',
         summary: scoring?.mode === 'byResult'
           ? `${scoring.pointsPerWin} / ${scoring.pointsPerDraw} / ${scoring.pointsPerLoss} for a win, draw, loss`
           : scoring?.mode === 'byPlacing' ? 'Points by finishing position' : 'Default 3 / 1 / 0, not confirmed',
       },
       {
-        key: 'fixtures', title: 'Fixtures', dismissible: true,
+        key: 'fixtures', title: 'Fixtures',
         state: playing.length && drawn.length === playing.length && !changed.length ? 'done' : drawn.length || games.length ? 'part' : 'none',
         summary: !playing.length ? 'After teams are entered' : `${drawn.length} of ${plural(playing.length, 'division')} drawn${changed.length ? ` · ${changed.length} changed since` : ''}`,
       },
     ];
-    const steps: TournamentStep[] = raw.map(step => ({
-      ...step,
-      state: step.dismissible && dismissed.includes(step.key) && step.state !== 'done' ? 'skip' : step.state,
-    }));
     const nextIndex = steps.findIndex(s => !isFinished(s.state));
     return { steps, complete: nextIndex === -1, nextIndex };
   }, [event, divisions, games, entrants, entrantsByDivision, facilityIds, sports, sites]);
@@ -254,32 +246,6 @@ export function TournamentHome({
   const points = scoring?.mode === 'byResult' ? scoring : DEFAULT_SCORING_SYSTEM.mode === 'byResult' ? DEFAULT_SCORING_SYSTEM : null;
   const confirmScoring = () =>
     sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { settings: { ...(event.settings || {}), scoring: DEFAULT_SCORING_SYSTEM } } });
-  const dismissed = event.settings?.dismissedSetupSteps || [];
-  const saveDismissed = (next: string[]) =>
-    sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { settings: { ...(event.settings || {}), dismissedSetupSteps: next } } });
-  /**
-   * *Not needed* (U17, kept from the steps): a section that does not apply to this tournament — no
-   * points system, say — counts as done instead of nagging forever. A ⋯ on its heading.
-   */
-  const notNeededMenu = (key: TournamentStep['key']) => {
-    const step = stepOf(key);
-    if (!setupMode || !step?.dismissible || step.state === 'done') return null;
-    const skipped = step.state === 'skip';
-    return (
-      <OverflowMenu
-        key="not-needed"
-        accessibilityLabel={`${step.title} actions`}
-        title={step.title}
-        items={[{
-          label: skipped ? 'Needed after all' : 'Not needed for this tournament',
-          description: skipped ? 'Count it as part of setting up again.' : 'Count it as done, so setting up can finish without it.',
-          icon: skipped ? 'arrow-undo-outline' : 'remove-circle-outline',
-          onPress: () => saveDismissed(skipped ? dismissed.filter(k => k !== key) : [...dismissed, key]),
-        }]}
-      />
-    );
-  };
-
   const pointsTiles = scoring?.mode === 'byPlacing' ? (
     <Text className="font-inter text-sm text-ink-soft">Points are awarded by finishing position.</Text>
   ) : points ? (
@@ -488,7 +454,6 @@ export function TournamentHome({
       right={narrow => (
         <>
           {setupMode ? <WarningsCount count={orgs.warnings.length} /> : null}
-          {notNeededMenu('entrants')}
           {orgs.addOrganisation && !onTheDay ? edit(orgs.addOrganisation, narrow || phone ? '＋ Add' : '＋ Add organisation') : null}
           {orgs.visibleRows.length ? seeAll(openOrgsPage) : null}
         </>
@@ -515,7 +480,7 @@ export function TournamentHome({
     <TournamentCard
       title="Rules & scoring"
       {...cardProps('scoring')}
-      right={canEdit ? <>{notNeededMenu('scoring')}{edit(() => setDialog('scoring'))}</> : undefined}
+      right={canEdit ? <>{edit(() => setDialog('scoring'))}</> : undefined}
     >
       <View className="gap-2.5">
         {pointsTiles}
@@ -617,7 +582,7 @@ export function TournamentHome({
     <TournamentCard
       title="Fixtures"
       {...cardProps('fixtures')}
-      right={<>{notNeededMenu('fixtures')}{playing.length ? seeAll(onOpenSchedule, 'Schedule') : null}</>}
+      right={<>{playing.length ? seeAll(onOpenSchedule, 'Schedule') : null}</>}
     >
       {fixturesBody}
     </TournamentCard>

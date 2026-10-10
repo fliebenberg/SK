@@ -270,7 +270,7 @@ export default function EventDetails() {
 
   const handleCancelEvent = () => {
     setIsProcessing(true);
-    // `orgId`: as in `saveDismissed`. The status follows the event room; a refusal is toasted.
+    // `orgId`: the server checks it against the event's. The status follows the event room; a refusal is toasted.
     sendAction(SocketAction.UPDATE_EVENT, {
       id: eventId,
       orgId,
