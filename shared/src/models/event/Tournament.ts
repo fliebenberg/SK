@@ -543,6 +543,23 @@ export function stagePlanForFormat(
   }
 }
 
+/**
+ * A team's place in a tournament, with what a team's own page and an invitations list print about the
+ * tournament (`FIX-31`): its name, dates and host, the division, whether entries are locked, and where
+ * the team's organisation stands with its invitation.
+ */
+export interface TeamEntry extends TournamentEntrant {
+  eventId: string;
+  eventName: string;
+  eventStartDate?: string | null;
+  eventEndDate?: string | null;
+  hostOrgName?: string | null;
+  divisionName: string;
+  sportId?: string | null;
+  entriesLocked: boolean;
+  orgInvitation?: string | null;
+}
+
 /** May invited organisations add teams to this division (`FIX-33`): its own choice, else the tournament's. */
 export function divisionAllowsOrgAdding(
   division: Pick<TournamentDivision, 'orgsMayAddTeams'>,

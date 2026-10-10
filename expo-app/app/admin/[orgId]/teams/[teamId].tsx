@@ -1,3 +1,5 @@
+import { TeamEventsCard } from '../../../../components/tournament/TeamInvitations';
+import { useTeamEntries } from '../../../../hooks/useTeamEntries';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -31,7 +33,7 @@ import { useActiveTheme } from '../../../../store/settingsStore';
 import { themeColor } from '../../../../constants/Colors';
 
 type Dialog = 'edit' | 'players' | 'staff' | 'deactivate' | 'delete' | null;
-type Section = 'players' | 'staff' | 'games';
+type Section = 'players' | 'staff' | 'events' | 'games';
 
 /** Players shown before "Show all", while no search is on. */
 const PLAYERS_SHOWN = 15;
@@ -66,6 +68,13 @@ export default function TeamPage() {
   const { teams, isLoading: isTeamsLoading } = useOrgTeams(orgId);
   const { roster } = useTeamRoster(teamId);
   const { games, eventNames } = useTeamGames(orgId, teamId);
+  // Its places in tournaments, and invitations to answer (`FIX-31`): its coach, or an admin, answers.
+  const { entries: teamEntries, refresh: refreshEntries } = useTeamEntries({ teamId });
+  const teamMemberships = useAuthStore((state: any) => state.teamMemberships) || [];
+  const coachesThis = teamMemberships.some((m: any) => m.teamId === teamId && (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach'));
+  const canAnswer = user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || coachesThis;
+  /** Where the wide layout's right column starts, for the strip's jump to Events. */
+  const [wideEventsY, setWideEventsY] = useState(0);
   const { org } = useOrgSummary(orgId);
   const { members } = useOrgMembers(orgId);
   const { byPlayer: guardiansByPlayer } = useOrgGuardians(orgId);
@@ -88,7 +97,7 @@ export default function TeamPage() {
   const [busyError, setBusyError] = useState<string | null>(null);
 
   // The phone's jump buttons: where each card starts, and which one is in view.
-  const jump = useJumpSections<Section>(['players', 'staff', 'games'], isWide ? 24 : 12);
+  const jump = useJumpSections<Section>(['players', 'staff', 'events', 'games'], isWide ? 24 : 12);
 
   const team = teams.find(t => t.id === teamId) || null;
   const back = () => safeBack(`/admin/${orgId}/teams`);
@@ -307,6 +316,30 @@ export default function TeamPage() {
     </SectionCard>
   );
 
+  const toAnswer = canAnswer
+    ? teamEntries.filter(e => e.status === 'invited' && !e.entriesLocked && e.orgInvitation !== 'declined' && e.orgInvitation !== 'withdrawn').length
+    : 0;
+  const eventsCard = (
+    <TeamEventsCard
+      entries={teamEntries}
+      canAnswer={canAnswer}
+      orgId={orgId!}
+      onAnswered={refreshEntries}
+      onOpenEvent={eventId => router.push(`/admin/${orgId}/events/${eventId}` as any)}
+    />
+  );
+  // While anything waits: one strip under the banner that takes the reader to the Events card.
+  const invitationStrip = toAnswer ? (
+    <TouchableOpacity
+      onPress={() => (isWide ? jump.scrollRef.current?.scrollTo({ y: Math.max(0, wideEventsY - 8), animated: true }) : jump.jumpTo('events'))}
+      accessibilityRole="button"
+      className="rounded-xl border border-warning-line bg-warning-soft px-3.5 py-2.5 flex-row items-center gap-3"
+    >
+      <Text className="flex-1 font-inter-bold text-sm text-warning-ink">{toAnswer} {toAnswer === 1 ? 'invitation' : 'invitations'} to answer</Text>
+      <Text className="font-inter-bold text-[13px] text-warning-ink">Events ›</Text>
+    </TouchableOpacity>
+  ) : null;
+
   const gamesCard = (
     <GamesCard
       games={matchingGames}
@@ -348,6 +381,7 @@ export default function TeamPage() {
         sections={[
           { key: 'players', label: 'Players', count: q ? matchingPlayers.length : players.length },
           { key: 'staff', label: 'Staff', count: q ? matchingStaff.length : staff.length },
+          ...(teamEntries.length ? [{ key: 'events' as const, label: 'Events', count: teamEntries.length }] : []),
           { key: 'games', label: 'Games', count: q ? matchingGames.length : games.length },
         ]}
         inView={jump.inView}
@@ -375,19 +409,21 @@ export default function TeamPage() {
       >
         <View className="w-full self-center gap-4" style={{ maxWidth: 960 }}>
           {banner}
+          {invitationStrip}
           {inactiveNote}
           {isWide ? (
             <>
               {players.length || staff.length || games.length ? searchBox : null}
               <View className="flex-row gap-4 items-start">
                 <View className="gap-4" style={{ flex: 1.35 }}>{playersCard}</View>
-                <View className="gap-4" style={{ flex: 1 }}>{staffCard}{gamesCard}</View>
+                <View className="gap-4" style={{ flex: 1 }} onLayout={e => setWideEventsY(e.nativeEvent.layout.y)}>{eventsCard}{staffCard}{gamesCard}</View>
               </View>
             </>
           ) : (
             <View className="gap-3" onLayout={jump.onColumnLayout}>
               <View onLayout={jump.track('players')}>{playersCard}</View>
               <View onLayout={jump.track('staff')}>{staffCard}</View>
+              <View onLayout={jump.track('events')}>{eventsCard}</View>
               <View onLayout={jump.track('games')}>{gamesCard}</View>
             </View>
           )}

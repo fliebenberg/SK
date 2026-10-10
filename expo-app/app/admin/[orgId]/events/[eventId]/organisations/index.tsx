@@ -130,6 +130,7 @@ function OrganisationsPage({ orgId, event, data, onBack }: {
               <Text className="font-inter text-sm text-ink-muted">{filter === 'attention' ? 'Nothing needs attention.' : 'None in this sport yet.'}</Text>
             )}
             {filter === 'all' ? <UnnamedList entrants={orgs.unnamed} divisionName={orgs.divisionName} onOpen={canEdit ? orgs.openUnnamed : undefined} /> : null}
+            {orgs.addingLine}
           </View>
           {setupMode ? (
             <Text className="font-inter text-xs text-ink-muted px-0.5">Tap an organisation to enter its teams or change its invitation. To enter teams one division at a time, open the division under Sports & divisions.</Text>

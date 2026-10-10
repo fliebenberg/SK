@@ -170,6 +170,12 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     pressing Generate would find an empty stage.
 *   **`event_org_history`** (`FIX-26`): who invited an organisation and who answered, by name — a
     standalone `tournament-organiser` read, because the event itself travels to a public room.
+*   **`team_entries`** and **`org_team_invitations`** (`FIX-31`, 2026-10-10): a team's places in
+    tournaments, with each tournament's name, dates and host, its division, whether entries are
+    locked and where its organisation's invitation stands (`TeamEntry`) — the team page's Events
+    card, deferring to `team:{id}`; and an organisation's teams still invited, for the events list's
+    invitations box, deferring to `org:{id}:invitations` (members). Neither lists a tournament the
+    organisation has not been invited to. One-shot reads: no room owns "a team across tournaments".
 *   **Two reads that no room owns** (Phase 6): `event_entrants` defers to the room above, and
     `event_candidate_teams` — "teams that could be entered" — is a standalone
     `tournament-organiser` read scoped by **either** an `eventId` (the entry screen) or a

@@ -19,6 +19,7 @@ import {
   TournamentEntrant,
   EntrantStatus,
   LockEventDivisionsResult,
+  TeamEntry,
   isEntrantEntered,
   isEntrantInPlay,
   divisionAllowsOrgAdding,
@@ -1292,6 +1293,33 @@ export class TournamentManager extends BaseManager {
       id: string; status: EntrantStatus; orgId: string | null; teamId: string | null; eventId: string;
       locked: boolean; hostOrgId: string | null; invitation: string | null;
     };
+  }
+
+  /**
+   * Where a team stands in each tournament — for its own page's Events card — or every team of an
+   * organisation still invited, for its invitations list (`FIX-31`). Never a tournament its
+   * organisation has not been invited to yet: it cannot see that one.
+   */
+  async getTeamEntries(filter: { teamId: string } | { orgId: string; invitedOnly: true }): Promise<TeamEntry[]> {
+    const byTeam = 'teamId' in filter;
+    const res = await this.query(
+      `SELECT ${this.ENTRANT_COLUMNS}, d.event_id AS "eventId", ev.name AS "eventName",
+              ev.start_date AS "eventStartDate", ev.end_date AS "eventEndDate", ho.name AS "hostOrgName",
+              d.name AS "divisionName", d.sport_id AS "sportId", d.entries_locked_at IS NOT NULL AS "entriesLocked",
+              eo.invitation AS "orgInvitation"
+       ${this.ENTRANT_JOINS}
+         JOIN tournament_divisions d ON d.id = e.division_id
+         JOIN events ev ON ev.id = d.event_id
+         LEFT JOIN organizations ho ON ho.id = ev.org_id
+         LEFT JOIN event_organizations eo ON eo.event_id = d.event_id AND eo.org_id = e.org_id
+        WHERE ${byTeam ? 'e.team_id = $1' : 'e.org_id = $1'}
+          AND COALESCE(eo.invitation, 'accepted') <> 'not_invited'
+          ${byTeam ? '' : `AND e.status = 'invited' AND e.team_id IS NOT NULL AND d.entries_locked_at IS NULL
+          AND eo.invitation IN ('invited', 'accepted', 'withdrawal_pending')`}
+        ORDER BY ev.start_date NULLS LAST, ev.name, d.sort_order`,
+      [byTeam ? (filter as any).teamId : (filter as any).orgId]
+    );
+    return res.rows;
   }
 
   async getEntrant(entrantId: string): Promise<TournamentEntrant | null> {

@@ -1,3 +1,4 @@
+import { useTeamEntries } from '../../../../hooks/useTeamEntries';
 import { useMineAll } from '../../../../hooks/useMineAll';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
@@ -447,15 +448,31 @@ export default function OrgEventsList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [events, orgId, today]
   );
-  const invitationsBox = toAnswer.length ? (
+  /*
+   * Its teams still invited (`FIX-31`), naming each team: a coach's own teams — theirs to answer —
+   * and, for an admin, teams of tournaments the organisation has already accepted (the organisation's
+   * own invitation above covers the rest). A coach's line opens the team; an admin's, the
+   * organisation's page in that tournament, where every team is answered.
+   */
+  const isAdmin = user?.globalRole === 'admin' || viewerRole === 'role-org-admin';
+  const coachTeamIds = useMemo(
+    () => new Set<string>((teamMemberships || []).filter((m: any) => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach').map((m: any) => m.teamId)),
+    [teamMemberships]
+  );
+  const { entries: teamInvites } = useTeamEntries({ orgId: isAdmin || coachTeamIds.size ? orgId : null });
+  const teamToAnswer = teamInvites.filter(e =>
+    isAdmin ? !toAnswer.some(ev => ev.id === e.eventId) : !!e.teamId && coachTeamIds.has(e.teamId));
+  const invitationCount = (isAdmin || !coachTeamIds.size ? toAnswer.length : 0) + teamToAnswer.length;
+  const orgLines = isAdmin || !coachTeamIds.size ? toAnswer : [];
+  const invitationsBox = invitationCount ? (
     <View className="rounded-2xl bg-warning-soft px-4 py-3 gap-1">
       <View className="flex-row items-center gap-2">
         <Ionicons name="mail-unread-outline" size={16} color={themeColor(isDark, 'warning-ink')} />
         <Text className="font-inter-bold text-sm text-warning-ink">
-          {toAnswer.length === 1 ? '1 invitation to answer' : `${toAnswer.length} invitations to answer`}
+          {invitationCount === 1 ? '1 invitation to answer' : `${invitationCount} invitations to answer`}
         </Text>
       </View>
-      {toAnswer.map((event, i) => {
+      {orgLines.map((event, i) => {
         const host = event.participatingOrgs?.find(o => o.id === event.orgId)?.name;
         return (
           <TouchableOpacity
@@ -475,6 +492,25 @@ export default function OrgEventsList() {
           </TouchableOpacity>
         );
       })}
+      {teamToAnswer.map((entry, i) => (
+        <TouchableOpacity
+          key={entry.id}
+          onPress={() => router.push((isAdmin ? `/admin/${orgId}/events/${entry.eventId}/organisations/${orgId}` : `/admin/${orgId}/teams/${entry.teamId}`) as any)}
+          accessibilityRole="link"
+          accessibilityLabel={`Answer for ${entry.name} in ${entry.eventName}`}
+          className={`flex-row items-center gap-2 py-1.5 ${i || orgLines.length ? 'border-t border-warning/30' : ''}`}
+        >
+          <View className="flex-1 min-w-0">
+            <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>
+              {entry.eventName} <Text className="font-inter text-ink-soft">— for {entry.name}</Text>
+            </Text>
+            <Text className="font-inter text-xs text-ink-soft" numberOfLines={1}>
+              {[entry.divisionName, entry.hostOrgName ? `From ${entry.hostOrgName}` : '', formatDateRange(entry.eventStartDate, entry.eventEndDate, { compact: true })].filter(Boolean).join(' · ')}
+            </Text>
+          </View>
+          <Text className="font-inter-bold text-[13px] text-primary-ink">Answer ›</Text>
+        </TouchableOpacity>
+      ))}
     </View>
   ) : null;
 

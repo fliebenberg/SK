@@ -133,6 +133,11 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
                             return `team:${teamId}`;
                           } },
   team_memberships:     { room: (req: any) => (req.teamId || req.id) ? `team:${req.teamId || req.id}` : null },
+  // A team's places in tournaments (`FIX-31`): its page's Events card, at the team's own level.
+  team_entries:         { room: (req: any) => (req.teamId ? `team:${req.teamId}` : null) },
+  // Its teams still invited, for the invitations box: the organisation's own business, as its
+  // invitations are (`org:{id}:invitations`, a members' room).
+  org_team_invitations: { room: (req: any) => (req.orgId ? `org:${req.orgId}:invitations` : null) },
   team_games:           { room: async (req: any) => {
                             const teamId = req.teamId || req.id;
                             const orgId = teamId ? await accessManager.getTeamOrgId(teamId) : null;

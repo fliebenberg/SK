@@ -605,6 +605,10 @@ export interface OrgRow {
   teams: number;
   players: number;
   toBeNamed: number;
+  /** Its teams' answers (`FIX-31`): still to answer, declined, and requests waiting for the organisers. */
+  toAnswer?: number;
+  declinedTeams?: number;
+  requests?: number;
 }
 
 /** "Netball U12 ×2, U13 · Rugby U10" and the two shorter versions of it. */
@@ -684,6 +688,16 @@ export function OrgsList({ rows, isWide, showInvitations, onOpen, highlightOrgId
                 {tags}
               </View>
               {second}
+              {showInvitations && (row.toAnswer || row.requests || row.declinedTeams) ? (
+                // How its teams stand (`FIX-31`): what waits in the warning colour, a decline plainly.
+                <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>
+                  {[
+                    row.toAnswer ? <Text key="a" className="font-inter-semibold text-warning-ink">{plural(row.toAnswer, 'team')} to answer</Text> : null,
+                    row.requests ? <Text key="r" className="font-inter-semibold text-warning-ink">{plural(row.requests, 'request')} to answer</Text> : null,
+                    row.declinedTeams ? <Text key="d">{row.declinedTeams} declined</Text> : null,
+                  ].filter(Boolean).flatMap((part, k) => (k ? [' · ', part] : [part]))}
+                </Text>
+              ) : null}
             </View>
             {isWide && !beforeDivisions && entered ? (
               <Text className="font-inter text-xs text-ink-muted">{plural(row.teams + row.players, row.players && !row.teams ? 'player' : 'team')}</Text>

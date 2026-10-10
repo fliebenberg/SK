@@ -313,6 +313,22 @@ no longer shown anywhere on the page: every tournament is created a Festival and
 each division's stages.
 
 
+**Teams' answers on the tournament page (`FIX-31`, `FIX-33`, built 2026-10-10).**
+- *Organisations & teams* ends with **Organisations can add their own teams** and its toggle — the
+  tournament's setting, off by default; a division can choose differently. Each organisation's row
+  says how its teams stand — *2 teams to answer*, *1 request to answer* in the warning colour, *1
+  declined* plainly — and each is one of the section's warnings.
+- *Fixtures*, while setting up, splits the divisions still to draw into **Entries open** — each with
+  what still waits, or *ready to lock* — and **Locked, to draw**; **🔒 Lock all…** on the open group
+  locks every division that can be and names why the rest stay open (`LOCK_EVENT_DIVISIONS`).
+- **Someone outside the organisers with a team in it** — a coach — sees the whole page, with **Mine /
+  All** (the events list's one remembered choice, `useMineAll`) on the line above the cards: Mine
+  narrows Sports & divisions, Taking part and Fixtures to their teams. Their team's invitation sits
+  under the banner with ✓ Accept / ✕ Decline (`TeamInvitationRows`). A team's own page has an
+  **Events** card — every tournament it is in, an invitation as a tinted row to answer — and a strip
+  under its banner while one waits; the events list's invitations box names the team. Who sees what,
+  and when, is still `FIX-25`'s to settle.
+
 ## 8. The division page (`FIX-27`)
 
 Agreed 2026-10-09 on `mockups/division-read-first.html`, **option A**: one page of cards, read

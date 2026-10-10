@@ -21,6 +21,7 @@ import { SportOrganizersDialog, SportsDialog } from './TournamentDialogs';
 import { AddDivisionDialog } from './DivisionDialogs';
 import { AddOrganisationsDialog, InviteOrganisationsDialog, NominateFor } from './OrganisationDialogs';
 import { nominateOrgContact } from '../../services/nominations';
+import { OrgAddingLine } from './DivisionEntries';
 import { sendAction } from '../../services/actions';
 
 /**
@@ -205,11 +206,17 @@ export function useOrganisationsSection({ event, orgId, sports, divisions, entra
           .map(d => d.name);
         if (names.length) bySport.push([sportName(sportId), names]);
       }
+      const all = allEntrants.filter(e => e.orgId === org.id);
       return {
         org, isHost, invitation, bySport,
         teams: mine.filter(e => e.teamId).length,
         players: mine.filter(e => e.orgProfileId).length,
         toBeNamed: mine.filter(e => !e.teamId && !e.orgProfileId).length,
+        // Its teams' answers (`FIX-31`). An organisation only invited has none of its own yet: its
+        // teams wait with it, so they are not counted twice.
+        toAnswer: isHost || invitation === 'not_invited' || invitation === 'invited' ? 0 : all.filter(e => e.status === 'invited').length,
+        declinedTeams: isHost ? 0 : all.filter(e => e.status === 'declined').length,
+        requests: all.filter(e => e.status === 'requested' || e.status === 'withdrawal_pending').length,
       };
     };
     const rows: OrgRow[] = [];
@@ -254,6 +261,8 @@ export function useOrganisationsSection({ event, orgId, sports, divisions, entra
       }
       if (!entered) list.push({ orgId: row.org.id, text: `${row.org.name} has no teams yet.`, actionLabel: 'Enter teams', onAction: () => openOrg(row.org.id) });
       if (row.invitation === 'invited') list.push({ orgId: row.org.id, text: `${row.org.name} has not answered its invitation.`, actionLabel: 'Record answer', onAction: () => openOrg(row.org.id) });
+      if (row.toAnswer) list.push({ orgId: row.org.id, text: `${row.org.name}: ${row.toAnswer} ${row.toAnswer === 1 ? 'team' : 'teams'} still to answer.`, actionLabel: 'Open', onAction: () => openOrg(row.org.id) });
+      if (row.requests) list.push({ orgId: row.org.id, text: `${row.org.name}: ${row.requests} ${row.requests === 1 ? 'request' : 'requests'} waiting for you.`, actionLabel: 'Review', onAction: () => openOrg(row.org.id) });
     }
     return list;
   })();
@@ -306,8 +315,26 @@ export function useOrganisationsSection({ event, orgId, sports, divisions, entra
     </>
   ) : null;
 
+  /**
+   * *Organisations can add their own teams* (`FIX-33`): the tournament's setting, a line with a
+   * toggle at the foot of the section — the same line a division's Teams card has.
+   */
+  const [savingAdding, setSavingAdding] = useState(false);
+  const addingLine = canEdit ? (
+    <OrgAddingLine
+      event={event}
+      busy={savingAdding}
+      onChange={async allow => {
+        setSavingAdding(true);
+        await sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { orgsMayAddTeams: allow } });
+        setSavingAdding(false);
+      }}
+    />
+  ) : null;
+
   return {
     orgRows,
+    addingLine,
     visibleRows,
     highlightOrgId,
     unnamed,

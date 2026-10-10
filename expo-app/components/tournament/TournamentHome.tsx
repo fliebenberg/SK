@@ -18,7 +18,13 @@ import {
   drawChanges,
   hasLeft,
   isEntrantEntered,
+  entryLockGaps,
 } from '@sk/shared';
+import { EditDialog } from '../EditDialog';
+import { lockGapsLine } from './DivisionEntries';
+import { TeamInvitationRows } from './TeamInvitations';
+import { SegmentedControl } from '../SegmentedControl';
+import { useMineAll } from '../../hooks/useMineAll';
 import { AddressMap } from '../address/AddressMap';
 import { facilityMarkers } from '../address/facilityMarker';
 import { FacilityIcon, addressText } from '../sites/SiteBits';
@@ -148,7 +154,7 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
 
 export function TournamentHome({
   event, orgId, canEdit, isWide, steps, complete, sports, sites, facilities, facilityIds,
-  divisions, games, entrantsByDivision, organizers, onEditOrganizers, hostOrg, viewerOrgIds,
+  divisions: allDivisions, games: allGames, entrantsByDivision: allEntrantsByDivision, organizers, onEditOrganizers, hostOrg, viewerOrgIds,
   onOpenSchedule, onScrollTo, mySportIds = [],
 }: {
   event: Event;
@@ -179,6 +185,34 @@ export function TournamentHome({
   const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
   const showHelp = useShowFieldHelp();
+
+  /*
+   * Mine / All (agreed 2026-10-10, `FIX-31`): for someone outside the organisers with a team in the
+   * tournament — the events list's one choice (`useMineAll`), on the line above the cards. Mine
+   * narrows what every card is given — the divisions, the rosters and the fixtures — to their teams,
+   * so the sections narrow without each one knowing why. Shown only when Mine and All would differ.
+   */
+  const teamMemberships = useAuthStore((state: any) => state.teamMemberships) || [];
+  const myTeamIds = useMemo(() => new Set<string>(teamMemberships.map((m: any) => m.teamId)), [teamMemberships]);
+  const myEntrants = useMemo(
+    () => Array.from(allEntrantsByDivision.values()).flat().filter(e => !!e.teamId && myTeamIds.has(e.teamId)),
+    [allEntrantsByDivision, myTeamIds]
+  );
+  const offersMine = !canEdit && myEntrants.length > 0;
+  const [mineAll, setMineAll] = useMineAll(false);
+  const mine = offersMine && mineAll === 'mine';
+  const myEntrantIds = new Set(myEntrants.map(e => e.id));
+  const divisions = mine ? allDivisions.filter(d => myEntrants.some(e => e.divisionId === d.id)) : allDivisions;
+  const games = mine
+    ? allGames.filter(g => (g.participants || []).some(p => (!!p.entrantId && myEntrantIds.has(p.entrantId)) || (!!p.teamId && myTeamIds.has(p.teamId))))
+    : allGames;
+  const entrantsByDivision = useMemo(() => {
+    if (!mine) return allEntrantsByDivision;
+    const narrowed = new Map<string, TournamentEntrant[]>();
+    for (const e of myEntrants) narrowed.set(e.divisionId, [...(narrowed.get(e.divisionId) || []), e]);
+    return narrowed;
+  }, [mine, allEntrantsByDivision, myEntrants]);
+
   const [dialog, setDialog] = useState<null | 'details' | 'where' | 'scoring'>(null);
   const close = () => setDialog(null);
   const eventId = event.id;
@@ -424,7 +458,7 @@ export function TournamentHome({
         ) : null}
         <SportsDivisions
           sports={sports}
-          sportIds={event.sportIds || []}
+          sportIds={mine ? (event.sportIds || []).filter(id => divisions.some(d => d.sportId === id)) : event.sportIds || []}
           divisions={divisions}
           entrantsByDivision={entrantsByDivision}
           divisionState={sportsSection.divisionState}
@@ -447,16 +481,18 @@ export function TournamentHome({
   ) : null;
 
   const beforeDivisions = !playing.length;
-  const orgsCard = orgs.visibleRows.length || canEdit ? (
+  // Mine: only the organisations with a team of the viewer's in it.
+  const orgRowsShown = mine ? orgs.visibleRows.filter(r => r.teams + r.players + r.toBeNamed > 0) : orgs.visibleRows;
+  const orgsCard = orgRowsShown.length || canEdit ? (
     <TournamentCard
       title={canEdit ? 'Organisations & teams' : 'Taking part'}
-      count={orgs.visibleRows.length}
+      count={orgRowsShown.length}
       {...cardProps('entrants')}
       right={narrow => (
         <>
           {setupMode ? <WarningsCount count={orgs.warnings.length} /> : null}
           {orgs.addOrganisation && !onTheDay ? edit(orgs.addOrganisation, narrow || phone ? '＋ Add' : '＋ Add organisation') : null}
-          {orgs.visibleRows.length ? seeAll(openOrgsPage) : null}
+          {orgRowsShown.length ? seeAll(openOrgsPage) : null}
         </>
       )}
     >
@@ -467,12 +503,13 @@ export function TournamentHome({
         <WarningsList warnings={orgs.warnings} limit={3} onMore={openOrgsPage} />
         {canEdit ? <NotInvitedBox count={orgs.notInvited.length} nobodyYet={orgs.nobodyInvited} onInviteAll={orgs.inviteAll} /> : null}
         <View>
-          <OrgsList rows={orgs.visibleRows} isWide={isWide} showInvitations={canEdit} onOpen={canEdit ? orgs.openOrg : undefined} highlightOrgId={orgs.highlightOrgId} beforeDivisions={setupMode && beforeDivisions} />
+          <OrgsList rows={orgRowsShown} isWide={isWide} showInvitations={canEdit} onOpen={canEdit ? orgs.openOrg : undefined} highlightOrgId={orgs.highlightOrgId} beforeDivisions={setupMode && beforeDivisions} />
           <UnnamedList entrants={orgs.unnamed} divisionName={orgs.divisionName} onOpen={canEdit ? orgs.openUnnamed : undefined} />
         </View>
         {setupMode && !beforeDivisions ? (
           <Text className="font-inter text-xs text-ink-muted">Tap an organisation to enter its teams or change its invitation. To enter teams one division at a time, open the division under Sports & divisions.</Text>
         ) : null}
+        {orgs.addingLine}
       </View>
     </TournamentCard>
   ) : null;
@@ -517,12 +554,42 @@ export function TournamentHome({
       <View className="h-full bg-success" style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }} />
     </View>
   );
+  /*
+   * The divisions still to draw, by their entries (`FIX-31`): open — with why each cannot lock yet,
+   * or that it is ready — and locked, to draw. *Lock all* sits on the open group, since that is what
+   * it acts on; it locks what it can and says why the rest stay open.
+   */
+  const gapsOf = (d: TournamentDivision) => entryLockGaps(entrantsByDivision.get(d.id) || [], event);
+  const [lockAll, setLockAll] = useState(false);
+  const [lockingAll, setLockingAll] = useState(false);
+  const entryRow = (d: TournamentDivision, i: number) => {
+    const gaps = gapsOf(d);
+    const locked = !!d.entriesLockedAt;
+    const teams = (entrantsByDivision.get(d.id) || []).filter(e => isEntrantEntered(e.status)).length;
+    const late = (entrantsByDivision.get(d.id) || []).filter(e => e.status === 'requested').length;
+    const note = locked
+      ? `${plural(teams, 'team')}${late ? ` · ${late} ${late === 1 ? 'asks' : 'ask'} to enter late` : ''}`
+      : gaps.total ? lockGapsLine(gaps) : `All ${plural(teams, 'team')} answered — ready to lock`;
+    const warn = (!locked && gaps.total > 0) || (locked && late > 0);
+    return (
+      <TouchableOpacity key={d.id} onPress={() => sportsSection.openDivision(d)} accessibilityRole="link" className={`flex-row items-center gap-2 py-2 ${i ? 'border-t border-line-soft' : ''}`}>
+        <View className="flex-1 min-w-0">
+          <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{divisionFullName(d.name, sportName(d.sportId))}</Text>
+          <Text className={`font-inter text-xs ${warn ? 'text-warning-ink' : 'text-ink-muted'}`} numberOfLines={1}>{note}</Text>
+        </View>
+        <View className="rounded-full bg-sunken px-2 py-0.5"><Text className="font-inter-semibold text-[11px] text-ink-soft">{locked ? '🔒 Locked' : 'Entries open'}</Text></View>
+        <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-muted')} />
+      </TouchableOpacity>
+    );
+  };
   const fixturesBody = (() => {
     if (!playing.length) {
       return <Text className="font-inter text-[13px] text-ink-muted">Each division is drawn on its own, once its teams are in.</Text>;
     }
     if (setupMode) {
       const toDraw = playing.filter(d => !gamesIn(d).length);
+      const open = toDraw.filter(d => !d.entriesLockedAt);
+      const lockedToDraw = toDraw.filter(d => !!d.entriesLockedAt);
       const drawn = playing.filter(d => gamesIn(d).length);
       // A draw that has changed since it was made is outstanding too: it leads the drawn ones.
       const drawnSorted = [...drawn].sort((a, b) => Number(sportsSection.divisionState(b).tone === 'wait') - Number(sportsSection.divisionState(a).tone === 'wait'));
@@ -530,7 +597,20 @@ export function TournamentHome({
         <View className="gap-1.5">
           {meter(drawn.length, playing.length)}
           <Text className="font-inter text-[13px] text-ink-muted">{drawn.length} of {plural(playing.length, 'division')} drawn. Each division is drawn on its own page, once its teams are in.</Text>
-          {toDraw.length ? <View>{groupLabel(`Still to draw · ${toDraw.length}`)}{toDraw.map(divisionRow)}</View> : null}
+          {open.length ? (
+            <View>
+              <View className="flex-row items-center gap-2 mt-2">
+                <Text className="flex-1 font-inter-bold text-[11px] text-ink-muted uppercase tracking-wider">Entries open · {open.length}</Text>
+                {canEdit ? (
+                  <TouchableOpacity onPress={() => setLockAll(true)} accessibilityRole="button">
+                    <Text className="font-inter-bold text-[13px] text-primary-ink">🔒 Lock all…</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+              {open.map(entryRow)}
+            </View>
+          ) : null}
+          {lockedToDraw.length ? <View>{groupLabel(`Locked, to draw · ${lockedToDraw.length}`)}{lockedToDraw.map(entryRow)}</View> : null}
           {drawn.length ? <View>{groupLabel(`Drawn · ${drawn.length}`)}{drawnSorted.map(divisionRow)}</View> : null}
           {link('＋ Add a fixture by hand', () => router.push(`/admin/${orgId}/events/${eventId}/games/new`))}
         </View>
@@ -579,6 +659,40 @@ export function TournamentHome({
       </View>
     );
   })();
+  const openToDraw = playing.filter(d => !gamesIn(d).length && !d.entriesLockedAt);
+  const readyToLock = openToDraw.filter(d => gapsOf(d).total === 0);
+  const stayOpen = openToDraw.filter(d => gapsOf(d).total > 0);
+  const lockAllDialog = (
+    <EditDialog
+      visible={lockAll}
+      title={`Lock entries in ${plural(readyToLock.length, 'division')}?`}
+      onClose={() => setLockAll(false)}
+      onSave={readyToLock.length ? async () => {
+        setLockingAll(true);
+        const result = await sendAction(SocketAction.LOCK_EVENT_DIVISIONS, { eventId: event.id, orgId });
+        setLockingAll(false);
+        if (result.ok) setLockAll(false);
+      } : undefined}
+      saveLabel={`🔒 Lock ${plural(readyToLock.length, 'division')}`}
+      isSaving={lockingAll}
+    >
+      <Text className="font-inter text-sm text-ink leading-relaxed">Once locked, a team leaves only by withdrawing, which you confirm, and an organisation can ask to enter late. You can unlock a division from its page.</Text>
+      {readyToLock.length ? (
+        <View className="gap-1">
+          <Text className="font-inter-semibold text-[13px] text-ink-soft">Ready to lock</Text>
+          {readyToLock.map(d => <Text key={d.id} className="font-inter text-[13px] text-ink">✓ {divisionFullName(d.name, sportName(d.sportId))}</Text>)}
+        </View>
+      ) : null}
+      {stayOpen.length ? (
+        <View className="gap-1">
+          <Text className="font-inter-semibold text-[13px] text-ink-soft">Stays open</Text>
+          {stayOpen.map(d => (
+            <Text key={d.id} className="font-inter text-[13px] text-warning-ink">– {divisionFullName(d.name, sportName(d.sportId))}: {lockGapsLine(gapsOf(d))}</Text>
+          ))}
+        </View>
+      ) : null}
+    </EditDialog>
+  );
   const fixturesCard = (
     <TournamentCard
       title="Fixtures"
@@ -586,6 +700,7 @@ export function TournamentHome({
       right={<>{playing.length ? seeAll(onOpenSchedule, 'Schedule') : null}</>}
     >
       {fixturesBody}
+      {lockAllDialog}
     </TournamentCard>
   );
 
@@ -674,11 +789,42 @@ export function TournamentHome({
       ? [[anchor('divisions', sportsCard), anchor('fixtures', fixturesCard)], [anchor('basics', whereCard), anchor('entrants', orgsCard), anchor('scoring', rulesCard)]]
       : [[anchor('divisions', sportsCard), anchor('entrants', orgsCard)], [anchor('basics', whereCard), anchor('scoring', rulesCard), anchor('fixtures', fixturesCard), anchor('organizers', organizersCard)]];
 
+  // The teams this viewer answers for, still invited: theirs as coach, or any of an organisation they admin.
+  const coachTeamIds = new Set<string>(teamMemberships.filter((m: any) => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach').map((m: any) => m.teamId));
+  const invitationOf = (id?: string) => event.participatingOrgs?.find(o => o.id === id)?.invitation;
+  const myTeamInvitations = canEdit ? [] : Array.from(allEntrantsByDivision.values()).flat().filter(e =>
+    e.status === 'invited' && !allDivisions.find(d => d.id === e.divisionId)?.entriesLockedAt &&
+    ((!!e.teamId && coachTeamIds.has(e.teamId)) || (!!e.orgId && adminsOrg(e.orgId))) &&
+    !hasLeft(invitationOf(e.orgId) || 'accepted'));
+  const mineLine = offersMine ? (
+    <View className={isWide ? 'flex-row items-center gap-3' : 'gap-1'}>
+      <SegmentedControl
+        fit
+        isCompact
+        value={mineAll}
+        onChange={key => setMineAll(key as 'mine' | 'all')}
+        options={[{ key: 'mine', label: 'Mine' }, { key: 'all', label: 'All' }]}
+      />
+      <Text className="font-inter text-xs text-ink-muted">
+        {mine ? `Showing ${[...new Set(myEntrants.map(e => e.name).filter(Boolean))].join(', ')}` : 'Showing the whole tournament'}
+      </Text>
+    </View>
+  ) : null;
+
   return (
     <View ref={rootRef} collapsable={false} className="gap-4">
       {invitationBanners}
       {banner}
+      <TeamInvitationRows
+        entrants={myTeamInvitations}
+        orgId={orgId}
+        eventName={event.name}
+        divisionName={id => { const d = allDivisions.find(x => x.id === id); return d ? divisionFullName(d.name, sportName(d.sportId)) : ''; }}
+        orgName={id => event.participatingOrgs?.find(o => o.id === id)?.name || 'Your organisation'}
+        orgAccepted={id => { const inv = invitationOf(id); return inv === 'accepted' || inv === 'withdrawal_pending'; }}
+      />
       {nextStrip}
+      {mineLine}
       {isWide ? (
         <View className="flex-row gap-4 items-start">
           <View className="gap-4 min-w-0" style={{ flex: 1.15 }}>{left}</View>

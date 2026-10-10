@@ -1850,6 +1850,14 @@ io.on('connection', (socket) => {
                 );
                 break;
             }
+            case 'team_entries': {
+                callback(request.teamId ? await tournamentManager.getTeamEntries({ teamId: request.teamId }) : []);
+                break;
+            }
+            case 'org_team_invitations': {
+                callback(request.orgId ? await tournamentManager.getTeamEntries({ orgId: request.orgId, invitedOnly: true }) : []);
+                break;
+            }
             case 'event_org_history': {
                 callback(
                     request.eventId && request.participantOrgId
