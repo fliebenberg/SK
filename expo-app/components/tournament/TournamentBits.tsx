@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { EventOrgInvitation, GameSummary, OrgBadge, Sport, TournamentDivision, TournamentEntrant, drawChanges } from '@sk/shared';
+import { EventOrgInvitation, GameSummary, OrgBadge, Sport, TournamentDivision, TournamentEntrant, drawChanges, isEntrantEntered } from '@sk/shared';
 import { FixtureCrest } from '../events/EventBits';
 import { formatLabel, formatOfStages } from './DivisionDialogs';
 import { useActiveTheme } from '../../store/settingsStore';
@@ -148,7 +148,7 @@ export function divisionStateOf({ setupMode, games, entrants, firstStageId }: {
   const played = games.filter(g => g.status === 'Finished').length;
   const started = live > 0 || played > 0;
   if (setupMode && !started) {
-    if (entrants.filter(e => e.status !== 'withdrawn').length < 2) return { tone: 'wait', label: 'Needs more teams' };
+    if (entrants.filter(e => isEntrantEntered(e.status)).length < 2) return { tone: 'wait', label: 'Needs more teams' };
     if (!games.length) return { tone: 'mute', label: 'Not drawn yet' };
     if (drawChanges(firstStageId, games, entrants).count > 0) return { tone: 'wait', label: 'Changed since the draw' };
     return { tone: 'ok', label: 'Draw made' };
@@ -388,7 +388,7 @@ export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, 
   canAddDivision?: (sportId: string) => boolean;
   sportMenu?: (sportId: string) => React.ReactNode;
 }) {
-  const teamsIn = (d: TournamentDivision) => (entrantsByDivision.get(d.id) || []).filter(e => e.status !== 'withdrawn').length;
+  const teamsIn = (d: TournamentDivision) => (entrantsByDivision.get(d.id) || []).filter(e => isEntrantEntered(e.status)).length;
   const teamTotal = divisions.reduce((sum, d) => sum + teamsIn(d), 0);
   const tileWidth = columns === 4 ? '23.6%' : columns === 3 ? '31.8%' : '48.5%';
   return (

@@ -12,6 +12,7 @@ import {
   divisionFullName,
   hasLeft,
   isTakingPart,
+  isEntrantEntered,
 } from '@sk/shared';
 import { OverflowMenu } from '../OverflowMenu';
 import { RegisterOrgModal } from '../RegisterOrgModal';
@@ -184,7 +185,7 @@ export function useOrganisationsSection({ event, orgId, sports, divisions, entra
   const eventId = event.id;
   const sportName = (id?: string | null) => sports.find(s => s.id === id)?.name || '';
   const allEntrants = useMemo(() => Array.from(entrantsByDivision.values()).flat(), [entrantsByDivision]);
-  const activeEntrants = allEntrants.filter(e => e.status !== 'withdrawn');
+  const activeEntrants = allEntrants.filter(e => isEntrantEntered(e.status));
   const takingPart = event.participatingOrgs || [];
   const divisionName = (id: string) => {
     const d = divisions.find(x => x.id === id);

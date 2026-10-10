@@ -14,8 +14,11 @@ import {
   TournamentStage,
   divisionFullName,
   drawChanges,
+  entryLockGaps,
   isPlayedFixture,
+  isEntrantEntered,
 } from '@sk/shared';
+import { lockGapsLine } from '../../../../../../../components/tournament/DivisionEntries';
 import { ScreenHeader } from '../../../../../../../components/ScreenHeader';
 import { AccessDenied } from '../../../../../../../components/AccessDenied';
 import { OverflowMenu, OverflowMenuItem } from '../../../../../../../components/OverflowMenu';
@@ -143,17 +146,20 @@ export default function DivisionScreen() {
   /* -- where it has got to ------------------------------------------------------------------ */
   const ordered = useMemo(() => [...stages].sort((a, b) => (a.sequence || 0) - (b.sequence || 0)), [stages]);
   const format = formatOfStages(ordered);
-  const active = entrants.filter(e => e.status !== 'withdrawn');
+  const active = entrants.filter(e => isEntrantEntered(e.status));
   const started = games.some(isPlayedFixture);
   const drawn = games.length > 0;
   const changes = canEdit ? drawChanges(ordered, games, entrants) : null;
   const state = divisionStateOf({ setupMode: canEdit, games, entrants, firstStageId: ordered[0]?.id });
-  const invitationOf = (id?: string) => (!id || id === event?.orgId ? null : event?.participatingOrgs?.find(o => o.id === id)?.invitation || null);
-  // Teams whose organisation has not accepted — until teams answer for themselves (`FIX-31`).
-  const pendingTeams = active.filter(e => {
-    const inv = invitationOf(e.orgId);
-    return inv === 'not_invited' || inv === 'invited' || inv === 'withdrawal_pending';
-  });
+  // What stands between the division and its lock (`FIX-31`); the draw is made from locked entries.
+  const gaps = entryLockGaps(entrants, event || {});
+  const locked = !!division?.entriesLockedAt;
+  const [locking, setLocking] = useState(false);
+  const lockEntries = async () => {
+    setLocking(true);
+    await sendAction(SocketAction.SET_DIVISION_LOCK, { divisionId, orgId, locked: true });
+    setLocking(false);
+  };
 
   const [dialog, setDialog] = useState<null | 'details' | 'format' | 'delete'>(null);
   const [adding, setAdding] = useState(false);
@@ -214,7 +220,14 @@ export default function DivisionScreen() {
         <Text className="font-inter text-sm text-ink-soft">
           {[division.ageGroup ? `Age group ${division.ageGroup}` : 'Any age', formatLabel(format, ordered), `${active.length} ${active.length === 1 ? 'team' : 'teams'}`].join('  ·  ')}
         </Text>
-        <View className="mt-1"><DivisionStateLine state={state} large /></View>
+        <View className="mt-1 flex-row flex-wrap items-center gap-x-3 gap-y-1">
+          <DivisionStateLine state={state} large />
+          {canEdit && active.length ? (
+            <View className={`rounded-full px-2 py-0.5 ${locked ? 'bg-sunken border border-line' : 'bg-sunken'}`}>
+              <Text className={`font-inter-semibold text-[11px] ${locked ? 'text-ink-soft' : 'text-ink-muted'}`}>{locked ? '🔒 Entries locked' : 'Entries open'}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
       {canEdit ? <EditLink label={isWide ? 'Edit' : ''} onPress={() => setDialog('details')} /> : null}
     </View>
@@ -227,10 +240,21 @@ export default function DivisionScreen() {
       return <NextStrip tone="wait" text="Needs at least two teams." detail="Add them here, or from each organisation's page." action={{ label: '＋ Add teams', onPress: () => setAdding(true) }} />;
     }
     if (!drawn && !byHand) {
-      const warning = pendingTeams.length
-        ? `${pendingTeams.length} ${pendingTeams.length === 1 ? "team's organisation has" : "teams' organisations have"} not accepted yet.`
+      // The draw needs the lock, and the lock needs every answer (`FIX-31`).
+      if (!locked && gaps.total) {
+        return <NextStrip tone="wait" text={`${lockGapsLine(gaps)}.`} detail="Entries can be locked, and the draw made, once each is answered." />;
+      }
+      if (!locked) {
+        return <NextStrip tone="go" text="Everyone has answered." detail="Lock the entries to make the draw." action={{ label: locking ? 'Locking…' : '🔒 Lock entries', onPress: lockEntries }} />;
+      }
+      const late = entrants.filter(e => e.status === 'requested');
+      const warning = late.length
+        ? late.length === 1 ? `${late[0].name || 'A team'} asks to enter late.` : `${late.length} teams ask to enter late.`
         : undefined;
-      return <NextStrip tone="go" text="Ready for the draw." warning={warning} isWide={isWide} action={{ label: 'Make the draw', onPress: () => setDrawDialog('make') }} />;
+      return <NextStrip tone="go" text="Entries are locked — ready for the draw." warning={warning} isWide={isWide} action={{ label: 'Make the draw', onPress: () => setDrawDialog('make') }} />;
+    }
+    if (!drawn && byHand && !locked && gaps.total) {
+      return <NextStrip tone="wait" text={`${lockGapsLine(gaps)}.`} />;
     }
     if (changes && changes.count > 0 && !started) {
       const parts = [
@@ -287,7 +311,8 @@ export default function DivisionScreen() {
       facilities={facilities}
       canEdit={canEdit}
       started={started}
-      pendingTeams={pendingTeams}
+      entriesLocked={locked}
+      lockGaps={gaps}
       isWide={isWide}
       ownOrgId={event.orgId}
       dialog={drawDialog}

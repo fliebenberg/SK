@@ -10,9 +10,14 @@ import {
   SocketAction,
   TournamentDivision,
   TournamentEntrant,
+  entryLockGaps,
+  entrantStatusShown,
   isPlayedFixture,
   teamQualifies,
   toEntrantInput,
+  entrantTakesAPlace,
+  isEntrantInPlay,
+  isEntrantEntered,
 } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { ConfirmationModal } from '../ConfirmationModal';
@@ -20,7 +25,9 @@ import { OverflowMenu, OverflowMenuItem } from '../OverflowMenu';
 import { ReadCardEmpty } from '../ReadCard';
 import { TEXT_INPUT } from '../formStyles';
 import { FixtureCrest } from '../events/EventBits';
-import { InvitationBadge, QuietTag, TournamentCard } from './TournamentBits';
+import { InvitationBadge, TournamentCard } from './TournamentBits';
+import { DivisionLockBar, EntrantBadge, OrgAddingLine, RequestRow, askedLine } from './DivisionEntries';
+import { formatInstantDate } from '../../utils/dates';
 import { sendAction } from '../../services/actions';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
@@ -29,13 +36,14 @@ import { themeColor } from '../../constants/Colors';
  * The division page's Teams card (`FIX-27`, docs/events.md §8): who is in the division, *＋ Add
  * team*, and each team's ⋯ — *Replace*, *Withdraw*, *Remove*.
  *
- * **Statuses.** Until teams answer their own invitations (`FIX-31`), a team's status is its
- * organisation's: *Not invited yet* while the organisation has not been invited (its team's
- * invitation goes out with it), *Invited* while it has not answered, *Withdrawal pending* while it
- * has asked to withdraw. A team of an organisation that accepted, or of the host, carries no badge.
- * A place to be filled later reads *To be named*; a team that withdrew stays listed under *Not taking
- * part*, struck through, while it still has results or fixtures in the draw. Inviting an
- * organisation is never offered here — that is the tournament's organisers', on the tournament page.
+ * **Statuses** (`FIX-31`): each team's own answer, as the organisers see it (`entrantStatusShown`):
+ * *Not invited yet* while its organisation has not been invited, *Invited* until the team — and,
+ * for an accept, its organisation — has answered, then the answer. Once locked, accepted teams drop
+ * their badge. Requests wait at the top, tinted, with their reason: a team added or asked for late
+ * (✓ Accept / Turn down) and a withdrawal (Confirm withdrawal / Keep them in). Declined, turned down
+ * and withdrawn teams sit under *Not taking part*. The foot of the card holds *Organisations can add
+ * their own teams* (`FIX-33`) while entries are open, and the lock. Inviting an organisation is never
+ * offered here — that is the tournament's organisers', on the tournament page.
  */
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -92,84 +100,161 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
   const setAdding = onAdding ?? setOwnAdding;
   const replacing = replacingProp !== undefined ? replacingProp : ownReplacing;
   const setReplacing = onReplacing ?? setOwnReplacing;
-  const [confirming, setConfirming] = useState<{ kind: 'withdraw' | 'remove' | 'reinstate'; entrant: TournamentEntrant } | null>(null);
+  const [confirming, setConfirming] = useState<{ kind: 'withdraw' | 'remove' | 'reinstate' | 'decline' | 'confirmWithdrawal' | 'turnDown'; entrant: TournamentEntrant } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const orgOf = (id?: string) => orgs.find(o => o.id === id) || event.participatingOrgs?.find(o => o.id === id);
   const invitationOf = (id?: string): EventOrgBadge['invitation'] | null =>
     !id || id === event.orgId ? null : event.participatingOrgs?.find(o => o.id === id)?.invitation || null;
+  const locked = !!division.entriesLockedAt;
+  const gaps = entryLockGaps(entrants, event);
 
-  const active = entrants.filter(e => e.status !== 'withdrawn');
-  const withdrawn = entrants.filter(e => e.status === 'withdrawn');
+  // Requests wait at the top; teams taking part next; teams out of it under *Not taking part*.
+  const requests = entrants.filter(e => e.status === 'requested' || e.status === 'withdrawal_pending');
+  const active = entrants.filter(e => e.status === 'invited' || e.status === 'accepted');
+  const out = entrants.filter(e => e.status === 'declined' || e.status === 'rejected' || e.status === 'withdrawn');
 
-  /** The roster written whole (D13), with one entrant changed — or left out, to remove it. */
-  const writeRoster = async (change: { entrantId: string; status?: 'active' | 'withdrawn'; remove?: boolean }) => {
+  const send = async (run: () => Promise<{ ok: boolean }>) => {
     setBusy(true);
+    const result = await run();
+    setBusy(false);
+    if (result.ok) setConfirming(null);
+    return result.ok;
+  };
+  /** The roster written whole (D13), with one entrant changed — or left out, to remove it. */
+  const writeRoster = (change: { entrantId: string; status?: 'active' | 'withdrawn'; remove?: boolean }) => send(() => {
     const roster = entrants
       .filter(e => !(change.remove && e.id === change.entrantId))
       .map(e => toEntrantInput(e.id === change.entrantId && change.status ? { ...e, status: change.status } : e));
-    const result = await sendAction(SocketAction.SET_DIVISION_ENTRANTS, { divisionId: division.id, orgId, entrants: roster });
-    setBusy(false);
-    if (result.ok) setConfirming(null);
+    return sendAction(SocketAction.SET_DIVISION_ENTRANTS, { divisionId: division.id, orgId, entrants: roster });
+  });
+  const answer = (e: TournamentEntrant, value: 'accepted' | 'declined') =>
+    send(() => sendAction(SocketAction.SET_ENTRANT_ANSWER, { divisionId: division.id, entrantId: e.id, orgId, answer: value }));
+  const respond = (e: TournamentEntrant, accept: boolean) =>
+    send(() => sendAction(SocketAction.RESPOND_ENTRANT_REQUEST, { divisionId: division.id, entrantId: e.id, orgId, accept }));
+  const setLock = (lock: boolean) =>
+    send(() => sendAction(SocketAction.SET_DIVISION_LOCK, { divisionId: division.id, orgId, locked: lock }));
+  const setAddingAllowed = (allow: boolean | null) =>
+    send(() => sendAction(SocketAction.SET_DIVISION_ORG_ADDING, { divisionId: division.id, orgId, allow }));
+
+  /** What a team's row says under its name — its organisation, or why it waits. */
+  const subOf = (e: TournamentEntrant, shown: ReturnType<typeof entrantStatusShown>) => {
+    const org = orgOf(e.orgId);
+    const fixtures = teamFixtures(e, games);
+    const isPlaceholder = !e.teamId && !e.orgProfileId;
+    if (isPlaceholder) return 'A place to be filled later';
+    const by = (who?: { name: string } | null, at?: string | null) =>
+      [who?.name ? `by ${who.name}` : '', formatInstantDate(at)].filter(Boolean).join(' · ');
+    switch (e.status) {
+      case 'withdrawn':
+        return fixtures.played
+          ? `Withdrew · its ${plural(fixtures.played, 'result')} stand${fixtures.unplayed ? ` · ${fixtures.unplayed} still to play` : ''}`
+          : `Withdrew${fixtures.unplayed ? ` · ${plural(fixtures.unplayed, 'fixture')} still in the draw` : ''}`;
+      case 'declined':
+        return [`Declined ${by(e.answeredBy, e.answeredAt)}`.trim(), org?.name].filter(Boolean).join(' · ');
+      case 'rejected':
+        return [`Turned down ${formatInstantDate(e.answeredAt)}`.trim(), org?.name].filter(Boolean).join(' · ');
+    }
+    if (shown === 'not_invited') return `Invited along with ${org?.name || 'its organisation'}, which is not invited yet`;
+    const invitation = invitationOf(e.orgId);
+    if (shown === 'invited' && (invitation === 'invited' || invitation === 'not_invited')) {
+      return `${org?.name || 'Its organisation'} has not answered its invitation yet`;
+    }
+    if (shown === 'invited') return `${org?.name || 'Its organisation'} · no answer yet`;
+    return org?.name || '';
+  };
+
+  const menuOf = (e: TournamentEntrant): OverflowMenuItem[] => {
+    if (!canEdit) return [];
+    const isPlaceholder = !e.teamId && !e.orgProfileId;
+    const fixtures = teamFixtures(e, games);
+    const org = orgOf(e.orgId);
+    const invitation = invitationOf(e.orgId);
+    const orgIn = !invitation || invitation === 'accepted' || invitation === 'withdrawal_pending';
+    const items: OverflowMenuItem[] = [];
+    if (e.status === 'withdrawn') {
+      if (fixtures.unplayed) {
+        items.push({ label: 'Replace', description: `Another team takes over its ${plural(fixtures.unplayed, 'fixture')} still to play`, icon: 'swap-horizontal-outline', onPress: () => setReplacing(e) });
+      }
+      items.push({ label: 'Put back in', description: 'It plays on, in its place in the draw', icon: 'arrow-undo-outline', onPress: () => setConfirming({ kind: 'reinstate', entrant: e }) });
+      return items;
+    }
+    if (e.status === 'rejected') {
+      items.push({ label: 'Remove', description: 'Taken off the list', icon: 'trash-outline', onPress: () => setConfirming({ kind: 'remove', entrant: e }), destructive: true });
+      return items;
+    }
+    // Before the lock the organisers may answer for a team (`FIX-31` rule 6): accept once its
+    // organisation has accepted; decline at any time.
+    if (!locked && !isPlaceholder) {
+      if (e.status !== 'accepted') {
+        items.push(orgIn
+          ? { label: 'Mark as accepted', description: 'Speaking for the team: it is coming', icon: 'checkmark-circle-outline', onPress: () => answer(e, 'accepted') }
+          : { label: 'Mark as accepted', description: `Once ${org?.name || 'its organisation'} has accepted the invitation`, icon: 'checkmark-circle-outline', onPress: () => {}, disabled: true });
+      }
+      if (e.status !== 'declined') {
+        items.push({ label: 'Mark as declined', description: 'Speaking for the team: it is not coming', icon: 'close-circle-outline', onPress: () => setConfirming({ kind: 'decline', entrant: e }) });
+      }
+    }
+    if (e.status === 'declined') return items;
+    items.push({
+      label: isPlaceholder ? 'Name it' : 'Replace',
+      description: isPlaceholder ? 'Put a team in this place' : drawn ? 'Another team takes its place in the draw' : 'Another team takes its place',
+      icon: 'swap-horizontal-outline',
+      onPress: () => setReplacing(e),
+    });
+    if ((drawn || locked) && !isPlaceholder && e.status === 'accepted') {
+      items.push({ label: 'Withdraw', description: 'It stays in the draw, marked withdrawn; any results stand', icon: 'exit-outline', onPress: () => setConfirming({ kind: 'withdraw', entrant: e }) });
+    }
+    items.push(fixtures.played
+      ? { label: 'Remove', description: 'It has played — withdraw it instead', icon: 'trash-outline', onPress: () => {}, destructive: true, disabled: true }
+      : { label: 'Remove', description: 'Taken out as if never entered', icon: 'trash-outline', onPress: () => setConfirming({ kind: 'remove', entrant: e }), destructive: true });
+    return items;
   };
 
   const row = (e: TournamentEntrant) => {
     const isPlaceholder = !e.teamId && !e.orgProfileId;
     const org = orgOf(e.orgId);
-    const invitation = invitationOf(e.orgId);
-    const fixtures = teamFixtures(e, games);
-    const out = e.status === 'withdrawn';
-    const sub = out
-      ? fixtures.played
-        ? `Withdrew · its ${plural(fixtures.played, 'result')} stand${fixtures.unplayed ? ` · ${fixtures.unplayed} still to play` : ''}`
-        : `Withdrew${fixtures.unplayed ? ` · ${plural(fixtures.unplayed, 'fixture')} still in the draw` : ''}`
-      : isPlaceholder
-        ? 'A place to be filled later'
-        : invitation === 'not_invited'
-          ? `Invited along with ${org?.name || 'its organisation'}, which is not invited yet`
-          : invitation === 'invited'
-            ? `${org?.name || 'Its organisation'} has not answered its invitation yet`
-            : invitation === 'withdrawal_pending'
-              ? `${org?.name || 'Its organisation'} has asked to withdraw`
-              : org?.name || '';
-
-    const items: OverflowMenuItem[] = [];
-    if (canEdit) {
-      if (!out) {
-        items.push({
-          label: isPlaceholder ? 'Name it' : 'Replace',
-          description: isPlaceholder ? 'Put a team in this place' : drawn ? 'Another team takes its place in the draw' : 'Another team takes its place',
-          icon: 'swap-horizontal-outline',
-          onPress: () => setReplacing(e),
-        });
-        if (drawn && !isPlaceholder) {
-          items.push({ label: 'Withdraw', description: 'It stays in the draw, marked withdrawn; any results stand', icon: 'exit-outline', onPress: () => setConfirming({ kind: 'withdraw', entrant: e }) });
-        }
-        items.push(fixtures.played
-          ? { label: 'Remove', description: 'It has played — withdraw it instead', icon: 'trash-outline', onPress: () => {}, destructive: true, disabled: true }
-          : { label: 'Remove', description: 'Taken out as if never entered', icon: 'trash-outline', onPress: () => setConfirming({ kind: 'remove', entrant: e }), destructive: true });
-      } else {
-        if (fixtures.unplayed) {
-          items.push({ label: 'Replace', description: `Another team takes over its ${plural(fixtures.unplayed, 'fixture')} still to play`, icon: 'swap-horizontal-outline', onPress: () => setReplacing(e) });
-        }
-        items.push({ label: 'Put back in', description: 'It plays on, in its place in the draw', icon: 'arrow-undo-outline', onPress: () => setConfirming({ kind: 'reinstate', entrant: e }) });
-      }
-    }
-
+    const shown = entrantStatusShown(e.status, invitationOf(e.orgId), false);
+    const struck = e.status === 'withdrawn' || e.status === 'declined' || e.status === 'rejected';
+    const sub = subOf(e, shown);
+    const items = menuOf(e);
+    // Once locked every team in has accepted, so only the exceptions keep a badge.
+    const badge = isPlaceholder ? (
+      <View className="rounded-full border border-dashed border-ink-faint px-2 py-0.5"><Text className="font-inter-semibold text-[11px] text-ink-muted">To be named</Text></View>
+    ) : locked && shown === 'accepted' ? null : <EntrantBadge status={shown} />;
     return (
       <View key={e.id} className="flex-row items-center gap-2.5 py-2 border-t border-line-soft">
         <TeamCrest org={org} placeholder={isPlaceholder} />
         <View className="flex-1 min-w-0">
-          <Text numberOfLines={1} className={`text-sm ${isPlaceholder ? 'font-inter italic text-ink-soft' : out ? 'font-inter-semibold text-ink-muted line-through' : 'font-inter-semibold text-ink'}`}>
+          <Text numberOfLines={1} className={`text-sm ${isPlaceholder ? 'font-inter italic text-ink-soft' : struck ? 'font-inter-semibold text-ink-muted line-through' : 'font-inter-semibold text-ink'}`}>
             {e.name || e.label || 'To be named'}
           </Text>
           {sub ? <Text numberOfLines={2} className="font-inter text-xs text-ink-muted">{sub}</Text> : null}
         </View>
-        {out ? <QuietTag label="Withdrawn" /> : isPlaceholder ? (
-          <View className="rounded-full border border-dashed border-ink-faint px-2 py-0.5"><Text className="font-inter-semibold text-[11px] text-ink-muted">To be named</Text></View>
-        ) : invitation && invitation !== 'accepted' ? <InvitationBadge invitation={invitation} /> : null}
+        {badge}
         {items.length ? <OverflowMenu items={items} title={e.name || e.label || 'Team'} accessibilityLabel={`${e.name || e.label || 'Team'} actions`} /> : null}
       </View>
+    );
+  };
+
+  const requestRow = (e: TournamentEntrant) => {
+    const fixtures = teamFixtures(e, games);
+    const withdrawal = e.status === 'withdrawal_pending';
+    const extra = withdrawal
+      ? fixtures.total ? `${plural(fixtures.total, 'fixture')} in the draw, ${fixtures.played ? `${fixtures.played} played` : 'none played'}` : undefined
+      : locked ? 'after the lock' : undefined;
+    return (
+      <RequestRow
+        key={e.id}
+        entrant={e}
+        crest={<TeamCrest org={orgOf(e.orgId)} />}
+        sub={askedLine(e, extra)}
+        busy={busy}
+        acceptLabel={withdrawal ? 'Confirm withdrawal' : '✓ Accept'}
+        declineLabel={withdrawal ? 'Keep them in' : 'Turn down'}
+        onAccept={canEdit ? () => (withdrawal ? setConfirming({ kind: 'confirmWithdrawal', entrant: e }) : respond(e, true)) : undefined}
+        onDecline={canEdit ? () => (withdrawal ? respond(e, false) : setConfirming({ kind: 'turnDown', entrant: e })) : undefined}
+      />
     );
   };
 
@@ -178,7 +263,7 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
     const e = confirming.entrant;
     const name = e.name || e.label || 'this team';
     const f = teamFixtures(e, games);
-    if (confirming.kind === 'withdraw') {
+    if (confirming.kind === 'withdraw' || confirming.kind === 'confirmWithdrawal') {
       return {
         title: `Withdraw ${name}?`,
         body: (f.played
@@ -187,8 +272,14 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
           (f.unplayed
             ? ` Its ${plural(f.unplayed, 'fixture')} still to play stay in the draw, marked withdrawn, until ${started ? 'you change them by hand' : 'you redo the draw'} or replace the team.`
             : ''),
-        action: 'Withdraw',
+        action: confirming.kind === 'confirmWithdrawal' ? 'Confirm withdrawal' : 'Withdraw',
       };
+    }
+    if (confirming.kind === 'decline') {
+      return { title: `Decline ${name}?`, body: 'It moves to Not taking part.', action: '✕ Decline' };
+    }
+    if (confirming.kind === 'turnDown') {
+      return { title: `Turn down ${name}?`, body: 'It stays listed as turned down.', action: 'Turn down' };
     }
     if (confirming.kind === 'remove') {
       return {
@@ -199,6 +290,19 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
     }
     return { title: `Put ${name} back in?`, body: 'It plays on in its place in the draw.', action: 'Put back in' };
   })();
+
+  const confirm = () => {
+    if (!confirming) return;
+    const e = confirming.entrant;
+    switch (confirming.kind) {
+      case 'remove': return writeRoster({ entrantId: e.id, remove: true });
+      case 'withdraw': return writeRoster({ entrantId: e.id, status: 'withdrawn' });
+      case 'reinstate': return writeRoster({ entrantId: e.id, status: 'active' });
+      case 'decline': return answer(e, 'declined');
+      case 'confirmWithdrawal': return respond(e, true);
+      case 'turnDown': return respond(e, false);
+    }
+  };
 
   return (
     <TournamentCard
@@ -218,15 +322,36 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
         />
       ) : (
         <View className="-mt-2">
+          {requests.length ? <View className="pt-2">{requests.map(requestRow)}</View> : null}
           {active.map(row)}
-          {withdrawn.length ? (
+          {out.length ? (
             <>
               <Text className="font-inter-bold text-[11px] text-ink-muted uppercase tracking-wider pt-3 pb-1">Not taking part</Text>
-              {withdrawn.map(row)}
+              {out.map(row)}
             </>
           ) : null}
         </View>
       )}
+
+      {canEdit && !locked ? (
+        <OrgAddingLine
+          division={division}
+          event={event}
+          busy={busy}
+          onChange={allow => setAddingAllowed(allow)}
+          onFollow={() => setAddingAllowed(null)}
+        />
+      ) : null}
+      {entrants.length ? (
+        <DivisionLockBar
+          division={division}
+          gaps={gaps}
+          canEdit={canEdit}
+          busy={busy}
+          onLock={() => setLock(true)}
+          onUnlock={() => setLock(false)}
+        />
+      ) : null}
 
       <AddTeamsDialog
         visible={adding}
@@ -260,11 +385,7 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
         cancelText="Cancel"
         variant={confirming?.kind === 'reinstate' ? 'primary' : 'danger'}
         isProcessing={busy}
-        onConfirm={() => confirming && writeRoster(
-          confirming.kind === 'remove'
-            ? { entrantId: confirming.entrant.id, remove: true }
-            : { entrantId: confirming.entrant.id, status: confirming.kind === 'withdraw' ? 'withdrawn' : 'active' }
-        )}
+        onConfirm={confirm}
         onClose={() => setConfirming(null)}
       />
     </TournamentCard>
@@ -420,7 +541,7 @@ function TeamPicker({ division, event, orgs, teams, takenTeamIds, lateEntrants =
 /** The teams already playing — in this division, and anywhere else in the tournament when known. */
 function useTakenTeamIds(entrants: TournamentEntrant[], eventEntrants: TournamentEntrant[] | null) {
   return useMemo(
-    () => new Set([...(eventEntrants || []), ...entrants].filter(e => e.status !== 'withdrawn' && e.teamId).map(e => e.teamId as string)),
+    () => new Set([...(eventEntrants || []), ...entrants].filter(e => entrantTakesAPlace(e.status) && e.teamId).map(e => e.teamId as string)),
     [entrants, eventEntrants]
   );
 }
@@ -529,7 +650,7 @@ function ReplaceTeamDialog({ visible, onClose, entrant, division, event, orgId, 
   const f = teamFixtures(entrant, games);
   // Entered, active, and in no fixture: the late entries a swap would put into the draw.
   const lateEntrants = f.total
-    ? entrants.filter(e => e.id !== entrant.id && e.status !== 'withdrawn' && !teamFixtures(e, games).total)
+    ? entrants.filter(e => e.id !== entrant.id && isEntrantInPlay(e.status) && !teamFixtures(e, games).total)
     : [];
   const ready = !!pick && (pick.kind !== 'place' || !!placeLabel.trim());
 

@@ -7,6 +7,7 @@ import {
   Organization,
   SocketAction,
   TournamentEntrant,
+  isEntrantEntered,
 } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { NominateAdminModal } from '../NominateAdminModal';
@@ -294,7 +295,7 @@ export function RemoveOrganisationDialog({ visible, event, orgId, org, entrants,
 }) {
   const [saving, setSaving] = useState(false);
   if (!org) return null;
-  const mine = entrants.filter(e => e.orgId === org.id && e.status !== 'withdrawn');
+  const mine = entrants.filter(e => e.orgId === org.id && isEntrantEntered(e.status));
   const played = mine.reduce((sum, e) => sum + (e.playedCount || 0), 0);
 
   const remove = async () => {

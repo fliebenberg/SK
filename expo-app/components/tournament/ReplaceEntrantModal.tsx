@@ -6,6 +6,7 @@ import {
   TournamentDivision,
   TournamentEntrant,
   divisionsForTeam,
+  entrantTakesAPlace,
 } from '@sk/shared';
 import { GlassCard } from '../GlassCard';
 import { Button } from '../Button';
@@ -82,7 +83,7 @@ export function ReplaceEntrantModal({
   /** Teams of this division's sport and age group that are not playing anywhere in the tournament. */
   const teamChoices = useMemo(() => {
     const playing = new Set(
-      tournamentEntrants.filter(e => e.status !== 'withdrawn' && e.teamId).map(e => e.teamId as string)
+      tournamentEntrants.filter(e => entrantTakesAPlace(e.status) && e.teamId).map(e => e.teamId as string)
     );
     return candidateTeams.filter(
       team => !playing.has(team.id) && divisionsForTeam(team, [division]).qualifying.length > 0

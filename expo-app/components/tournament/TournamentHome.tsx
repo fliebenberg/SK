@@ -17,6 +17,7 @@ import {
   divisionFullName,
   drawChanges,
   hasLeft,
+  isEntrantEntered,
 } from '@sk/shared';
 import { AddressMap } from '../address/AddressMap';
 import { facilityMarkers } from '../address/facilityMarker';
@@ -77,7 +78,7 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
     if (!event) return { steps: [], complete: false, nextIndex: -1 };
     const sportIds = event.sportIds || [];
     const playing = divisions.filter(d => !!d.sportId);
-    const entered = entrants.filter(e => e.status !== 'withdrawn');
+    const entered = entrants.filter(e => isEntrantEntered(e.status));
     // The host takes part by hosting; every other organisation has an invitation (`FIX-29`).
     // One that declined or withdrew stays listed as the record, but is out of it (`FIX-30`).
     const others = (event.participatingOrgs || []).filter(o => o.id !== event.orgId && !hasLeft(o.invitation));

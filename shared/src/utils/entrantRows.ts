@@ -1,5 +1,5 @@
 import { OrgBadge } from '../models/organization/Organization';
-import { CandidateTeam, TournamentEntrant } from '../models/event/Tournament';
+import { CandidateTeam, TournamentEntrant, entrantTakesAPlace } from '../models/event/Tournament';
 
 /**
  * One line of the entry table: a competitor, and the division it is in if any.
@@ -55,7 +55,7 @@ export function buildEntrantRows(
   const withdrawnByTeamId = new Map<string, TournamentEntrant>();
   for (const entrant of entrants) {
     if (!entrant.teamId) continue;
-    if (entrant.status === 'withdrawn') withdrawnByTeamId.set(entrant.teamId, entrant);
+    if (!entrantTakesAPlace(entrant.status)) withdrawnByTeamId.set(entrant.teamId, entrant);
     else entrantByTeamId.set(entrant.teamId, entrant);
   }
 
@@ -72,7 +72,7 @@ export function buildEntrantRows(
   const candidateIds = new Set(teams.map(team => team.id));
   for (const entrant of entrants) {
     if (entrant.teamId && candidateIds.has(entrant.teamId)) continue;
-    const isWithdrawn = entrant.status === 'withdrawn';
+    const isWithdrawn = !entrantTakesAPlace(entrant.status);
     // A team entered again after withdrawing is one row, shown as entered.
     if (isWithdrawn && entrant.teamId && entrantByTeamId.has(entrant.teamId)) continue;
     rows.push({

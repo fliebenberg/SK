@@ -12,6 +12,7 @@ import {
   TournamentEntrant,
   teamQualifies,
   toEntrantInput,
+  isEntrantEntered,
 } from '@sk/shared';
 import { PersonnelAutocomplete } from '../PersonnelAutocomplete';
 import { TEXT_INPUT } from '../formStyles';
@@ -69,7 +70,7 @@ export function useOrgTeamPicks({ org, orgId, divisions, sportIds, entrants, can
   const [picks, setPicks] = useState<Record<string, TeamPick[]>>({});
   const [saving, setSaving] = useState(false);
   const ordered = useMemo(() => orderedDivisions(divisions, sportIds), [divisions, sportIds]);
-  const active = useMemo(() => entrants.filter(e => e.status !== 'withdrawn'), [entrants]);
+  const active = useMemo(() => entrants.filter(e => isEntrantEntered(e.status)), [entrants]);
   const enteredTeamIds = useMemo(() => new Set(active.map(e => e.teamId).filter(Boolean) as string[]), [active]);
 
   const read = useCallback((): Record<string, TeamPick[]> => {
@@ -140,7 +141,7 @@ export function useOrgTeamPicks({ org, orgId, divisions, sportIds, entrants, can
     for (const [divisionId, rows] of order) {
       // A roster is written whole (D13): everyone else's entries, and every withdrawn one, go back
       // as they are.
-      const others = entrants.filter(e => e.divisionId === divisionId && (e.status === 'withdrawn' || e.orgId !== org.id));
+      const others = entrants.filter(e => e.divisionId === divisionId && (!isEntrantEntered(e.status) || e.orgId !== org.id));
       const roster = [
         ...others.map(e => toEntrantInput(e)),
         ...rows.filter(p => p.on).map(p => toEntrantInput({

@@ -320,7 +320,12 @@ first, at `events/[eventId]/divisions/[divisionId]`.
   two answers. Each team's ⋯: *Mark as accepted* (only once its organisation has accepted), *Mark as
   declined* (any time), *Replace*, *Withdraw* (after the lock; results stand), *Remove* (until it
   has played). A team entered for an organisation not yet invited reads *Not invited yet*; the
-  division page never offers *Invite* — inviting is for the tournament's organisers only.
+  division page never offers *Invite* — inviting is for the tournament's organisers only. Until a
+  team's organisation accepts, the organisers see an accepted team as *Invited* (`entrantStatusShown`).
+  The foot of the card holds, while entries are open, **Organisations can add their own teams** with
+  its toggle — *Same as the tournament: on*, or *Off for this division · Use the tournament's
+  setting* once overridden (`FIX-33`) — and **the lock**: *Entries open*, what is left, and *🔒 Lock
+  entries* (disabled while anything waits); or *🔒 Entries locked* with when and by whom, and *Unlock*.
 - **Add teams** lists only the organisations taking part, and only their teams **of this age group
   not already in the division**; **＋ A team from another age group** under each organisation is the
   exception. A place to be filled later is at the foot. **Replace** is the same picker choosing one,
@@ -331,7 +336,9 @@ first, at `events/[eventId]/divisions/[divisionId]`.
   on the page until the draw — after it, changing means redoing the draw. What each option means may
   still change; the UI is what is settled.
 - **The draw** is made from locked entries (`FIX-31`); an unlocked division's *Make the draw* lists,
-  as warnings, the teams still to answer. *Redo the draw* (not *Remake*) replaces the fixtures.
+  as warnings, what still waits — or, when nothing does, offers **Lock and make the draw** in one
+  press (rule 3). The strip says the same: what is left, then *🔒 Lock entries*, then *Make the
+  draw*, with a late request as its warning. *Redo the draw* (not *Remake*) replaces the fixtures.
 - **Details dialog**: name, sport (fixed once a team or a fixture exists), age group, division
   organisers, and the courts as chips with **＋ after them** opening the facility picker.
 - **Adding a division** asks first: age group, then a name filled in from it, and how it is played.
@@ -374,9 +381,11 @@ from [DivisionTeams.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournamen
 `DivisionStateLine` and `TournamentCard` in
 [TournamentBits.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentBits.tsx), and
 a division record carries `stageShapes` so its tile names the format as its page does. The
-division's `/schedule` screen is gone; the Schedule tab's `DivisionPanel` links to the page. Until
-teams answer for themselves (`FIX-31`) a team's badge is its organisation's invitation, there is no
-lock, and *Make the draw* says which teams' organisations have not accepted rather than refusing.
-Deleting a division deletes its unplayed fixtures with it.
+division's `/schedule` screen is gone; the Schedule tab's `DivisionPanel` links to the page.
+Deleting a division deletes its unplayed fixtures with it. **Teams' answers, the lock and adding
+built 2026-10-10 (`FIX-31` stage 2):** the badge, the request row, the adding line and the lock bar
+are [DivisionEntries.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionEntries.tsx),
+shared with the organisation's page; what still waits before the lock is `entryLockGaps` (shared),
+the client's mirror of the server's `entryLockProblem`.
 
 **A division with no format chosen is round robin** (`defaultDivisionFormat`): *Set fixtures by hand* (`Festival`) is only ever chosen, never a default, so a new sport's first division and a division added without a format start as round robin.

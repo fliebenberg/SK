@@ -55,6 +55,7 @@ export * from './utils/orgColors';
 export * from './utils/liveForm';
 export * from './utils/entrantRows';
 export * from './utils/drawChanges';
+export * from './utils/entryLock';
 export * from './utils/memberInvite';
 export * from './utils/guardians';
 export * from './utils/calendarDate';

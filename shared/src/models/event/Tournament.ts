@@ -218,6 +218,9 @@ export const isEntrantInPlay = (status?: EntrantStatus | null) => status === 'ac
 export const isEntrantEntered = (status?: EntrantStatus | null) =>
   status === 'invited' || status === 'accepted' || status === 'withdrawal_pending';
 
+/** Holds the team to its division — entered, or asked for — so it is not offered anywhere else. */
+export const entrantTakesAPlace = (status?: EntrantStatus | null) => isEntrantEntered(status) || status === 'requested';
+
 /** Waiting for the organisers: a request to add or enter late, or to withdraw. */
 export const isEntrantRequest = (status?: EntrantStatus | null) =>
   status === 'requested' || status === 'withdrawal_pending';

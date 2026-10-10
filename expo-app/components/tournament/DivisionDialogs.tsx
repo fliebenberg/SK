@@ -15,6 +15,7 @@ import {
   divisionAutoName,
   findTakenDivisionName,
   isAutomaticDivisionName,
+  isEntrantEntered,
 } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { FieldLabel } from '../FieldLabel';
@@ -321,7 +322,7 @@ export function DivisionDetailsDialog({
   const lastOfSport = !!division.sportId && !siblings.some(d => d.sportId === division.sportId);
 
   // Entered teams the new age group would turn into overrides — said, not refused.
-  const overrides = ageGroupId ? entrants.filter(e => !!e.teamId && e.status !== 'withdrawn' && e.teamAgeGroupId !== ageGroupId).length : 0;
+  const overrides = ageGroupId ? entrants.filter(e => !!e.teamId && isEntrantEntered(e.status) && e.teamAgeGroupId !== ageGroupId).length : 0;
   const ageChanging = ageGroupId !== (division.ageGroupId || null);
 
   const recordDirty = canEditRecord && (customName !== savedCustom || sportChanging || ageChanging);

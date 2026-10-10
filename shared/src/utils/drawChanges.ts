@@ -1,5 +1,5 @@
 import { GameSummary } from "../models/event/GameSummary";
-import { TournamentEntrant, TournamentStage } from "../models/event/Tournament";
+import { TournamentEntrant, TournamentStage, isEntrantInPlay } from "../models/event/Tournament";
 
 /**
  * How a division's roster has moved since its draw was made (2026-09-24).
@@ -61,9 +61,10 @@ export function drawChanges(
     }
   }
 
-  const notInDraw = entrants.filter(e => e.status !== 'withdrawn' && !drawnIds.has(e.id));
+  // In play and not drawn; out of play — withdrawn, or declined after the draw — with fixtures left.
+  const notInDraw = entrants.filter(e => isEntrantInPlay(e.status) && !drawnIds.has(e.id));
   const leftDraw = entrants
-    .filter(e => e.status === 'withdrawn' && (unplayedBy.get(e.id) || 0) > 0)
+    .filter(e => !isEntrantInPlay(e.status) && (unplayedBy.get(e.id) || 0) > 0)
     .map(entrant => ({ entrant, unplayed: unplayedBy.get(entrant.id) || 0 }));
 
   return { drawn: true, notInDraw, leftDraw, count: notInDraw.length + leftDraw.length };

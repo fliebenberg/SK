@@ -2,12 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
+  EntryLockGaps,
   Facility,
   GameSummary,
   SocketAction,
   TournamentEntrant,
   TournamentStage,
   isPlayedFixture,
+  isEntrantInPlay,
 } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { SegmentedControl } from '../SegmentedControl';
@@ -31,7 +33,7 @@ import { formatFixtureWhen } from '../../utils/dates';
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const SHOWN = 8;
 
-export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games, entrants, format, facilities, canEdit, started, pendingTeams, isWide, ownOrgId, dialog: dialogProp, onDialog }: {
+export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games, entrants, format, facilities, canEdit, started, entriesLocked, lockGaps, isWide, ownOrgId, dialog: dialogProp, onDialog }: {
   orgId: string;
   eventId: string;
   divisionId: string;
@@ -45,8 +47,10 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
   canEdit: boolean;
   /** A game in the division is live or finished. */
   started: boolean;
-  /** Teams whose organisation has not accepted yet — said when the draw is made. */
-  pendingTeams: TournamentEntrant[];
+  /** The draw is made from locked entries (`FIX-31`). */
+  entriesLocked: boolean;
+  /** What still waits before the lock — listed instead of a draw while anything does. */
+  lockGaps: EntryLockGaps;
   isWide: boolean;
   /** Our own organisation, whose teams are named without it. */
   ownOrgId?: string;
@@ -64,8 +68,9 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
   const setDialog = onDialog ?? setOwnDialog;
   const [busy, setBusy] = useState(false);
 
-  const active = entrants.filter(e => e.status !== 'withdrawn');
-  const withdrawnIds = new Set(entrants.filter(e => e.status === 'withdrawn').map(e => e.id));
+  // The draw takes the teams in play; one out of play with fixtures shows as withdrawn in it.
+  const active = entrants.filter(e => isEntrantInPlay(e.status));
+  const withdrawnIds = new Set(entrants.filter(e => !isEntrantInPlay(e.status)).map(e => e.id));
   const stageGames = games.filter(g => (stage ? g.stageId === stage.id : !g.stageId));
   // A fixture that belongs to no stage still belongs to this division (`PEOPLE-3`).
   const loose = ordered.length <= 1 ? games.filter(g => !g.stageId) : [];
@@ -76,9 +81,16 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
   const stageStarted = stageGames.some(isPlayedFixture);
   const addFixture = () => router.push(`/admin/${orgId}/events/${eventId}/games/new`);
 
+  // When an organiser goes to make the draw of an open division with nothing waiting, it is locked
+  // first, in the same press (`FIX-31` rule 3).
+  const lockFirst = isFirstStage && !entriesLocked;
   const generate = async (mode: 'create' | 'regenerate') => {
     if (!stage) return;
     setBusy(true);
+    if (mode === 'create' && lockFirst) {
+      const lockedNow = await sendAction(SocketAction.SET_DIVISION_LOCK, { divisionId, orgId, locked: true });
+      if (!lockedNow.ok) { setBusy(false); return; }
+    }
     const result = await sendAction(SocketAction.GENERATE_STAGE_FIXTURES, { stageId: stage.id, orgId, mode }, { timeoutMs: 15000 });
     setBusy(false);
     if (result.ok) setDialog(null);
@@ -170,7 +182,9 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
     return (
       <View className="gap-2">
         <Text className="font-inter text-sm text-ink-muted">
-          The draw makes {drawSummary(format, active.length)} from the {active.length} teams in. You can move, add and delete fixtures afterwards.
+          {entriesLocked
+            ? `The draw makes ${drawSummary(format, active.length)} from the ${active.length} teams in. You can move, add and delete fixtures afterwards.`
+            : 'The draw is made from locked entries.'}
         </Text>
         {canEdit ? <PrimaryButton label="Make the draw" onPress={() => setDialog('make')} /> : null}
       </View>
@@ -215,18 +229,30 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
         visible={dialog === 'make'}
         title="Make the draw?"
         onClose={() => setDialog(null)}
-        onSave={() => generate('create')}
-        saveLabel="Make the draw"
+        onSave={lockFirst && lockGaps.total ? undefined : () => generate('create')}
+        saveLabel={lockFirst ? 'Lock and make the draw' : 'Make the draw'}
         isSaving={busy}
       >
-        <Text className="font-inter text-sm text-ink-soft">
-          {isFirstStage ? `${formatDetail(format, active.length)}, from ${plural(active.length, 'team')}.` : `${stage?.name}, from the teams that went through.`} You can move, add and delete fixtures afterwards.
-        </Text>
-        {isFirstStage && pendingTeams.length ? (
-          <Warning>
-            {plural(pendingTeams.length, 'team')} {pendingTeams.length === 1 ? 'is' : 'are'} from an organisation that has not accepted yet: {pendingTeams.map(e => e.name || e.label).join(', ')}. If {pendingTeams.length === 1 ? 'it drops' : 'they drop'} out after the draw, it shows as a change since the draw.
-          </Warning>
-        ) : null}
+        {lockFirst && lockGaps.total ? (
+          <>
+            <Text className="font-inter text-sm text-ink-soft">The draw is made from locked entries, and these still need an answer:</Text>
+            {[...lockGaps.invited.map(e => `${e.name || e.label || 'A team'} — still to answer`),
+              ...lockGaps.requested.map(e => `${e.name || e.label || 'A team'} — added, waiting for your approval`),
+              ...lockGaps.orgNotIn.map(e => `${e.name || e.label || 'A team'} — its organisation has not accepted`)].map(line => (
+              <Warning key={line}>{line}</Warning>
+            ))}
+          </>
+        ) : (
+          <>
+            <Text className="font-inter text-sm text-ink-soft">
+              {isFirstStage ? `${formatDetail(format, active.length)}, from ${plural(active.length, 'team')}.` : `${stage?.name}, from the teams that went through.`} You can move, add and delete fixtures afterwards.
+            </Text>
+            {lockFirst ? <Warning>Entries are locked first: after that a team leaves only by withdrawing.</Warning> : null}
+            {isFirstStage && entriesLocked && entrants.some(e => e.status === 'requested') ? (
+              <Warning>{entrants.filter(e => e.status === 'requested').map(e => e.name || 'A team').join(', ')} asked to enter late and is not in this draw until you accept.</Warning>
+            ) : null}
+          </>
+        )}
       </EditDialog>
 
       <EditDialog

@@ -13,6 +13,7 @@ import {
   participantLabel,
   hasLiveScore,
   isScoreNotProvided,
+  isEntrantEntered,
 } from '@sk/shared';
 import { GlassCard } from '../GlassCard';
 import { Tabs, TabItem } from '../Tabs';
@@ -218,7 +219,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
   // Generation (D8, D9)
   // ------------------------------------------------------------------------------------------
 
-  const activeEntrants = entrants.filter(entrant => entrant.status !== 'withdrawn');
+  const activeEntrants = entrants.filter(entrant => isEntrantEntered(entrant.status));
 
   /**
    * How the roster has moved since the draw — only for a viewer who can act on it, since only they
