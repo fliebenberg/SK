@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -80,7 +80,12 @@ export function useOrgTeamPicks({ org, orgId, divisions, sportIds, entrants, can
 }) {
   const [picks, setPicks] = useState<Record<string, TeamPick[]>>({});
   const [saving, setSaving] = useState(false);
-  const ordered = useMemo(() => orderedDivisions(divisions, sportIds), [divisions, sportIds]);
+  // Keyed on the sports themselves, not the array: a caller's `event?.sportIds || []` is a new array
+  // every render while the event loads, and a new order every render rebuilt `reset`, which the
+  // unsaved-changes guard re-registered and cleared on each render — a loop (found 2026-10-10).
+  const sportKey = sportIds.join('|');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const ordered = useMemo(() => orderedDivisions(divisions, sportIds), [divisions, sportKey]);
   // Entered, and declined: a declined team stays ticked, as the record, rather than being offered again.
   const active = useMemo(() => entrants.filter(e => isEntrantEntered(e.status) || e.status === 'declined'), [entrants]);
   const enteredTeamIds = useMemo(() => new Set(active.map(e => e.teamId).filter(Boolean) as string[]), [active]);
@@ -112,6 +117,11 @@ export function useOrgTeamPicks({ org, orgId, divisions, sportIds, entrants, can
     }
     return next;
   }, [org, ordered, active, candidateTeams, enteredTeamIds]);
+
+  // The latest reading, for after a save: the roster it wrote usually arrives while the picks are
+  // still dirty, when the effect below ignores it (found by the end-to-end tests, 2026-10-10).
+  const readRef = useRef(read);
+  readRef.current = read;
 
   const changed = Object.entries(picks).filter(([, rows]) => rows.some(p => p.on !== p.was));
   const isDirty = changed.length > 0;
@@ -170,8 +180,9 @@ export function useOrgTeamPicks({ org, orgId, divisions, sportIds, entrants, can
       if (!result.ok) { setSaving(false); return false; }
     }
     setSaving(false);
-    // Saved: nothing is unsaved any more, so the roster that arrives through the room replaces these.
-    setPicks(prev => Object.fromEntries(Object.entries(prev).map(([id, rows]) => [id, rows.map(p => ({ ...p, was: p.on }))])));
+    // Saved: read the roster as it now stands — each team with its answer. If the write has not come
+    // back through the room yet, the effect above reads it when it does, as nothing is unsaved now.
+    setPicks(readRef.current());
     return true;
   };
 

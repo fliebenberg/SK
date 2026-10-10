@@ -140,6 +140,7 @@ export function OrganisationTeamCards({ event, org, actingOrgId, divisions, spor
     return (
       <View
         key={e.id}
+        testID={`team-card-${e.id}`}
         className={`rounded-2xl p-3 gap-1 border ${request ? 'bg-warning-soft border-warning-line' : 'bg-card border-line'}`}
         style={{ width: isWide ? 250 : '100%' }}
       >
@@ -178,7 +179,7 @@ export function OrganisationTeamCards({ event, org, actingOrgId, divisions, spor
       </TouchableOpacity>
     ) : null;
     return (
-      <View key={division.id} className={`py-3 border-t border-line-soft ${isWide ? 'flex-row gap-3' : 'gap-2'}`}>
+      <View key={division.id} testID={`division-${division.id}`} className={`py-3 border-t border-line-soft ${isWide ? 'flex-row gap-3' : 'gap-2'}`}>
         <View className={isWide ? 'gap-1' : 'flex-row flex-wrap items-baseline gap-x-2.5 gap-y-1'} style={isWide ? { width: 130 } : undefined}>
           <Text className="font-inter-bold text-[15px] text-ink">{division.name}</Text>
           {locked ? <Text className="font-inter text-xs text-ink-muted">🔒 Locked</Text> : null}

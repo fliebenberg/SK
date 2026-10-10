@@ -176,6 +176,15 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
         </View>
       );
     }
+    // Locked entries first: an open division's teams may still be answering, so none counts yet.
+    if (!entriesLocked) {
+      return (
+        <View className="gap-2">
+          <Text className="font-inter text-sm text-ink-muted">The draw is made from locked entries.</Text>
+          {canEdit ? <PrimaryButton label="Make the draw" onPress={() => setDialog('make')} /> : null}
+        </View>
+      );
+    }
     if (active.length < 2) {
       return <Text className="font-inter text-sm text-ink-muted">The draw is made once there are at least two teams.</Text>;
     }

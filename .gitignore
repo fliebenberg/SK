@@ -25,3 +25,8 @@ docs/interviews/print/
 
 # Completed interview records (contain real personal data — never committed)
 docs/interviews/records/
+
+# End-to-end test output
+e2e/test-results/
+e2e/report/
+e2e/shots/

@@ -223,7 +223,7 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
       <View className="rounded-full border border-dashed border-ink-faint px-2 py-0.5"><Text className="font-inter-semibold text-[11px] text-ink-muted">To be named</Text></View>
     ) : locked && shown === 'accepted' ? null : <EntrantBadge status={shown} />;
     return (
-      <View key={e.id} className="flex-row items-center gap-2.5 py-2 border-t border-line-soft">
+      <View key={e.id} testID={`entrant-${e.id}`} className="flex-row items-center gap-2.5 py-2 border-t border-line-soft">
         <TeamCrest org={org} placeholder={isPlaceholder} />
         <View className="flex-1 min-w-0">
           <Text numberOfLines={1} className={`text-sm ${isPlaceholder ? 'font-inter italic text-ink-soft' : struck ? 'font-inter-semibold text-ink-muted line-through' : 'font-inter-semibold text-ink'}`}>
@@ -248,7 +248,7 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
         key={e.id}
         entrant={e}
         crest={<TeamCrest org={orgOf(e.orgId)} />}
-        sub={askedLine(e, extra)}
+        sub={[orgOf(e.orgId)?.name, askedLine(e, extra)].filter(Boolean).join(' · ')}
         busy={busy}
         acceptLabel={withdrawal ? 'Confirm withdrawal' : '✓ Accept'}
         declineLabel={withdrawal ? 'Keep them in' : 'Turn down'}
@@ -261,7 +261,9 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
   const confirmText = (() => {
     if (!confirming) return { title: '', body: '', action: '' };
     const e = confirming.entrant;
-    const name = e.name || e.label || 'this team';
+    // A division often has several "U16 A"s: a confirmation names whose.
+    const orgName = orgOf(e.orgId)?.name;
+    const name = e.name ? (orgName ? `${orgName}'s ${e.name}` : e.name) : e.label || 'this team';
     const f = teamFixtures(e, games);
     if (confirming.kind === 'withdraw' || confirming.kind === 'confirmWithdrawal') {
       return {
@@ -307,7 +309,7 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
   return (
     <TournamentCard
       title="Teams"
-      count={active.length}
+      count={active.length + entrants.filter(e => e.status === 'withdrawal_pending').length}
       right={canEdit ? (
         <TouchableOpacity onPress={() => setAdding(true)} accessibilityRole="button" className="flex-row items-center gap-1">
           <Text className="font-inter-bold text-sm text-primary-ink">＋ Add team</Text>

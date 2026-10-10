@@ -248,8 +248,11 @@ export default function DivisionScreen() {
         return <NextStrip tone="go" text="Everyone has answered." detail="Lock the entries to make the draw." action={{ label: locking ? 'Locking…' : '🔒 Lock entries', onPress: lockEntries }} />;
       }
       const late = entrants.filter(e => e.status === 'requested');
+      const orgName = (id?: string) => event.participatingOrgs?.find(o => o.id === id)?.name;
       const warning = late.length
-        ? late.length === 1 ? `${late[0].name || 'A team'} asks to enter late.` : `${late.length} teams ask to enter late.`
+        ? late.length === 1
+          ? `${[orgName(late[0].orgId), late[0].name || 'A team'].filter(Boolean).join(' ')} asks to enter late.`
+          : `${late.length} teams ask to enter late.`
         : undefined;
       return <NextStrip tone="go" text="Entries are locked — ready for the draw." warning={warning} isWide={isWide} action={{ label: 'Make the draw', onPress: () => setDrawDialog('make') }} />;
     }

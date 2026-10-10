@@ -98,7 +98,7 @@ export function RequestRow({ entrant, crest, sub, onAccept, onDecline, acceptLab
   busy?: boolean;
 }) {
   return (
-    <View className="rounded-xl bg-warning-soft border border-warning-line px-3 py-2.5 gap-2 my-1">
+    <View testID={`request-${entrant.id}`} className="rounded-xl bg-warning-soft border border-warning-line px-3 py-2.5 gap-2 my-1">
       <View className="flex-row items-center gap-2.5">
         {crest}
         <View className="flex-1 min-w-0">

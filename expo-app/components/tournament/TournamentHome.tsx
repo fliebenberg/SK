@@ -665,7 +665,7 @@ export function TournamentHome({
   const lockAllDialog = (
     <EditDialog
       visible={lockAll}
-      title={`Lock entries in ${plural(readyToLock.length, 'division')}?`}
+      title={readyToLock.length ? `Lock entries in ${plural(readyToLock.length, 'division')}?` : 'No division can be locked yet'}
       onClose={() => setLockAll(false)}
       onSave={readyToLock.length ? async () => {
         setLockingAll(true);
@@ -821,7 +821,6 @@ export function TournamentHome({
         eventName={event.name}
         divisionName={id => { const d = allDivisions.find(x => x.id === id); return d ? divisionFullName(d.name, sportName(d.sportId)) : ''; }}
         orgName={id => event.participatingOrgs?.find(o => o.id === id)?.name || 'Your organisation'}
-        orgAccepted={id => { const inv = invitationOf(id); return inv === 'accepted' || inv === 'withdrawal_pending'; }}
       />
       {nextStrip}
       {mineLine}

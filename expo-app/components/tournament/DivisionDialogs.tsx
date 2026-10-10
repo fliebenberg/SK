@@ -92,7 +92,7 @@ export function formatDetail(setting: FormatSetting | null, teams: number): stri
   if (setting.format === 'RoundRobin') {
     const fixtures = (teams * (teams - 1)) / 2 * setting.legs;
     const rounds = (teams % 2 ? teams : teams - 1) * setting.legs;
-    return `Everyone plays everyone${setting.legs > 1 ? ' twice' : ' once'} · ${fixtures} fixtures in ${rounds} rounds`;
+    return `Everyone plays everyone${setting.legs > 1 ? ' twice' : ' once'} · ${fixtures} ${fixtures === 1 ? 'fixture' : 'fixtures'} in ${rounds} ${rounds === 1 ? 'round' : 'rounds'}`;
   }
   if (setting.format === 'Knockout') return `${teams - 1 + (setting.thirdPlacePlayoff ? 1 : 0)} fixtures${setting.thirdPlacePlayoff ? ', with a game for third place' : ''}`;
   return `Pools first, then a knockout${setting.thirdPlacePlayoff ? ' with a game for third place' : ''}`;
@@ -309,7 +309,9 @@ export function DivisionDetailsDialog({
   // An automatic name follows the age group — but until the age group or sport changes it is the
   // name the division has now, which may be one given the old way ("Rugby U14").
   const unchanged = sportId === (division.sportId || '') && ageGroupId === (division.ageGroupId || null);
-  const derivedName = unchanged ? division.name : divisionAutoName(ageGroupName || undefined, namesInSport(sportId), division.name);
+  // Kept as it is only when it was never typed: an emptied custom name goes back to the automatic one,
+  // as the field's help says (found by the end-to-end tests, 2026-10-10).
+  const derivedName = unchanged && !savedCustom ? division.name : divisionAutoName(ageGroupName || undefined, namesInSport(sportId), savedCustom ? undefined : division.name);
   const name = customName?.trim() || derivedName;
   const nameClash = findTakenDivisionName(name, namesInSport(sportId));
 

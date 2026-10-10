@@ -105,6 +105,11 @@ export function SegmentedControl<T extends string = string>({
             disabled={!interactive || isActive || item.disabled}
             activeOpacity={0.85}
             accessibilityLabel={item.count !== undefined ? `${item.label}, ${item.count}` : undefined}
+            // A segment is a button that says whether it is the chosen one; the copies drawn only to
+            // measure (`fit`) are hidden from assistive technology, so each option is announced once.
+            accessibilityRole="button"
+            accessibilityState={{ selected: isActive, disabled: !interactive || isActive || !!item.disabled }}
+            aria-hidden={interactive ? undefined : true}
             className={`${segmentClass} px-3 py-2 rounded-lg ${
               isActive
                 ? 'bg-raised border border-line-selected shadow-sm'

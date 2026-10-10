@@ -9,11 +9,11 @@ import { formatDateRange } from '../../utils/dates';
 /**
  * A team's invitation to a tournament, for whoever answers for it — its coach, or its organisation's
  * admin (`FIX-31`; agreed on `mockups/team-invitations.html`): the team and its division, *✓ Accept*
- * and *✕ Decline*, and — only while the organisation has not accepted — the one thing a coach would
- * not assume: that their accept is seen only by their own organisation until it does. Declining
+ * and *✕ Decline*. That an accept is seen only by the team's own organisation until it accepts is
+ * said once, by the organisation's card above it on the tournament page (design rule 28). Declining
  * confirms first.
  */
-export function TeamInvitationRows({ entrants, orgId, eventName, divisionName, orgName, orgAccepted }: {
+export function TeamInvitationRows({ entrants, orgId, eventName, divisionName, orgName }: {
   /** Teams still invited, that this viewer may answer for. */
   entrants: TournamentEntrant[];
   /** The acting workspace. */
@@ -21,7 +21,6 @@ export function TeamInvitationRows({ entrants, orgId, eventName, divisionName, o
   eventName: string;
   divisionName: (divisionId: string) => string;
   orgName: (orgId?: string) => string;
-  orgAccepted: (orgId?: string) => boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [declining, setDeclining] = useState<TournamentEntrant | null>(null);
@@ -32,12 +31,11 @@ export function TeamInvitationRows({ entrants, orgId, eventName, divisionName, o
     if (result.ok) setDeclining(null);
   };
   if (!entrants.length) return null;
-  const waitingOn = [...new Set(entrants.filter(e => !orgAccepted(e.orgId)).map(e => orgName(e.orgId)))];
   return (
     <View className="rounded-2xl border border-warning-line bg-card p-4 gap-2">
       <Text className="font-inter-bold text-[18px] text-ink">{entrants.length === 1 ? 'Your team is invited' : 'Your teams are invited'}</Text>
       {entrants.map((e, i) => (
-        <View key={e.id} className={`flex-row flex-wrap items-center gap-x-3 gap-y-2 py-1.5 ${i ? 'border-t border-line-soft' : ''}`}>
+        <View key={e.id} testID={`team-invite-${e.id}`} className={`flex-row flex-wrap items-center gap-x-3 gap-y-2 py-1.5 ${i ? 'border-t border-line-soft' : ''}`}>
           <View className="flex-1" style={{ minWidth: 180 }}>
             <Text className="font-inter-bold text-sm text-ink">{e.name || 'Your team'}</Text>
             <Text className="font-inter text-xs text-ink-muted">{divisionName(e.divisionId)}</Text>
@@ -53,11 +51,6 @@ export function TeamInvitationRows({ entrants, orgId, eventName, divisionName, o
           </View>
         </View>
       ))}
-      {waitingOn.length ? (
-        <Text className="font-inter text-xs text-ink-muted">
-          {waitingOn.join(', ')} {waitingOn.length === 1 ? 'has' : 'have'} not accepted the invitation yet, so until {waitingOn.length === 1 ? 'it does' : 'they do'}, only your organisation will see that you accepted.
-        </Text>
-      ) : null}
       <ConfirmationModal
         isOpen={!!declining}
         title={`Decline ${eventName} for ${declining?.name || 'your team'}?`}
@@ -109,7 +102,7 @@ export function TeamEventsCard({ entries, canAnswer, orgId, onAnswered, onOpenEv
         const open = answerable(e);
         const when = formatDateRange(e.eventStartDate, e.eventEndDate);
         return (
-          <View key={e.id} className={`flex-row flex-wrap items-center gap-x-3 gap-y-2 py-2 ${open ? 'bg-warning-soft rounded-xl px-2.5 my-0.5' : 'border-t border-line-soft'}`}>
+          <View key={e.id} testID={`team-entry-${e.id}`} className={`flex-row flex-wrap items-center gap-x-3 gap-y-2 py-2 ${open ? 'bg-warning-soft rounded-xl px-2.5 my-0.5' : 'border-t border-line-soft'}`}>
             <TouchableOpacity onPress={() => onOpenEvent(e.eventId)} accessibilityRole="link" className="flex-1" style={{ minWidth: 180 }}>
               <Text className="font-inter-bold text-sm text-ink">{e.eventName}</Text>
               <Text className="font-inter text-xs text-ink-muted">{[e.divisionName, when, e.hostOrgName ? (open ? `invited by ${e.hostOrgName}` : e.hostOrgName) : null].filter(Boolean).join(' · ')}</Text>

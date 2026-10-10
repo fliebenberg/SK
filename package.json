@@ -8,9 +8,12 @@
     "release": "commit-and-tag-version",
     "release:push": "npm run release && git push --follow-tags",
     "review:rugby": "node scripts/rugby-review.js",
-    "interviews:pdf": "node scripts/interview-pdf.js"
+    "interviews:pdf": "node scripts/interview-pdf.js",
+    "e2e": "playwright test --config e2e/playwright.config.ts",
+    "e2e:report": "playwright show-report e2e/report"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "commit-and-tag-version": "^12.6.1"
   }
 }

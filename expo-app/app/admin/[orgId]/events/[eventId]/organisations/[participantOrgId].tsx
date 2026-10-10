@@ -60,6 +60,9 @@ function useLiveRoomOwnStatus(events: Event[], eventId: string, participantOrgId
   return events.find(e => e?.id === eventId)?.participatingOrgs?.find(o => o.id === participantOrgId)?.invitation;
 }
 
+/** One empty list, so a page still loading its event hands the same one to every render. */
+const NO_SPORTS: string[] = [];
+
 export default function OrganisationInTournamentScreen() {
   const { orgId, eventId, participantOrgId } = useLocalSearchParams<{ orgId: string; eventId: string; participantOrgId: string }>();
   const safeBack = useSafeBack();
@@ -125,7 +128,7 @@ export default function OrganisationInTournamentScreen() {
   }, [isConnected, canEdit, isOwnOrg, eventId, participantOrgId, org?.invitation, org?.answeredAt, org?.invitedAt]);
 
   /* -- teams ------------------------------------------------------------------------------- */
-  const teams = useOrgTeamPicks({ org, orgId, divisions, sportIds: event?.sportIds || [], entrants, candidateTeams });
+  const teams = useOrgTeamPicks({ org, orgId, divisions, sportIds: event?.sportIds || NO_SPORTS, entrants, candidateTeams });
   const [onlyEntered, setOnlyEntered] = useState(false);
   const { confirmThenNavigate } = useUnsavedChanges(teams.isDirty && !teams.saving, teams.reset);
   const save = async () => {
