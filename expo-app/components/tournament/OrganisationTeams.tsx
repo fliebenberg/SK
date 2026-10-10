@@ -13,7 +13,10 @@ import {
   teamQualifies,
   toEntrantInput,
   isEntrantEntered,
+  EntrantStatus,
+  entrantStatusShown,
 } from '@sk/shared';
+import { ENTRANT_LABEL, RequestRow, askedLine } from './DivisionEntries';
 import { PersonnelAutocomplete } from '../PersonnelAutocomplete';
 import { TEXT_INPUT } from '../formStyles';
 import { sendAction } from '../../services/actions';
@@ -25,6 +28,12 @@ import { themeColor } from '../../constants/Colors';
  * organisation's teams as chips — ticked is entered. Used by the organisation's page, which holds
  * the state (`useOrgTeamPicks`) so its save bar and unsaved-changes guard can see it.
  */
+
+/** A chip's answer word, in the ink of its badge (`EntrantBadge`). */
+const STATUS_INK: Record<EntrantStatus | 'not_invited', string> = {
+  not_invited: 'text-warning-ink', invited: 'text-info-ink', accepted: 'text-success-ink', declined: 'text-danger-ink',
+  withdrawal_pending: 'text-warning-ink', withdrawn: 'text-ink-muted', requested: 'text-warning-ink', rejected: 'text-danger-ink',
+};
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -42,6 +51,8 @@ export interface TeamPick {
   was: boolean;
   played: number;
   note?: string;
+  /** An entered team's answer (`FIX-31`), shown on its chip. */
+  status?: EntrantStatus;
 }
 
 /** The divisions the organisation can be in, in the tournament's sport order. */
@@ -70,7 +81,8 @@ export function useOrgTeamPicks({ org, orgId, divisions, sportIds, entrants, can
   const [picks, setPicks] = useState<Record<string, TeamPick[]>>({});
   const [saving, setSaving] = useState(false);
   const ordered = useMemo(() => orderedDivisions(divisions, sportIds), [divisions, sportIds]);
-  const active = useMemo(() => entrants.filter(e => isEntrantEntered(e.status)), [entrants]);
+  // Entered, and declined: a declined team stays ticked, as the record, rather than being offered again.
+  const active = useMemo(() => entrants.filter(e => isEntrantEntered(e.status) || e.status === 'declined'), [entrants]);
   const enteredTeamIds = useMemo(() => new Set(active.map(e => e.teamId).filter(Boolean) as string[]), [active]);
 
   const read = useCallback((): Record<string, TeamPick[]> => {
@@ -89,6 +101,7 @@ export function useOrgTeamPicks({ org, orgId, divisions, sportIds, entrants, can
           on: true,
           was: true,
           played: e.playedCount || 0,
+          status: e.status,
         }));
       // Its teams that can play here and are not entered anywhere in the tournament yet.
       for (const team of candidateTeams) {
@@ -141,7 +154,7 @@ export function useOrgTeamPicks({ org, orgId, divisions, sportIds, entrants, can
     for (const [divisionId, rows] of order) {
       // A roster is written whole (D13): everyone else's entries, and every withdrawn one, go back
       // as they are.
-      const others = entrants.filter(e => e.divisionId === divisionId && (!isEntrantEntered(e.status) || e.orgId !== org.id));
+      const others = entrants.filter(e => e.divisionId === divisionId && (!(isEntrantEntered(e.status) || e.status === 'declined') || e.orgId !== org.id));
       const roster = [
         ...others.map(e => toEntrantInput(e)),
         ...rows.filter(p => p.on).map(p => toEntrantInput({
@@ -169,7 +182,7 @@ export function useOrgTeamPicks({ org, orgId, divisions, sportIds, entrants, can
  * The teams card's body: each sport, then each division as a row of chips with a ＋. `onlyEntered`
  * shows only the divisions it has someone in — for a big club in a big tournament.
  */
-export function OrgTeamsByDivision({ org, orgId, sports, sportIds, picks, ordered, candidateTeams, enteredTeamIds, writable, canEdit, onlyEntered, isWide, onToggle, onAdd, onTeamCreated }: {
+export function OrgTeamsByDivision({ org, orgId, sports, sportIds, picks, ordered, candidateTeams, enteredTeamIds, writable, canEdit, onlyEntered, isWide, onToggle, onAdd, onTeamCreated, requests = [] }: {
   org: EventOrgBadge;
   orgId: string;
   sports: Sport[];
@@ -186,9 +199,17 @@ export function OrgTeamsByDivision({ org, orgId, sports, sportIds, picks, ordere
   onToggle: (divisionId: string, key: string) => void;
   onAdd: (divisionId: string, pick: Omit<TeamPick, 'on' | 'was' | 'played'>) => void;
   onTeamCreated: (team: Team) => void;
+  /** Its requests waiting for the organisers (`FIX-31`, `FIX-33`): added, late, or to withdraw. */
+  requests?: TournamentEntrant[];
 }) {
   const isDark = useActiveTheme() === 'dark';
   const [adding, setAdding] = useState<string | null>(null);
+  const [responding, setResponding] = useState(false);
+  const respond = async (e: TournamentEntrant, accept: boolean) => {
+    setResponding(true);
+    await sendAction(SocketAction.RESPOND_ENTRANT_REQUEST, { divisionId: e.divisionId, entrantId: e.id, orgId, accept });
+    setResponding(false);
+  };
   const sportOf = (id?: string) => sports.find(s => s.id === id);
 
   const chip = (divisionId: string, p: TeamPick) => (
@@ -202,6 +223,11 @@ export function OrgTeamsByDivision({ org, orgId, sports, sportIds, picks, ordere
     >
       {p.on ? <Ionicons name="checkmark" size={13} color={themeColor(isDark, 'ink')} /> : null}
       <Text className={`text-[13px] ${p.kind === 'placeholder' ? 'italic' : ''} ${p.on ? 'font-inter-semibold text-ink' : 'font-inter text-ink-soft'}`}>{p.label}</Text>
+      {p.was && p.status ? (() => {
+        // Its answer as the organisers see it: Invited until its organisation accepts (rule 5).
+        const shown = entrantStatusShown(p.status, org.invitation, false);
+        return <Text className={`font-inter-semibold text-[11px] ${STATUS_INK[shown]}`}>{ENTRANT_LABEL[shown]}</Text>;
+      })() : null}
       {p.played ? <Text className="font-inter text-[11px] text-warning-ink">played {p.played}</Text> : null}
       {p.note ? <Text className="font-inter text-[11px] text-ink-muted">{p.note}</Text> : null}
     </TouchableOpacity>
@@ -243,6 +269,22 @@ export function OrgTeamsByDivision({ org, orgId, sports, sportIds, picks, ordere
                     {d.name}{individual ? ' · players' : ''}
                   </Text>
                   <View className="flex-1 gap-1.5">
+                    {requests.filter(e => e.divisionId === d.id).map(e => {
+                      const withdrawal = e.status === 'withdrawal_pending';
+                      return (
+                        <RequestRow
+                          key={e.id}
+                          entrant={e}
+                          crest={null}
+                          sub={askedLine(e, withdrawal ? undefined : d.entriesLockedAt ? 'after the lock' : 'added')}
+                          busy={responding}
+                          acceptLabel={withdrawal ? 'Confirm withdrawal' : '✓ Accept'}
+                          declineLabel={withdrawal ? 'Keep them in' : 'Turn down'}
+                          onAccept={canEdit ? () => respond(e, true) : undefined}
+                          onDecline={canEdit ? () => respond(e, false) : undefined}
+                        />
+                      );
+                    })}
                     <View className="flex-row flex-wrap items-center gap-1.5">
                       {rows.map(p => chip(d.id, p))}
                       {!rows.length ? <Text className="font-inter text-xs text-ink-muted">No {d.ageGroup ? `${d.ageGroup} ` : ''}{individual ? 'players' : 'team'}</Text> : null}

@@ -1,3 +1,4 @@
+import { useMineAll } from '../../../../hooks/useMineAll';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -77,7 +78,6 @@ type When = 'upcoming' | 'past';
 type View_ = 'events' | 'games';
 type Scope = 'mine' | 'all';
 
-const SCOPE_KEY = 'eventsListScope';
 const VIEW_KEY = 'eventsListView';
 /** Per organisation, since the sports on offer differ between them. */
 const filtersKey = (orgId?: string) => `eventsListFilters:${orgId}`;
@@ -116,12 +116,11 @@ export default function OrgEventsList() {
 
   /* Mine / All and Events / All games are remembered on this device. Until someone chooses, Admin
      and Staff see everything the organisation has on, and everyone else what is theirs. */
-  const savedScope = useSettingsStore(state => state.localOverrides[SCOPE_KEY]) as Scope | undefined;
   const savedView = useSettingsStore(state => state.localOverrides[VIEW_KEY]) as View_ | undefined;
   const setLocalOverride = useSettingsStore(state => state.setLocalOverride);
-  const scope: Scope = savedScope ?? (canCreate ? 'all' : 'mine');
+  // Shared with the tournament pages (`useMineAll`): one Mine / All everywhere.
+  const [scope, setScope] = useMineAll(canCreate);
   const view: View_ = savedView ?? 'events';
-  const setScope = (next: Scope) => setLocalOverride(SCOPE_KEY, next);
   const setView = (next: View_) => setLocalOverride(VIEW_KEY, next);
 
   const [search, setSearch] = useState('');

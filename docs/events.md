@@ -273,8 +273,21 @@ Say *organisations*, never *schools*: clubs take part too.
   - **Who sees it**: its public lists show the tournament only once it has accepted; its members see
     an invitation, a decline or a withdrawal in the workspace; one that declined or withdrew keeps
     only the public view. The rules are `server/src/managers/eventVisibility.ts`.
-  - The organisation's page is open to its own members once it is invited; its teams are read-only
-    for them until teams answer for themselves (`FIX-31`).
+  - The organisation's page is open to its own members once it is invited. **They answer for its
+    teams on cards** (`FIX-31`, built 2026-10-10; `mockups/team-invitations.html`): each sport, then
+    each division with its name on the left and its teams on the right, each team a card — its name
+    (the link to the team), its answer, who gave it and when, and buttons that say what they do:
+    *✓ Accept* / *✕ Decline* while invited; the other answer once answered (confirmed first);
+    *Withdraw* once locked (a reason, for the organisers to confirm); *Cancel request*. Its admins
+    for any team, a coach for the teams they coach — with **Mine / All** for a coach, the events
+    list's one choice. *＋ Add a team* sits under a division's name where it allows adding and is
+    open (`FIX-33`); *＋ Ask to enter late* under a locked one with no team of ours. A strip,
+    *Outstanding responses N · Show ›*, and the filter *All · Outstanding · Declined* narrow to
+    what needs answering. **Accept** offers *Accept for all invited teams* (on), over its teams as
+    chips with ✓ / ✕ where already answered; **Decline** says every team is declined too and that
+    only the organisers can change it after. What holds for every team is said once, in the ⓘ by
+    the decision (design rule 28). The organisers' chips show each team's answer and list its
+    requests under their division. [OrganisationTeamCards.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/OrganisationTeamCards.tsx).
 - **Done** when every organisation still in it has accepted and has at least one entry, and none is
   asking to withdraw. Since 2026-10-09 it no longer waits for every division to have two entrants:
   that keeps **Fixtures** from being done instead, as such a division cannot be drawn.

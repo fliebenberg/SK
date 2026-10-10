@@ -128,9 +128,11 @@ export interface FieldLabelProps {
    * section stands out from the text inside it (design_system.md, *Section headings*; 2026-10-09).
    */
   heading?: boolean;
+  /** A heading's count, beside it in the muted ink — "Teams 5" (design_system.md, *A section's heading*). */
+  count?: number;
 }
 
-export function FieldLabel({ label, help, required, optional, heading }: FieldLabelProps) {
+export function FieldLabel({ label, help, required, optional, heading, count }: FieldLabelProps) {
   const isDark = useActiveTheme() === 'dark';
   const showByDefault = useShowFieldHelp();
   const setLocalOverride = useSettingsStore((state: any) => state.setLocalOverride);
@@ -220,6 +222,7 @@ export function FieldLabel({ label, help, required, optional, heading }: FieldLa
         <Text className={heading ? 'font-inter-bold text-[18px] text-ink' : 'font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider'}>
           {label}
         </Text>
+        {heading && count !== undefined ? <Text className="font-inter text-[15px] text-ink-muted">{count}</Text> : null}
         {required && <Text className="font-inter text-[10px] text-primary-ink">*</Text>}
         {optional && (
           <Text className="font-inter text-[10px] text-ink-muted">Optional</Text>

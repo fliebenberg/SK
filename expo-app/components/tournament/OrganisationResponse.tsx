@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Event, EventOrgBadge, EventOrgHistory, SocketAction } from '@sk/shared';
+import { Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Event, EventOrgBadge, EventOrgHistory, SocketAction, TournamentDivision, TournamentEntrant, isEntrantEntered } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
+import { FieldLabel } from '../FieldLabel';
+import { useActiveTheme } from '../../store/settingsStore';
+import { themeColor } from '../../constants/Colors';
 import { TEXT_INPUT } from '../formStyles';
 import { sendAction } from '../../services/actions';
 import { formatInstantDate } from '../../utils/dates';
@@ -27,7 +30,7 @@ type Viewer = 'organiser' | 'organisation';
 /** The reason is long: the card moves under the banner, full width, as it is on a phone. */
 export const isLongReason = (history: EventOrgHistory | null) => (history?.withdrawal?.reason?.length || 0) > 120;
 
-export function OrganisationResponse({ event, orgId, org, isHost, viewer, canAnswer, hostName, history, myUserId, wide, onRemove }: {
+export function OrganisationResponse({ event, orgId, org, isHost, viewer, canAnswer, hostName, history, myUserId, wide, onRemove, teams = [], divisions = [], sportName = () => '' }: {
   event: Event;
   /** The acting workspace. */
   orgId: string;
@@ -43,10 +46,14 @@ export function OrganisationResponse({ event, orgId, org, isHost, viewer, canAns
   /** Beside the banner (a fixed width), rather than under it. */
   wide: boolean;
   onRemove: () => void;
+  /** The organisation's teams in the tournament — Accept may accept them too; Decline declines them. */
+  teams?: TournamentEntrant[];
+  divisions?: TournamentDivision[];
+  sportName?: (sportId?: string) => string;
 }) {
   const [busy, setBusy] = useState(false);
   const [changing, setChanging] = useState(false);
-  const [dialog, setDialog] = useState<null | 'decline' | 'withdraw'>(null);
+  const [dialog, setDialog] = useState<null | 'accept' | 'decline' | 'withdraw'>(null);
   const organiser = viewer === 'organiser';
   const status = org.invitation;
   useEffect(() => setChanging(false), [status]);
@@ -57,8 +64,8 @@ export function OrganisationResponse({ event, orgId, org, isHost, viewer, canAns
     setBusy(false);
     return result.ok;
   };
-  const answer = (value: 'invited' | 'accepted' | 'declined' | 'withdrawn') =>
-    send(() => sendAction(SocketAction.SET_EVENT_ORG_ANSWER, { eventId: event.id, orgId, participantOrgId: org.id, answer: value }));
+  const answer = (value: 'invited' | 'accepted' | 'declined' | 'withdrawn', acceptTeams?: boolean) =>
+    send(() => sendAction(SocketAction.SET_EVENT_ORG_ANSWER, { eventId: event.id, orgId, participantOrgId: org.id, answer: value, ...(acceptTeams ? { acceptTeams } : {}) }));
   const invite = () => send(() => sendAction(SocketAction.INVITE_EVENT_ORGS, { eventId: event.id, orgId, participantOrgIds: [org.id] }));
   const cancelWithdrawal = () => send(() => sendAction(SocketAction.CANCEL_EVENT_WITHDRAWAL, { eventId: event.id, orgId, participantOrgId: org.id }));
 
@@ -103,7 +110,7 @@ export function OrganisationResponse({ event, orgId, org, isHost, viewer, canAns
   const line = (text: string) => <Text className="font-inter text-xs text-ink-muted">{text}</Text>;
   const row = (...items: React.ReactNode[]) => <View className="flex-row flex-wrap items-center gap-x-3.5 gap-y-2 mt-0.5">{items}</View>;
   const remove = organiser ? link('Remove from the tournament', onRemove, true) : null;
-  const contact = line(`To change this, contact ${hostName}.`);
+  const contact = line('To change this, contact the organisers.');
 
   let title = 'Response';
   let body: React.ReactNode;
@@ -123,12 +130,14 @@ export function OrganisationResponse({ event, orgId, org, isHost, viewer, canAns
         </>
       );
     } else {
-      title = `${hostName} has invited you`;
-      body = (
+      title = canAnswer ? `${hostName} has invited you` : 'Not answered yet';
+      body = canAnswer ? (
         <>
-          {canAnswer ? row(button('Accept', () => answer('accepted'), 'primary'), button('Decline', () => setDialog('decline'))) : null}
-          {line(canAnswer ? invitedLine : `${invitedLine}. Your organisation's admins can answer.`)}
+          {row(button('✓ Accept', () => setDialog('accept'), 'primary'), button('✕ Decline', () => setDialog('decline')))}
+          {line(invitedLine)}
         </>
+      ) : (
+        line(`${org.name}'s admins answer for the organisation; you answer for your team. Until it accepts, only your organisation will see if you accept.`)
       );
     }
   } else if (status === 'accepted') {
@@ -149,14 +158,14 @@ export function OrganisationResponse({ event, orgId, org, isHost, viewer, canAns
           {line(`${asked?.requestedBy ? `${asked.requestedBy.name}${asked.requestedBy.orgName ? ` (${asked.requestedBy.orgName})` : ''}` : org.name}${asked?.requestedAt ? ` · ${date(asked.requestedAt)}` : ''}`)}
           {reason}
           {row(button('Confirm withdrawal', () => answer('withdrawn'), 'danger'), button('Keep them in', () => answer('accepted')))}
-          {line('Confirming removes all the teams from the tournament.')}
+          {line('Confirming withdraws all its teams.')}
         </>
       );
     } else {
       title = 'Withdrawal requested';
       body = (
         <>
-          {line(`${who(asked?.requestedBy).replace(/^ by /, 'By ') || 'Asked'}${asked?.requestedAt ? ` · ${date(asked.requestedAt)}` : ''}. ${hostName} has been told and needs to confirm it. Until then nothing changes: your teams stay in the tournament.`)}
+          {line(`${who(asked?.requestedBy).replace(/^ by /, 'By ') || 'Asked'}${asked?.requestedAt ? ` · ${date(asked.requestedAt)}` : ''}. The organisers have been told and need to confirm it. Until then nothing changes: your teams stay in the tournament.`)}
           {reason}
           {canAnswer ? row(link('Cancel the withdrawal', cancelWithdrawal)) : null}
         </>
@@ -175,15 +184,29 @@ export function OrganisationResponse({ event, orgId, org, isHost, viewer, canAns
 
   return (
     <View className="rounded-2xl border border-line bg-card p-4 gap-2" style={wide ? { width: 300 } : undefined}>
-      <Text className="font-inter-bold text-[18px] text-ink">{title}</Text>
+      {!organiser && canAnswer && status === 'invited' ? (
+        <FieldLabel heading label={title} help="Until you accept, the organisers do not see your teams' acceptances — only declines." />
+      ) : (
+        <Text className="font-inter-bold text-[18px] text-ink">{title}</Text>
+      )}
       {body}
+
+      <AcceptDialog
+        visible={dialog === 'accept'}
+        event={event}
+        teams={teams}
+        divisions={divisions}
+        sportName={sportName}
+        onClose={() => setDialog(null)}
+        onConfirm={async acceptTeams => { if (await answer('accepted', acceptTeams)) setDialog(null); }}
+      />
 
       <DeclineDialog
         visible={dialog === 'decline'}
         event={event}
         org={org}
         viewer={viewer}
-        hostName={hostName}
+        teams={teams}
         onClose={() => setDialog(null)}
         onConfirm={async () => { if (await answer('declined')) setDialog(null); }}
       />
@@ -199,31 +222,112 @@ export function OrganisationResponse({ event, orgId, org, isHost, viewer, canAns
   );
 }
 
-/** Declining takes the organisation's teams out, so it is said first. */
-function DeclineDialog({ visible, event, org, viewer, hostName, onClose, onConfirm }: {
+/**
+ * Declining answers for every team, and is final for the organisation (`FIX-30`, `FIX-31`), so it is
+ * said first: every team is declined — naming any a coach had accepted — and only the organisers can
+ * change it afterwards.
+ */
+function DeclineDialog({ visible, event, org, viewer, teams, onClose, onConfirm }: {
   visible: boolean;
   event: Event;
   org: EventOrgBadge;
   viewer: Viewer;
-  hostName: string;
+  teams: TournamentEntrant[];
   onClose: () => void;
   onConfirm: () => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const going = teams.filter(t => isEntrantEntered(t.status) || t.status === 'requested');
+  const coachAccepted = going.filter(t => t.status === 'accepted');
+  const including = coachAccepted.length
+    ? `, including ${coachAccepted.map(t => t.name).join(', ')}, which ${coachAccepted.length === 1 ? 'had been' : 'had each been'} accepted`
+    : '';
+  const teamsLine = !going.length ? ''
+    : viewer === 'organiser'
+      ? `${going.length === 1 ? 'Its team is' : `All ${going.length} of its teams are`} declined too${including}. ${org.name} stays listed, as declined.`
+      : `${going.length === 1 ? 'Your team is' : `All ${going.length} of your teams are`} declined too${including}.`;
   return (
     <EditDialog
       visible={visible}
       title={viewer === 'organiser' ? `Record that ${org.name} declined?` : `Decline ${event.name}?`}
       onClose={onClose}
       onSave={async () => { setSaving(true); await onConfirm(); setSaving(false); }}
-      saveLabel="Decline"
+      saveLabel="✕ Decline"
       isSaving={saving}
     >
-      <Text className="font-inter text-sm text-ink leading-relaxed">
-        {viewer === 'organiser'
-          ? `${org.name}'s teams are taken out of their divisions. It stays listed, as declined.`
-          : `${hostName} is told, and any teams entered for you are taken out. To change your answer later, you will need to contact ${hostName}.`}
-      </Text>
+      {teamsLine ? (
+        <Text className="font-inter text-sm text-ink leading-relaxed">{teamsLine}</Text>
+      ) : null}
+      {viewer === 'organiser' ? null : (
+        <View className="rounded-xl bg-warning-soft border border-warning-line px-3 py-2">
+          <Text className="font-inter-semibold text-[13px] text-warning-ink">You cannot change your answer afterwards — only the organisers can.</Text>
+        </View>
+      )}
+    </EditDialog>
+  );
+}
+
+/**
+ * Accepting the invitation (`FIX-31`): *Accept for all invited teams*, on by default, with its ⓘ — teams
+ * already declined keep their answer, all the others become accepted — over the organisation's teams by
+ * sport and division, as chips: the name, with ✓ or ✕ where a coach has already answered.
+ */
+function AcceptDialog({ visible, event, teams, divisions, sportName, onClose, onConfirm }: {
+  visible: boolean;
+  event: Event;
+  teams: TournamentEntrant[];
+  divisions: TournamentDivision[];
+  sportName: (sportId?: string) => string;
+  onClose: () => void;
+  onConfirm: (acceptTeams: boolean) => void;
+}) {
+  const isDark = useActiveTheme() === 'dark';
+  const [all, setAll] = useState(true);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { if (visible) setAll(true); }, [visible]);
+  const listed = teams.filter(t => t.status === 'invited' || t.status === 'accepted' || t.status === 'declined');
+  const bySport = (event.sportIds || [])
+    .map(sportId => ({ sportId, divisions: divisions.filter(d => d.sportId === sportId && listed.some(t => t.divisionId === d.id)) }))
+    .filter(g => g.divisions.length);
+  return (
+    <EditDialog
+      visible={visible}
+      title={`Accept ${event.name}?`}
+      onClose={onClose}
+      onSave={async () => { setSaving(true); await onConfirm(all && listed.some(t => t.status === 'invited')); setSaving(false); }}
+      saveLabel="✓ Accept"
+      isSaving={saving}
+    >
+      <Text className="font-inter text-sm text-ink leading-relaxed">The organisers will see that you have accepted.</Text>
+      {listed.length ? (
+        <>
+          <View className="flex-row items-start gap-3">
+            <View className="flex-1 min-w-0">
+              <FieldLabel label="Accept for all invited teams" help="Teams already declined keep their answer; all the others become Accepted." />
+            </View>
+            <Switch value={all} onValueChange={setAll} trackColor={{ true: themeColor(isDark, 'primary') }} accessibilityLabel="Accept for all invited teams" />
+          </View>
+          <View className="rounded-xl border border-line px-3 pb-2">
+            {bySport.map(group => (
+              <View key={group.sportId}>
+                <Text className="font-inter-bold text-sm text-ink pt-2">{sportName(group.sportId)}</Text>
+                {group.divisions.map(d => (
+                  <View key={d.id} className="flex-row flex-wrap items-center gap-2 py-1.5 border-t border-line-soft">
+                    <Text className="font-inter-semibold text-[13px] text-ink-soft" style={{ width: 80 }}>{d.name}</Text>
+                    {listed.filter(t => t.divisionId === d.id).map(t => (
+                      <View key={t.id} className="flex-row items-center gap-1 rounded-full border border-line-strong px-3 py-1">
+                        {t.status === 'accepted' ? <Text className="font-inter-bold text-[13px] text-success-ink">✓</Text> : null}
+                        {t.status === 'declined' ? <Text className="font-inter-bold text-[13px] text-danger-ink">✕</Text> : null}
+                        <Text className={`font-inter-semibold text-[13px] ${t.status === 'declined' ? 'text-ink-muted' : 'text-ink'}`}>{t.name || 'A team'}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
+        </>
+      ) : null}
     </EditDialog>
   );
 }
@@ -260,7 +364,7 @@ function WithdrawDialog({ visible, event, orgId, org, hostName, onClose }: {
       isDirty={!!reason.trim()}
     >
       <Text className="font-inter text-sm text-ink leading-relaxed">
-        Since your organisation has already accepted, {hostName} will be informed and needs to confirm your withdrawal. Until they do, nothing changes — your teams stay in the tournament, and you can cancel the request.
+        Since your organisation has already accepted, the organisers will be told and need to confirm your withdrawal. Until they do, nothing changes — your teams stay in the tournament, and you can cancel the request.
       </Text>
       <View className="gap-1.5">
         <Text className="font-inter-semibold text-[13px] text-ink-soft">Why are you withdrawing?</Text>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +19,9 @@ import { InvitationBadge } from '../../../../../../components/tournament/Tournam
 import { NominateFor, RemoveOrganisationDialog, useCanWriteInto } from '../../../../../../components/tournament/OrganisationDialogs';
 import { OrgTeamsByDivision, useOrgTeamPicks } from '../../../../../../components/tournament/OrganisationTeams';
 import { OrganisationResponse, isLongReason } from '../../../../../../components/tournament/OrganisationResponse';
+import { OrganisationTeamCards } from '../../../../../../components/tournament/OrganisationTeamCards';
+import { useOrgTeams } from '../../../../../../hooks/useOrgTeams';
+import { useMineAll } from '../../../../../../hooks/useMineAll';
 import { useEventDivisions, useEventRecord, useSports } from '../../../../../../hooks/useEventRooms';
 import { useEventEntrants } from '../../../../../../hooks/useEventEntrants';
 import { useEventCapabilities } from '../../../../../../hooks/useEventCapabilities';
@@ -47,7 +50,8 @@ import { wsService } from '../../../../../../services/websocket';
  *
  * **Two readers** (`FIX-30`): the tournament's organisers, who manage everything here, and the
  * organisation's own members once it is invited — they answer (an admin, not staff: `FIX-31`), ask
- * to withdraw, and see their teams, read-only until teams answer for themselves (`FIX-31`).
+ * to withdraw, and answer for its teams on cards (`OrganisationTeamCards`, `FIX-31`): its admins for
+ * any team, a coach for their own, with Mine / All for a coach.
  */
 
 
@@ -72,8 +76,16 @@ export default function OrganisationInTournamentScreen() {
   const memberships = useAuthStore((state: any) => state.orgMemberships) || [];
   const current = (m: any) => m.orgId === participantOrgId && (!m.endDate || new Date(m.endDate) > new Date());
   const isOwnOrg = memberships.some(current);
-  // Answering for it is an admin's or staff member's, as the server's `answer-invitation` gate has it.
+  // Answering for it is an admin's, as the server's `answer-invitation` gate has it (`FIX-31`).
   const adminsOwnOrg = memberships.some((m: any) => current(m) && m.roleId === 'role-org-admin');
+  // A team's coach answers for their own team (`FIX-31`): the teams this viewer coaches.
+  const teamMemberships = useAuthStore((state: any) => state.teamMemberships) || [];
+  const coachTeamIds = useMemo(
+    () => new Set<string>(teamMemberships.filter((m: any) => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach').map((m: any) => m.teamId)),
+    [teamMemberships]
+  );
+  // Mine / All — the events list's one choice (`useMineAll`) — for a coach who is not an admin.
+  const [mineAll, setMineAll] = useMineAll(adminsOwnOrg);
 
   /* -- data ------------------------------------------------------------------------------- */
   const { event, items: eventItems, isLoading: eventLoading } = useEventRecord(eventId);
@@ -83,6 +95,8 @@ export default function OrganisationInTournamentScreen() {
   const { entrants } = useEventEntrants(eventId, canEdit || (isOwnOrg && !!ownStatus && ['invited', 'accepted', 'withdrawal_pending'].includes(ownStatus)));
 
   const sports = useSports();
+  // Its own teams, for asking to add one (the candidate set is the organisers').
+  const { teams: ownTeams } = useOrgTeams(isOwnOrg && !canEdit ? participantOrgId : null);
   const [candidateTeams, setCandidateTeams] = useState<CandidateTeam[]>([]);
   // The teams that could be entered: a one-shot read, as no room owns that set (`FIX-2`).
   useEffect(() => {
@@ -143,6 +157,10 @@ export default function OrganisationInTournamentScreen() {
   const enteredDivisions = Object.entries(teams.picks).filter(([, rows]) => rows.some(p => p.was)).length;
 
   const viewer = canEdit ? 'organiser' : 'organisation';
+  // A coach of one of its teams in the tournament, and not its admin: Mine / All applies.
+  const ownEntrants = entrants.filter(e => e.orgId === org.id);
+  const coachOnly = !canEdit && !adminsOwnOrg && ownEntrants.some(e => !!e.teamId && coachTeamIds.has(e.teamId));
+  const myTeamNames = ownEntrants.filter(e => !!e.teamId && coachTeamIds.has(e.teamId)).map(e => e.name).filter(Boolean).join(', ');
   const response = (
     <OrganisationResponse
       event={event}
@@ -156,6 +174,9 @@ export default function OrganisationInTournamentScreen() {
       myUserId={myUserId}
       wide={isWide && !isLongReason(history)}
       onRemove={() => setDialog('remove')}
+      teams={entrants.filter(e => e.orgId === org.id)}
+      divisions={divisions}
+      sportName={id => sports.find(sp => sp.id === id)?.name || ''}
     />
   );
   // A long reason would make the card beside the banner tall and narrow: it goes under it instead.
@@ -193,53 +214,86 @@ export default function OrganisationInTournamentScreen() {
         <View className="w-full self-center gap-4" style={{ maxWidth: 960 }}>
           {sideBySide ? <View className="flex-row gap-4 items-stretch">{banner}{response}</View> : <>{banner}{response}</>}
 
-          <View className="rounded-2xl border border-line bg-card p-4 gap-2">
-            {/* A section heading (design_system.md, *Section headings*): the control drops under it when it does not fit. */}
-            <View className="flex-row flex-wrap items-center gap-x-2.5 gap-y-1.5">
-              <View className="flex-row items-baseline gap-2">
-                <Text className="font-inter-bold text-[18px] text-ink">Teams</Text>
-                <Text className="font-inter text-[15px] text-ink-muted">{entered.length}</Text>
+          {canEdit ? (
+            <View className="rounded-2xl border border-line bg-card p-4 gap-2">
+              {/* A section heading (design_system.md, *Section headings*): the control drops under it when it does not fit. */}
+              <View className="flex-row flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                <View className="flex-row items-baseline gap-2">
+                  <Text className="font-inter-bold text-[18px] text-ink">Teams</Text>
+                  <Text className="font-inter text-[15px] text-ink-muted">{entered.length}</Text>
+                </View>
+                <View className="flex-1" />
+                <SegmentedControl
+                  fit
+                  isCompact
+                  value={onlyEntered ? 'entered' : 'all'}
+                  onChange={key => setOnlyEntered(key === 'entered')}
+                  options={[{ key: 'all', label: 'All divisions' }, { key: 'entered', label: 'Entered' }]}
+                />
               </View>
-              <View className="flex-1" />
-              <SegmentedControl
-                fit
-                isCompact
-                value={onlyEntered ? 'entered' : 'all'}
-                onChange={key => setOnlyEntered(key === 'entered')}
-                options={[{ key: 'all', label: 'All divisions' }, { key: 'entered', label: 'Entered' }]}
-              />
+              {hasLeft(org.invitation) ? (
+                <Text className="font-inter text-[13px] text-ink-muted">{org.invitation === 'declined' ? 'Declined' : 'Withdrawn'}: its teams were taken out of their divisions.</Text>
+              ) : <OrgTeamsByDivision
+                org={org}
+                orgId={orgId}
+                sports={sports}
+                sportIds={event.sportIds || []}
+                picks={teams.picks}
+                ordered={teams.ordered}
+                candidateTeams={candidateTeams}
+                enteredTeamIds={teams.enteredTeamIds}
+                writable={canWriteInto(org, orgId)}
+                canEdit={canEdit}
+                onlyEntered={onlyEntered}
+                isWide={isWide}
+                requests={entrants.filter(e => e.orgId === org.id && (e.status === 'requested' || e.status === 'withdrawal_pending'))}
+                onToggle={teams.toggle}
+                onAdd={teams.add}
+                onTeamCreated={team => setCandidateTeams(prev => [...prev, {
+                  id: team.id, name: team.name, shortName: team.shortName, orgId: team.orgId,
+                  orgName: org.name, orgShortName: org.shortName,
+                  sportId: team.sportId, ageGroupId: team.ageGroupId ?? null, ageGroup: team.ageGroup,
+                }])}
+              />}
+              {teams.withdrawing.length ? (
+                <View className="rounded-xl bg-warning-soft px-3 py-2">
+                  <Text className="font-inter text-[13px] text-warning-ink">
+                    {teams.withdrawing.map(p => p.label).join(', ')} {teams.withdrawing.length === 1 ? 'has' : 'have'} played, so saving withdraws {teams.withdrawing.length === 1 ? 'it' : 'them'} rather than removing: results stay in the table, and remaining fixtures stay in the draw until replaced or redrawn.
+                  </Text>
+                </View>
+              ) : null}
             </View>
-            {hasLeft(org.invitation) ? (
-              <Text className="font-inter text-[13px] text-ink-muted">{org.invitation === 'declined' ? 'Declined' : 'Withdrawn'}: its teams were taken out of their divisions.</Text>
-            ) : <OrgTeamsByDivision
-              org={org}
-              orgId={orgId}
-              sports={sports}
-              sportIds={event.sportIds || []}
-              picks={teams.picks}
-              ordered={teams.ordered}
-              candidateTeams={candidateTeams}
-              enteredTeamIds={teams.enteredTeamIds}
-              writable={canWriteInto(org, orgId)}
-              canEdit={canEdit}
-              onlyEntered={onlyEntered}
-              isWide={isWide}
-              onToggle={teams.toggle}
-              onAdd={teams.add}
-              onTeamCreated={team => setCandidateTeams(prev => [...prev, {
-                id: team.id, name: team.name, shortName: team.shortName, orgId: team.orgId,
-                orgName: org.name, orgShortName: org.shortName,
-                sportId: team.sportId, ageGroupId: team.ageGroupId ?? null, ageGroup: team.ageGroup,
-              }])}
-            />}
-            {teams.withdrawing.length ? (
-              <View className="rounded-xl bg-warning-soft px-3 py-2">
-                <Text className="font-inter text-[13px] text-warning-ink">
-                  {teams.withdrawing.map(p => p.label).join(', ')} {teams.withdrawing.length === 1 ? 'has' : 'have'} played, so saving withdraws {teams.withdrawing.length === 1 ? 'it' : 'them'} rather than removing: results stay in the table, and remaining fixtures stay in the draw until replaced or redrawn.
-                </Text>
-              </View>
-            ) : null}
-          </View>
+          ) : (
+            <>
+              {coachOnly ? (
+                <View className={isWide ? 'flex-row items-center gap-3' : 'gap-1'}>
+                  <SegmentedControl
+                    fit
+                    isCompact
+                    value={mineAll}
+                    onChange={key => setMineAll(key as 'mine' | 'all')}
+                    options={[{ key: 'mine', label: 'Mine' }, { key: 'all', label: 'All' }]}
+                  />
+                  <Text className="font-inter text-xs text-ink-muted">
+                    {mineAll === 'mine' ? `Showing ${myTeamNames || 'your teams'}` : `Showing all of ${org.name}'s teams`}
+                  </Text>
+                </View>
+              ) : null}
+              <OrganisationTeamCards
+                event={event}
+                org={org}
+                actingOrgId={orgId}
+                divisions={divisions}
+                sports={sports}
+                entrants={entrants}
+                ownTeams={ownTeams}
+                isAdmin={adminsOwnOrg}
+                coachTeamIds={coachTeamIds}
+                onlyTeamIds={coachOnly && mineAll === 'mine' ? coachTeamIds : null}
+                isWide={isWide}
+              />
+            </>
+          )}
         </View>
       </ScrollView>
 
