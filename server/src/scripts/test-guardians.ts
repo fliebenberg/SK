@@ -6,7 +6,7 @@ import { accessManager } from '../managers/AccessManager';
 
 /**
  * Guardians and minors' member privileges (`MEMBER-3`, Phase 1 of
- * docs/guardians-implementation-plan.md), end to end over a real socket against the test
+ * docs/identity_structure.md §5), end to end over a real socket against the test
  * organisations (Doringkloof).
  *
  *  - Guardian links: who may add, change and end them; one primary per player; the refusals

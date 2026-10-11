@@ -15,7 +15,7 @@
  * `isAdminOrCoach`. Identity (which profiles are yours) and team duties (coach, scorer, organiser
  * grants) are deliberately untouched: a restricted minor is still linked to their profile, still
  * sees the organisation as theirs, and still coaches the team they were appointed to
- * (docs/guardians-implementation-plan.md §0.3).
+ * (docs/identity_structure.md §5.3).
  *
  * Coming of age: `birthdate > CURRENT_DATE - make_interval(years => n)` makes the birthday itself
  * the first adult day, and a 29 February birthday come of age on 1 March — the same as

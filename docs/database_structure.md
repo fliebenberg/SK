@@ -224,8 +224,7 @@ allows minors their own account (`settings.minors.accountsAllowed`, off unless e
 [minorAccess.ts](file:///c:/Fred/Coding/SK/server/src/managers/minorAccess.ts); the shared tests
 define both. A restricted minor is still linked to their profile and still a member — only the
 org-wide privilege checks treat them as an outsider, and team duties (coach, scorer) still work. See
-[guardians-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/guardians-implementation-plan.md)
-§0.3.
+[identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.3.
 
 ### 8a. `profile_guardians`
 Links a guardian's org profile to a player's, in the same organisation (`MEMBER-3`). **Being a

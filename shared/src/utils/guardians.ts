@@ -5,7 +5,7 @@
  * them, cannot disagree. The server's SQL (`AccessManager.MEMBER_PRIVILEGED`) must match
  * {@link memberAccess} — the tests below are the definition of both.
  *
- * See docs/guardians-implementation-plan.md §0.3 for why the rule is shaped this way.
+ * See docs/identity_structure.md §5.3 for why the rule is shaped this way.
  */
 import { normalizeEmail } from './memberInvite';
 import { calendarDateParts, type CalendarDate } from './calendarDate';
@@ -99,7 +99,7 @@ export type MemberAccess = { access: 'full' } | { access: 'restricted'; reason: 
  *
  * A restricted member is still a member — linked, and shown the organisation as theirs — but is
  * treated as an outsider by every org-wide privilege check. Team duties (coach, scorer) are
- * separate and unaffected (plan §0.3).
+ * separate and unaffected (docs/identity_structure.md §5.3).
  */
 export function memberAccess(
   person: { birthdate?: string | null; ownAccountAllowed?: boolean | null },

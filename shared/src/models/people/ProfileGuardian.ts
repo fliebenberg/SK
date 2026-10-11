@@ -14,7 +14,7 @@ export const GUARDIAN_RELATIONSHIPS: GuardianRelationship[] = ['parent', 'guardi
  *
  * **Being a guardian is derived from an active link, never stored as a membership** — a membership
  * row is a permission, and a guardian answers for one child, not for the organisation. See
- * docs/guardians-implementation-plan.md §0.1.
+ * docs/identity_structure.md §5.1.
  */
 export interface ProfileGuardian {
   id: string;

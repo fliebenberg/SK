@@ -13,7 +13,7 @@ import { accessManager } from "./AccessManager";
 import { restrictedReasonSql } from "./minorAccess";
 
 /**
- * Guardians of players (`MEMBER-3`, docs/guardians-implementation-plan.md).
+ * Guardians of players (`MEMBER-3`, docs/identity_structure.md §5).
  *
  * A guardian is an ordinary org profile in the player's organisation, linked by `profile_guardians`.
  * **Being a guardian is derived from an active link and is never an `org_memberships` row** — a

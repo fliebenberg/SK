@@ -116,7 +116,7 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
       arrives as `dependants` in their own `USER_MEMBERSHIPS_UPDATED`.
     - Who may change what: guardian links — admin or staff; a minor's own setting — an active
       guardian, or an Admin only while the minor has none; the org's minors setting — Admin only.
-      See [guardians-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/guardians-implementation-plan.md).
+      See [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.
     - **A spreadsheet import (`IMPORT_ORG_PEOPLE`) is admin or staff**, because it never makes an
       Admin, changes an Admin's role, or changes the email of someone on ScoreKeeper — each would move
       access. Rules: [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §8.

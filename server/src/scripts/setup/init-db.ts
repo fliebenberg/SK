@@ -269,7 +269,7 @@ const createTables = async () => {
 
         // Guardians of players (mirrored from migrations/20260926_profile_guardians.ts). Being a
         // guardian is derived from an active link, never stored as a membership — a membership
-        // row is a permission (docs/guardians-implementation-plan.md §0.1).
+        // row is a permission (docs/identity_structure.md §5.1).
         await client.query(`
             CREATE TABLE IF NOT EXISTS profile_guardians (
                 id TEXT PRIMARY KEY,

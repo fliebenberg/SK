@@ -40,8 +40,7 @@ External entities that operate across multiple organizations (like centralized r
 
 ## 5. Guardians and Responsible Parties
 
-> **Status: built 2026-09-26** (`MEMBER-3`, closed), in five phases recorded in
-> [guardians-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/guardians-implementation-plan.md).
+> **Status: built 2026-09-26** (`MEMBER-3`, closed), in five phases.
 > Raised by user research — two interviews (Tableview FC 2026-09-09, Wynberg Boys' Primary
 > 2026-09-11) both showed that for a **minor** player, availability decisions, transport
 > arrangements and essentially all communication happen with an adult, not with the player; for an

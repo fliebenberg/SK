@@ -481,7 +481,7 @@ them to any signed-in user.
     since their invite status travels in the links.
 
 #### Guardians and minors (`MEMBER-3`)
-See [guardians-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/guardians-implementation-plan.md).
+See [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.
 Every change below publishes the same way (`wss/guardians.ts`): `PROFILE_GUARDIANS_UPDATED`
 (`{ playerProfileId, guardians }`, the whole current list) on `org:{orgId}:guardians`;
 `ORG_MEMBER_UPDATED` for the player on `org:{orgId}:members`; `TEAM_MEMBERS_SYNC` for each of the player's teams; and

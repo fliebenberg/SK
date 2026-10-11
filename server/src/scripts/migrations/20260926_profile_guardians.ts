@@ -6,14 +6,14 @@ import { PoolClient } from 'pg';
  * `profile_guardians` links a guardian's org profile to a player's, in the same organisation.
  * Being a guardian is derived from an active link and is never an `org_memberships` row: a
  * membership row is a permission in this codebase, and a guardian must see their own child, not
- * every child in the school. See docs/guardians-implementation-plan.md §0.1.
+ * every child in the school. See docs/identity_structure.md §5.1.
  *
  * Many-to-many on purpose — siblings share a guardian, a child can have two. `start_date` /
  * `end_date` mirror `org_memberships`, so ending a link keeps its history. At most one active
  * primary guardian per player, and one active link per guardian–player pair.
  *
  * The three `own_account_*` columns on `org_profiles` are the per-minor half of the minors rule
- * (§0.3). `own_account_allowed` is a tri-state and `NULL` must stay distinct from `false`: `NULL`
+ * (docs/identity_structure.md §5.3). `own_account_allowed` is a tri-state and `NULL` must stay distinct from `false`: `NULL`
  * means nobody has said, so the organisation's setting decides; `false` is an explicit refusal.
  * The organisation's half lives in `organizations.settings.minors` and needs no column.
  *
