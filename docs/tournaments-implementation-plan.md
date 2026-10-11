@@ -1563,6 +1563,27 @@ organiser produces a good one.
 >   where it is, so a division with some fixtures placed is included and scheduled around them.
 >   *Schedule again* on a division is the one way to re-place fixtures, and it too keeps the ones
 >   placed by hand unless the organiser unticks that.
+> - **Dragging a fixture on the grid lands its top edge, not the pointer**, snapped to 5 minutes, and
+>   a dashed preview follows the drag showing exactly where it will land ("10:40 – 11:15") — amber,
+>   with the number of clashes, if that spot would clash. Found in the mockup (2026-10-11): without
+>   both, a fixture grabbed by its middle landed 5–15 minutes off where it looked to be.
+> - **The schedule filters are three dropdowns, not chip rows** (2026-10-11): **Day**; **Division**
+>   — *All divisions* first (the default), then the divisions grouped by sport; **Facility** — *All
+>   facilities* first, then grouped by venue. Chip rows ran out of room on a phone. On a wide screen
+>   a chosen facility narrows the grid to its column.
+> - **Filtering the schedule by division shows only that division's facilities** — its own, any of
+>   its fixtures were moved onto, and any sharing ground with those (D34) — with other divisions'
+>   games on them faded, since they still take the time. The phone list's facility choices, the
+>   clashes (panel and badge) and *Without a time* narrow the same way; a clash between two
+>   divisions shows under both.
+> - **Settled from the mockup's last questions (2026-10-12):** a fixture on the grid shows its start,
+>   division and round, then the teams — no crests; the clashes panel is open beside the grid on a
+>   wide screen and opens from the ⚠ badge on a phone; a team break below the minimum warns like any
+>   other clash; shared ground is a *Shares ground with* field on the facility editor in Sites, built
+>   without a mockup of its own.
+> - **Clashes include other events' games at the same venue** (answers `FIX-23`'s open question):
+>   the scheduler never places a fixture on a facility another event has booked at that time, and a
+>   fixture moved by hand onto one warns like any other clash.
 > - **The Fixtures step is Done only once every division is scheduled**, not just drawn — the
 >   tournament is still *Setting up* until then.
 > - **The division page matches the tournament page section for section:** its *Organisers &
