@@ -1,6 +1,6 @@
 # Tournaments — Phased Implementation Plan
 
-**Status:** In progress. **Phases 0–6 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 and 5 on 2026-09-03, 6 on 2026-09-04). The tournament is now **usable**: teams can be entered on both axes, a draw generated from them, results recorded, and the day ranked — by school across the whole tournament or by entrant within a division. **Phase 7 is next** — scheduling: where and when.
+**Status:** In progress. **Phases 0–6 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 and 5 on 2026-09-03, 6 on 2026-09-04). The tournament is now **usable**: teams can be entered on both axes, a draw generated from them, results recorded, and the day ranked — by school across the whole tournament or by entrant within a division. **Phase 7 started 2026-10-11** — scheduling: where and when; decisions at the head of the phase, mockups first.
 **Implements:** [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) (D1–D33),
 [tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md),
 [tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) (U1–U42).
@@ -1493,6 +1493,105 @@ organiser produces a good one.
 
 **Depends on:** Phase 6.
 
+> **Revised 2026-10-11, at kick-off.** The build list below was written before Phases 6–6½ and the
+> events redesign; the decisions here take precedence where they differ.
+>
+> **What already exists.** The facility cascade (`event_facilities`, `division_facilities`, read in
+> `scheduleStage`) and a server-only greedy pass, `scheduleStage` in
+> [TournamentManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/TournamentManager.ts), wired as
+> `SCHEDULE_STAGE` but never called by the app. A stage's `earliest_start` is stored and honoured,
+> with nothing in the app to set it. Its limits: the fallback to the event's facilities ignores the
+> sport; slot length comes in with each request; slots run on a fixed grid from one start with no
+> day end; and teams **and facilities** are checked only within the one stage.
+>
+> **Order of work.** (1) **Mockups first** — the Schedule tab, day setup and the clash view, local in
+> `mockups/` — because the process flow decides parts of the server work. (2) Server. (3) Client.
+> (4) Offline results. (5) The exit criterion.
+>
+> **Decided:**
+>
+> - **A fixture's length is worked out, not typed:** periods × period length + (periods − 1) × break
+>   between periods + an allowance for extra time. The sport gets two new fields, **break between
+>   periods** and **extra-time allowance**, in the sport editor. **The selected sport's values apply,
+>   with nothing to enter on the tournament or division** (revised 2026-10-11): a tournament will
+>   later pick its own variant of a sport, and a division inherit it or pick its own (`SPORT-3`).
+>   Game length is not shown on the tournament page — it differs by division (U9 against U18).
+> - **Two gaps, both set per tournament and changeable per division, and not sport-specific:**
+>   **changeover** — time between games on one facility (usually 5 minutes; more where facilities are
+>   far apart or extra time is likely); and **team rest** — the shortest time between two games for
+>   the same team. They are set in the tournament's **Fixtures** section, not When, which is only
+>   about when the tournament happens. Labelled **Between games** and **Minimum team break**, each
+>   with its own ⓘ. **A team break of 0 means no minimum** (a team may play straight after its last
+>   game, never in two at once) and reads "No minimum team break" wherever it is shown.
+> - **Draw and schedule stay two steps** — the draw decides who plays whom and creates the fixtures
+>   with no time or court; scheduling gives them both. Either can be redone without the other, and
+>   a draw can be published before the timetable is settled. **Make the draw offers "Schedule them
+>   straight away", ticked by default**, so the usual case is one step.
+> - **When is its own section** on the tournament page and a setup step, listing each playing day
+>   and its hours. **The banner shows only the span** — "15 – 22 Feb" whether that is eight days or
+>   two.
+> - **Scheduling runs one division at a time** (perhaps one stage at a time). The tournament
+>   organisers get **Schedule all**, which runs it for every division that has fixtures but no times,
+>   in an order they can see and change.
+> - **The scheduler avoids what is already booked** on a facility by any division, and checks
+>   overlapping time ranges rather than a shared grid, since divisions' fixtures differ in length.
+>   Which division gets first choice of a facility is set by scheduling order. A **tournament-wide
+>   clash check** highlights anything that still clashes, however it got there, and the organisers
+>   decide what moves. Usually each division is given its own courts and hours, so clashes should be
+>   rare. A division can have its times cleared and be scheduled again.
+> - **Playing days are a list, not a date range:** an `event_days` table, one row per playing day
+>   with its **day starts** and **day ends** times (venue-local clock times on a calendar date, turned into
+>   instants only when a fixture is placed). Days need not follow each other — four Saturdays a week
+>   apart is a valid tournament — so the event's first and last date come from the list. How the
+>   organiser enters non-consecutive days is a mockup question.
+> - **A division sets its own hours per day**, with a warning when they fall outside the
+>   tournament's hours for that day. Each tournament day is either **Not playing** (one line, with
+>   ＋ Play) or has a **First game start** — the tournament's Day starts until typed over — and a
+>   **Last game ends** that is either set or **Calculated** (the scheduler finishes as early as
+>   the games allow, by the tournament's Day ends at the latest, and shows the time it worked out).
+>   The labels differ from the tournament's *Day starts / Day ends* on purpose: the tournament sets
+>   the window, the division its own games within it.
+> - **Across several days the scheduler fills each day in turn**, as many fixtures as fit in that
+>   day's window, then moves on. The organisers decide the spread through each day's window (a
+>   short last day for the final alone) and move fixtures by hand. Spreading rounds evenly across
+>   days, league-style, is not built; revisit if organisers ask for it.
+> - **A fixture that does not fit moves to the division's next playing day with room; only on its
+>   last day is it placed after the day's end, with a warning** on the division and the tournament.
+>   Nothing is left without a time by the scheduler.
+> - **Scheduling places only fixtures with no time yet** — Schedule all and a division's Schedule
+>   alike. A fixture that already has a time (placed by hand, by an earlier run, or played) stays
+>   where it is, so a division with some fixtures placed is included and scheduled around them.
+>   *Schedule again* on a division is the one way to re-place fixtures, and it too keeps the ones
+>   placed by hand unless the organiser unticks that.
+> - **The Fixtures step is Done only once every division is scheduled**, not just drawn — the
+>   tournament is still *Setting up* until then.
+> - **The division page matches the tournament page section for section:** its *Organisers &
+>   courts* card splits into **Where** (its facilities, the line labelled with the sport's own word,
+>   `Sport.facilityTerm` — Courts for netball), **When** (its playing times) and **Organisers**, and
+>   its scheduling gaps sit at the foot of its **Fixtures**, as on the tournament. No section title
+>   names a facility type, since that word depends on the sport.
+> - **Ad-hoc breaks within a day** (lunch, prize-giving) are left out; the organiser leaves the gap
+>   by hand.
+> - **A day has an end, not a last start — this changes the D15 note** in
+>   [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) (which made the end "the latest a
+>   fixture may *start*"; build item 2 below still says so). Games differ in length by sport and
+>   division, so a last start leaves the real end of the day unknown. The day end is the latest the
+>   last game must **finish**; the scheduler places a fixture only if it ends by then, working back
+>   from each division's game length. Update that note when this is built. Applies to a division's own hours too.
+>   **Nothing to rename in code or data:** `lastStartTime` exists only in the data model's design
+>   for `settings.schedule` ([tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md)),
+>   which was never built and is replaced by `event_days`; its columns are `day_starts` and
+>   `day_ends` (`TIME`), matching the labels *Day starts* and *Day ends*, and the data model is
+>   rewritten to match when the table is built.
+> - **Hours are entered a row per day** (chosen over one set of hours with exceptions): each playing
+>   day has its *Day starts* and *Day ends*, and a copy button on the first day's row copies its times to
+>   every other day, explained under the *Playing times* label's ⓘ (`<FieldLabel>`). *Playing days* explains the calendar the same way.
+>
+> **`TODO.md` items brought in (2026-10-11):** "Add Venue Location" (below), `FIX-23` (one shared
+> clash helper for hand-added and moved fixtures), the batch-subscriptions entry (the schedule may be
+> the first list that shows only part of its data), and offline result entry (item 9, kept in for
+> now and split out if it proves too big).
+
 **Build:**
 
 1. **The facility cascade (spec §7)** — event picks venues, then facilities; a division may narrow to
@@ -1672,5 +1771,5 @@ these are part of the phase, not a follow-up:
 | 4 | **`okf/auth_control.md`** — required; the permission model changes |
 | 5 | `okf/client_routing.md`, `docs/design_spec.md` (the collapse rule), `TODO.md` |
 | 6 | `TODO.md` (`FIX-2`, batch subscriptions), `docs/reports.md` if standings appear there |
-| 7 | `TODO.md` (Venue Location — answer open question 3) |
+| 7 | `TODO.md` (Venue Location — answer open question 3; `FIX-23`; `SPORT-3`; batch subscriptions); `okf/database.md` and `docs/database_structure.md` (`event_days`, the sport and division timing fields); `docs/tournaments-data-model.md` (replace `settings.schedule`) |
 | 8–9 | `docs/tournaments-ui.md` status; `TODO.md` (copy an event, duplicate events) |
