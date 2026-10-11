@@ -1,3 +1,6 @@
+# Dependencies, in every package (root, expo-app, server, shared)
+node_modules/
+
 # Misc
 .DS_Store
 *.pem
@@ -30,8 +33,3 @@ docs/interviews/records/
 e2e/test-results/
 e2e/report/
 e2e/shots/
-# Playwright, a root devDependency (e2e/); the root node_modules is otherwise tracked
-node_modules/@playwright/
-node_modules/playwright/
-node_modules/playwright-core/
-node_modules/.bin/playwright*
