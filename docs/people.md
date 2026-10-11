@@ -58,7 +58,7 @@ person at a glance, and opens their page.
   - **Member access** shows only for a minor or dependant, as before.
 - **⋯ menu**: Edit photo, Add guardian (when there is none), and Remove from organisation, set apart
   and confirmed. Removing used to be a red Danger Zone box on the page.
-- **Layout**: up to 960px. Wide, Contact and Personal details on the left, the other cards on the
+- **Layout**: up to the app's page width (1440px, `<PageBody>`). Wide, Contact and Personal details on the left, the other cards on the
   right — or Contact and Personal side by side when there are no others. On a phone one column,
   guardians and member access first.
 

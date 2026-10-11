@@ -27,6 +27,7 @@ import { ageInYears, formatCalendarDate } from '../../../../utils/dates';
 import { formatCellphone } from '../../../../utils/phone';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { themeColor } from '../../../../constants/Colors';
+import { PageBody } from '../../../../components/PageBody';
 
 type Dialog = 'identity' | 'contact' | 'personal' | 'photo' | 'guardian' | 'remove' | null;
 
@@ -168,7 +169,7 @@ export default function PersonPage() {
         right={canEdit ? <OverflowMenu items={menu} accessibilityLabel="Person actions" title={member.name} /> : undefined}
       />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}>
-        <View className="w-full gap-4 self-center" style={{ maxWidth: 960 }}>
+        <PageBody className="gap-4">
           <PersonBanner
             member={member}
             guardianship={guardianship}
@@ -189,7 +190,7 @@ export default function PersonPage() {
               <View style={{ flex: 1 }}>{personal}</View>
             </View>
           )}
-        </View>
+        </PageBody>
       </ScrollView>
 
       <IdentityDialog member={member} roles={roles} visible={dialog === 'identity'} onClose={close} />

@@ -31,6 +31,7 @@ import { useAuthStore } from '../../../../store/authStore';
 import { sendAction } from '../../../../services/actions';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { themeColor } from '../../../../constants/Colors';
+import { PageBody } from '../../../../components/PageBody';
 
 type Dialog = 'edit' | 'players' | 'staff' | 'deactivate' | 'delete' | null;
 type Section = 'players' | 'staff' | 'events' | 'games';
@@ -407,7 +408,7 @@ export default function TeamPage() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}
       >
-        <View className="w-full self-center gap-4" style={{ maxWidth: 960 }}>
+        <PageBody className="gap-4">
           {banner}
           {invitationStrip}
           {inactiveNote}
@@ -427,7 +428,7 @@ export default function TeamPage() {
               <View onLayout={jump.track('games')}>{gamesCard}</View>
             </View>
           )}
-        </View>
+        </PageBody>
       </ScrollView>
 
       {canEdit ? (

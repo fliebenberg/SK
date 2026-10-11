@@ -16,6 +16,7 @@ import { useToastStore } from '../../../store/toastStore';
 import { formatInstantDate } from '../../../utils/dates';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
+import { PageBody } from '../../../components/PageBody';
 
 const STATUS_STYLE: Record<string, { box: string; text: string }> = {
   pending: { box: 'bg-warning-soft border-warning-line', text: 'text-warning-ink' },
@@ -73,7 +74,7 @@ export default function NominateAdmin() {
         <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /></View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: width >= 768 ? 24 : 12, paddingBottom: 60 }}>
-          <View className="w-full gap-4 self-center" style={{ maxWidth: 720 }}>
+          <PageBody form className="gap-4">
             {!needsAdmin ? (
               <ReadCard label="Administrator">
                 <Text className="font-inter text-sm text-ink-soft">
@@ -141,7 +142,7 @@ export default function NominateAdmin() {
                 </ReadCard>
               </>
             )}
-          </View>
+          </PageBody>
         </ScrollView>
       )}
 

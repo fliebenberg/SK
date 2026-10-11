@@ -16,6 +16,7 @@ import { useSafeBack } from '../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
+import { PageBody } from '../../../components/PageBody';
 
 const ALL = 'all';
 
@@ -118,7 +119,7 @@ export default function OrgTeams() {
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader title="Teams" onBack={() => safeBack(`/admin/${orgId}`)} right={headerRight} />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
-        <View className="w-full gap-3 self-center" style={{ maxWidth: 960 }}>
+        <PageBody className="gap-3">
           <View className={`gap-2.5 ${isWide ? 'flex-row items-center' : ''}`}>
             <View className="flex-1 flex-row items-center gap-2 bg-card border border-line rounded-xl px-3" style={isWide ? { minWidth: 160 } : undefined}>
               <Ionicons name="search-outline" size={16} color={themeColor(isDark, 'ink-muted')} />
@@ -187,7 +188,7 @@ export default function OrgTeams() {
               {showInactive ? <TeamList teams={shownInactive} org={org} isWide={isWide} onOpen={open} /> : null}
             </View>
           ) : null}
-        </View>
+        </PageBody>
       </ScrollView>
 
       {canEdit ? (

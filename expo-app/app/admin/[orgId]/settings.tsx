@@ -14,6 +14,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { timeZoneLabel } from '../../../utils/dates';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
+import { PageBody } from '../../../components/PageBody';
 
 /**
  * How the org runs (docs/org-profile.md §5): one card per setting or group of related settings,
@@ -50,7 +51,7 @@ export default function OrgSettings() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: width >= 768 ? 24 : 12, paddingBottom: 60 }}>
-          <View className="w-full gap-4 self-center" style={{ maxWidth: 720 }}>
+          <PageBody form className="gap-4">
             <OrgMinorsSettingsCard orgId={org.id} isOrgAdmin={isOrgAdminViewer} />
 
             <ReadCard
@@ -61,7 +62,7 @@ export default function OrgSettings() {
               <ReadRow label={timeZoneLabel(timezone)} sub={timezone} />
               {note ? <TimezoneNote text={note} /> : null}
             </ReadCard>
-          </View>
+          </PageBody>
           <TimezoneDialog org={org} visible={editingTimezone} onClose={() => setEditingTimezone(false)} />
         </ScrollView>
       )}

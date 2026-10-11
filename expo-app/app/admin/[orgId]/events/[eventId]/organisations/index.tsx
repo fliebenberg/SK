@@ -13,6 +13,7 @@ import { useTournamentSteps } from '../../../../../../components/tournament/Tour
 import { useTournamentData } from '../../../../../../hooks/useTournamentData';
 import { useSafeBack } from '../../../../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../../../../store/authStore';
+import { PageBody } from '../../../../../../components/PageBody';
 
 /**
  * Organisations & teams as a page of its own — the Overview card's *See all ›* (agreed 2026-10-09
@@ -93,7 +94,7 @@ function OrganisationsPage({ orgId, event, data, onBack }: {
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader title="Organisations" context={event.name} onBack={onBack} backLabel="Overview" />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 80 }}>
-        <View className="w-full self-center gap-3" style={{ maxWidth: 1060 }}>
+        <PageBody className="gap-3">
           <SectionPageHeading
             title={title}
             count={rows.length}
@@ -135,7 +136,7 @@ function OrganisationsPage({ orgId, event, data, onBack }: {
           {setupMode ? (
             <Text className="font-inter text-xs text-ink-muted px-0.5">Tap an organisation to enter its teams or change its invitation. To enter teams one division at a time, open the division under Sports & divisions.</Text>
           ) : null}
-        </View>
+        </PageBody>
       </ScrollView>
       {orgs.dialogs}
     </SafeAreaView>

@@ -368,20 +368,22 @@ export function SportChip({ name, count, on, dot, onPress, onLayout }: {
   );
 }
 
+/** A division tile's least width, and the gap between tiles (`gap-2.5`). */
+const MIN_TILE = 160;
+const TILE_GAP = 10;
+
 /**
  * One sport: its heading (name, divisions and teams, its ⋯) and its divisions as tiles, with
  * ＋ Add a … division while setting up. The same on the Sports & divisions card, which shows the
  * chosen sport, and on the full page, which shows every sport.
  */
-export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, divisionState, columns, onOpenDivision, onAddDivision, canAddDivision, sportMenu }: {
+export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, divisionState, onOpenDivision, onAddDivision, canAddDivision, sportMenu }: {
   sportId: string;
   sportName: string;
   /** This sport's divisions. */
   divisions: TournamentDivision[];
   entrantsByDivision: Map<string, TournamentEntrant[]>;
   divisionState: (division: TournamentDivision) => DivisionState;
-  /** Tiles across: 2 on a phone, 3 in a card on a wide screen, 4 on the full page. */
-  columns: number;
   onOpenDivision: (division: TournamentDivision) => void;
   onAddDivision?: (sportId: string) => void;
   /** Which sports offer the ＋ — all of them unless said; a sport's organiser has only their own. */
@@ -390,7 +392,14 @@ export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, 
 }) {
   const teamsIn = (d: TournamentDivision) => (entrantsByDivision.get(d.id) || []).filter(e => isEntrantEntered(e.status)).length;
   const teamTotal = divisions.reduce((sum, d) => sum + teamsIn(d), 0);
-  const tileWidth = columns === 4 ? '23.6%' : columns === 3 ? '31.8%' : '48.5%';
+  /*
+   * As many tiles across as fit at about 160px each, from two (a phone) to six (the full page on a
+   * wide screen) — measured, so a card in a column and the full page both fill their width
+   * (2026-10-11). Two across until the first measure.
+   */
+  const [rowWidth, setRowWidth] = useState(0);
+  const across = Math.max(2, Math.min(6, Math.floor((rowWidth + TILE_GAP) / (MIN_TILE + TILE_GAP))));
+  const tileWidth = rowWidth ? (rowWidth - TILE_GAP * (across - 1)) / across : '48.5%';
   return (
     <View className="gap-3">
       <View className="flex-row items-center gap-2.5">
@@ -400,7 +409,7 @@ export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, 
         </View>
         {sportMenu ? sportMenu(sportId) : null}
       </View>
-      <View className="flex-row flex-wrap gap-2.5">
+      <View className="flex-row flex-wrap gap-2.5" onLayout={e => setRowWidth(e.nativeEvent.layout.width)}>
         {divisions.map(d => (
           <TouchableOpacity
             key={d.id}
@@ -492,7 +501,6 @@ export function SportsDivisions({
         divisions={divisionsOf(current)}
         entrantsByDivision={entrantsByDivision}
         divisionState={divisionState}
-        columns={isWide ? 3 : 2}
         onOpenDivision={onOpenDivision}
         onAddDivision={onAddDivision}
         canAddDivision={canAddDivision}

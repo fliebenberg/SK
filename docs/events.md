@@ -146,7 +146,9 @@ lands on it. Schedule and Standings are unchanged (division work, stage 4).
 
 **One page of cards, read first**, as the division page is: a **banner** (name, dates, venue,
 sports; Edit), **one strip** for what the tournament needs next, then the cards — two columns on a
-wide screen, one on a phone (left column, then right).
+wide screen, three once the page is 1200px wide (`LAYOUT.threeColumnsMinWidth`; 2026-10-11), one on
+a phone (left column, then right). With three, each big section gets a column of its own —
+Sports & divisions, then Organisations & teams, then the small cards — read in the same order.
 
 | Card | Holds | Edited in | Full page |
 |---|---|---|---|

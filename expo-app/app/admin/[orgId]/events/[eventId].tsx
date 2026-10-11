@@ -39,6 +39,7 @@ import { deriveEventRoles } from '@sk/shared';
 import { resolveEventType, unknownEventTypeMessage } from '@sk/shared';
 import { isCollapsed } from '@sk/shared';
 import { themeColor } from '../../../../constants/Colors';
+import { PageBody } from '../../../../components/PageBody';
 
 /**
  * One event, at whichever of its two altitudes applies.
@@ -619,10 +620,10 @@ export default function EventDetails() {
           stripped on native but kept on web — so the pinned row differed between platforms. With
           the steps on their own screens there is nothing to pin and nothing to index (U48). */}
       <ScrollView ref={scrollRef} className="flex-1" contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}>
-        {/* The first tab, the Overview: cards in two columns on a wide screen. Each card saves itself
+        {/* The first tab, the Overview: cards in two or three columns on a wide screen. Each card saves itself
             through its own dialog, so the tab is never dirty. */}
         {activeTab === 'setup' && (
-          <View className="w-full self-center" style={{ maxWidth: 1060 }} onLayout={e => { overviewTop.current = e.nativeEvent.layout.y; }}>
+          <PageBody onLayout={e => { overviewTop.current = e.nativeEvent.layout.y; }}>
             <TournamentHome
               event={event}
               orgId={orgId}
@@ -645,10 +646,10 @@ export default function EventDetails() {
               mySportIds={capabilities?.convenesSportIds}
               onScrollTo={y => scrollRef.current?.scrollTo({ y: Math.max(0, overviewTop.current + y - 8), animated: true })}
             />
-          </View>
+          </PageBody>
         )}
         {activeTab === 'schedule' && (
-          <View className="gap-6">
+          <PageBody className="gap-6">
             {/* THE COLLAPSE RULE (U15).
                 One division and its panel is shown here directly — no list of one to click through.
                 Several, and each is listed and opens its own screen. Setup names the division
@@ -754,11 +755,11 @@ export default function EventDetails() {
                 className="py-2.5 rounded-lg"
               />
             )}
-          </View>
+          </PageBody>
         )}
 
         {activeTab === 'standings' && (
-          <View className="gap-4">
+          <PageBody className="gap-4">
             {/*
               One table with a division scope selector (U28), rather than a `By division / By
               organisation` toggle. **The scope decides the row, not just the filter** (U29): all
@@ -795,7 +796,7 @@ export default function EventDetails() {
             ) : (
               <DivisionStandings divisionId={standingsScope} canEdit={canEdit} />
             )}
-          </View>
+          </PageBody>
         )}
 
       </ScrollView>

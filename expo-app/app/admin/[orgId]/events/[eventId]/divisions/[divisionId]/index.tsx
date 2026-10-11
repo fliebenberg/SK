@@ -39,6 +39,7 @@ import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { wsService } from '../../../../../../../services/websocket';
 import { sendAction } from '../../../../../../../services/actions';
 import { useWsStore } from '../../../../../../../store/wsStore';
+import { PageBody } from '../../../../../../../components/PageBody';
 
 /**
  * A division of a tournament (`FIX-27`, agreed 2026-10-09 on `mockups/division-read-first.html`,
@@ -373,7 +374,7 @@ export default function DivisionScreen() {
         right={menu.length ? <OverflowMenu items={menu} title={divisionFullName(division.name, sport?.name)} accessibilityLabel="Division actions" /> : undefined}
       />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 80 }}>
-        <View className="w-full self-center gap-3.5" style={{ maxWidth: 1060 }}>
+        <PageBody className="gap-3.5">
           {banner}
           {nextStrip}
           {isWide ? (
@@ -384,7 +385,7 @@ export default function DivisionScreen() {
           ) : (
             <View className="gap-2.5">{[...columns[0], ...columns[1]]}</View>
           )}
-        </View>
+        </PageBody>
       </ScrollView>
 
       <DivisionDetailsDialog

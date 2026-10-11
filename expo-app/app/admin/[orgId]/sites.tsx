@@ -13,6 +13,7 @@ import { useSafeBack } from '../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
+import { PageBody } from '../../../components/PageBody';
 
 /**
  * The organisation's sites (docs/sites.md). A row is the site at a glance — its name, its street
@@ -104,7 +105,7 @@ export default function OrgSites() {
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader title="Sites" onBack={() => safeBack(`/admin/${orgId}`)} right={headerRight} />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
-        <View className="w-full gap-3 self-center" style={{ maxWidth: 960 }}>
+        <PageBody className="gap-3">
           <View className="flex-row items-center gap-2 bg-card border border-line rounded-xl px-3">
             <Ionicons name="search-outline" size={16} color={themeColor(isDark, 'ink-muted')} />
             <TextInput
@@ -147,7 +148,7 @@ export default function OrgSites() {
               {showInactive ? list(shownInactive) : null}
             </View>
           ) : null}
-        </View>
+        </PageBody>
       </ScrollView>
 
       {canEdit ? <SiteDialog visible={isAdding} onClose={() => setIsAdding(false)} orgId={orgId!} onAdded={open} /> : null}

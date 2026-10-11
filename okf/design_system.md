@@ -59,6 +59,22 @@ The whole app moved onto the tokens on 2026-10-04, and `npm run check:colors -- 
 *   **8-Point Grid**: All spacing, margins, padding, and layout bounds must align to an 8-point grid (8, 16, 24, 32, etc.).
 *   **Card Padding**: Standard containers use `16px` or `24px` internal padding.
 
+## Page width
+
+*   **One limit for the whole app** (agreed 2026-10-11). A page's content sits in
+    [`<PageBody>`](file:///c:/Fred/Coding/SK/expo-app/components/PageBody.tsx), which holds it to
+    `LAYOUT.pageMaxWidth` (**1440px**, [constants/layout.ts](file:///c:/Fred/Coding/SK/expo-app/constants/layout.ts))
+    and centres it — so a laptop or a 1080p screen is filled, and only a very wide monitor gets
+    margins. Never a `maxWidth` of a page's own: the pages had drifted to 720, 960 and 1060.
+*   **A page of one column of fields or rows** — a settings page — takes `<PageBody form>`
+    (`LAYOUT.formMaxWidth`, **720px**), and so does a paragraph of running text on a wide page: a
+    line past about 90 characters is hard to read, and a lone row stretched to 1440px puts its label
+    and its value a screen apart.
+*   **Use the room by adding columns, not by stretching them.** A page of cards takes a third column
+    once its *content* is `LAYOUT.threeColumnsMinWidth` (**1200px**) wide — measured with `onLayout`,
+    not from the window, since the sidebar takes its share (the tournament Overview). A grid of tiles
+    fits as many across as its width allows (the division tiles: about 160px each, two to six).
+
 ## Light Mode Accessibility
 
 The light-mode swaps that used to be written out per screen — deep cyan for the electric blue (1.25:1 on white), deep emerald for the success green (1.67:1), amber for the brand yellow — are now the light values of the `accent-ink`, `success-ink` and `warning-ink` tokens. Use the `-ink` token wherever a tone carries meaning as text or as an icon on its tint, and `check:colors` holds every text token at 4.5:1 or better in both themes.
@@ -136,8 +152,9 @@ in the banner — and the same cards, without the statuses, once it is (2026-10-
 6.  **Orbitron is for display only** — screen titles, section labels, scores and clocks. Typed input,
     names and running text are Inter ([`TEXT_INPUT`](file:///c:/Fred/Coding/SK/expo-app/components/formStyles.ts)).
     A short code shown next to its name takes the name's font.
-7.  **Cap the reading width**: about 960px for a profile, two columns when there is room; about
-    720px for a settings page, which is one column of rows. Size inputs to their content.
+7.  **One page width** (2026-10-11): every page sits in [`<PageBody>`](file:///c:/Fred/Coding/SK/expo-app/components/PageBody.tsx),
+    held to 1440px and centred; a settings page, which is one column of rows, takes `form` (720px).
+    See *Page width* above. Size inputs to their content.
 8.  **One save behaviour per page, and it is visible.** A tap on a displayed value never starts a
     destructive action.
 9.  **The same kind of data is entered the same way everywhere.** One address input

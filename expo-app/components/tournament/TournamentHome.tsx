@@ -42,6 +42,7 @@ import { sendAction } from '../../services/actions';
 import { useActiveTheme, useSettingsStore } from '../../store/settingsStore';
 import { calendarRangeStatus, dateCountdown, eventDayOfRange, formatDateRange, formatKickoffTime, whenMs } from '../../utils/dates';
 import { themeColor } from '../../constants/Colors';
+import { LAYOUT } from '../../constants/layout';
 
 /**
  * The tournament page's first tab, *Overview* (docs/events.md §7; agreed 2026-10-09 on
@@ -49,7 +50,7 @@ import { themeColor } from '../../constants/Colors';
  *
  * One page of cards in every phase, read first, as the division page is: a banner that says what
  * the tournament is and where it has got to, **one strip** for what it needs next, then cards in
- * two columns on a wide screen. **While it is being set up** an organiser sees each card's status
+ * two columns on a wide screen, three on a wider one. **While it is being set up** an organiser sees each card's status
  * on its heading — Done, In progress, Not started — and a progress bar in the banner
  * with a segment per card; the cards keep **one fixed order**, so nothing moves while the work is
  * done, and on a phone a finished card folds to its heading. **Once set up** the statuses go and
@@ -239,7 +240,7 @@ export function TournamentHome({
   /*
    * On a phone, while setting up, a finished card starts folded to its heading and summary; any
    * heading opens or closes it, remembered on the device per tournament (2026-10-09). A wide
-   * screen does not fold: two columns keep a long card from pushing the rest out of sight.
+   * screen does not fold: its columns keep a long card from pushing the rest out of sight.
    */
   const foldKey = `tournamentCardsFolded:${eventId}`;
   const savedFolds = (useSettingsStore(state => state.localOverrides[foldKey]) || {}) as Record<string, boolean>;
@@ -782,12 +783,25 @@ export function TournamentHome({
    * around as they are finished would confuse). Setting up and set up: the big sections on the
    * left, the small ones on the right. On the day: Live now leads. For anyone who cannot edit:
    * what is played and where, then who is taking part.
+   *
+   * Three columns once the page is wide enough (2026-10-11, `LAYOUT.threeColumnsMinWidth`): the
+   * same order read left to right, each big section given a column of its own rather than stretched.
    */
-  const [left, right] = onTheDay
-    ? [[anchor('live', liveCard), anchor('divisions', sportsCard), anchor('fixtures', fixturesCard)], [anchor('basics', whereCard), anchor('entrants', orgsCard), anchor('scoring', rulesCard), anchor('organizers', organizersCard)]]
+  const [rootWidth, setRootWidth] = useState(0);
+  const three = isWide && rootWidth >= LAYOUT.threeColumnsMinWidth;
+  const live = anchor('live', liveCard), sportsA = anchor('divisions', sportsCard), fixturesA = anchor('fixtures', fixturesCard);
+  const whereA = anchor('basics', whereCard), orgsA = anchor('entrants', orgsCard), rulesA = anchor('scoring', rulesCard), organizersA = anchor('organizers', organizersCard);
+  const columns = onTheDay
+    ? three
+      ? [[live, fixturesA], [sportsA, orgsA], [whereA, rulesA, organizersA]]
+      : [[live, sportsA, fixturesA], [whereA, orgsA, rulesA, organizersA]]
     : !canEdit
-      ? [[anchor('divisions', sportsCard), anchor('fixtures', fixturesCard)], [anchor('basics', whereCard), anchor('entrants', orgsCard), anchor('scoring', rulesCard)]]
-      : [[anchor('divisions', sportsCard), anchor('entrants', orgsCard)], [anchor('basics', whereCard), anchor('scoring', rulesCard), anchor('fixtures', fixturesCard), anchor('organizers', organizersCard)]];
+      ? three
+        ? [[sportsA, fixturesA], [whereA, rulesA], [orgsA]]
+        : [[sportsA, fixturesA], [whereA, orgsA, rulesA]]
+      : three
+        ? [[sportsA], [orgsA], [whereA, rulesA, fixturesA, organizersA]]
+        : [[sportsA, orgsA], [whereA, rulesA, fixturesA, organizersA]];
 
   // The teams this viewer answers for, still invited: theirs as coach, or any of an organisation they admin.
   const coachTeamIds = new Set<string>(teamMemberships.filter((m: any) => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach').map((m: any) => m.teamId));
@@ -812,7 +826,7 @@ export function TournamentHome({
   ) : null;
 
   return (
-    <View ref={rootRef} collapsable={false} className="gap-4">
+    <View ref={rootRef} collapsable={false} className="gap-4" onLayout={e => setRootWidth(e.nativeEvent.layout.width)}>
       {invitationBanners}
       {banner}
       <TeamInvitationRows
@@ -826,11 +840,12 @@ export function TournamentHome({
       {mineLine}
       {isWide ? (
         <View className="flex-row gap-4 items-start">
-          <View className="gap-4 min-w-0" style={{ flex: 1.15 }}>{left}</View>
-          <View className="gap-4 min-w-0" style={{ flex: 1 }}>{right}</View>
+          {columns.map((cards, i) => (
+            <View key={i} className="gap-4 min-w-0" style={{ flex: !three && i === 0 ? 1.15 : 1 }}>{cards}</View>
+          ))}
         </View>
       ) : (
-        <>{left}{right}</>
+        <>{columns.flat()}</>
       )}
 
       {sportsSection.dialogs}

@@ -22,6 +22,7 @@ import { getOrgLogoUrl } from '../../../services/assets';
 import { hasPin } from '../../../services/places';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
+import { PageBody } from '../../../components/PageBody';
 
 type Dialog = 'identity' | 'about' | 'sports' | 'address' | null;
 
@@ -158,7 +159,7 @@ export default function OrgProfile() {
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader title="Profile" onBack={() => safeBack(`/admin/${orgId}`)} />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}>
-        <View className="w-full gap-4 self-center" style={{ maxWidth: 960 }}>
+        <PageBody className="gap-4">
           <OrgProfileBanner org={org} onEdit={() => setDialog('identity')} onEditLogo={() => setIsEditingLogo(true)} />
           {isWide ? (
             <View className="flex-row gap-4 items-start">
@@ -168,7 +169,7 @@ export default function OrgProfile() {
           ) : (
             <View className="gap-3">{about}{addressCard}{sportsCard}</View>
           )}
-        </View>
+        </PageBody>
       </ScrollView>
 
       <IdentityDialog org={org} visible={dialog === 'identity'} onClose={close} />

@@ -28,6 +28,7 @@ import { hasPin } from '../../../../services/places';
 import { timeZoneLabel, venueTimeZone, whenMs } from '../../../../utils/dates';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { themeColor } from '../../../../constants/Colors';
+import { PageBody } from '../../../../components/PageBody';
 
 type Dialog = 'name' | 'location' | 'facility' | 'deactivate' | 'delete' | null;
 type Section = 'facilities' | 'location' | 'games';
@@ -374,7 +375,7 @@ export default function SitePage() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}
       >
-        <View className="w-full self-center gap-4" style={{ maxWidth: 960 }}>
+        <PageBody className="gap-4">
           {banner}
           {inactiveNote}
           {isWide ? (
@@ -392,7 +393,7 @@ export default function SitePage() {
               <View onLayout={jump.track('games')}>{gamesCard}</View>
             </View>
           )}
-        </View>
+        </PageBody>
       </ScrollView>
 
       {canEdit ? (

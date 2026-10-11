@@ -60,6 +60,7 @@ import {
   whenMs,
 } from '../../../../utils/dates';
 import { themeColor } from '../../../../constants/Colors';
+import { PageBody } from '../../../../components/PageBody';
 
 /**
  * Fixtures & Events (docs/events.md). One row per event, and a row opens its page: a single match
@@ -826,7 +827,7 @@ export default function OrgEventsList() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
-          <View className="w-full gap-3 self-center" style={{ maxWidth: 960 }}>
+          <PageBody className="gap-3">
             {invitationsBox}
             {toolbar}
             {body}
@@ -841,7 +842,7 @@ export default function OrgEventsList() {
                 <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} />
               </TouchableOpacity>
             ) : null}
-          </View>
+          </PageBody>
         </ScrollView>
       )}
 

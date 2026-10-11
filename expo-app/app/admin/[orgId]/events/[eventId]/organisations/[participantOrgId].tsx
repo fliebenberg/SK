@@ -32,6 +32,7 @@ import { useUnsavedChangesStore } from '../../../../../../store/unsavedChangesSt
 import { useAuthStore } from '../../../../../../store/authStore';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { wsService } from '../../../../../../services/websocket';
+import { PageBody } from '../../../../../../components/PageBody';
 
 /**
  * One organisation in a tournament (`FIX-26`, agreed 2026-10-07/08 on
@@ -214,7 +215,7 @@ export default function OrganisationInTournamentScreen() {
         right={menuItems.length ? <OverflowMenu items={menuItems} title={org.name} accessibilityLabel={`${org.name} actions`} /> : undefined}
       />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 120 }}>
-        <View className="w-full self-center gap-4" style={{ maxWidth: 960 }}>
+        <PageBody className="gap-4">
           {sideBySide ? <View className="flex-row gap-4 items-stretch">{banner}{response}</View> : <>{banner}{response}</>}
 
           {canEdit ? (
@@ -297,7 +298,7 @@ export default function OrganisationInTournamentScreen() {
               />
             </>
           )}
-        </View>
+        </PageBody>
       </ScrollView>
 
       <FloatingSaveBar
