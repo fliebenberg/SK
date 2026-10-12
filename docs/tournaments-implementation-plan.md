@@ -1613,6 +1613,77 @@ organiser produces a good one.
 > the first list that shows only part of its data), and offline result entry (item 9, kept in for
 > now and split out if it proves too big).
 
+### Phase 7 — schema and API (proposed and agreed 2026-10-12)
+
+The server half of the decisions above, written before any code because these are the parts that
+are hard to undo. **Agreed 2026-10-12**, with the three answers at the end.
+
+#### Storage
+
+| What | Where | Why there |
+|---|---|---|
+| **Playing days** | New table **`event_days`** — `event_id` (FK, cascade), `day DATE`, `day_starts TIME`, `day_ends TIME`; PK `(event_id, day)`; `CHECK (day_ends > day_starts)` | One row per playing day, so four Saturdays a week apart is four rows. Times are venue clock times on a calendar date (the date policy's *calendar date*, plus a wall-clock time), made instants only when a fixture is placed, in the venue's timezone (`sites.timezone`, else the organisation's). |
+| **The event's dates** | `events.start_date` / `end_date` **kept**, and rewritten from `event_days` (first and last day) in the same transaction whenever the days change | Every existing reader — the events list, calendars, reports — keeps working unchanged. An event with no days rows (a single match, a league) keeps its dates as today. |
+| **A division's own days** | New table **`division_days`** — `event_id`, `division_id` (FK, cascade), `day`, `plays BOOLEAN NOT NULL DEFAULT TRUE`, `first_game_start TIME NULL` (null = the tournament's Day starts), `last_game_ends TIME NULL` (null = calculated); PK `(division_id, day)`; **FK `(event_id, day)` → `event_days` on delete cascade** | A row only where the division differs from the tournament, so the usual division has none. The composite FK means removing a playing day removes the divisions' rows for it, rather than leaving rows for a day that no longer exists. |
+| **The scheduling gaps** | Columns **`gap_between_games_min SMALLINT NOT NULL DEFAULT 5`** and **`min_team_break_min SMALLINT NOT NULL DEFAULT 0`** on `events`; the same two **nullable** on `tournament_divisions` (null = the tournament's) | The pattern `orgs_may_add_teams` already set (FIX-33): a column at both levels, the division's nullable. Not `settings` JSONB: `UPDATE_EVENT` / `UPDATE_DIVISION` replace that column whole, and the payload schema is closed. |
+| **Game length** | Two new keys in `sports.default_settings` (`SportSettings`): **`breakBetweenPeriodsMS`** and **`extraTimeAllowanceMS`**, beside the existing `periodLengthMS` and `scheduledPeriods`; edited on the sport editor's Settings tab | Same home and unit as the timing values already there. Nothing on the tournament or division until variants (`SPORT-3`). |
+| **Shared ground (D34)** | New table **`facility_shared_ground`** — `facility_id`, `other_facility_id` (both FK, cascade); PK both; `CHECK (facility_id < other_facility_id)` | Each pair stored **once**, in a fixed order, and read both ways — so it is symmetric by construction and cannot be declared twice. Not transitive: A1–A and A2–A are two rows, and A1–A2 is not implied. Both facilities must be at the same site (checked in the manager). |
+| **Who placed a fixture** | New column **`games.placed_by TEXT NULL`**, `CHECK IN ('scheduler', 'hand')` | *Schedule again* keeps fixtures placed by hand, so the difference must be recorded. A column, not `custom_settings`, which `UPDATE_GAME` replaces whole. |
+| **Finding bookings at a venue** | Index on **`games (facility_id, start_time)`** | Clashes include other events' games at the same facility; today nothing indexes either column. |
+
+A fixture's length is **worked out, not stored**: periods × period length + (periods − 1) × break +
+extra-time allowance, from the sport (and a game's own `customSettings.scheduledPeriods` where it
+has one). Storing it would go stale the moment a sport's timing changed.
+
+Migrations follow [the README](file:///c:/Fred/Coding/SK/server/src/scripts/migrations/README.md):
+each new table also in `init-db.ts`, new columns appended in the same order, constraints guarded on
+`pg_constraint`, and catalogued in `okf/database.md`.
+
+#### One clash check and one planner, in `shared/`
+
+**`shared/src/utils/schedule.ts`**, pure functions with permanent Vitest tests, so the scheduler, the
+grid's warnings and the move sheet's preview cannot disagree:
+
+- `fixtureMinutes(sportSettings, customSettings)` — the length above.
+- `dayWindows(eventDays, divisionDays)` — each day a division plays, with its start and its end (set, or the tournament's Day ends when calculated).
+- `findClashes(fixtures, rules)` — a facility booked twice, shared ground, **too little time between games on a facility** (less than *Between games* — the larger of the two divisions' gaps where they differ), a team in two games at once, a team break below the minimum, and a fixture past its day's end.
+- `planDivision(input)` — the greedy pass: fixtures in round order, each day's window in turn, every facility checked against **everything already booked on it** (other divisions and other events), shared ground and the team break respected; what does not fit moves to the next playing day, and only on the last day is placed after the day's end. Returns assignments; writes nothing.
+
+The server's job shrinks to loading the inputs and writing the result, so the hard logic is tested
+without a database.
+
+#### Actions
+
+| Action | Payload | Replaces / notes |
+|---|---|---|
+| `SET_EVENT_DAYS` | `{ eventId, days: [{ day, dayStarts, dayEnds }] }` | The whole list, replaced; rewrites the event's dates. |
+| `SET_DIVISION_DAYS` | `{ divisionId, days: [{ day, plays, firstGameStart?, lastGameEnds? }] }` | Only days that differ from the tournament. |
+| `SET_EVENT_SCHEDULING` / `SET_DIVISION_SCHEDULING` | `{ eventId \| divisionId, gapBetweenGamesMin?, minTeamBreakMin? }` (division: `null` = follow) | As `SET_DIVISION_ORG_ADDING` does for its setting. |
+| `UPDATE_FACILITY` | gains `sharesGroundWith: string[]` | The facility dialog in Sites already sends this action. |
+| `SCHEDULE_DIVISION` | `{ divisionId, keepPlacedByHand = true, idempotencyKey }` | **Replaces `SCHEDULE_STAGE`**, which the app never calls. Places only fixtures with no time; returns placed, after-the-day's-end and the fixtures. |
+| `SCHEDULE_ALL` | `{ eventId, divisionIds (in order), idempotencyKey }` | One division after another, each in its own transaction; one result line per division, as the mockup shows. |
+| `MOVE_FIXTURE` | `{ gameId, startAt \| null, facilityId \| null }` | A move by hand: sets `placed_by = 'hand'`; `null` takes the time away. Returns the clashes it caused, for the message. Not `UPDATE_GAME`, which cannot mark a hand placing and is wider than a move needs. |
+| `GENERATE_STAGE_FIXTURES` | gains `scheduleNow?: boolean` | *Schedule them straight away* in Make the draw. |
+| `GET_VENUE_BOOKINGS` | `{ eventId }` → other events' games on the tournament's facilities on its days | Read on opening the Schedule tab and after each move. Not live: another event's booking changing mid-session is rare, and a live per-facility room is a bigger piece (FIX-23 noted it does not exist). |
+
+Permissions: scheduling and moving a division's fixtures use the check the draw already uses
+(`canOrganizeDivision`); days and the tournament's gaps are the tournament organisers'.
+
+Live data: the tournament's fixtures already arrive through `event:{id}:fixtures`
+(`GAME_SUMMARIES_SYNC`, then `GAME_SUMMARY_*`) — the Schedule tab's room is the screen's contents,
+so no new room (U40). Days, gaps and shared ground travel with the event and facility records that
+already publish.
+
+#### Answered 2026-10-12
+
+1. **The default minimum team break is 0** — no minimum until the organisers set one.
+2. **A sport with no game length refuses to schedule**, saying the sport's game length must be set in
+   the sport editor. It should not normally happen once the sports are set up (`SPORT-4`); guessing
+   would produce a schedule nobody asked for.
+3. **Less than *Between games* on a facility warns**, like any other clash — the gap was set for a
+   reason, so going under it is worth saying. (The mockup does not show this kind; it is in
+   `findClashes`.)
+
 **Build:**
 
 1. **The facility cascade (spec §7)** — event picks venues, then facilities; a division may narrow to
