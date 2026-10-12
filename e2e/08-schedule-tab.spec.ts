@@ -58,6 +58,15 @@ test.describe('the Schedule tab, as the host', () => {
     await expect(page.getByText('Field A1', { exact: true })).toHaveCount(0);
   });
 
+  test('a scheduled division chosen offers Schedule again, the division page\'s dialog', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'Schedule again', exact: true })).toHaveCount(0);
+    await choose(page, 'Division', 'Netball U14');
+    await page.getByRole('button', { name: 'Schedule again', exact: true }).click();
+    await expect(page.getByText('Schedule U14 again?')).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(page.getByText('Schedule U14 again?')).toBeHidden();
+  });
+
   test("the second Saturday shows the 1st XV past the day's end, among the day's clashes", async ({ page }) => {
     await choose(page, 'Day', 'Sat 5 Dec');
     await expect(page.getByText(/Clashes on Sat/)).toBeVisible();

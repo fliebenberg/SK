@@ -240,7 +240,7 @@ export function ScheduleAllDialog({ visible, event, divisions, games, sports, or
           })}
         </View>
       ) : (
-        <Text className="font-inter text-sm text-ink-muted">Every drawn division is scheduled. To redo one, use Schedule again on its page.</Text>
+        <Text className="font-inter text-sm text-ink-muted">Every drawn division is scheduled. To redo one, use Schedule again on its page, or on the Schedule tab with it chosen.</Text>
       )}
       {notIncluded.length ? (
         <View className="gap-1">

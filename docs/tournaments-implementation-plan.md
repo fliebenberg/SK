@@ -1583,6 +1583,9 @@ organiser produces a good one.
 >   can use — then its own one by one, then *Also show*: the others its sport can use, each added
 >   beside its own and chosen again to hide (*<division>'s + 2 more*). So when its own courts are
 >   full, the organisers can see where else a game fits.
+> - **Schedule again on the Schedule tab** (2026-10-12): with a division chosen, *Schedule* / *Schedule
+>   again* sits beside the filters — the division page's dialog, under the same conditions (drawn, not
+>   started, by those who may) — so hours just dragged can be planned into without leaving the tab.
 > - **The day's lines are dragged to change its hours** (2026-10-12), on the wide grid: with *All
 >   divisions*, the tournament's *Day starts* / *Day ends* for that day (`SET_EVENT_DAYS`); with a
 >   division chosen, its *First game start* / *Last game ends* (`SET_DIVISION_DAYS`; a calculated end

@@ -225,7 +225,9 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
   moved onto and any sharing ground with them, and the clashes and the tray with it. With a division
   chosen, the Facility dropdown can also show more: *All <sport> facilities* (every tournament
   facility its sport can use), or one at a time under *Also show* (chosen again to hide), beside its
-  own — to see where else its games could fit. **Moving**: drag a
+  own — to see where else its games could fit. With a division chosen, **Schedule** (or **Schedule
+  again**, once it has times) sits beside the filters: the division page's dialog, to plan straight
+  into hours just dragged. **Moving**: drag a
   fixture on the web — its top edge lands where it is dropped, snapped to five minutes, with a dashed
   preview of the times and any clash — or tap it for the **move sheet** (day, facility — its division's
   own first, *Other…* for the rest — and start, with *Take its time away*). A move that clashes is made

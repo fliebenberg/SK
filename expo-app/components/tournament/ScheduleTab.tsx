@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Booking, Clash, DivisionDay, Event, EventDay, Facility, GameSummary, ScheduleContext, Site, SocketAction, Sport, TournamentDivision,
-  divisionFullName, findClashes, minuteOfDay, sharedGroundMap, timeOfDay,
+  divisionFullName, findClashes, isPlayedFixture, minuteOfDay, sharedGroundMap, timeOfDay,
 } from '@sk/shared';
 import CustomSelect from '../CustomSelect';
 import { EditDialog } from '../EditDialog';
@@ -36,6 +36,8 @@ import { formatPlayingDay, venueInputsToInstant, venueTimeZone, type CalendarDat
  * - **The day's hours** (agreed 2026-10-12): on the web the *Day starts* and *Day ends* lines are
  *   dragged to change that day's hours — the tournament's, or with a division chosen, the division's
  *   *First game start* and *Last game ends*. Fixtures stay put; any now outside the hours are clashes.
+ * - **Schedule again** (2026-10-12): with a division chosen, beside the filters — the division page's
+ *   dialog, so the hours just dragged can be planned into straight away.
  * - **Offline** (U20): the schedule reads; moving needs a connection.
  */
 
@@ -225,6 +227,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
   const [flash, setFlash] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; warn?: string; undo?: () => void } | null>(null);
   const [scheduling, setScheduling] = useState<TournamentDivision | null>(null);
+  const [schedulingAgain, setSchedulingAgain] = useState(false);
   const move = async (g: GameSummary, to: { day: string; start: number; facilityId: string } | null) => {
     const before = model.placeOf(g);
     const was = before && g.facilityId ? { day: before.day, start: before.start, facilityId: g.facilityId } : null;
@@ -530,6 +533,19 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
     </ScrollView>
   );
 
+  /* -- scheduling the chosen division, as on its page: drawn, not started, by those who may -- */
+  const shownGames = shownDivision ? games.filter(g => g.divisionId === shownDivision.id && g.status !== 'Cancelled') : [];
+  const shownUnscheduled = shownGames.filter(isUnscheduled).length;
+  const scheduleButton = shownDivision && online && canSetHours(shownDivision.id) && shownGames.length && !shownGames.some(isPlayedFixture) ? (
+    <TouchableOpacity
+      onPress={() => { setSchedulingAgain(shownUnscheduled < shownGames.length); setScheduling(shownDivision); }}
+      accessibilityRole="button"
+      className="rounded-xl border border-line bg-card px-3 py-1.5"
+    >
+      <Text className="font-inter-bold text-[13px] text-ink-soft">{shownUnscheduled === shownGames.length ? 'Schedule' : 'Schedule again'}</Text>
+    </TouchableOpacity>
+  ) : null;
+
   /* -- the Facility dropdown -- */
   const byVenue = (ids: string[]) => ids.map(id => facilityOf(id)).filter(Boolean)
     .sort((a, b) => a!.siteId.localeCompare(b!.siteId) || a!.name.localeCompare(b!.name)) as Facility[];
@@ -654,7 +670,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
             <View className="flex-row items-center gap-2 mt-2">
               <Text className="flex-1 font-inter-bold text-[11px] text-ink-muted uppercase tracking-wider">{divisionName(id)} · {unscheduled.filter(g => g.divisionId === id).length}</Text>
               {canEdit && neverScheduled ? (
-                <TouchableOpacity onPress={() => setScheduling(d!)} accessibilityRole="button"><Text className="font-inter-bold text-[13px] text-primary-ink">Schedule</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => { setSchedulingAgain(false); setScheduling(d!); }} accessibilityRole="button"><Text className="font-inter-bold text-[13px] text-primary-ink">Schedule</Text></TouchableOpacity>
               ) : null}
             </View>
             {unscheduled.filter(g => g.divisionId === id).map(trayChip)}
@@ -725,6 +741,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
         }}
         options={facilityOptions}
       />
+      {scheduleButton}
       <View className="flex-1" />
       {canEdit ? (
         dayClashes.length ? (
@@ -806,7 +823,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
       {scheduling ? (
         <ScheduleDivisionDialog
           visible
-          again={false}
+          again={schedulingAgain}
           event={event}
           division={scheduling}
           sport={sports.find(s => s.id === scheduling.sportId)}
