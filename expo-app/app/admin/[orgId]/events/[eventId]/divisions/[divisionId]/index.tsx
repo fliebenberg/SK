@@ -353,27 +353,31 @@ export default function DivisionScreen() {
       onDialog={setDrawDialog}
       scheduleOffer={scheduleReadiness({ event, division, sport })}
       footer={
-        <View className="gap-2">
-        {canEdit && drawn && !started ? (
-          <View className="flex-row justify-end">
-            {unscheduledCount === games.filter(g => g.status !== 'Cancelled').length ? (
-              <TouchableOpacity onPress={() => setDialog('schedule')} accessibilityRole="button" className="rounded-xl border border-line bg-card px-3 py-1.5">
-                <Text className="font-inter-bold text-[13px] text-ink-soft">Schedule</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity onPress={() => setDialog('reschedule')} accessibilityRole="button">
-                <Text className="font-inter-semibold text-[13px] text-ink-muted">Schedule again</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : null}
-        <View className="flex-row items-center gap-3 border-t border-line-soft pt-2.5 mt-1">
+        // Scheduling sits with the settings it uses: a primary Schedule once drawn, a quiet Schedule
+        // again once anything has a time, and before the draw just why there is nothing to schedule.
+        <View className="gap-2.5 border-t border-line-soft pt-2.5 mt-1">
+        <View className="flex-row items-center gap-3">
           <View className="flex-1 min-w-0">
             <Text className="font-inter text-xs text-ink-muted">Scheduling{ownGaps ? '' : " · the tournament's"}</Text>
             <Text className="font-inter text-sm text-ink">{gapsLine(division.gapBetweenGamesMin ?? event.gapBetweenGamesMin ?? 5, division.minTeamBreakMin ?? event.minTeamBreakMin ?? 0)}</Text>
           </View>
           {canEdit ? <EditLink onPress={() => setDialog('gaps')} /> : null}
         </View>
+        {canEdit && !started ? (
+          !drawn ? (
+            <Text className="font-inter text-xs text-ink-muted">
+              {format?.format === 'Festival' ? 'Fixtures can be scheduled once they are added.' : 'Fixtures can be scheduled once the draw is made.'}
+            </Text>
+          ) : unscheduledCount === games.filter(g => g.status !== 'Cancelled').length ? (
+            <TouchableOpacity onPress={() => setDialog('schedule')} accessibilityRole="button" className="self-start rounded-xl bg-primary px-4 py-2">
+              <Text className="font-inter-bold text-sm text-on-primary">Schedule</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={() => setDialog('reschedule')} accessibilityRole="button" className="self-start">
+              <Text className="font-inter-semibold text-[13px] text-ink-muted">Schedule again</Text>
+            </TouchableOpacity>
+          )
+        ) : null}
         </View>
       }
     />
