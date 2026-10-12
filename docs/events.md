@@ -217,12 +217,15 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
   division cannot be scheduled yet (no playing days, no game length for its sport). Scheduling only
   ever places fixtures with no time.
 - **The Schedule tab** (Phase 7; U23–U26, D16, D34). **Wide: a time × facility grid** for one day —
-  facilities under their venue, the day's window plain and the time outside it shaded, *Day ends*
-  marked, each fixture coloured by its division and named with its schools' short codes. **Narrow: a
+  facilities under their venue, the day's window plain and the time outside it shaded, *Day starts*
+  and *Day ends* marked, each fixture coloured by its division and named with its schools' short codes. **Narrow: a
   list** for the day by start time, each fixture with its division and facility (named with its venue
-  when more than one is in play). **Three dropdowns** filter it — Day, Division (grouped by sport) and
-  Facility (grouped by venue); a division narrows the grid to its own facilities, any its fixtures were
-  moved onto and any sharing ground with them, and the clashes and the tray with it. **Moving**: drag a
+  when more than one is in play). **Three dropdowns** filter it — Day, Division (grouped by sport, each
+  with its colour) and Facility (grouped by venue); a division narrows the grid to its own facilities, any its fixtures were
+  moved onto and any sharing ground with them, and the clashes and the tray with it. With a division
+  chosen, the Facility dropdown can also show more: *All <sport> facilities* (every tournament
+  facility its sport can use), or one at a time under *Also show* (chosen again to hide), beside its
+  own — to see where else its games could fit. **Moving**: drag a
   fixture on the web — its top edge lands where it is dropped, snapped to five minutes, with a dashed
   preview of the times and any clash — or tap it for the **move sheet** (day, facility — its division's
   own first, *Other…* for the rest — and start, with *Take its time away*). A move that clashes is made
@@ -230,7 +233,11 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
   tournament's fixtures and other events' at its facilities: a facility booked twice, shared ground,
   too little time between games, a team in two games at once, a short team break, past the day's end
   — beside the grid, or behind the ⚠ count on a phone. **Without a time** lists what is left to
-  place, by division (folded on a phone); a fixture dragged onto it loses its time. Offline, the
+  place, by division (folded on a phone); a fixture dragged onto it loses its time. **The day's hours** are dragged on the web: the *Day
+  starts* and *Day ends* lines change that day's hours for the tournament, or — with a division
+  chosen — become its *First game start* and *Last game ends* and change them for the division alone
+  (a start dragged back to the tournament's follows it again). Fixtures stay where they are; any now
+  outside the hours show as clashes. It says what changed, with **Undo**. Offline, the
   schedule reads and moving says it needs a connection.
 - Sports & divisions carries its explanation as text while field help is on ("Choose the sports
   being played, then the divisions within each. A division is a group of teams that compete against

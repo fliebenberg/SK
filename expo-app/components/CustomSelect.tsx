@@ -14,6 +14,8 @@ interface Option {
    * Options of one group must be next to each other; the heading shows above the first of them.
    */
   group?: string;
+  /** A colour the option stands for elsewhere, such as a division's on the Schedule grid: a bar before its label. */
+  swatch?: string;
 }
 
 interface CustomSelectProps {
@@ -76,6 +78,7 @@ export default function CustomSelect({
         className={`flex-row items-center justify-between border rounded-xl ${compact ? 'bg-card border-line px-3 py-1.5 gap-2' : 'bg-field border-line px-4 py-3'} ${className}`}
         style={style}
       >
+        {selectedOption?.swatch ? <View style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, backgroundColor: selectedOption.swatch }} /> : null}
         <Text className={`font-inter ${compact ? 'text-[13px] font-inter-semibold' : 'text-sm flex-1'} ${selectedOption ? 'text-ink' : 'text-ink-muted'}`} numberOfLines={1}>
           {selectedOption ? selectedOption.label : placeholder}
         </Text>
@@ -152,6 +155,7 @@ export default function CustomSelect({
                         : 'bg-field border-line-soft'
                     }`}
                   >
+                    {opt.swatch ? <View style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, marginRight: 8, backgroundColor: opt.swatch }} /> : null}
                     <View className="flex-1 pr-2">
                       <Text className={`font-inter text-xs ${isSelected ? 'text-ink font-inter-bold' : 'text-ink'}`}>
                         {opt.label}

@@ -1576,6 +1576,20 @@ organiser produces a good one.
 >   games on them faded, since they still take the time. The phone list's facility choices, the
 >   clashes (panel and badge) and *Without a time* narrow the same way; a clash between two
 >   divisions shows under both.
+> - **The Division dropdown shows each division's colour** (2026-10-12), the bar its fixtures carry on
+>   the grid, so the colours can be told apart.
+> - **With a division chosen, more facilities can be shown** (2026-10-12): the Facility dropdown keeps
+>   *All of <division>'s* first, then *All <sport> facilities* — every tournament facility its sport
+>   can use — then its own one by one, then *Also show*: the others its sport can use, each added
+>   beside its own and chosen again to hide (*<division>'s + 2 more*). So when its own courts are
+>   full, the organisers can see where else a game fits.
+> - **The day's lines are dragged to change its hours** (2026-10-12), on the wide grid: with *All
+>   divisions*, the tournament's *Day starts* / *Day ends* for that day (`SET_EVENT_DAYS`); with a
+>   division chosen, its *First game start* / *Last game ends* (`SET_DIVISION_DAYS`; a calculated end
+>   becomes a set one, a start dragged back to the tournament's follows it again). Fixtures do not
+>   move — any left outside show as clashes, and *Schedule again* re-plans inside the new hours.
+>   Snapped to five minutes, the start kept before the end, with *Undo*. A phone keeps the When
+>   dialogs. Only those who may change those hours can drag them.
 > - **Settled from the mockup's last questions (2026-10-12):** a fixture on the grid shows its start,
 >   division and round, then the teams — no crests; the clashes panel is open beside the grid on a
 >   wide screen and opens from the ⚠ badge on a phone; a team break below the minimum warns like any

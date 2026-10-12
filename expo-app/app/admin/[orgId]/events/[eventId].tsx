@@ -665,6 +665,9 @@ export default function EventDetails() {
               facilities={facilities}
               facilityIds={savedFacilityIds}
               hostOrg={hostOrg as any}
+              canSetHours={divisionId => canEdit || (!!divisionId && (
+                !!capabilities?.convenesDivisionIds?.includes(divisionId)
+                || !!capabilities?.convenesSportIds?.includes(divisions.find(d => d.id === divisionId)?.sportId || '')))}
             />
             {canEdit && (
               <Button

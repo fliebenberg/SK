@@ -44,6 +44,20 @@ test.describe('the Schedule tab, as the host', () => {
     await expect(page.getByText('Netball Court 1', { exact: true })).toHaveCount(0);
   });
 
+  test("with a division chosen, more of its sport's facilities can be shown beside its own", async ({ page }) => {
+    await choose(page, 'Division', 'Netball U16');
+    await expect(page.getByText('Netball Court 3', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Netball Court 1', { exact: true })).toHaveCount(0);
+    // One more, beside its own; then every netball facility; never a rugby field.
+    await choose(page, 'Facility', 'Netball Court 1');
+    await expect(page.getByRole('button', { name: "Facility: Netball U16's + 1 more" })).toBeVisible();
+    await expect(page.getByText('Netball Court 1', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Netball Court 3', { exact: true }).first()).toBeVisible();
+    await choose(page, 'Facility', 'All Netball facilities');
+    await expect(page.getByText('Netball Court 2', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Field A1', { exact: true })).toHaveCount(0);
+  });
+
   test("the second Saturday shows the 1st XV past the day's end, among the day's clashes", async ({ page }) => {
     await choose(page, 'Day', 'Sat 5 Dec');
     await expect(page.getByText(/Clashes on Sat/)).toBeVisible();
@@ -74,6 +88,33 @@ test.describe('the Schedule tab, as the host', () => {
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
     await expect(page.getByText(/Netball Court 3 is booked twice/)).toHaveCount(0);
+  });
+
+  test("the day's lines are dragged to change its hours — the tournament's, or a division's — and undone", async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', 'The lines are on the wide grid');
+    const dragLine = async (which: 'start' | 'end', minutes: number) => {
+      const box = await page.getByTestId(`schedule-hours-${which}`).boundingBox();
+      if (!box) throw new Error(`No ${which} line`);
+      const x = box.x + box.width / 2, y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x, y + (minutes * 1.4) / 2, { steps: 4 });
+      await page.mouse.move(x, y + minutes * 1.4, { steps: 4 });
+      await page.mouse.up();
+    };
+    // The first Saturday ends at 13:00 for the tournament; an hour earlier is 12:00.
+    await expect(page.getByTestId('schedule-hours-end')).toContainText('Day ends');
+    await dragLine('end', -60);
+    await expect(page.getByText(/^Day ends 12:00 on Sat 28 Nov\.$/)).toBeVisible();
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(page.getByTestId('schedule-hours-end')).toContainText('13:00');
+    // A division's lines are its own: a later first game, saved for it alone.
+    await choose(page, 'Division', 'Netball U14');
+    await expect(page.getByTestId('schedule-hours-start')).toContainText('First game');
+    await dragLine('start', 30);
+    await expect(page.getByText(/^First game start \d\d:\d\d on Sat 28 Nov for U14\.$/)).toBeVisible();
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(page.getByText(/^First game start/)).toHaveCount(0);
   });
 
   test('a fixture dragged onto the grid lands where its top edge is, and back to the tray loses its time', async ({ page }) => {

@@ -3,7 +3,7 @@ import { Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'r
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  Booking, Clash, Event, Facility, GameSummary, ScheduleContext, Site, SocketAction, Sport, TournamentDivision,
+  Booking, Clash, DivisionDay, Event, EventDay, Facility, GameSummary, ScheduleContext, Site, SocketAction, Sport, TournamentDivision,
   divisionFullName, findClashes, minuteOfDay, sharedGroundMap, timeOfDay,
 } from '@sk/shared';
 import CustomSelect from '../CustomSelect';
@@ -21,7 +21,7 @@ import { formatPlayingDay, venueInputsToInstant, venueTimeZone, type CalendarDat
  * The tournament's **Schedule** tab (Phase 7, agreed on `mockups/tournament-schedule.html`).
  *
  * - **Wide: a time × facility grid** for one day (U24) — facilities grouped under their venue, the
- *   day's window plain and the time outside it hatched, *Day ends* marked. **Narrow: a list** for the
+ *   day's window plain and the time outside it hatched, *Day starts* and *Day ends* marked. **Narrow: a list** for the
  *   day, grouped by start time, every facility named with its venue (D16).
  * - **Three dropdowns** filter it: Day, Division (by sport, *All divisions* first) and Facility (by
  *   venue). A division narrows the grid to its facilities — its own, any its fixtures were moved onto,
@@ -33,6 +33,9 @@ import { formatPlayingDay, venueInputsToInstant, venueTimeZone, type CalendarDat
  * - **Clashes** (U26) are the shared check's (`findClashes`) — the server's scheduler avoids exactly
  *   these — over the tournament's fixtures and other events' at its facilities.
  * - **Without a time** (U25): what is left to place, by division.
+ * - **The day's hours** (agreed 2026-10-12): on the web the *Day starts* and *Day ends* lines are
+ *   dragged to change that day's hours — the tournament's, or with a division chosen, the division's
+ *   *First game start* and *Last game ends*. Fixtures stay put; any now outside the hours are clashes.
  * - **Offline** (U20): the schedule reads; moving needs a connection.
  */
 
@@ -53,6 +56,8 @@ interface Props {
   /** The tournament's facilities. */
   facilityIds: string[];
   hostOrg?: { timezone?: string | null } | null;
+  /** Whether the viewer may change the day's hours: the tournament's (null), or a division's. */
+  canSetHours: (divisionId: string | null) => boolean;
 }
 
 /** How far each overlapping fixture is set in from the one beneath it, so that one stays reachable. */
@@ -89,7 +94,7 @@ const fixtureName = (g?: GameSummary) => { const [home, away] = g?.participants 
 /** Each division's colour on the grid — theme tokens, in turn. */
 const DIVISION_TONES = ['info', 'special', 'success', 'primary', 'accent', 'warning', 'danger'] as const;
 
-export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, sports, sites, facilities, facilityIds, hostOrg }: Props) {
+export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, sports, sites, facilities, facilityIds, hostOrg, canSetHours }: Props) {
   const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
   const online = useWsStore((s: any) => s.isConnected);
@@ -117,7 +122,13 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
   const [day, setDay] = useState<DayChoice>(days[0] || '');
   useEffect(() => { if (!days.includes(day) && days.length) setDay(days[0]); }, [days.join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const [divisionId, setDivisionId] = useState('all');
+  /**
+   * 'all' — every facility, or with a division chosen its own (plus any `extras` added to see where
+   * else its games could go); 'every' — with a division chosen, every tournament facility for its
+   * sport; else one facility.
+   */
   const [facilityId, setFacilityId] = useState('all');
+  const [extras, setExtras] = useState<Set<string>>(new Set());
 
   const divisionOf = (id?: string | null) => divisions.find(d => d.id === id);
   const sportName = (id?: string | null) => sports.find(s => s.id === id)?.name || '';
@@ -146,9 +157,15 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
     [...ids].forEach(fid => (ground[fid] || []).forEach(o => ids.add(o)));
     return ids;
   };
+  /** The tournament's facilities a division's sport can be played on, beyond its own. */
+  const suitableFacilityIds = (id: string): string[] => {
+    const sportId = divisionOf(id)?.sportId || '';
+    return [...new Set(facilityIds)].filter(fid => { const f = facilityOf(fid); return !!f && (f.primarySportId === sportId || (f.supportedSportIds || []).includes(sportId)); });
+  };
   const inDivision = (g?: GameSummary) => divisionId === 'all' || g?.divisionId === divisionId;
   const columnIds = useMemo(() => {
     const keep = divisionId === 'all' ? null : divisionFacilityIds(divisionId);
+    if (keep) (facilityId === 'every' ? suitableFacilityIds(divisionId) : facilityId === 'all' ? [...extras] : []).forEach(id => keep.add(id));
     const used = new Set(games.filter(g => g.facilityId && model.placeOf(g)?.day === day).map(g => g.facilityId!));
     const ids = [...new Set([...facilityIds, ...used])].filter(id => {
       const f = facilityOf(id);
@@ -157,8 +174,8 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
       return !keep || keep.has(id);
     });
     const ordered = ids.sort((a, b) => (facilityOf(a)?.siteId || '').localeCompare(facilityOf(b)?.siteId || '') || (facilityOf(a)?.name || '').localeCompare(facilityOf(b)?.name || ''));
-    return facilityId === 'all' ? ordered : ordered.filter(id => id === facilityId);
-  }, [divisionId, facilityId, facilityIds, facilities, games, day, model, ground]); // eslint-disable-line react-hooks/exhaustive-deps
+    return facilityId === 'all' || facilityId === 'every' ? ordered : ordered.filter(id => id === facilityId);
+  }, [divisionId, facilityId, extras, facilityIds, facilities, games, day, model, ground]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** The clashes on the day, narrowed to the division: one with another division shows under both. */
   const dayClashes = clashes.filter(c => c.day === day && (divisionId === 'all' || c.ids.some(id => gameOf(id)?.divisionId === divisionId)));
@@ -212,11 +229,17 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
 
   /* -- the grid ---------------------------------------------------------------------------- */
   const window = (event.days || []).find(d => d.day === day);
-  const dayStart = minuteOfDay(window?.dayStarts) ?? 8 * 60;
-  const dayEnd = minuteOfDay(window?.dayEnds) ?? 17 * 60;
+  /** With a division chosen, the lines are its hours that day; on a day it does not play, the tournament's, fixed. */
+  const shownDivision = divisionId !== 'all' ? divisionOf(divisionId) : undefined;
+  const divisionWindow = shownDivision ? model.windowsOf(shownDivision.id).find(w => w.day === day) : undefined;
+  const savedStart = divisionWindow?.starts ?? minuteOfDay(window?.dayStarts) ?? 8 * 60;
+  const savedEnd = divisionWindow?.ends ?? minuteOfDay(window?.dayEnds) ?? 17 * 60;
+  const [hoursDrag, setHoursDrag] = useState<{ which: 'start' | 'end'; minute: number } | null>(null);
+  const dayStart = hoursDrag?.which === 'start' ? hoursDrag.minute : savedStart;
+  const dayEnd = hoursDrag?.which === 'end' ? hoursDrag.minute : savedEnd;
   const onDay = allBookings.filter(b => b.day === day);
-  const g0 = Math.min(dayStart - 30, ...onDay.map(b => b.start - 15));
-  const g1 = Math.max(dayEnd + 45, ...onDay.map(b => b.start + b.minutes + 15));
+  const g0 = Math.min(savedStart - 30, ...onDay.map(b => b.start - 15));
+  const g1 = Math.max(savedEnd + 45, ...onDay.map(b => b.start + b.minutes + 15));
   const gridHeight = (g1 - g0) * PX;
   const hours: number[] = [];
   for (let m = Math.ceil(g0 / 60) * 60; m < g1; m += 60) hours.push(m);
@@ -237,6 +260,82 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
   };
   const web = Platform.OS === 'web';
   const canMove = canEdit && online;
+
+  /* -- dragging the day's hours ------------------------------------------------------------- */
+  const hoursEditable = web && online && !!window
+    && (shownDivision ? !!divisionWindow && canSetHours(shownDivision.id) : canSetHours(null));
+  const hourLabels = shownDivision && divisionWindow
+    ? { start: 'First game', end: 'Last game ends', startFull: 'First game start', endFull: 'Last game ends' }
+    : { start: 'Day starts', end: 'Day ends', startFull: 'Day starts', endFull: 'Day ends' };
+  /** Sends the days with this day's start or end at `minute`; Undo sends them as they are now. */
+  const hoursPayloads = (which: 'start' | 'end', minute: number) => {
+    if (shownDivision) {
+      const now: DivisionDay[] = (shownDivision.days || []).map(d => ({ day: d.day, plays: d.plays, firstGameStart: d.firstGameStart || null, lastGameEnds: d.lastGameEnds || null }));
+      const mine: DivisionDay = now.find(d => d.day === day) || { day, plays: true, firstGameStart: null, lastGameEnds: null };
+      const row: DivisionDay = which === 'start'
+        // Back on the tournament's start, it follows the tournament again.
+        ? { ...mine, firstGameStart: minute === minuteOfDay(window!.dayStarts) ? null : timeOfDay(minute) }
+        : { ...mine, lastGameEnds: timeOfDay(minute) };
+      const next = [...now.filter(d => d.day !== day), ...(row.firstGameStart || row.lastGameEnds ? [row] : [])].sort((a, b) => a.day.localeCompare(b.day));
+      const send = (days: DivisionDay[]) => sendAction(SocketAction.SET_DIVISION_DAYS, { divisionId: shownDivision.id, orgId, days });
+      return { apply: () => send(next), undo: () => send(now) };
+    }
+    const now: EventDay[] = (event.days || []).map(d => ({ day: d.day, dayStarts: d.dayStarts, dayEnds: d.dayEnds }));
+    const next = now.map(d => (d.day === day ? { ...d, [which === 'start' ? 'dayStarts' : 'dayEnds']: timeOfDay(minute) } : d));
+    const send = (days: EventDay[]) => sendAction(SocketAction.SET_EVENT_DAYS, { eventId: event.id, orgId, days });
+    return { apply: () => send(next), undo: () => send(now) };
+  };
+  const saveHours = async (which: 'start' | 'end', minute: number) => {
+    const { apply, undo } = hoursPayloads(which, minute);
+    const res = await apply();
+    if (!res.ok) return;
+    let warn: string | undefined;
+    if (shownDivision && window) {
+      const tStart = minuteOfDay(window.dayStarts)!, tEnd = minuteOfDay(window.dayEnds)!;
+      if (which === 'start' && minute < tStart) warn = `It starts before the tournament's day starts (${timeOfDay(tStart)}).`;
+      if (which === 'end' && minute > tEnd) warn = `It ends after the tournament's day ends (${timeOfDay(tEnd)}).`;
+    }
+    setToast({
+      text: `${which === 'start' ? hourLabels.startFull : hourLabels.endFull} ${timeOfDay(minute)} on ${formatPlayingDay(day)}${shownDivision ? ` for ${shownDivision.name}` : ''}.`,
+      warn,
+      undo: async () => { setToast(null); await undo(); },
+    });
+  };
+  const hoursRef = useRef<{ which: 'start' | 'end'; y0: number; from: number; minute: number } | null>(null);
+  const beginHoursDrag = (which: 'start' | 'end', e: any) => {
+    if (!hoursEditable) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const from = which === 'start' ? savedStart : savedEnd;
+    hoursRef.current = { which, y0: e.clientY, from, minute: from };
+    setHoursDrag({ which, minute: from });
+    const onMove = (ev: PointerEvent) => {
+      const h = hoursRef.current;
+      if (!h) return;
+      const m = Math.round((h.from + (ev.clientY - h.y0) / PX) / STEP) * STEP;
+      h.minute = which === 'start' ? Math.max(g0, Math.min(m, savedEnd - STEP)) : Math.min(g1, Math.max(m, savedStart + STEP));
+      setHoursDrag({ which, minute: h.minute });
+    };
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      const h = hoursRef.current;
+      hoursRef.current = null;
+      setHoursDrag(null);
+      if (h && h.minute !== h.from) saveHours(h.which, h.minute);
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  };
+  /** A line's grab strip across a column, beneath the fixtures so they still take the click. */
+  const hourGrip = (which: 'start' | 'end') => (hoursEditable ? (
+    <div
+      key={`grip-${which}`}
+      onPointerDown={(e: any) => beginHoursDrag(which, e)}
+      title={`Drag to change ${which === 'start' ? hourLabels.startFull : hourLabels.endFull}`}
+      style={{ position: 'absolute', left: 0, right: 0, top: ((which === 'start' ? dayStart : dayEnd) - g0) * PX - 5, height: 10, cursor: 'row-resize', touchAction: 'none', zIndex: 0 }}
+    />
+  ) : null);
 
   const block = (b: Booking, lane = 0) => {
     const g = gameOf(b.id);
@@ -288,7 +387,9 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
       <>
         <View className="absolute left-0 right-0 bg-sunken" style={{ top: 0, height: Math.max(0, (dayStart - g0) * PX), opacity: 0.6 }} />
         <View className="absolute left-0 right-0 bg-sunken" style={{ top: (dayEnd - g0) * PX, bottom: 0, opacity: 0.6 }} />
+        <View className="absolute left-0 right-0 border-t-2 border-warning" style={{ top: (dayStart - g0) * PX }} />
         <View className="absolute left-0 right-0 border-t-2 border-warning" style={{ top: (dayEnd - g0) * PX }} />
+        {web ? <>{hourGrip('start')}{hourGrip('end')}</> : null}
       </>
     );
     const ghost = preview && preview.facilityId === fid && drag.current ? (
@@ -348,11 +449,33 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
   const grid = (
     <ScrollView horizontal showsHorizontalScrollIndicator>
       <View className="flex-row" style={{ minWidth: '100%' as any }}>
-        <View style={{ width: 46, marginTop: 50, height: gridHeight }}>
+        <View style={{ width: 96, marginTop: 50, height: gridHeight }}>
           {hours.map(m => (
             <Text key={m} className="absolute font-inter text-[11px] text-ink-muted" style={{ top: (m - g0) * PX - 7 }}>{timeOfDay(m)}</Text>
           ))}
-          <Text className="absolute font-inter-bold text-[10px] text-warning-ink" style={{ top: (dayEnd - g0) * PX + 2 }}>Day ends</Text>
+          {(['start', 'end'] as const).map(which => {
+            const at = which === 'start' ? dayStart : dayEnd;
+            const pill = (
+              <View className={`rounded-md border px-1 py-0.5 ${hoursDrag?.which === which ? 'bg-primary-soft border-primary' : 'bg-warning-soft border-warning'}`}>
+                <Text className={`font-inter-bold text-[10px] ${hoursDrag?.which === which ? 'text-primary-ink' : 'text-warning-ink'}`} numberOfLines={1}>{which === 'start' ? hourLabels.start : hourLabels.end}</Text>
+                <Text className={`font-inter-bold text-[10px] ${hoursDrag?.which === which ? 'text-primary-ink' : 'text-warning-ink'}`}>{timeOfDay(at)}</Text>
+              </View>
+            );
+            const top = (at - g0) * PX - 15;
+            return hoursEditable ? (
+              <div
+                key={which}
+                onPointerDown={(e: any) => beginHoursDrag(which, e)}
+                title={`Drag to change ${which === 'start' ? hourLabels.startFull : hourLabels.endFull}`}
+                data-testid={`schedule-hours-${which}`}
+                style={{ position: 'absolute', top, left: 0, right: 4, cursor: 'row-resize', touchAction: 'none', zIndex: 2 }}
+              >
+                {pill}
+              </div>
+            ) : (
+              <View key={which} className="absolute" style={{ top, left: 0, right: 4, zIndex: 2 }}>{pill}</View>
+            );
+          })}
         </View>
         <View className="flex-1 flex-row gap-1.5">
           {siteGroups.map(siteId => (
@@ -376,9 +499,35 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
     </ScrollView>
   );
 
+  /* -- the Facility dropdown -- */
+  const byVenue = (ids: string[]) => ids.map(id => facilityOf(id)).filter(Boolean)
+    .sort((a, b) => a!.siteId.localeCompare(b!.siteId) || a!.name.localeCompare(b!.name)) as Facility[];
+  const facilityOptions = (() => {
+    if (divisionId === 'all') {
+      return [
+        { value: 'all', label: 'All facilities' },
+        ...byVenue([...new Set(facilityIds)]).map(f => ({ value: f.id, label: f.name, group: siteName(f.siteId) })),
+      ];
+    }
+    // A division's own first; then every facility its sport can use, to see where else its games could go.
+    const name = divisionName(divisionId);
+    const own = divisionFacilityIds(divisionId);
+    const more = suitableFacilityIds(divisionId).filter(id => !own.has(id));
+    const shown = [...extras].filter(id => more.includes(id));
+    return [
+      { value: 'all', label: shown.length ? `${name}'s + ${shown.length} more` : `All of ${name}'s` },
+      ...(more.length ? [{ value: 'every', label: `All ${sportName(divisionOf(divisionId)?.sportId)} facilities` }] : []),
+      ...byVenue([...own].filter(id => facilityIds.includes(id))).map(f => ({ value: f.id, label: facilityLabel(f.id), group: `${name}'s` })),
+      ...byVenue(more).map(f => ({
+        value: `add:${f.id}`, label: facilityLabel(f.id), group: `Also show`,
+        description: extras.has(f.id) ? 'Shown — choose again to hide' : undefined,
+      })),
+    ];
+  })();
+
   /* -- the phone list -- */
   const listed = games
-    .filter(g => !isUnscheduled(g) && inDivision(g) && model.placeOf(g)?.day === day && (facilityId === 'all' || g.facilityId === facilityId))
+    .filter(g => !isUnscheduled(g) && inDivision(g) && model.placeOf(g)?.day === day && (facilityId === 'all' || facilityId === 'every' || g.facilityId === facilityId))
     .sort((a, b) => (model.placeOf(a)!.start - model.placeOf(b)!.start) || facilityLabel(a.facilityId).localeCompare(facilityLabel(b.facilityId)));
   const byStart = new Map<number, GameSummary[]>();
   listed.forEach(g => { const s = model.placeOf(g)!.start; byStart.set(s, [...(byStart.get(s) || []), g]); });
@@ -520,10 +669,14 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
         accessibilityLabel="Division"
         placeholder="Division"
         value={divisionId}
-        onChange={id => { setDivisionId(id); if (id !== 'all' && facilityId !== 'all' && !divisionFacilityIds(id).has(facilityId)) setFacilityId('all'); }}
+        onChange={id => {
+          setDivisionId(id);
+          setExtras(new Set());
+          if (facilityId === 'every' || (id !== 'all' && facilityId !== 'all' && !divisionFacilityIds(id).has(facilityId))) setFacilityId('all');
+        }}
         options={[
           { value: 'all', label: 'All divisions' },
-          ...sportsInPlay.flatMap(sid => divisions.filter(d => d.sportId === sid).map(d => ({ value: d.id, label: divisionFullName(d.name, sportName(sid)), group: sportName(sid) }))),
+          ...sportsInPlay.flatMap(sid => divisions.filter(d => d.sportId === sid).map(d => ({ value: d.id, label: divisionFullName(d.name, sportName(sid)), group: sportName(sid), swatch: toneOf(d.id) }))),
         ]}
       />
       <CustomSelect
@@ -531,14 +684,15 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
         accessibilityLabel="Facility"
         placeholder="Facility"
         value={facilityId}
-        onChange={setFacilityId}
-        options={[
-          { value: 'all', label: divisionId === 'all' ? 'All facilities' : `All of ${divisionName(divisionId)}'s` },
-          ...[...new Set(facilityIds)].filter(id => divisionId === 'all' || divisionFacilityIds(divisionId).has(id))
-            .map(id => facilityOf(id)).filter(Boolean)
-            .sort((a, b) => a!.siteId.localeCompare(b!.siteId) || a!.name.localeCompare(b!.name))
-            .map(f => ({ value: f!.id, label: f!.name, group: siteName(f!.siteId) })),
-        ]}
+        onChange={id => {
+          // An added facility is ticked on and off, keeping the division's own in view.
+          if (id.startsWith('add:')) {
+            const fid = id.slice(4);
+            setExtras(prev => { const next = new Set(prev); if (next.has(fid)) next.delete(fid); else next.add(fid); return next; });
+            setFacilityId('all');
+          } else setFacilityId(id);
+        }}
+        options={facilityOptions}
       />
       <View className="flex-1" />
       {canEdit ? (
