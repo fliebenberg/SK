@@ -67,6 +67,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20261008_event_org_withdrawal.ts`: `event_organizations.invitation` gains `withdrawal_pending` and `withdrawn` (`FIX-30`), and the row gains `withdrawal_reason`, `withdrawal_requested_at` and `withdrawal_requested_by_user_id`: an organisation that accepted asks to withdraw, with a reason, and the organisers confirm it or keep it in.
     - `20261009_division_default_round_robin.ts`: **Data only, no schema change.** A division whose only stage is an untouched `Festival` with no fixtures becomes round robin (`FIX-27`): a `Festival` stage now means *set fixtures by hand*, chosen on purpose, and a division nobody set a format for starts as round robin (`defaultDivisionFormat`).
     - `20261010_team_answers_and_entry_locks.ts`: A team's answer to its invitation (`FIX-31`): `division_entrants.status` becomes `invited` / `accepted` / `declined` / `withdrawal_pending` / `withdrawn` / `requested` / `rejected` (`active` → `accepted`), with `answered_at` / `answered_by_user_id` / `answered_by_org_id` and `reason` / `requested_at` / `requested_by_user_id`. `tournament_divisions.entries_locked_at` / `entries_locked_by_user_id` (a division with fixtures is locked on the way in, since the draw needs the lock) and `orgs_may_add_teams` (NULL follows the tournament); `events.orgs_may_add_teams` (`FIX-33`, default off).
+    - `20261012_tournament_scheduling.ts`: Tournament scheduling (Phase 7). `event_days` — a tournament's playing days, one row each with `day_starts` / `day_ends` (venue clock times; days need not follow each other; no backfill, so an existing tournament's hours read as not set). `division_days` — where a division differs on a day: `plays`, `first_game_start` (NULL: the tournament's), `last_game_ends` (NULL: calculated); a composite FK to `event_days` removes it with its day. `gap_between_games_min` (default 5) and `min_team_break_min` (default 0, no minimum) on `events`, the same nullable on `tournament_divisions` (NULL follows the tournament). `facility_shared_ground` — facilities on the same ground (D34), each pair once with the smaller id first, read both ways. `games.placed_by` (`scheduler` / `hand`) and an index on `games (facility_id, start_time)`.
 
 ## The tournaments schema
 
@@ -79,9 +80,11 @@ you what deletes it:
            │    └─ stage_entrants    who is in this stage, and in which pool
            ├─ division_entrants      the roster: a team, a person, or an unresolved label
            ├─ division_facilities    a narrowing of event_facilities
+           ├─ division_days          where it differs from the tournament on a day (Phase 7)
            └─ division_adjustments   a deduction or a walkover, recorded as an override
 
-Plus `event_facilities` (the facilities in play) and the three grant tables `event_organizers`,
+Plus `event_days` (the playing days and their hours, Phase 7), `event_facilities` (the facilities in
+play), `facility_shared_ground` (facilities on the same ground, D34) and the three grant tables `event_organizers`,
 `event_sport_organizers` and `division_organizers` — full rights over the tournament, over one of
 its sports, or over one division. All three are keyed on `org_profiles`, never `users`, so a convenor
 can be appointed before they have an account; see

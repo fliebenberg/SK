@@ -30,6 +30,12 @@ export interface SportSettings {
   /** How many periods a fixture is scheduled to run — the sport-level default for
    *  `game.customSettings.scheduledPeriods` and `clock.scheduledPeriods`. */
   scheduledPeriods?: number;
+  /** The break between two periods (half-time, between quarters). With the two above and the
+   *  extra-time allowance it makes a fixture's length for scheduling (`fixtureMinutes`). */
+  breakBetweenPeriodsMS?: number;
+  /** Time allowed for a game to run over — stoppages, extra time — added once to its length when
+   *  scheduling, so the next game on the facility is not planned to start while it is still going. */
+  extraTimeAllowanceMS?: number;
   yellowCardDurationMS?: number;
   redCardDurationMS?: number;
   allowTimedRedCard?: boolean;

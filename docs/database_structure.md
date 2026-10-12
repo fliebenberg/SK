@@ -154,6 +154,17 @@ Which sports a facility can host — what the scheduler filters on when placing 
 `PRIMARY KEY (facility_id, sport_id)`, both FKs cascading. Distinct from
 `facilities.primary_sport_id`, which is the one it is mainly *for*.
 
+### 5c. `facility_shared_ground`
+Facilities on the same ground (D34): `Field A1` and `Field A2` marked out on `A Field`, a cricket
+outfield over the soccer pitch. A game on one occupies the other for as long as it runs. Added by
+`20261012_tournament_scheduling.ts`.
+- `facility_id` (TEXT), `other_facility_id` (TEXT): both FK to `facilities.id` (ON DELETE CASCADE).
+  `PRIMARY KEY (facility_id, other_facility_id)`, `CHECK (facility_id < other_facility_id)`.
+
+Each pair is stored **once**, smaller id first, and read both ways — so sharing is symmetric by
+construction and cannot be declared twice. **Not transitive**: A1–A and A2–A are two rows, and A1–A2
+is not implied, or the mini pitches could never run together.
+
 ### 6. `teams`
 Groups of players representing an organization.
 - `id` (TEXT, PK): Unique identifier.
@@ -273,17 +284,28 @@ A single match, or a tournament containing many.
 - `name` (TEXT)
 - `start_date` (DATE): the day it starts. A calendar date, the same day for every viewer; was
   `TIMESTAMPTZ` at noon UTC until `20260926_calendar_dates.ts`.
-- `end_date` (DATE): the last day, for an event over several; `NULL` for one day.
+- `end_date` (DATE): the last day, for an event over several; `NULL` for one day. For a tournament
+  with playing days (`event_days`), both dates are rewritten from them — the first and last day —
+  whenever the days change, so every reader of the range keeps working.
+
 - `site_id` (TEXT): FK to `sites.id`.
 - `facility_id` (TEXT): FK to `facilities.id`. Still the whole story for a `SingleMatch`; a
   tournament names its facilities in `event_facilities` instead.
 - `org_id` (TEXT): FK to `organizations.id`. The host.
-- `settings` (JSONB): scoring subject, scoring system, tiebreak order, schedule days.
+- `settings` (JSONB): scoring subject, scoring system, tiebreak order. (The playing days, once
+  planned as a key here, are the `event_days` table — section 11l.)
 - `status` (TEXT)
 - `cached_standings` (JSONB): written by the recalculation path, read on every view — data, not
   configuration, exactly as `seasons.cached_standings` is.
 - `format` (TEXT): `'Festival' | 'RoundRobin' | 'Knockout' | 'PoolsKnockout'`. A column rather than
   a settings key, because it is what the event screen keys its tabs and setup steps off.
+- `orgs_may_add_teams` (BOOLEAN): NOT NULL DEFAULT false. May invited organisations add teams
+  themselves (`FIX-33`).
+- `gap_between_games_min` (SMALLINT): NOT NULL DEFAULT 5. *Between games*: minutes kept free on a
+  facility between one game ending and the next starting. Columns rather than settings keys, as
+  `orgs_may_add_teams` is, because `settings` is replaced whole on update (Phase 7).
+- `min_team_break_min` (SMALLINT): NOT NULL DEFAULT 0. *Minimum team break*: the least time a team
+  gets between games; 0 is no minimum.
 
 > The participating organisations and sports are **not** columns. They are the `event_organizations`
 > and `event_sports` join tables (sections 11b and 11c). This document listed them as
@@ -331,6 +353,10 @@ Everything else here is named for its parent, so a table name tells you what del
 - `weighting` (NUMERIC(6,3)): NOT NULL DEFAULT 1.0. `NUMERIC` so 1.5 means 1.5.
 - `settings` (JSONB): this division's scoring system and tiebreak order, when it overrides the event.
 - `sort_order` (INTEGER), `created_at`, `updated_at`
+- `entries_locked_at` (TIMESTAMPTZ), `entries_locked_by_user_id` (TEXT): entries locked by hand (`FIX-31`).
+- `orgs_may_add_teams` (BOOLEAN): the division's own choice; NULL follows the event (`FIX-33`).
+- `gap_between_games_min`, `min_team_break_min` (SMALLINT): the division's own scheduling gaps;
+  NULL follows the event's.
 
 ### 11e. `division_stages`
 Pools, then the knockout. Every division has at least one; the UI stays silent about staging when it
@@ -439,6 +465,30 @@ taking part and by nothing else. `phase4-permissions.ts` asserts that, and asser
 stays out of the standings roll-up, since an org in the table having played nothing is how the bug
 would first be noticed.
 
+### 11l. `event_days`
+A tournament's playing days (Phase 7, `20261012_tournament_scheduling.ts`). Days need not follow each
+other: four Saturdays a week apart are four rows.
+- `event_id` (TEXT): NOT NULL, FK to `events.id` (ON DELETE CASCADE).
+- `day` (DATE): a calendar date. `PRIMARY KEY (event_id, day)`.
+- `day_starts` (TIME): NOT NULL. When the first games start — a venue clock time.
+- `day_ends` (TIME): NOT NULL, `CHECK (day_ends > day_starts)`. By when the last games must **end**
+  (not the latest start: games differ in length, so a last start leaves the day's real end unknown).
+
+Times become instants only when a fixture is placed, in the venue's timezone (`sites.timezone`,
+else the organisation's).
+
+### 11m. `division_days`
+Where a division differs from its tournament on one of the tournament's days. A day with no row
+plays the tournament's hours, so the usual division has none.
+- `event_id` (TEXT), `day` (DATE): together a FK to `event_days (event_id, day)` (ON DELETE CASCADE),
+  so a division's row goes when its day leaves the tournament.
+- `division_id` (TEXT): NOT NULL, FK to `tournament_divisions.id` (ON DELETE CASCADE).
+  `PRIMARY KEY (division_id, day)`.
+- `plays` (BOOLEAN): NOT NULL DEFAULT true. False: the division does not play that day.
+- `first_game_start` (TIME): NULL is the tournament's `day_starts`.
+- `last_game_ends` (TIME): NULL is **calculated** — the scheduler finishes as early as the games
+  allow, by the tournament's `day_ends` at the latest.
+
 ### 12. `user_emails`
 Support for multiple emails per user.
 - `id` (TEXT, PK)
@@ -521,6 +571,10 @@ Generic match entity supporting various topologies and participant types.
   entrant in the pool stage *and* the knockout, so resolving a fixture's stage through its
   participants returns both. `SET NULL` matches `game_participants.source_stage_id` — deleting a
   stage must not delete the fixtures played in it.
+- `placed_by` (TEXT): `CHECK (placed_by IN ('scheduler', 'hand'))`; NULL when nobody has placed it.
+  Who gave the fixture its time and facility, so scheduling again keeps what was placed by hand
+  (Phase 7). Indexed with the facility: `idx_games_facility_start (facility_id, start_time)`, for
+  finding other events' bookings at a venue.
 
 ### 18b. `game_participants`
 One side of a fixture: a team, an individual, or — in a tournament — a slot that does not know who

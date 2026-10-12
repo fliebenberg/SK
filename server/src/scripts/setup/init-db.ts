@@ -310,6 +310,9 @@ const createTables = async () => {
                 format TEXT,
                 -- FIX-33: may invited organisations add teams themselves (20261010_team_answers_and_entry_locks.ts).
                 orgs_may_add_teams BOOLEAN NOT NULL DEFAULT FALSE,
+                -- Phase 7 scheduling gaps, in minutes (20261012_tournament_scheduling.ts).
+                gap_between_games_min SMALLINT NOT NULL DEFAULT 5,
+                min_team_break_min SMALLINT NOT NULL DEFAULT 0,
                 CONSTRAINT events_type_check CHECK (type IN ('SingleMatch', 'Tournament'))
             );
         `);
@@ -377,6 +380,9 @@ const createTables = async () => {
                 entries_locked_at TIMESTAMPTZ,
                 entries_locked_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
                 orgs_may_add_teams BOOLEAN,
+                -- Phase 7: the division's own scheduling gaps; NULL follows the event.
+                gap_between_games_min SMALLINT,
+                min_team_break_min SMALLINT,
                 CONSTRAINT tournament_divisions_age_group_fk FOREIGN KEY (sport_id, age_group_id)
                     REFERENCES sport_age_groups (sport_id, id)
             );
@@ -460,6 +466,45 @@ const createTables = async () => {
                 division_id TEXT REFERENCES tournament_divisions(id) ON DELETE CASCADE,
                 facility_id TEXT REFERENCES facilities(id) ON DELETE CASCADE,
                 PRIMARY KEY (division_id, facility_id)
+            );
+        `);
+
+        // Phase 7 scheduling (20261012_tournament_scheduling.ts). A tournament's playing days —
+        // venue clock times on a calendar date, which need not follow each other — and where a
+        // division differs on one of them. Removing a day removes the divisions' rows for it.
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS event_days (
+                event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                day DATE NOT NULL,
+                day_starts TIME NOT NULL,
+                day_ends TIME NOT NULL,
+                PRIMARY KEY (event_id, day),
+                CONSTRAINT event_days_window_check CHECK (day_ends > day_starts)
+            );
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS division_days (
+                event_id TEXT NOT NULL,
+                division_id TEXT NOT NULL REFERENCES tournament_divisions(id) ON DELETE CASCADE,
+                day DATE NOT NULL,
+                plays BOOLEAN NOT NULL DEFAULT TRUE,
+                first_game_start TIME,          -- NULL: the tournament's day_starts
+                last_game_ends TIME,            -- NULL: calculated, by the tournament's day_ends
+                PRIMARY KEY (division_id, day),
+                CONSTRAINT division_days_event_day_fkey FOREIGN KEY (event_id, day) REFERENCES event_days(event_id, day) ON DELETE CASCADE,
+                CONSTRAINT division_days_window_check CHECK (last_game_ends IS NULL OR first_game_start IS NULL OR last_game_ends > first_game_start)
+            );
+        `);
+
+        // D34: facilities on the same ground. Each pair once, smaller id first, read both ways;
+        // not transitive (A1 and A2 both share A Field, and not each other).
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS facility_shared_ground (
+                facility_id TEXT NOT NULL REFERENCES facilities(id) ON DELETE CASCADE,
+                other_facility_id TEXT NOT NULL REFERENCES facilities(id) ON DELETE CASCADE,
+                PRIMARY KEY (facility_id, other_facility_id),
+                CONSTRAINT facility_shared_ground_order_check CHECK (facility_id < other_facility_id)
             );
         `);
 
@@ -617,10 +662,14 @@ const createTables = async () => {
                 -- model's §4.4 proposed returns both. SET NULL rather than CASCADE, matching
                 -- game_participants.source_stage_id -- deleting a stage must not delete the
                 -- fixtures played in it.
-                stage_id TEXT REFERENCES division_stages(id) ON DELETE SET NULL
+                stage_id TEXT REFERENCES division_stages(id) ON DELETE SET NULL,
+                -- Phase 7: whether the scheduler or a person placed it, so scheduling again keeps
+                -- what was placed by hand (20261012_tournament_scheduling.ts).
+                placed_by TEXT CONSTRAINT games_placed_by_check CHECK (placed_by IN ('scheduler', 'hand'))
             );
         `);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_games_stage ON games(stage_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_games_facility_start ON games (facility_id, start_time);`);
 
         // Game Participants
         await client.query(`
