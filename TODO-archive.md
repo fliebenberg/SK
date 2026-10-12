@@ -14,6 +14,8 @@ Sections mirror TODO.md.
 - [x] Add Offline indicator when the app is not connected to the server/websocket
 - [x] Handle image deletion to make sure the number of images stored does not grow infintiely over time
     - **Resolved 2026-09-24 with `MEDIA-1`.** Removing or replacing a logo or picture now deletes the old files once nothing references them, including clearing a logo, deleting an organisation and merging accounts; a failed save no longer strands its upload; and `npm run assets:audit -- --delete-unlinked` (in `server/`) cleans up anything left by crashes or database resets. Also fixed: the org-profile handler deleted a picture without checking whether another record still used it, and that check ignored `users.custom_image`.
+- [x] Add Venue Location (a group of Venues) e.g. "School Grounds" may have Field A, Field B and then "Sports Fields" might also have Field A, Field B
+    - **Closed 2026-10-12 (tournaments Phase 7), by the user's decision.** The "group of venues" is what an organisation's **sites** already are: each site has its own facilities, so "School Grounds" and "Sports Fields" can each have a Field A (the test data's Main Campus and Sports Club Grounds do). What was left was telling two Field A's apart, and D16 does that: wherever more than one venue is in play — the Schedule tab's grid and list — a facility is named with its site. Answers open question 3 in [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) §13.
 
 ## Known Issues & Tech Debt
 

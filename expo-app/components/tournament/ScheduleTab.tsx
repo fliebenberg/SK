@@ -55,6 +55,27 @@ interface Props {
   hostOrg?: { timezone?: string | null } | null;
 }
 
+/** How far each overlapping fixture is set in from the one beneath it, so that one stays reachable. */
+const LANE_INDENT = 18;
+
+/**
+ * Lanes for one facility's fixtures on a day: a fixture overlapping one already placed goes in the
+ * next lane up, drawn set in by `LANE_INDENT` and above it. Fixtures that do not overlap share lane 0.
+ */
+export function overlapLanes(items: Array<{ id: string; start: number; minutes: number }>): Map<string, number> {
+  const lanes = new Map<string, number>();
+  const placed: Array<{ start: number; end: number; lane: number }> = [];
+  for (const b of [...items].sort((x, y) => x.start - y.start || x.id.localeCompare(y.id))) {
+    const end = b.start + b.minutes;
+    const busy = new Set(placed.filter(p => p.start < end && b.start < p.end).map(p => p.lane));
+    let lane = 0;
+    while (busy.has(lane)) lane++;
+    lanes.set(b.id, lane);
+    placed.push({ start: b.start, end, lane });
+  }
+  return lanes;
+}
+
 const plural = (n: number, word: string, many?: string) => `${n} ${n === 1 ? word : many || `${word}s`}`;
 
 /** A side as the schedule names it: the organisation's short code and the team — "DKL U16 A". */
@@ -217,7 +238,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
   const web = Platform.OS === 'web';
   const canMove = canEdit && online;
 
-  const block = (b: Booking) => {
+  const block = (b: Booking, lane = 0) => {
     const g = gameOf(b.id);
     const other = !g;
     const faded = !other && !inDivision(g);
@@ -228,7 +249,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
     const inner = (
       <View
         className={`absolute rounded-md border px-1.5 py-0.5 overflow-hidden ${bad ? 'bg-warning-soft border-warning' : other ? 'bg-sunken border-line' : 'bg-card border-line'} ${flash === b.id ? 'border-primary' : ''}`}
-        style={{ top: (b.start - g0) * PX, height: Math.max(18, b.minutes * PX - 2), left: 3, right: 3, opacity: faded ? 0.35 : 1, borderLeftWidth: 4, borderLeftColor: other ? undefined : toneOf(g?.divisionId) }}
+        style={{ top: (b.start - g0) * PX, height: Math.max(18, b.minutes * PX - 2), left: 3 + lane * LANE_INDENT, right: 3, zIndex: 1 + lane, opacity: faded ? 0.35 : 1, borderLeftWidth: 4, borderLeftColor: other ? undefined : toneOf(g?.divisionId) }}
       >
         <Text className={`font-inter-bold text-[11px] ${bad ? 'text-warning-ink' : 'text-ink-soft'}`} numberOfLines={1}>{bad ? '⚠ ' : ''}{label}</Text>
         {!other ? <Text className="font-inter text-[11px] text-ink" numberOfLines={b.minutes > 45 ? 3 : 1}>{fixtureName(g)}</Text> : null}
@@ -285,7 +306,11 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
     const body = (
       <>
         {lines}{shade}
-        {onDay.filter(b => b.facilityId === fid).map(block)}
+        {(() => {
+          const here = onDay.filter(b => b.facilityId === fid);
+          const lanes = overlapLanes(here);
+          return here.map(b => block(b, lanes.get(b.id) || 0));
+        })()}
         {ghost}
       </>
     );

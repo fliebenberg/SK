@@ -934,6 +934,9 @@ decisions are recorded above; one question remains here, and three more sit in
    [docs/tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) §14.
 3. **Venue Location `TODO`** — does D16 (show venue and facility together) close the parked item,
    or only its tournament half? ([§12](#12-related-parked-work))
+   **Answered 2026-10-12 (Phase 7): it closes the item.** A group of venues is what an organisation's
+   sites already are, each with its own facilities; telling two "Field A"s apart was the rest, and
+   the Schedule tab names a facility with its site whenever more than one is in play.
 
 Everything else has an answer. The concrete tables and types that implement these decisions are in
 [docs/tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md).

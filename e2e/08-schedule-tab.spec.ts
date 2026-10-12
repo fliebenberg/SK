@@ -65,6 +65,13 @@ test.describe('the Schedule tab, as the host', () => {
     await expect(page.getByText(/Moved to Netball Court 3/)).toBeVisible();
     await expect(page.getByText(/moved anyway/)).toBeVisible();
     await expect(page.getByText(/Netball Court 3 is booked twice/).first()).toBeVisible();
+    // The fixture beneath is set out of the way, not hidden: its strip on the left still opens it.
+    const column = await page.getByTestId('schedule-column-fx-fac-dkl-court-3').boundingBox();
+    const beneath = await page.getByText(/09:15 U16 R1/).first().boundingBox();
+    if (!column || !beneath) throw new Error('No Court 3 column or fixture');
+    await page.mouse.click(column.x + 8, beneath.y + 20);
+    await expect(page.getByRole('button', { name: 'Take its time away' })).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
     await expect(page.getByText(/Netball Court 3 is booked twice/)).toHaveCount(0);
   });
