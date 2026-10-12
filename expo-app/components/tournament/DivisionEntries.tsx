@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Switch, Text, TouchableOpacity, View } from 'react-native';
 import {
   EntrantStatus,
@@ -135,14 +135,24 @@ export function OrgAddingLine({ division, event, onChange, onFollow, busy }: {
   /** Absent on the tournament's card: the tournament's own setting. */
   division?: Pick<TournamentDivision, 'orgsMayAddTeams'>;
   event: Pick<Event, 'orgsMayAddTeams'>;
-  onChange: (allow: boolean) => void;
+  /** Resolves to whether the save went through. */
+  onChange: (allow: boolean) => Promise<boolean>;
   /** A division's way back to following the tournament. */
   onFollow?: () => void;
   busy?: boolean;
 }) {
   const isDark = useActiveTheme() === 'dark';
   const tournamentOn = !!event.orgsMayAddTeams;
-  const on = division ? divisionAllowsOrgAdding(division, event) : tournamentOn;
+  const saved = division ? divisionAllowsOrgAdding(division, event) : tournamentOn;
+  // The switch flips as soon as it is tapped, but the saved setting only changes once the server's
+  // update arrives; until then the tapped value is held, or the switch would jump back in between.
+  const [pending, setPending] = useState<boolean | null>(null);
+  useEffect(() => { if (pending !== null && saved === pending) setPending(null); }, [saved, pending]);
+  const on = pending ?? saved;
+  const change = async (allow: boolean) => {
+    setPending(allow);
+    if (!(await onChange(allow))) setPending(null);
+  };
   const own = division && division.orgsMayAddTeams !== null && division.orgsMayAddTeams !== undefined;
   return (
     <View className="flex-row items-center gap-3 pt-3 mt-1 border-t border-line-soft">
@@ -166,7 +176,7 @@ export function OrgAddingLine({ division, event, onChange, onFollow, busy }: {
       <Switch
         value={on}
         disabled={busy}
-        onValueChange={onChange}
+        onValueChange={change}
         trackColor={{ true: themeColor(isDark, 'primary') }}
         accessibilityLabel="Organisations can add their own teams"
       />

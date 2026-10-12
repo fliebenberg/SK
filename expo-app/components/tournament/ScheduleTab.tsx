@@ -94,8 +94,26 @@ const fixtureName = (g?: GameSummary) => { const [home, away] = g?.participants 
 /** Each division's colour on the grid — theme tokens, in turn. */
 const DIVISION_TONES = ['info', 'special', 'success', 'primary', 'accent', 'warning', 'danger'] as const;
 
-export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, sports, sites, facilities, facilityIds, hostOrg, canSetHours }: Props) {
+export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: savedGames, sports, sites, facilities, facilityIds, hostOrg, canSetHours }: Props) {
   const router = useRouter();
+
+  /**
+   * A fixture just moved shows where it was put until the server's copy of it arrives, rather than
+   * sitting in its old place in between; a move that fails puts it back.
+   */
+  const [movesSaving, setMovesSaving] = useState<Record<string, { startTime: string | null; facilityId: string | null }>>({});
+  const sameInstant = (a?: string | null, b?: string | null) => (!a || !b ? !a && !b : Date.parse(a) === Date.parse(b));
+  const games = useMemo(() => savedGames.map(g => {
+    const m = movesSaving[g.id];
+    return m ? { ...g, startTime: m.startTime, facilityId: m.facilityId, timeTbd: m.startTime == null } as GameSummary : g;
+  }), [savedGames, movesSaving]);
+  useEffect(() => {
+    const arrived = Object.keys(movesSaving).filter(id => {
+      const g = savedGames.find(s => s.id === id), m = movesSaving[id];
+      return !g || (sameInstant(g.startTime, m.startTime) && (g.facilityId || null) === m.facilityId);
+    });
+    if (arrived.length) setMovesSaving(prev => { const next = { ...prev }; arrived.forEach(id => delete next[id]); return next; });
+  }, [savedGames, movesSaving]);
   const isDark = useActiveTheme() === 'dark';
   const online = useWsStore((s: any) => s.isConnected);
   const site = sites.find(s => s.id === event.siteId);
@@ -210,11 +228,14 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
   const move = async (g: GameSummary, to: { day: string; start: number; facilityId: string } | null) => {
     const before = model.placeOf(g);
     const was = before && g.facilityId ? { day: before.day, start: before.start, facilityId: g.facilityId } : null;
-    const send = (target: typeof to) => sendAction(SocketAction.MOVE_FIXTURE, {
-      gameId: g.id, orgId,
-      startAt: target ? venueInputsToInstant(target.day, timeOfDay(target.start), timeZone) : null,
-      facilityId: target ? target.facilityId : null,
-    });
+    const send = async (target: typeof to) => {
+      const startAt = target ? venueInputsToInstant(target.day, timeOfDay(target.start), timeZone) : null;
+      const facilityId = target ? target.facilityId : null;
+      setMovesSaving(prev => ({ ...prev, [g.id]: { startTime: startAt, facilityId } }));
+      const res = await sendAction(SocketAction.MOVE_FIXTURE, { gameId: g.id, orgId, startAt, facilityId });
+      if (!res.ok) setMovesSaving(prev => { const next = { ...prev }; delete next[g.id]; return next; });
+      return res;
+    };
     const res = await send(to);
     if (!res.ok) return;
     setFlash(g.id);
@@ -235,8 +256,16 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
   const savedStart = divisionWindow?.starts ?? minuteOfDay(window?.dayStarts) ?? 8 * 60;
   const savedEnd = divisionWindow?.ends ?? minuteOfDay(window?.dayEnds) ?? 17 * 60;
   const [hoursDrag, setHoursDrag] = useState<{ which: 'start' | 'end'; minute: number } | null>(null);
-  const dayStart = hoursDrag?.which === 'start' ? hoursDrag.minute : savedStart;
-  const dayEnd = hoursDrag?.which === 'end' ? hoursDrag.minute : savedEnd;
+  /** A line let go stays where it was put until the saved hours catch up (or the save fails). */
+  const hoursKey = `${day}|${shownDivision?.id || ''}`;
+  const [hoursSaving, setHoursSaving] = useState<{ key: string; which: 'start' | 'end'; minute: number } | null>(null);
+  const savingHere = hoursSaving?.key === hoursKey ? hoursSaving : null;
+  useEffect(() => {
+    if (savingHere && (savingHere.which === 'start' ? savedStart : savedEnd) === savingHere.minute) setHoursSaving(null);
+  }, [savingHere, savedStart, savedEnd]);
+  const heldAt = (which: 'start' | 'end') => (hoursDrag?.which === which ? hoursDrag.minute : savingHere?.which === which ? savingHere.minute : null);
+  const dayStart = heldAt('start') ?? savedStart;
+  const dayEnd = heldAt('end') ?? savedEnd;
   const onDay = allBookings.filter(b => b.day === day);
   const g0 = Math.min(savedStart - 30, ...onDay.map(b => b.start - 15));
   const g1 = Math.max(savedEnd + 45, ...onDay.map(b => b.start + b.minutes + 15));
@@ -287,8 +316,10 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
   };
   const saveHours = async (which: 'start' | 'end', minute: number) => {
     const { apply, undo } = hoursPayloads(which, minute);
+    const key = hoursKey;
+    setHoursSaving({ key, which, minute });
     const res = await apply();
-    if (!res.ok) return;
+    if (!res.ok) { setHoursSaving(prev => (prev?.key === key && prev.minute === minute ? null : prev)); return; }
     let warn: string | undefined;
     if (shownDivision && window) {
       const tStart = minuteOfDay(window.dayStarts)!, tEnd = minuteOfDay(window.dayEnds)!;
@@ -306,7 +337,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games, s
     if (!hoursEditable) return;
     e.preventDefault();
     e.stopPropagation();
-    const from = which === 'start' ? savedStart : savedEnd;
+    const from = which === 'start' ? dayStart : dayEnd;
     hoursRef.current = { which, y0: e.clientY, from, minute: from };
     setHoursDrag({ which, minute: from });
     const onMove = (ev: PointerEvent) => {

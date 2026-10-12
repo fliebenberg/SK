@@ -334,8 +334,9 @@ export function useOrganisationsSection({ event, orgId, sports, divisions, entra
       busy={savingAdding}
       onChange={async allow => {
         setSavingAdding(true);
-        await sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { orgsMayAddTeams: allow } });
+        const result = await sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { orgsMayAddTeams: allow } });
         setSavingAdding(false);
+        return result.ok;
       }}
     />
   ) : null;
