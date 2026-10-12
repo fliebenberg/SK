@@ -23,6 +23,9 @@ export const NETBALL_SEED_SPEC = {
     // quarters, which a competition or fixture overrides.
     periodLengthMS: 15 * 60 * 1000,
     scheduledPeriods: 4,
+    // Between quarters (Phase 7: with the two above it makes a fixture's length for scheduling —
+    // 4 x 15 + 3 x 3 = 69 minutes). A first draft, as the rest of this seed: review it in the editor.
+    breakBetweenPeriodsMS: 3 * 60 * 1000,
     // Seven on court and up to five on the bench.
     maxReserves: 5,
     positions: [

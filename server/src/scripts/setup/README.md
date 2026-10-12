@@ -54,7 +54,19 @@ lists every person with `account: true`.
   U14** is locked, with St Aldric's asking to withdraw its team and to enter its U16 team late;
   **Netball U16** (adding turned off for the division) has St Aldric's declined and Riverbend's
   invited. Defined in `TEST_TOURNAMENTS`. A test that counts a fixture team's tournaments must
-  allow for this one.
+  allow for this one. It has playing days (Sat 21 Nov 08:00–14:00, Sun 22 Nov 08:00–12:00), seven
+  facilities and the scheduling gaps (5 minutes between games, a 10-minute team break), and no draw.
+- **A drawn and scheduled tournament** (tournaments Phase 7): *Test Saturday Fixtures*
+  (`fx-tour-saturday`), hosted by Doringkloof with every organisation accepted, on two Saturdays a
+  week apart (28 Nov, 5 Dec). Four divisions, each locked, drawn as a round robin and scheduled by
+  the server's own planner (`planDivision`): Netball U14 on Courts 1–2, Netball U16 on Court 3
+  (spilling onto the second Saturday, with one fixture left **without a time**), Rugby U16 on the
+  two mini fields, and Rugby 1st XV on A Field — which waits for the minis on its ground and so
+  finishes **after the second Saturday's end**, the one clash the Schedule tab shows.
+- **Shared ground (D34)**: Doringkloof's *Field A1* and *Field A2* are marked out on *A Field* —
+  either may run with the other, never with A Field.
+- **Game lengths**: the netball and rugby seeds carry a break between periods (3 and 10 minutes), so
+  their fixtures schedule as 69 and 90 minutes.
 - Lerato Mokoena has one account and a profile in two organisations: staff at Doringkloof, and
   netball coach at Kwaggafontein.
 - Ethan Murray left Riverbend's 1st XV on 2026-03-31, so his organisation and team memberships

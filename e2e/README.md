@@ -13,7 +13,8 @@ npm run e2e:report     # the last run's report, with traces of any failure
 
 - **Every run resets the data.** `global-setup.ts` runs `npm run db:test-orgs` in `server/` — the test
   organisations, and the tournament *Test Spring Festival* (`fx-tour-spring`, `TEST_TOURNAMENTS` in
-  `server/src/scripts/setup/fixtures/testOrgs.ts`), which holds every kind of team answer — and restarts
+  `server/src/scripts/setup/fixtures/testOrgs.ts`), which holds every kind of team answer, and *Test
+  Saturday Fixtures* (`fx-tour-saturday`), drawn and scheduled for the Schedule tab — and restarts
   the API so its caches reload. That deletes anything made by hand under a test organisation.
   `E2E_SKIP_RESET=1` runs against the data as it is.
 - **The files run in order, one at a time,** and later ones start from what earlier ones did: the

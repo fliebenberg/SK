@@ -12,6 +12,8 @@ export const RUGBY_SEED_SPEC = {
   defaultSettings: {
     periodLengthMS: 40 * 60 * 1000,
     scheduledPeriods: 2,
+    // Half-time (Phase 7: a fixture's length for scheduling is 2 x 40 + 10 = 90 minutes).
+    breakBetweenPeriodsMS: 10 * 60 * 1000,
     maxReserves: 8,
     positions: [
       { id: "1", name: "Loosehead Prop" },

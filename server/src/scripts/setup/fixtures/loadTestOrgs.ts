@@ -4,6 +4,7 @@ import path from 'path';
 import type { PoolClient } from 'pg';
 import { imageService, type ImageFolder } from '../../../services/ImageService';
 import { starterAgeGroupId } from '../ageGroupSeed';
+import { Booking, dayWindows, fixtureMinutes, planDivision, sharedGroundMap, timeOfDay, zonedInputsToInstant } from '@sk/shared';
 import {
     FIXTURE_ACCOUNTS_CREATED,
     FIXTURE_MEMBERSHIP_START,
@@ -239,6 +240,15 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
                      !facility.inactive, facility.category || 'sport_field', facility.sportId || null]);
                 if (facility.sportId) await insert('facility_sports', ['facility_id', 'sport_id'], [facilityId, facility.sportId]);
             }
+            // D34: each pair once, smaller id first, as `setSharedGround` writes it.
+            for (const facility of facilities) {
+                for (const otherKey of facility.sharesGroundWith || []) {
+                    if (!facilities.some(f => f.key === otherKey)) throw new Error(`${facility.name} shares ground with ${otherKey}, which is not at its site.`);
+                    const [x, y] = [fixtureIds.facility(org.key, idPrefix + facility.key), fixtureIds.facility(org.key, idPrefix + otherKey)].sort();
+                    await client.query(`INSERT INTO facility_shared_ground (facility_id, other_facility_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [x, y]);
+                    counts.facility_shared_ground = (counts.facility_shared_ground || 0) + 1;
+                }
+            }
         };
 
         // The timezone the server would look up from the pin; every test organisation is in South Africa.
@@ -376,6 +386,55 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
         }
     }
 
+    /**
+     * A drawn division (Phase 7): a round robin, scheduled by `planDivision` — the server's own
+     * planner — around what earlier divisions booked. Written as rows directly, as the rest of the
+     * fixtures are, rather than through the managers, which would not see this transaction's rows.
+     */
+    const drawAndSchedule = async (
+        tour: (typeof TEST_TOURNAMENTS)[number], division: (typeof TEST_TOURNAMENTS)[number]['divisions'][number],
+        divisionId: string, stageId: string, booked: Booking[], hostFacility: (key: string) => string,
+    ) => {
+        const where = `Tournament ${tour.key}, ${division.key}`;
+        if (!division.locked || division.teams.some(t => t.status !== 'accepted')) throw new Error(`${where}: a drawn division must be locked with every team accepted.`);
+        const sport = (await client.query(`SELECT default_settings FROM sports WHERE id = $1`, [division.sportId])).rows[0];
+        const minutes = fixtureMinutes(sport?.default_settings);
+        if (minutes == null) throw new Error(`${where}: ${division.sportId} has no game length in its seed.`);
+        const entrants = division.teams.map(t => ({ entrantId: fixtureIds.entrant(tour.key, division.key, t.org, t.team), teamId: fixtureIds.team(t.org, t.team) }));
+        // Round robin by the circle method, in round order — the order generation produces.
+        const ring: Array<typeof entrants[number] | null> = entrants.length % 2 ? [...entrants, null] : [...entrants];
+        const draw: Array<{ id: string; round: number; matchIndex: number; home: typeof entrants[number]; away: typeof entrants[number] }> = [];
+        for (let r = 0; r < ring.length - 1; r++) {
+            let matchIndex = 0;
+            for (let i = 0; i < ring.length / 2; i++) {
+                const home = ring[i], away = ring[ring.length - 1 - i];
+                if (home && away) draw.push({ id: fixtureIds.tournamentGame(tour.key, division.key, draw.length + 1), round: r + 1, matchIndex: matchIndex++, home, away });
+            }
+            ring.splice(1, 0, ring.pop()!);
+        }
+        const gap = tour.gapBetweenGamesMin ?? 5, teamBreak = tour.minTeamBreakMin ?? 0;
+        const facilityIds = (division.facilities || tour.facilities || []).map(hostFacility);
+        const pairs = (await client.query(`SELECT facility_id, other_facility_id FROM facility_shared_ground`)).rows.map((r: any) => [r.facility_id, r.other_facility_id] as [string, string]);
+        const leave = new Set((division.leaveUnscheduled || []).map(i => draw[i]?.id));
+        const plan = planDivision({
+            fixtures: draw.filter(g => !leave.has(g.id)).map(g => ({ id: g.id, competitors: [g.home.teamId, g.away.teamId] })),
+            days: dayWindows(tour.days || []), facilityIds, minutes, gap, teamBreak, booked, sharedGround: sharedGroundMap(pairs),
+        });
+        for (const g of draw) {
+            const at = plan.placed.find(p => p.id === g.id);
+            const start = at ? zonedInputsToInstant(at.day, timeOfDay(at.start), SITE_TIMEZONE) : null;
+            await insert('games',
+                ['id', 'event_id', 'sport_id', 'stage_id', 'scheduled_start_time', 'start_time', 'status', 'site_id', 'facility_id', 'placed_by', 'custom_settings'],
+                [g.id, fixtureIds.tournament(tour.key), division.sportId, stageId, start, start, 'Scheduled', at ? fixtureIds.site(tour.host) : null, at?.facilityId ?? null,
+                 at ? 'scheduler' : null, { timeTbd: !at, tournament: { round: g.round, roundName: `Round ${g.round}`, matchIndex: g.matchIndex } }]);
+            for (const [sortOrder, side] of [g.home, g.away].entries()) {
+                await insert('game_participants', ['id', 'game_id', 'team_id', 'entrant_id', 'sort_order'],
+                    [`${g.id}-${sortOrder ? 'away' : 'home'}`, g.id, side.teamId, side.entrantId, sortOrder]);
+            }
+            if (at) booked.push({ id: g.id, day: at.day, facilityId: at.facilityId, start: at.start, minutes, competitors: [g.home.teamId, g.away.teamId], gap, teamBreak });
+        }
+    };
+
     // Tournaments after games: they reference teams of several organisations (`FIX-31`, `FIX-33`).
     for (const tour of TEST_TOURNAMENTS) {
         const tourId = fixtureIds.tournament(tour.key);
@@ -388,8 +447,24 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
             return id;
         };
         await insert('events',
-            ['id', 'name', 'type', 'format', 'start_date', 'end_date', 'site_id', 'org_id', 'settings', 'status', 'orgs_may_add_teams'],
-            [tourId, tour.name, 'Tournament', 'Festival', tour.startDate, tour.endDate, fixtureIds.site(host.key), fixtureIds.org(host.key), {}, 'Scheduled', tour.orgsMayAddTeams]);
+            ['id', 'name', 'type', 'format', 'start_date', 'end_date', 'site_id', 'org_id', 'settings', 'status', 'orgs_may_add_teams', 'gap_between_games_min', 'min_team_break_min'],
+            [tourId, tour.name, 'Tournament', 'Festival', tour.startDate, tour.endDate, fixtureIds.site(host.key), fixtureIds.org(host.key), {}, 'Scheduled', tour.orgsMayAddTeams,
+             tour.gapBetweenGamesMin ?? 5, tour.minTeamBreakMin ?? 0]);
+        // Phase 7: playing days and the facilities in play.
+        if (tour.days?.length) {
+            const sorted = tour.days.map(d => d.day).sort();
+            if (sorted[0] !== tour.startDate || sorted[sorted.length - 1] !== tour.endDate) {
+                throw new Error(`Tournament ${tour.key}: its dates must be its first and last playing day, as SET_EVENT_DAYS writes them.`);
+            }
+            for (const d of tour.days) await insert('event_days', ['event_id', 'day', 'day_starts', 'day_ends'], [tourId, d.day, d.dayStarts, d.dayEnds]);
+        }
+        const hostFacility = (key: string) => {
+            if (!host.site.facilities.some(f => f.key === key)) throw new Error(`Tournament ${tour.key}: the host has no facility ${key}.`);
+            return fixtureIds.facility(host.key, key);
+        };
+        for (const key of tour.facilities || []) await insert('event_facilities', ['event_id', 'facility_id'], [tourId, hostFacility(key)]);
+        // What drawn divisions book, in order, so each later one is scheduled around the earlier.
+        const booked: Booking[] = [];
         for (const sportId of tour.sportIds) await insert('event_sports', ['event_id', 'sport_id'], [tourId, sportId]);
         await insert('event_organizations', ['event_id', 'org_id', 'invitation'], [tourId, fixtureIds.org(host.key), 'accepted']);
         for (const taking of tour.orgs) {
@@ -425,6 +500,8 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
                     await insert('stage_entrants', ['stage_id', 'entrant_id', 'seed', 'sort_order'], [stageId, entrantId, seed + 1, seed]);
                 }
             }
+            for (const key of division.facilities || []) await insert('division_facilities', ['division_id', 'facility_id'], [divisionId, hostFacility(key)]);
+            if (division.drawn) await drawAndSchedule(tour, division, divisionId, stageId, booked, hostFacility);
         }
     }
 

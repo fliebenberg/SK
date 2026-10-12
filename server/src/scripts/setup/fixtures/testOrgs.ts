@@ -152,6 +152,8 @@ export interface FixtureFacility {
     category?: 'sport_field' | 'indoor_hall' | 'clubhouse' | 'shop' | 'parking' | 'restroom' | 'other';
     /** Inactive: kept, but not offered by the pickers. */
     inactive?: boolean;
+    /** Facilities at the same site it shares ground with (D34), by key: Field A1 marked out on A Field. */
+    sharesGroundWith?: string[];
 }
 
 /**
@@ -225,6 +227,10 @@ export const TEST_ORGS: FixtureOrg[] = [
             name: 'Main Campus',
             facilities: [
                 ...STANDARD_FACILITIES,
+                // Two mini fields marked out on A Field (D34): either can run with the other, never
+                // with A Field itself.
+                { key: 'a-field-1', name: 'Field A1', sportId: 'rugby', sharesGroundWith: ['a-field'] },
+                { key: 'a-field-2', name: 'Field A2', sportId: 'rugby', sharesGroundWith: ['a-field'] },
                 { key: 'court-4', name: 'Netball Court 4', sportId: 'netball', inactive: true },
                 { key: 'tuck-shop', name: 'Tuck Shop', category: 'shop' },
                 { key: 'parking', name: "Visitors' Parking", category: 'parking' },
@@ -565,6 +571,15 @@ export interface FixtureTournamentDivision {
     locked?: boolean;
     /** The division's own choice on organisations adding teams; absent follows the tournament. */
     orgsMayAddTeams?: boolean;
+    /** Its own facilities, by the host's facility keys (a subset of the tournament's). */
+    facilities?: string[];
+    /**
+     * Drawn as a round robin and scheduled by the same planner the server uses (`planDivision`),
+     * in the order the divisions are listed. Needs `locked` and every team accepted.
+     */
+    drawn?: boolean;
+    /** Fixtures (by index in the draw) left without a time — for the Schedule tab's tray. */
+    leaveUnscheduled?: number[];
     teams: FixtureTournamentTeam[];
 }
 export interface FixtureTournament {
@@ -574,6 +589,12 @@ export interface FixtureTournament {
     host: string;
     startDate: string;
     endDate: string;
+    /** Playing days (Phase 7); when given, `startDate` / `endDate` must be the first and last. */
+    days?: Array<{ day: string; dayStarts: string; dayEnds: string }>;
+    /** The tournament's facilities, by the host's facility keys. */
+    facilities?: string[];
+    gapBetweenGamesMin?: number;
+    minTeamBreakMin?: number;
     sportIds: string[];
     orgsMayAddTeams: boolean;
     /** Everyone else taking part, and where their invitation stands. */
@@ -596,6 +617,10 @@ export interface FixtureTournament {
 export const TEST_TOURNAMENTS: FixtureTournament[] = [
     {
         key: 'spring', name: 'Test Spring Festival', host: 'dkl', startDate: '2026-11-21', endDate: '2026-11-22',
+        // Phase 7: its days, facilities and gaps — set up, not drawn, so its entries stay as above.
+        days: [{ day: '2026-11-21', dayStarts: '08:00', dayEnds: '14:00' }, { day: '2026-11-22', dayStarts: '08:00', dayEnds: '12:00' }],
+        facilities: ['a-field', 'b-field', 'a-field-1', 'a-field-2', 'court-1', 'court-2', 'court-3'],
+        gapBetweenGamesMin: 5, minTeamBreakMin: 10,
         sportIds: ['rugby', 'netball'], orgsMayAddTeams: true,
         orgs: [
             { org: 'sac', invitation: 'accepted', by: 'Catherine Whitfield' },
@@ -631,6 +656,67 @@ export const TEST_TOURNAMENTS: FixtureTournament[] = [
             },
         ],
     },
+    /**
+     * *Test Saturday Fixtures* (Phase 7): drawn and scheduled, for the Schedule tab. Two Saturdays a
+     * week apart — playing days need not follow each other. Every organisation accepted, every
+     * division locked and drawn, then scheduled in this order by the server's own planner:
+     *
+     * - **Netball U14** on Courts 1 and 2, **Netball U16** on Court 3 — which runs into the second
+     *   Saturday, one court not being enough for its six games on the first.
+     * - **Rugby U16** on the two mini fields, side by side; **Rugby 1st XV** on A Field, which waits
+     *   for the minis on its ground (D34) and so finishes after the second Saturday ends — the
+     *   *after the day's end* warning.
+     * - One Netball U16 fixture left without a time, for the tray.
+     */
+    {
+        key: 'saturday', name: 'Test Saturday Fixtures', host: 'dkl', startDate: '2026-11-28', endDate: '2026-12-05',
+        days: [{ day: '2026-11-28', dayStarts: '08:00', dayEnds: '13:00' }, { day: '2026-12-05', dayStarts: '08:00', dayEnds: '12:00' }],
+        facilities: ['a-field', 'a-field-1', 'a-field-2', 'court-1', 'court-2', 'court-3'],
+        gapBetweenGamesMin: 5, minTeamBreakMin: 10,
+        sportIds: ['rugby', 'netball'], orgsMayAddTeams: false,
+        orgs: [
+            { org: 'sac', invitation: 'accepted', by: 'Catherine Whitfield' },
+            { org: 'rbh', invitation: 'accepted' },
+            { org: 'ksc', invitation: 'accepted' },
+        ],
+        divisions: [
+            {
+                key: 'netball-u14', name: 'U14', sportId: 'netball', ageGroup: 'U14', locked: true, drawn: true, facilities: ['court-1', 'court-2'],
+                teams: [
+                    { org: 'dkl', team: 'netball-u14a', status: 'accepted' },
+                    { org: 'sac', team: 'netball-u14a', status: 'accepted' },
+                    { org: 'rbh', team: 'netball-u14a', status: 'accepted' },
+                    { org: 'ksc', team: 'netball-u14', status: 'accepted' },
+                ],
+            },
+            {
+                key: 'netball-u16', name: 'U16', sportId: 'netball', ageGroup: 'U16', locked: true, drawn: true, facilities: ['court-3'], leaveUnscheduled: [5],
+                teams: [
+                    { org: 'dkl', team: 'netball-u16a', status: 'accepted' },
+                    { org: 'sac', team: 'netball-u16a', status: 'accepted' },
+                    { org: 'rbh', team: 'netball-u16a', status: 'accepted' },
+                    { org: 'ksc', team: 'netball-u16', status: 'accepted' },
+                ],
+            },
+            {
+                key: 'rugby-u16', name: 'U16', sportId: 'rugby', ageGroup: 'U16', locked: true, drawn: true, facilities: ['a-field-1', 'a-field-2'],
+                teams: [
+                    { org: 'dkl', team: 'rugby-u16a', status: 'accepted' },
+                    { org: 'sac', team: 'rugby-u16a', status: 'accepted' },
+                    { org: 'rbh', team: 'rugby-u16a', status: 'accepted' },
+                    { org: 'ksc', team: 'rugby-u16', status: 'accepted' },
+                ],
+            },
+            {
+                key: 'rugby-1stxv', name: '1st XV', sportId: 'rugby', ageGroup: 'Open', locked: true, drawn: true, facilities: ['a-field'],
+                teams: [
+                    { org: 'dkl', team: 'rugby-1stxv', status: 'accepted' },
+                    { org: 'sac', team: 'rugby-1stxv', status: 'accepted' },
+                    { org: 'rbh', team: 'rugby-1stxv', status: 'accepted' },
+                ],
+            },
+        ],
+    },
 ];
 
 export function fixtureSlug(text: string): string {
@@ -662,6 +748,8 @@ export const fixtureIds = {
     entrant: (tournamentKey: string, divisionKey: string, orgKey: string, teamKey: string) =>
         `fx-ent-${tournamentKey}-${divisionKey}-${orgKey}-${teamKey}`,
     game: (orgKey: string, gameKey: string) => `fx-game-${orgKey}-${gameKey}`,
+    /** A drawn tournament fixture: its tournament, division and number in the draw. */
+    tournamentGame: (tournamentKey: string, divisionKey: string, n: number) => `fx-game-${tournamentKey}-${divisionKey}-${n}`,
     gameParticipant: (orgKey: string, gameKey: string, side: 'home' | 'away') => `fx-gp-${orgKey}-${gameKey}-${side}`,
     guardianLink: (orgKey: string, guardianName: string, childName: string) =>
         `fx-pg-${orgKey}-${fixtureSlug(guardianName)}-${fixtureSlug(childName)}`,
