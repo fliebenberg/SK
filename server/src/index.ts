@@ -19,6 +19,7 @@ import {
     organizerScopeOf,
     minorsSettingsOf,
     cellphoneSearchDigits,
+    incomingResultOutcome,
 } from '@sk/shared';
 import { parseSportWriteFields } from './utils/sportValidation';
 import pool from './db';
@@ -2586,6 +2587,13 @@ io.on('connection', (socket) => {
                 const recordFor = await dataManager.getGame(action.payload.id);
                 if (!recordFor) throw new Error('That match no longer exists.');
                 validateRecordedResult(recordFor, action.payload);
+                // A result sent from the offline queue (U20): the same result already there is
+                // done; another one put there since it was entered is not overwritten.
+                const outcome = incomingResultOutcome(recordFor, action.payload);
+                if (outcome === 'alreadyRecorded') { result = recordFor; break; }
+                if (outcome === 'changedMeanwhile') {
+                    throw new Error("This match's result was changed by someone else after you entered yours. Check it, and enter yours again if it is still right.");
+                }
                 const notProvided = !!action.payload.notProvided;
                 result = await dataManager.recordGameResult(
                     action.payload.id,

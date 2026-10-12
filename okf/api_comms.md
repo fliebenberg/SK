@@ -76,6 +76,13 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
    - Full rules: [.agent/skills/live-data](file:///c:/Fred/Coding/SK/.agent/skills/live-data/SKILL.md).
 4. **Offline Resilience**:
    - Connection statuses are actively monitored on the client to show offline banners when connections drop.
+   - **Results queue; nothing else does** (U20, 2026-10-12). *Record result* with no connection — or no
+     answer — keeps the result on the device ([resultQueue.ts](file:///c:/Fred/Coding/SK/expo-app/services/resultQueue.ts),
+     AsyncStorage, per signed-in person) and sends it on reconnect with its first request id. It carries
+     `resultWas`, so the server refuses it over a result somebody changed meanwhile, and treats the same
+     result already recorded as done. The match's page shows it waiting or not sent
+     (`PendingResultNote`, with *Discard*), and the offline banner counts what is waiting. Live
+     scoring, drawing, scheduling and moving fixtures need a connection.
 5. **Centralized Error Toast Interception**:
    - REST API calls (`apiService`), WebSocket emissions (`wsService.emit`), and data queries (`useSocketQuery`) automatically intercept non-ok status, error responses, and timeouts, broadcasting user-friendly toast notifications via `useToastStore`.
    - To suppress automatic toast notifications on specific requests, callers pass `{ suppressToast: true }` in request options.

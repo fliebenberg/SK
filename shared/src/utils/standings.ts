@@ -171,6 +171,41 @@ export function gameResultScores(game: Game): Record<string, number> | undefined
 }
 
 /**
+ * A match's recorded result as one comparable string (tournaments Phase 7, U20): `none` before it
+ * is finished, `notProvided`, or its scores by side in a fixed order. A result entered offline
+ * carries the key of the result it replaced, so the server can tell whether someone else changed it
+ * while it waited — and two results with the same key are the same result.
+ */
+export function recordedResultKey(game: Game): string {
+  if (game.status !== 'Finished') return 'none';
+  if (isResultNotProvided(game.finalScoreData)) return 'notProvided';
+  const scores = gameResultScores(game) || {};
+  return Object.keys(scores).sort().map(id => `${id}=${scores[id]}`).join(',');
+}
+
+/** The key the result `payload` would give the match — as `recordedResultKey` reads it once saved. */
+export function recordedResultKeyOf(payload: { scores?: Record<string, number>; notProvided?: boolean }): string {
+  if (payload.notProvided) return 'notProvided';
+  const scores = payload.scores || {};
+  return Object.keys(scores).sort().map(id => `${id}=${scores[id]}`).join(',');
+}
+
+/**
+ * What to do with a result as it arrives (U20): `record` it; it is `alreadyRecorded` — the match has
+ * exactly this result, so a resend from the offline queue is done; or it was `changedMeanwhile` —
+ * entered over one result, and the match now has another, which it must not overwrite.
+ */
+export function incomingResultOutcome(
+  game: Game,
+  payload: { scores?: Record<string, number>; notProvided?: boolean; resultWas?: string }
+): 'record' | 'alreadyRecorded' | 'changedMeanwhile' {
+  const now = recordedResultKey(game);
+  if (now === recordedResultKeyOf(payload)) return 'alreadyRecorded';
+  if (payload.resultWas !== undefined && payload.resultWas !== now) return 'changedMeanwhile';
+  return 'record';
+}
+
+/**
  * Standard competition ranking over a game's sides: 1, 2, 2, 4.
  *
  * Explicit placings on `finalScoreData.placings` win, because a timed event records finishing

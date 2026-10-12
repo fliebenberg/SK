@@ -7,6 +7,9 @@ import {
   calculateStandings,
   gameResultScores,
   isResultNotProvided,
+  incomingResultOutcome,
+  recordedResultKey,
+  recordedResultKeyOf,
   rollUpByOrganisation,
 } from './standings';
 
@@ -589,5 +592,29 @@ describe('gameResultScores — what a match card shows', () => {
   it('shows nothing for a result recorded as not provided, whatever the live state says', () => {
     expect(gameResultScores(game({ finalScoreData: { notProvided: true }, liveState: { scores: { p1: 12, p2: 7 } } })))
       .toBeUndefined();
+  });
+});
+
+describe('recordedResultKey (U20)', () => {
+  const game = (over: Partial<Game>): Game => ({ id: 'g', status: 'Scheduled', participants: [{ id: 'p1' }, { id: 'p2' }], ...over } as unknown as Game);
+  it('is none until finished, and the same for the same result whatever the key order', () => {
+    expect(recordedResultKey(game({ finalScoreData: { scores: { p1: 3, p2: 1 } } }))).toBe('none');
+    const done = game({ status: 'Finished', finalScoreData: { scores: { p2: 1, p1: 3 } } });
+    expect(recordedResultKey(done)).toBe(recordedResultKeyOf({ scores: { p1: 3, p2: 1 } }));
+    expect(recordedResultKey(done)).not.toBe(recordedResultKeyOf({ scores: { p1: 3, p2: 2 } }));
+  });
+  it('tells not provided apart from a score', () => {
+    expect(recordedResultKey(game({ status: 'Finished', finalScoreData: { notProvided: true } }))).toBe('notProvided');
+    expect(recordedResultKeyOf({ notProvided: true })).toBe('notProvided');
+  });
+  it('records, treats a resend as done, and refuses one entered over a result since changed', () => {
+    const open = game({});
+    const done = game({ status: 'Finished', finalScoreData: { scores: { p1: 3, p2: 1 } } });
+    expect(incomingResultOutcome(open, { scores: { p1: 3, p2: 1 }, resultWas: 'none' })).toBe('record');
+    expect(incomingResultOutcome(done, { scores: { p1: 3, p2: 1 }, resultWas: 'none' })).toBe('alreadyRecorded');
+    expect(incomingResultOutcome(done, { scores: { p1: 2, p2: 1 }, resultWas: 'none' })).toBe('changedMeanwhile');
+    expect(incomingResultOutcome(done, { scores: { p1: 2, p2: 1 }, resultWas: recordedResultKey(done) })).toBe('record');
+    // Without resultWas, as before: the last result wins.
+    expect(incomingResultOutcome(done, { scores: { p1: 2, p2: 1 } })).toBe('record');
   });
 });

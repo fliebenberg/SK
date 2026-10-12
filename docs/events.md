@@ -210,8 +210,9 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
   end, for want of room) or *Scheduled*. Fixtures offers **Schedule all** while any drawn division has
   fixtures with no time — the divisions listed in an order the organisers change with ▲ ▼, since
   **earlier gets first pick of shared facilities**; divisions with no draw are listed as not
-  included — and the result is a line per division. A division's page offers **Schedule** (once
-  drawn), then **Schedule again**, which keeps fixtures placed by hand unless unticked; both say what
+  included — and the result is a line per division. A division's page offers, under its scheduling
+  gaps in the Fixtures card, **Schedule** (once drawn; before that a line says fixtures are scheduled
+  once the draw is made), then **Schedule again**, which keeps fixtures placed by hand unless unticked; both say what
   they will use first — facilities, days, each game's length, the gaps — with *Change these*. **Make
   the draw** has *Schedule them straight away*, ticked, or unticked with the reason when the
   division cannot be scheduled yet (no playing days, no game length for its sport). Scheduling only
@@ -239,7 +240,11 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
   starts* and *Day ends* lines change that day's hours for the tournament, or — with a division
   chosen — become its *First game start* and *Last game ends* and change them for the division alone
   (a start dragged back to the tournament's follows it again). Fixtures stay where they are; any now
-  outside the hours show as clashes. It says what changed, with **Undo**. Offline, the
+  outside the hours show as clashes. It says what changed, with **Undo**. **A result entered
+  offline** (U20) — *Record result* with no connection, or no answer — is kept on the device and sent
+  when the connection is back; the match's page shows it *waiting to send*, and the offline banner
+  counts them. If somebody changed the result meanwhile it is not sent over theirs: the match shows
+  *Your result was not sent*, with why and *Discard*. Offline, the
   schedule reads and moving says it needs a connection.
 - Sports & divisions carries its explanation as text while field help is on ("Choose the sports
   being played, then the divisions within each. A division is a group of teams that compete against

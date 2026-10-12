@@ -1,6 +1,6 @@
 # Tournaments — Phased Implementation Plan
 
-**Status:** In progress. **Phases 0–6 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 and 5 on 2026-09-03, 6 on 2026-09-04). The tournament is now **usable**: teams can be entered on both axes, a draw generated from them, results recorded, and the day ranked — by school across the whole tournament or by entrant within a division. **Phase 7 in progress** (started 2026-10-11) — scheduling: where and when. Mockups, the server, and the app's setup, scheduling and Schedule tab are built (2026-10-12); the offline result queue (item 9) is what remains.
+**Status:** In progress. **Phases 0–6 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 and 5 on 2026-09-03, 6 on 2026-09-04). The tournament is now **usable**: teams can be entered on both axes, a draw generated from them, results recorded, and the day ranked — by school across the whole tournament or by entrant within a division. **Phase 7 complete** (2026-10-11 – 2026-10-12) — scheduling: where and when, exit criterion met; see its *Done* section.
 **Implements:** [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) (D1–D33),
 [tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md),
 [tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) (U1–U42).
@@ -1748,6 +1748,46 @@ confirm it warns, does not block, and appears in the day panel. **For D34:** dec
 conflicting with `Field A`, confirm the scheduler will not place fixtures on both in one slot —
 **in either direction**, whichever side the conflict was declared on — and confirm `A1` and `A2`
 *can* still run simultaneously.
+
+### Done — 2026-10-12
+
+**Exit criterion met, executed rather than clicked through**, in
+[phase7-scheduling.ts](file:///c:/Fred/Coding/SK/server/src/scripts/phase7-scheduling.ts) — 33 checks
+against a real database: a ninety-fixture festival scheduled across two days and eight facilities,
+with no team double-booked, no facility used twice at once, nothing past its day's end and a stage's
+earliest start kept; a fixture moved into a clash is moved, warns, and shows among the day's clashes;
+and for D34 `Field A1` / `A2` never run beside `A Field`, declared from either side, while `A1` and
+`A2` run together. **The schedule is checked from the rows, not by `findClashes`**, which the
+scheduler and the Schedule tab share — asking it would be the code marking its own homework. The app
+side is in the e2e suite: `06-schedule-setup`, `07-scheduling`, `08-schedule-tab`, `09-offline-results`.
+
+**What came out differently from the build list above** — each agreed on the mockup
+(`mockups/tournament-schedule.html`) or in review, and recorded in the *Revised* notes at the top of
+this phase:
+
+1. **Draw and schedule are separate steps**, with *Schedule them straight away* ticked on the draw. A
+   draw decides who plays whom; scheduling decides when and where, and can be redone without
+   redrawing. *Schedule again* keeps fixtures placed by hand.
+2. **Playing days are a list** (`event_days`), not a date range, so a tournament can run on four
+   Saturdays. A day's *Day ends* is when the last game must **end**, not start (D15 revised), since
+   game lengths differ by sport. A division sets its own hours per day, or is *Not playing*.
+3. **No game length on the tournament or division**: it comes from the sport (periods, breaks, extra
+   time). Sport variants per tournament and division are SPORT-3. A sport with no length refuses to
+   schedule.
+4. **The scheduler avoids existing bookings** — other divisions', other events' at the venue — and a
+   clash check over the whole venue shows what remains, instead of the scheduler deciding which
+   fixture gives way. A fixture that does not fit moves to the next playing day; on the last, it goes
+   after the end with a warning.
+5. **The Schedule tab grew** past the build list: dropdown filters (a division narrows the facilities,
+   clashes and tray, and can show more of its sport's facilities), the day's hours dragged on the
+   grid, *Schedule again* beside the filters, overlapping fixtures set in from each other so the one
+   beneath stays reachable.
+6. **Venue Location closed** (open question 3): a group of venues is what an organisation's sites
+   already are; D16 names a facility with its site where more than one is in play.
+7. **Offline (item 9)**: only results queue — kept on the device, sent on reconnect, and refused
+   over a result changed meanwhile (`resultWas`), rather than overwrite it. A resend of a result
+   already recorded is answered as done by its content, so it does not rest on the in-memory replay
+   cache (SYNC-5).
 
 ---
 

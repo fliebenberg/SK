@@ -22,6 +22,7 @@ import { useAuthStore } from '../store/authStore';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 import { OfflineBanner } from '../components/OfflineBanner';
+import { startResultQueue } from '../services/resultQueue';
 import { ToastContainer } from '../components/ToastContainer';
 import { View } from 'react-native';
 import { themeColor } from '../constants/Colors';
@@ -82,6 +83,8 @@ export default function RootLayout() {
         } finally {
           SplashScreen.hideAsync();
           wsService.connect();
+          // Results entered offline are sent once connected (U20).
+          startResultQueue();
         }
       }
     }

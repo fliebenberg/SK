@@ -6,9 +6,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useActiveTheme } from '../store/settingsStore';
 import { themeColor } from '../constants/Colors';
+import { useWaitingResultCount } from '../services/resultQueue';
 export function OfflineBanner() {
   const isDark = useActiveTheme() === 'dark';
   const { isOffline, showOnlineAlert } = useOfflineStatus();
+  const waiting = useWaitingResultCount();
 
   if (!isOffline && !showOnlineAlert) {
     return null;
@@ -17,7 +19,9 @@ export function OfflineBanner() {
   const isBackOnline = showOnlineAlert && !isOffline;
   const bannerBgClass = isBackOnline ? 'bg-success' : 'bg-warning';
   const iconName = isBackOnline ? 'wifi' : 'wifi-outline';
-  const message = isBackOnline ? 'Back online' : 'No connection. Operating offline.';
+  // Results entered offline (U20) are named, so nobody closes the app thinking they were sent.
+  const queued = waiting ? ` ${waiting} ${waiting === 1 ? 'result' : 'results'} waiting to send.` : '';
+  const message = isBackOnline ? `Back online.${waiting ? ' Sending results…' : ''}` : `No connection. Operating offline.${queued}`;
 
   return (
     <SafeAreaView 

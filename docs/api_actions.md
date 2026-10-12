@@ -355,8 +355,10 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
     empty live score that the table read as 0–0.
 
 #### `RECORD_GAME_RESULT`
-*   **Payload**: `{ id, scores?, notProvided?, initiatorOrgProfileId? }` — exactly one of `scores`
-    (points by `gameParticipantId`, one for every side) and `notProvided: true`.
+*   **Payload**: `{ id, scores?, notProvided?, initiatorOrgProfileId?, resultWas? }` — exactly one of
+    `scores` (points by `gameParticipantId`, one for every side) and `notProvided: true`.
+    `resultWas` is `recordedResultKey` of the match when the result was entered (the app always
+    sends it).
 *   **Authorised**: the scoring gate (`canScoreGame`), which already admits the host's admins and
     staff, event organisers, division convenors and official scorers — so a fixture's editors may
     record its result.
@@ -366,6 +368,11 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
     the result. **Not provided** is a result, not an absence of one: the match is finished, counts
     toward no table (`isResultNotProvided` is read first by `sideScores` and `gameOutcome`), decides
     no knockout, and shows as "Score not provided" / "No score" rather than 0–0.
+    **Sent again, or from the offline queue (U20)** — `incomingResultOutcome` decides: the match
+    already has exactly this result → answered `ok` with the match, nothing written or logged (so a
+    resend is done, whatever the replay cache remembers); `resultWas` given and the match's result
+    has since changed to another → refused ("…changed by someone else after you entered yours"),
+    rather than overwrite a correction; otherwise recorded.
 *   **Broadcasts**: `GAME_UPDATED` to `game:{id}` and the event's fixtures room; the game summary is
     republished.
 

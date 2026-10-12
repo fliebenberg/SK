@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Modal, TextInput, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Game, SocketAction, gameResultScores, isResultNotProvided } from '@sk/shared';
+import { Game, SocketAction, gameResultScores, isResultNotProvided, recordedResultKey } from '@sk/shared';
 import { useActiveTheme } from '../store/settingsStore';
 import { useAuthStore } from '../store/authStore';
-import { sendAction } from '../services/actions';
+import { newRequestId, sendAction } from '../services/actions';
+import { queueResult } from '../services/resultQueue';
+import { useWsStore } from '../store/wsStore';
+import { useToastStore } from '../store/toastStore';
 import { GlassCard } from './GlassCard';
 import { Button } from './Button';
 import { themeColor } from '../constants/Colors';
@@ -27,6 +30,10 @@ interface RecordResultModalProps {
  * right: the match is finished and counts toward no table, which is better than making somebody
  * invent a score to close it. Opening this on a finished match prefills what was recorded, so saving
  * again corrects it.
+ *
+ * **Offline** (U20): with no connection, or no answer from the server, the result is kept on the
+ * device and sent when the connection is back (`services/resultQueue.ts`) — the dialog closes saying
+ * so, and the match shows it as waiting to send. A refusal is still a refusal: the dialog stays open.
  */
 export const RecordResultModal: React.FC<RecordResultModalProps> = ({ isOpen, onClose, game, sideLabels, onRecorded }) => {
   const isDark = useActiveTheme() === 'dark';
@@ -62,19 +69,39 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({ isOpen, on
 
   const handleSave = async () => {
     if (!canSave) return;
-    setIsSaving(true);
-    const result = await sendAction(SocketAction.RECORD_GAME_RESULT, {
+    const payload = {
       id: game.id,
       ...(notProvided
         ? { notProvided: true }
         : { scores: Object.fromEntries(sides.map((p, i) => [p.id, parsed[i]])) }),
       initiatorOrgProfileId: initiatorId(),
-    });
+      // The result as it stands, so a queued one cannot overwrite a correction made meanwhile.
+      resultWas: recordedResultKey(game),
+    };
+    const label = notProvided
+      ? `${sideLabels[0] || 'Side 1'} v ${sideLabels[1] || 'Side 2'}: score not provided`
+      : `${sideLabels[0] || 'Side 1'} ${parsed[0]}–${parsed[1]} ${sideLabels[1] || 'Side 2'}`;
+    const requestId = newRequestId();
+    const keep = () => {
+      if (!queueResult({ requestId, gameId: game.id, payload, label })) return false;
+      useToastStore.getState().showInfo('It is kept on this device and sent when the connection is back.', 'Result waiting to send');
+      onClose();
+      return true;
+    };
+    if (!useWsStore.getState().isConnected && keep()) return;
+    setIsSaving(true);
+    const result = await sendAction(SocketAction.RECORD_GAME_RESULT, payload, { requestId, suppressToast: true });
     setIsSaving(false);
-    // A refusal is already announced; the dialog stays open with what was typed.
-    if (!result.ok) return;
-    onRecorded?.(result.data);
-    onClose();
+    if (result.ok) {
+      onRecorded?.(result.data);
+      onClose();
+      return;
+    }
+    // No answer: it may or may not have arrived. Queued with the same id, the server replays
+    // rather than records it twice.
+    if (result.noAnswer && keep()) return;
+    // A refusal: the dialog stays open with what was typed.
+    useToastStore.getState().showError(result.message, 'Not saved');
   };
 
   return (

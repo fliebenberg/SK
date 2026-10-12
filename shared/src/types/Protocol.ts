@@ -178,6 +178,12 @@ export interface RecordGameResultPayload {
     notProvided?: boolean;
     /** Who the game-log entry credits. Checked against the caller, like every initiator field. */
     initiatorOrgProfileId?: string;
+    /**
+     * `recordedResultKey` of the match as it was when this result was entered. Given, the server
+     * refuses the result if the match's result has since been changed to another — a result sent
+     * from the offline queue must not overwrite a correction made meanwhile (U20).
+     */
+    resultWas?: string;
 }
 
 export interface UpdateGameStatusPayload {

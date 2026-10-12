@@ -21,6 +21,8 @@ import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabil
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
 import { RecordResultModal } from '../../../../../../../components/RecordResultModal';
+import { PendingResultNote } from '../../../../../../../components/PendingResultNote';
+import { useResultSent } from '../../../../../../../services/resultQueue';
 import { ChangeWhoPlayedCard } from '../../../../../../../components/tournament/ChangeWhoPlayedCard';
 import { finishedScoreLine } from '../../../../../../../utils/matchScore';
 import { instantToVenueInputs, venueInputsToInstant, venueTimeZone } from '../../../../../../../utils/dates';
@@ -53,6 +55,13 @@ export default function EditGame() {
   // Static once resolved initial state
   const [initialData, setInitialData] = useState<any>(null);
   const [formData, setFormData] = useState<MatchFormData | null>(null);
+  /** The match finished by Record result — now, or once a result entered offline is sent (U20). */
+  const applyRecorded = (finished: Game) => {
+    setGame(finished);
+    setInitialData((prev: any) => prev ? { ...prev, status: finished.status } : null);
+    setFormData(prev => prev ? { ...prev, status: finished.status as any } : prev);
+  };
+  useResultSent(gameId, applyRecorded);
 
   // Deletion & Cancellation modals
   const [isDeleting, setIsDeleting] = useState(false);
@@ -454,6 +463,7 @@ export default function EditGame() {
                 </Text>
               </TouchableOpacity>
             </View>
+            <PendingResultNote gameId={game.id} className="mt-3" />
           </GlassCard>
         )}
 
@@ -588,11 +598,7 @@ export default function EditGame() {
         onClose={() => setIsRecording(false)}
         game={game}
         sideLabels={(game.participants || []).map(p => (p as any).name || '')}
-        onRecorded={(finished) => {
-          setGame(finished);
-          setInitialData((prev: any) => prev ? { ...prev, status: finished.status } : null);
-          if (formData) setFormData({ ...formData, status: finished.status as any });
-        }}
+        onRecorded={applyRecorded}
       />
 
       {/* DELETION CONFIRMATION */}

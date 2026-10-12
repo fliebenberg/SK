@@ -17,6 +17,8 @@ import { getMatchPermissions } from '../../../../../../../utils/matchPermissions
 import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
 import { finishedScoreLine } from '../../../../../../../utils/matchScore';
 import { RecordResultModal } from '../../../../../../../components/RecordResultModal';
+import { PendingResultNote } from '../../../../../../../components/PendingResultNote';
+import { useResultSent } from '../../../../../../../services/resultQueue';
 import { EventLogFeed } from '../../../../../../../components/sports/shared/EventLogFeed';
 import { DynamicScoringProvider } from '../../../../../../../components/sports/shared/DynamicScoringContext';
 import { formatInstantDate, formatKickoffTime } from '../../../../../../../utils/dates';
@@ -52,6 +54,9 @@ export default function ViewGame() {
   const safeGoBack = () => {
     safeBack(`/admin/${orgId}/events/${eventId}`);
   };
+
+  // A result entered offline, recorded once the connection is back (U20).
+  useResultSent(gameId as string, setGame);
 
   // Load initial game and event
   useEffect(() => {
@@ -248,6 +253,9 @@ export default function ViewGame() {
             </View>
           </View>
         </GlassCard>
+
+        {/* A result entered offline, waiting to send or refused (U20) */}
+        <PendingResultNote gameId={game.id} className="mb-3" />
 
         {/* RECORD RESULT — an editor or a scorer, for a match that was not live-scored or needs correcting */}
         {(permissions.canScore || permissions.canEdit) && game.status !== 'Cancelled' && (
