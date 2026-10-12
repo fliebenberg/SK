@@ -37,6 +37,7 @@ import {
 import { useOrganisationsSection, useSportsSection } from './TournamentSections';
 import { EditTournamentDialog, ScoringDialog, WhereDialog } from './TournamentDialogs';
 import { GapsDialog, WhenDialog, gapsLine } from './ScheduleSetup';
+import { ScheduleAllDialog } from './ScheduleActions';
 import { OrganisationResponse } from './OrganisationResponse';
 import { useAuthStore } from '../../store/authStore';
 import { sendAction } from '../../services/actions';
@@ -228,7 +229,7 @@ export function TournamentHome({
     return narrowed;
   }, [mine, allEntrantsByDivision, myEntrants]);
 
-  const [dialog, setDialog] = useState<null | 'details' | 'where' | 'when' | 'gaps' | 'scoring'>(null);
+  const [dialog, setDialog] = useState<null | 'details' | 'where' | 'when' | 'gaps' | 'scoring' | 'scheduleAll'>(null);
   const close = () => setDialog(null);
   const eventId = event.id;
   const setupMode = canEdit && !complete;
@@ -247,7 +248,7 @@ export function TournamentHome({
   const stepOf = (key: TournamentStep['key']) => steps.find(s => s.key === key);
   const statusOf = (key: TournamentStep['key']) => (setupMode ? stepOf(key)?.state ?? null : null);
 
-  const sportsSection = useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode, complete, mySportIds });
+  const sportsSection = useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode, complete, mySportIds, timeZone: venueTimeZone(site as any, hostOrg as any) });
   const orgs = useOrganisationsSection({ event, orgId, sports, divisions, entrantsByDivision, hostOrg, viewerOrgIds, canEdit, setupMode });
   const openSportsPage = () => router.push(`/admin/${orgId}/events/${eventId}/sports` as any);
   const openOrgsPage = () => router.push(`/admin/${orgId}/events/${eventId}/organisations` as any);
@@ -412,7 +413,7 @@ export function TournamentHome({
       case 'fixtures': {
         const undrawn = playing.filter(d => !gamesIn(d).length).length;
         if (!undrawn && unscheduledCount) {
-          return strip('wait', <>{bold(`${plural(unscheduledCount, 'fixture')} without a time.`)} Fixtures is done once every division is scheduled.</>, undefined, { label: 'Fixtures', onPress: () => jump('fixtures') });
+          return strip('wait', <>{bold(`${plural(unscheduledCount, 'fixture')} without a time.`)} Fixtures is done once every division is scheduled.</>, { label: 'Schedule all', onPress: () => setDialog('scheduleAll') });
         }
         return strip('wait', <>{bold(undrawn ? `${plural(undrawn, 'division')} still to draw.` : 'Some draws have changed since they were made.')} Each division is drawn on its own page.</>, undefined, { label: 'Fixtures', onPress: () => jump('fixtures') });
       }
@@ -639,6 +640,7 @@ export function TournamentHome({
       const open = toDraw.filter(d => !d.entriesLockedAt);
       const lockedToDraw = toDraw.filter(d => !!d.entriesLockedAt);
       const drawn = playing.filter(d => gamesIn(d).length);
+      const toSchedule = drawn.filter(d => gamesIn(d).some(g => unscheduledIn(g, playing)));
       // A draw that has changed since it was made is outstanding too: it leads the drawn ones.
       const drawnSorted = [...drawn].sort((a, b) => Number(sportsSection.divisionState(b).tone === 'wait') - Number(sportsSection.divisionState(a).tone === 'wait'));
       return (
@@ -659,6 +661,14 @@ export function TournamentHome({
             </View>
           ) : null}
           {lockedToDraw.length ? <View>{groupLabel(`Locked, to draw · ${lockedToDraw.length}`)}{lockedToDraw.map(entryRow)}</View> : null}
+          {canEdit && toSchedule.length ? (
+            <View className="flex-row items-center gap-2.5 flex-wrap rounded-xl bg-sunken px-3 py-2 mt-1">
+              <Text className="font-inter text-[13px] text-ink-soft flex-1" style={{ minWidth: 160 }}>{plural(toSchedule.length, 'drawn division')} with fixtures that have no time yet.</Text>
+              <TouchableOpacity onPress={() => setDialog('scheduleAll')} accessibilityRole="button" className="rounded-xl border border-line bg-card px-3 py-1.5">
+                <Text className="font-inter-bold text-[13px] text-ink">Schedule all</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           {drawn.length ? <View>{groupLabel(`Drawn · ${drawn.length}`)}{drawnSorted.map(divisionRow)}</View> : null}
           {link('＋ Add a fixture by hand', () => router.push(`/admin/${orgId}/events/${eventId}/games/new`))}
         </View>
@@ -913,6 +923,7 @@ export function TournamentHome({
           <ScoringDialog visible={dialog === 'scoring'} event={event} orgId={orgId} onClose={close} />
           <WhenDialog visible={dialog === 'when'} event={event} orgId={orgId} games={allGames} timeZone={timeZone} onClose={close} />
           <GapsDialog visible={dialog === 'gaps'} event={event} orgId={orgId} onClose={close} />
+          <ScheduleAllDialog visible={dialog === 'scheduleAll'} event={event} divisions={allDivisions} games={allGames} sports={sports} orgId={orgId} onClose={close} />
         </>
       ) : null}
     </View>

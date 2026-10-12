@@ -137,12 +137,14 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
  * `entrants` is the whole roster, withdrawn teams included — a withdrawn team still in the draw is
  * one of the two changes `drawChanges` looks for.
  */
-export function divisionStateOf({ setupMode, games, entrants, firstStageId }: {
+export function divisionStateOf({ setupMode, games, entrants, firstStageId, afterDayEnd = 0 }: {
   setupMode: boolean;
   /** The division's own fixtures. */
   games: GameSummary[];
   entrants: TournamentEntrant[];
   firstStageId?: string | null;
+  /** Its fixtures placed after its last day's end (Phase 7) — a warning. */
+  afterDayEnd?: number;
 }): DivisionState {
   const live = games.filter(g => g.status === 'Live').length;
   const played = games.filter(g => g.status === 'Finished').length;
@@ -151,7 +153,12 @@ export function divisionStateOf({ setupMode, games, entrants, firstStageId }: {
     if (entrants.filter(e => isEntrantEntered(e.status)).length < 2) return { tone: 'wait', label: 'Needs more teams' };
     if (!games.length) return { tone: 'mute', label: 'Not drawn yet' };
     if (drawChanges(firstStageId, games, entrants).count > 0) return { tone: 'wait', label: 'Changed since the draw' };
-    return { tone: 'ok', label: 'Draw made' };
+    // Phase 7: drawn is half of it; Fixtures is done once every fixture has a time and a facility.
+    const unscheduled = games.filter(g => g.status !== 'Cancelled' && (!g.startTime || !!g.timeTbd || !g.facilityId)).length;
+    if (unscheduled === games.length) return { tone: 'mute', label: 'Draw made · not scheduled' };
+    if (unscheduled) return { tone: 'wait', label: `${plural(unscheduled, 'fixture')} without a time` };
+    if (afterDayEnd) return { tone: 'wait', label: `${afterDayEnd} after the day ends` };
+    return { tone: 'ok', label: 'Scheduled' };
   }
   if (live) return { tone: 'live', label: `${live} live · ${played} of ${games.length} played` };
   if (!games.length) return { tone: 'mute', label: 'Fixtures to come' };

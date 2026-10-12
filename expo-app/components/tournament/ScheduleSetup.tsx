@@ -91,6 +91,7 @@ function DayCalendar({ selected, onToggle, startMonth }: {
                     onPress={() => onToggle(day)}
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: on }}
+                    aria-checked={on}
                     accessibilityLabel={formatPlayingDay(day) || day}
                     style={{ width: `${100 / 7}%`, height: 30 }}
                     className="items-center justify-center"

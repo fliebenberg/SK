@@ -58,8 +58,11 @@ test.describe.serial('a division, as the organisers', () => {
 
     await page.getByRole('button', { name: 'Make the draw' }).first().click();
     await expect(page.getByText('Make the draw?')).toBeVisible();
+    // Phase 7: "Schedule them straight away" is ticked by default, so the draw is scheduled too.
+    await expect(page.getByRole('checkbox', { name: /Schedule them straight away/ })).toBeChecked();
     await page.getByRole('button', { name: 'Make the draw' }).last().click();
-    await expect(page.getByText('Draw made').first()).toBeVisible();
+    await expect(page.getByText(/The draw is made\. Placed \d+ fixtures?\./)).toBeVisible();
+    await expect(page.getByText('Scheduled', { exact: true }).first()).toBeVisible();
   });
 
   test('the details dialog saves a name, and an emptied name goes back to the automatic one', async ({ page }) => {

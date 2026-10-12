@@ -17,6 +17,8 @@ import {
 import { OverflowMenu } from '../OverflowMenu';
 import { RegisterOrgModal } from '../RegisterOrgModal';
 import { DivisionState, OrgRow, StepWarning, divisionStateOf } from './TournamentBits';
+import { afterDayEndByDivision, scheduleModel } from './scheduleModel';
+import type { TimeZone } from '../../utils/dates';
 import { SportOrganizersDialog, SportsDialog } from './TournamentDialogs';
 import { AddDivisionDialog } from './DivisionDialogs';
 import { AddOrganisationsDialog, InviteOrganisationsDialog, NominateFor } from './OrganisationDialogs';
@@ -38,7 +40,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
  * Sports & divisions
  * ------------------------------------------------------------------------------------------- */
 
-export function useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode, complete, mySportIds }: {
+export function useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode, complete, mySportIds, timeZone }: {
   event: Event;
   orgId: string;
   sports: Sport[];
@@ -52,6 +54,8 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
   complete: boolean;
   /** The sports this viewer organises without running the tournament (`capabilities.convenesSportIds`). */
   mySportIds: string[];
+  /** The venue's, which fixture times are read in for the day-end warning (Phase 7). */
+  timeZone: TimeZone;
 }) {
   const router = useRouter();
   const eventId = event.id;
@@ -59,8 +63,12 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
   const gamesIn = (d: TournamentDivision) => games.filter(g => g.divisionId === d.id);
 
   // One rule with the division's own page (`divisionStateOf`), so the tile and the page agree.
+  const lateByDivision = useMemo(
+    () => afterDayEndByDivision(scheduleModel({ event, divisions, games, sports, timeZone }), games),
+    [event, divisions, games, sports, timeZone]
+  );
   const divisionState = (d: TournamentDivision): DivisionState =>
-    divisionStateOf({ setupMode, games: gamesIn(d), entrants: entrantsByDivision.get(d.id) || [], firstStageId: d.firstStageId });
+    divisionStateOf({ setupMode, games: gamesIn(d), entrants: entrantsByDivision.get(d.id) || [], firstStageId: d.firstStageId, afterDayEnd: lateByDivision.get(d.id) || 0 });
   /**
    * A dot on a sport's chip: red while one of its games is live; amber while setting up when one of
    * its divisions needs seeing to — too few teams, or changed since its draw. Not drawn yet is not

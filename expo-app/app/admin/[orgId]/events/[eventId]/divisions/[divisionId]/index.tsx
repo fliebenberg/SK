@@ -30,6 +30,8 @@ import { EditLink } from '../../../../../../../components/ReadCard';
 import { DivisionStateLine, TournamentCard, divisionStateOf } from '../../../../../../../components/tournament/TournamentBits';
 import { DivisionDetailsDialog, DivisionOrganisersDialog, FormatDialog, formatDetail, formatLabel, formatOfStages } from '../../../../../../../components/tournament/DivisionDialogs';
 import { DivisionWhenDialog, DivisionWhereDialog, GapsDialog, divisionDayLines, gapsLine } from '../../../../../../../components/tournament/ScheduleSetup';
+import { ScheduleDivisionDialog, scheduleReadiness } from '../../../../../../../components/tournament/ScheduleActions';
+import { afterDayEndByDivision, isUnscheduled, scheduleModel } from '../../../../../../../components/tournament/scheduleModel';
 import { formatPlayingDay, instantToVenueInputs, venueTimeZone } from '../../../../../../../utils/dates';
 import { DivisionTeamsCard } from '../../../../../../../components/tournament/DivisionTeams';
 import { DivisionFixturesCard } from '../../../../../../../components/tournament/DivisionFixtures';
@@ -156,7 +158,13 @@ export default function DivisionScreen() {
   const started = games.some(isPlayedFixture);
   const drawn = games.length > 0;
   const changes = canEdit ? drawChanges(ordered, games, entrants) : null;
-  const state = divisionStateOf({ setupMode: canEdit, games, entrants, firstStageId: ordered[0]?.id });
+  // Phase 7: the division's fixtures against its own days, for the after-the-day's-end warning.
+  const venueZone = venueTimeZone(sites.find(s => s.id === event?.siteId) as any);
+  const lateCount = event && division
+    ? afterDayEndByDivision(scheduleModel({ event, divisions: [division], games, sports, timeZone: venueZone }), games).get(division.id) || 0
+    : 0;
+  const unscheduledCount = games.filter(isUnscheduled).length;
+  const state = divisionStateOf({ setupMode: canEdit, games, entrants, firstStageId: ordered[0]?.id, afterDayEnd: lateCount });
   // What stands between the division and its lock (`FIX-31`); the draw is made from locked entries.
   const gaps = entryLockGaps(entrants, event || {});
   const locked = !!division?.entriesLockedAt;
@@ -167,7 +175,7 @@ export default function DivisionScreen() {
     setLocking(false);
   };
 
-  const [dialog, setDialog] = useState<null | 'details' | 'format' | 'delete' | 'where' | 'when' | 'gaps' | 'organisers'>(null);
+  const [dialog, setDialog] = useState<null | 'details' | 'format' | 'delete' | 'where' | 'when' | 'gaps' | 'organisers' | 'schedule' | 'reschedule'>(null);
   const [adding, setAdding] = useState(false);
   const [replacing, setReplacing] = useState<TournamentEntrant | null>(null);
   const [drawDialog, setDrawDialog] = useState<null | 'make' | 'redo'>(null);
@@ -272,6 +280,22 @@ export default function DivisionScreen() {
       ];
       return <NextStrip tone="wait" text={`${changes.count} ${changes.count === 1 ? 'change' : 'changes'} since the draw:`} detail={parts.join(' · ')} action={{ label: 'Redo the draw', onPress: () => setDrawDialog('redo'), ghost: true }} />;
     }
+    // Phase 7: drawn, then scheduled. Only fixtures with no time are placed; the rest stay.
+    if (drawn && !started && unscheduledCount) {
+      return unscheduledCount === games.filter(g => g.status !== 'Cancelled').length
+        ? <NextStrip tone="go" text="The draw is made — ready to schedule." action={{ label: 'Schedule', onPress: () => setDialog('schedule') }} />
+        : <NextStrip tone="wait" text={`${unscheduledCount} ${unscheduledCount === 1 ? 'fixture has' : 'fixtures have'} no time yet.`} detail="Scheduling places them around the ones already placed." action={{ label: 'Schedule', onPress: () => setDialog('schedule') }} />;
+    }
+    if (drawn && lateCount) {
+      return (
+        <NextStrip
+          tone="wait"
+          text={`${lateCount} ${lateCount === 1 ? 'fixture runs' : 'fixtures run'} past the division's day end on its last day.`}
+          detail="Give it more time or another facility and schedule again, or move them by hand."
+          action={{ label: 'When', onPress: () => setDialog('when'), ghost: true }}
+        />
+      );
+    }
     if (changes && changes.leftDraw.length && started) {
       const first = changes.leftDraw[0];
       return (
@@ -327,13 +351,29 @@ export default function DivisionScreen() {
       ownOrgId={event.orgId}
       dialog={drawDialog}
       onDialog={setDrawDialog}
+      scheduleOffer={scheduleReadiness({ event, division, sport })}
       footer={
+        <View className="gap-2">
+        {canEdit && drawn && !started ? (
+          <View className="flex-row justify-end">
+            {unscheduledCount === games.filter(g => g.status !== 'Cancelled').length ? (
+              <TouchableOpacity onPress={() => setDialog('schedule')} accessibilityRole="button" className="rounded-xl border border-line bg-card px-3 py-1.5">
+                <Text className="font-inter-bold text-[13px] text-ink-soft">Schedule</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={() => setDialog('reschedule')} accessibilityRole="button">
+                <Text className="font-inter-semibold text-[13px] text-ink-muted">Schedule again</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : null}
         <View className="flex-row items-center gap-3 border-t border-line-soft pt-2.5 mt-1">
           <View className="flex-1 min-w-0">
             <Text className="font-inter text-xs text-ink-muted">Scheduling{ownGaps ? '' : " · the tournament's"}</Text>
             <Text className="font-inter text-sm text-ink">{gapsLine(division.gapBetweenGamesMin ?? event.gapBetweenGamesMin ?? 5, division.minTeamBreakMin ?? event.minTeamBreakMin ?? 0)}</Text>
           </View>
           {canEdit ? <EditLink onPress={() => setDialog('gaps')} /> : null}
+        </View>
         </View>
       }
     />
@@ -459,6 +499,18 @@ export default function DivisionScreen() {
       />
       <DivisionWhereDialog visible={dialog === 'where'} onClose={() => setDialog(null)} event={event} division={division} orgId={orgId} sites={sites} facilities={facilities} facilityTerm={facilityTerm} />
       <DivisionWhenDialog visible={dialog === 'when'} onClose={() => setDialog(null)} event={event} division={division} orgId={orgId} />
+      <ScheduleDivisionDialog
+        visible={dialog === 'schedule' || dialog === 'reschedule'}
+        again={dialog === 'reschedule'}
+        event={event}
+        division={division}
+        sport={sport}
+        facilities={facilities}
+        games={games}
+        orgId={orgId}
+        onClose={() => setDialog(null)}
+        onChangeWhen={() => setDialog('when')}
+      />
       <GapsDialog visible={dialog === 'gaps'} onClose={() => setDialog(null)} event={event} division={division} orgId={orgId} />
       <DivisionOrganisersDialog visible={dialog === 'organisers'} onClose={() => setDialog(null)} orgId={orgId} eventId={eventId} event={event} division={division} organizers={organizers} onOrganizersChange={setOrganizers} />
       <FormatDialog

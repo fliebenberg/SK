@@ -205,6 +205,17 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
   they sit with the fixtures, not under When. **Fixtures is done only once every division is drawn
   and scheduled**: a fixture with no time or no facility keeps it *In progress*, and the strip says
   how many have no time.
+- **Running the scheduler** (Phase 7). A division's tile and page say where it stands: *Draw made ·
+  not scheduled*, *N fixtures without a time*, *N after the day ends* (placed past its last day's
+  end, for want of room) or *Scheduled*. Fixtures offers **Schedule all** while any drawn division has
+  fixtures with no time — the divisions listed in an order the organisers change with ▲ ▼, since
+  **earlier gets first pick of shared facilities**; divisions with no draw are listed as not
+  included — and the result is a line per division. A division's page offers **Schedule** (once
+  drawn), then **Schedule again**, which keeps fixtures placed by hand unless unticked; both say what
+  they will use first — facilities, days, each game's length, the gaps — with *Change these*. **Make
+  the draw** has *Schedule them straight away*, ticked, or unticked with the reason when the
+  division cannot be scheduled yet (no playing days, no game length for its sport). Scheduling only
+  ever places fixtures with no time.
 - Sports & divisions carries its explanation as text while field help is on ("Choose the sports
   being played, then the divisions within each. A division is a group of teams that compete against
   each other — usually an age group, e.g. Rugby U16. …").

@@ -13,6 +13,7 @@ import { useTournamentData } from '../../../../../hooks/useTournamentData';
 import { useSafeBack } from '../../../../../hooks/useSafeBack';
 import { PageBody } from '../../../../../components/PageBody';
 import { LAYOUT } from '../../../../../constants/layout';
+import { venueTimeZone } from '../../../../../utils/dates';
 
 /**
  * Sports & divisions as a page of its own — the Overview card's *See all ›* (agreed 2026-10-09 on
@@ -58,7 +59,7 @@ function SportsPage({ orgId, event, data, onBack }: {
   const { divisions, games, entrants, entrantsByDivision, facilityIds, sports, sites, canEdit } = data;
   const { steps, complete } = useTournamentSteps({ event, divisions, games, entrants, entrantsByDivision, facilityIds, sports, sites });
   const setupMode = canEdit && !complete;
-  const section = useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode, complete, mySportIds: data.capabilities?.convenesSportIds || [] });
+  const section = useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode, complete, mySportIds: data.capabilities?.convenesSportIds || [], timeZone: venueTimeZone(sites.find(x => x.id === event.siteId) as any) });
   const sportIds = event.sportIds || [];
   const divisionsOf = (id: string) => divisions.filter(d => d.sportId === id);
 

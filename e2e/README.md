@@ -20,7 +20,8 @@ npm run e2e:report     # the last run's report, with traces of any failure
 - **The files run in order, one at a time,** and later ones start from what earlier ones did: the
   tournament page, the division page, a coach, an organisation's own page, invitations (which takes
   organisations out), then scheduling setup (`06-schedule-setup.spec.ts`: When, the gaps, a
-  division's Where and When, on *Test Saturday Fixtures* and the Spring Festival's days). A single file run on its own may therefore fail where the suite
+  division's Where and When, on *Test Saturday Fixtures* and the Spring Festival's days)), then running the scheduler (`07-scheduling.spec.ts`: division states, Schedule all,
+  Schedule again, and the Spring Festival's Netball U14 scheduled with its draw in `02-division`). A single file run on its own may therefore fail where the suite
   passes.
 - **The phone runs first and only tests tagged `@phone`** — ones that read and change nothing — so it sees
   the data before the desktop tests change it.
