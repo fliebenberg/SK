@@ -236,6 +236,11 @@ in the banner — and the same cards, without the statuses, once it is (2026-10-
     accepts goes under the organisation's *Accept*, not on every team). A state shown at a group's
     heading (*🔒 Locked* on a division) is not repeated on its items, and what an action will do
     is said in its dialog, not on the card that offers it.
+29. **Decoration stays clear of content** (2026-10-12). A background accent never sits behind or
+    near a logo, avatar or icon, where it reads as that element's plate slipped out of place. An
+    org's branded card ([`<OrgBrandedCard>`](file:///c:/Fred/Coding/SK/expo-app/components/OrgBrandedCard.tsx))
+    carries its secondary-colour accent in the bottom-right corner only, and the top-left corner
+    stays plain because the logo sits there.
 
 ## NativeWind v4 & React Native Styling Constraints
 

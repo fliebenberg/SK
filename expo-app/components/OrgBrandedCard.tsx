@@ -48,12 +48,6 @@ export function OrgBrandedCard({
           bottom: -40,
         }}
       />
-      {/* Top-left accent circle */}
-      <View 
-        className="absolute -left-6 -top-6 w-20 h-20 rounded-full opacity-20"
-        style={{ backgroundColor: finalSecondary }}
-      />
-      
       {children}
     </View>
   );
