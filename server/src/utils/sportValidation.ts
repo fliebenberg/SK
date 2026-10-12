@@ -195,7 +195,7 @@ export function parseSportWriteFields(body: any): { error: string } | {
 
   // Numeric settings arrive from a text input, so reject anything that is not a non-negative number
   // rather than storing NaN in the JSONB column.
-  for (const key of ['maxReserves', 'yellowCardDurationMS', 'redCardDurationMS', 'periodLengthMS', 'scheduledPeriods']) {
+  for (const key of ['maxReserves', 'yellowCardDurationMS', 'redCardDurationMS', 'periodLengthMS', 'scheduledPeriods', 'breakBetweenPeriodsMS', 'extraTimeAllowanceMS']) {
     const value = settings[key];
     if (value === undefined || value === null || value === '') {
       delete settings[key];

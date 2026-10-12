@@ -169,7 +169,7 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
   faded: a waiting card says so in words (design_system.md).
 - **The order stays put while setting up** (2026-10-09: cards moving as they are finished would
   confuse a page that already has a lot on it): Sports & divisions and Organisations & teams on the
-  left, Where, Rules & scoring, Fixtures and Organisers on the right. **On the day** — any day of the
+  left, Where, When, Rules & scoring, Fixtures and Organisers on the right. **On the day** — any day of the
   tournament, or while a game is live — it rearranges: **Live now** leads, then Sports & divisions
   and Fixtures; Where, Organisations and Rules to the side. For anyone who cannot edit: Sports &
   divisions and Fixtures, then Where, who is taking part, and Rules.
@@ -177,7 +177,7 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
   Campus · 5 facilities"); any heading opens or closes its card, remembered on the device per
   tournament. A wide screen does not fold.
 - **The strip** names the first unfinished section's most important task, in the order the work is
-  done (Where, Sports & divisions, Organisations & teams, Rules & scoring, Fixtures), with the one
+  done (Where, When, Sports & divisions, Organisations & teams, Rules & scoring, Fixtures), with the one
   button that does it — "2 organisations are not invited yet … *Invite all 2*", and "N more things to
   sort out" linking to the rest. Once set up, a green "Set up and ready." until the first day.
 - **Once set up** the statuses and the progress bar go — every card is done, so they would be
@@ -191,8 +191,20 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
   on a phone — to a page of their own, `events/[eventId]/sports` and `events/[eventId]/organisations`,
   which **show the same things the same way, with more room** (agreed 2026-10-09). Fixtures'
   *Schedule ›* opens the Schedule tab. Where and Rules & scoring are short, and have none.
-- **The name and dates are the banner's**, edited in *Edit tournament*; a tournament has its first
-  day from the moment it is created, so there is no setup section for them. Where is the venue only.
+- **The name is the banner's**, edited in *Edit tournament*, and so are the dates **until the
+  tournament has playing days** (Phase 7, 2026-10-11). From then on the dates are the first and last
+  playing day — "28 Nov – 5 Dec 2026" whether that is eight days or two — and *Edit tournament* shows
+  them read-only, pointing to **When**. Where is the venue only.
+- **When** (Phase 7) is its own section and setup step, after Where: each playing day with its hours,
+  *Day starts* and *Day ends* — by when the last game must end. Days need not follow each other. Its
+  dialog ticks days on a calendar (*Repeat weekly…* ticks a run of them) and has a row per day, with
+  a copy button on the first day's row that copies its times to every day. Removing a day that has
+  fixtures warns that they stay where they are.
+- **Fixtures** ends with the **scheduling gaps** — *Between games* on a facility and the *Minimum team
+  break* (0 reads "No minimum team break") — with their own Edit: how the scheduler spaces games, so
+  they sit with the fixtures, not under When. **Fixtures is done only once every division is drawn
+  and scheduled**: a fixture with no time or no facility keeps it *In progress*, and the strip says
+  how many have no time.
 - Sports & divisions carries its explanation as text while field help is on ("Choose the sports
   being played, then the divisions within each. A division is a group of teams that compete against
   each other — usually an age group, e.g. Rugby U16. …").
@@ -332,6 +344,15 @@ each division's stages.
   and when, is still `FIX-25`'s to settle.
 
 ## 8. The division page (`FIX-27`)
+
+> **Revised in Phase 7 (2026-10-11): Where, When and Organisers.** The division's *Organisers &
+> courts* section is split to match the tournament page section for section: **Where** (its
+> facilities, under the sport's own word — *Courts* for netball — and "Any of the tournament's" when
+> none are chosen), **When** (each of the tournament's days: *Not playing*, or its first game start
+> and last game end — the end *calculated* unless set, shown as the time the schedule worked out) and
+> **Organisers** (organisers only). Its scheduling gaps sit at the foot of its **Fixtures**, marked
+> "the tournament's" until it sets its own. No section title names a facility type, since that word
+> is the sport's. *Edit details* keeps the division's own record: name, sport and age group.
 
 Agreed 2026-10-09 on `mockups/division-read-first.html`, **option A**: one page of cards, read
 first, at `events/[eventId]/divisions/[divisionId]`.

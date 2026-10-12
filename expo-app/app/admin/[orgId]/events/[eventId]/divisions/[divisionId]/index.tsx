@@ -17,6 +17,9 @@ import {
   entryLockGaps,
   isPlayedFixture,
   isEntrantEntered,
+  fixtureMinutes,
+  minuteOfDay,
+  timeOfDay,
 } from '@sk/shared';
 import { lockGapsLine } from '../../../../../../../components/tournament/DivisionEntries';
 import { ScreenHeader } from '../../../../../../../components/ScreenHeader';
@@ -25,7 +28,9 @@ import { OverflowMenu, OverflowMenuItem } from '../../../../../../../components/
 import { ConfirmationModal } from '../../../../../../../components/ConfirmationModal';
 import { EditLink } from '../../../../../../../components/ReadCard';
 import { DivisionStateLine, TournamentCard, divisionStateOf } from '../../../../../../../components/tournament/TournamentBits';
-import { DivisionDetailsDialog, FormatDialog, formatDetail, formatLabel, formatOfStages } from '../../../../../../../components/tournament/DivisionDialogs';
+import { DivisionDetailsDialog, DivisionOrganisersDialog, FormatDialog, formatDetail, formatLabel, formatOfStages } from '../../../../../../../components/tournament/DivisionDialogs';
+import { DivisionWhenDialog, DivisionWhereDialog, GapsDialog, divisionDayLines, gapsLine } from '../../../../../../../components/tournament/ScheduleSetup';
+import { formatPlayingDay, instantToVenueInputs, venueTimeZone } from '../../../../../../../utils/dates';
 import { DivisionTeamsCard } from '../../../../../../../components/tournament/DivisionTeams';
 import { DivisionFixturesCard } from '../../../../../../../components/tournament/DivisionFixtures';
 import { DivisionStandings } from '../../../../../../../components/tournament/DivisionStandings';
@@ -162,7 +167,7 @@ export default function DivisionScreen() {
     setLocking(false);
   };
 
-  const [dialog, setDialog] = useState<null | 'details' | 'format' | 'delete'>(null);
+  const [dialog, setDialog] = useState<null | 'details' | 'format' | 'delete' | 'where' | 'when' | 'gaps' | 'organisers'>(null);
   const [adding, setAdding] = useState(false);
   const [replacing, setReplacing] = useState<TournamentEntrant | null>(null);
   const [drawDialog, setDrawDialog] = useState<null | 'make' | 'redo'>(null);
@@ -302,6 +307,7 @@ export default function DivisionScreen() {
       onReplacing={setReplacing}
     />
   );
+  const ownGaps = division.gapBetweenGamesMin != null || division.minTeamBreakMin != null;
   const fixturesCard = (
     <DivisionFixturesCard
       key="fixtures"
@@ -321,6 +327,15 @@ export default function DivisionScreen() {
       ownOrgId={event.orgId}
       dialog={drawDialog}
       onDialog={setDrawDialog}
+      footer={
+        <View className="flex-row items-center gap-3 border-t border-line-soft pt-2.5 mt-1">
+          <View className="flex-1 min-w-0">
+            <Text className="font-inter text-xs text-ink-muted">Scheduling{ownGaps ? '' : " · the tournament's"}</Text>
+            <Text className="font-inter text-sm text-ink">{gapsLine(division.gapBetweenGamesMin ?? event.gapBetweenGamesMin ?? 5, division.minTeamBreakMin ?? event.minTeamBreakMin ?? 0)}</Text>
+          </View>
+          {canEdit ? <EditLink onPress={() => setDialog('gaps')} /> : null}
+        </View>
+      }
     />
   );
   const formatCard = (
@@ -337,21 +352,56 @@ export default function DivisionScreen() {
       </View>
     </TournamentCard>
   );
+  /*
+   * Where, When and Organisers (Phase 7, agreed 2026-10-11): the division's sections match the
+   * tournament page's, so its old *Organisers & courts* is split. No title names a facility type,
+   * since that word is the sport's: the line says *Courts* for netball, *Fields* for rugby.
+   */
   const courtNames = (division.facilityIds || []).map(id => facilities.find(f => f.id === id)?.name).filter(Boolean);
-  const detailsCard = canEdit ? (
-    <TournamentCard key="details" title="Organisers & courts" right={<EditLink onPress={() => setDialog('details')} />}>
-      <View className="gap-2">
-        <View>
-          <Text className="font-inter text-xs text-ink-muted">Division organisers</Text>
-          <Text className="font-inter text-sm text-ink">{organizers.length ? organizers.map(o => o.name).join(' · ') : 'None — the tournament\'s organisers run it'}</Text>
-        </View>
-        <View>
-          <Text className="font-inter text-xs text-ink-muted">{sport?.facilityTerm ? `${sport.facilityTerm}s` : 'Facilities'}</Text>
-          <Text className="font-inter text-sm text-ink">{courtNames.length ? courtNames.join(', ') : "Any of the tournament's"}</Text>
-        </View>
+  const facilityTerm = sport?.facilityTerm?.trim() ? `${sport.facilityTerm.trim()}s` : 'Facilities';
+  const whereCard = (
+    <TournamentCard key="where" title="Where" right={canEdit ? <EditLink onPress={() => setDialog('where')} /> : undefined}>
+      <View>
+        <Text className="font-inter text-xs text-ink-muted">{facilityTerm}</Text>
+        <Text className="font-inter text-sm text-ink">{courtNames.length ? courtNames.join(', ') : "Any of the tournament's"}</Text>
+      </View>
+    </TournamentCard>
+  );
+  // A calculated end shows the time the schedule worked out, once there is one.
+  const timeZone = venueTimeZone(sites.find(s => s.id === event.siteId) as any);
+  const minutes = fixtureMinutes(sport?.defaultSettings);
+  const calculatedEnd = (day: string) => {
+    if (minutes == null) return null;
+    const ends = games
+      .map(g => (g.startTime && !g.timeTbd ? instantToVenueInputs(g.startTime, timeZone) : null))
+      .filter((v): v is { date: string; time: string } => !!v && v.date === day)
+      .map(v => (minuteOfDay(v.time) ?? 0) + minutes);
+    return ends.length ? timeOfDay(Math.max(...ends)) : null;
+  };
+  const whenCard = (event.days || []).length ? (
+    <TournamentCard key="when" title="When" right={canEdit ? <EditLink onPress={() => setDialog('when')} /> : undefined}>
+      <View>
+        {divisionDayLines(event, division).map((line, i) => {
+          const calc = !line.muted && line.text.endsWith('end calculated') ? calculatedEnd(line.day) : null;
+          return (
+            <View key={line.day} className={`flex-row items-center justify-between gap-3 py-1 ${i ? 'border-t border-line-soft' : ''}`}>
+              <Text className="font-inter text-sm text-ink">{formatPlayingDay(line.day)}</Text>
+              <Text className={`font-inter text-sm ${line.muted ? 'text-ink-muted' : 'text-ink'}`}>
+                {calc ? `${line.text.replace(' · end calculated', '').replace('From ', '')} – ${calc}` : line.text}
+                {calc ? <Text className="font-inter text-xs text-ink-muted">  · calculated</Text> : null}
+              </Text>
+            </View>
+          );
+        })}
       </View>
     </TournamentCard>
   ) : null;
+  const organisersCard = canEdit ? (
+    <TournamentCard key="organisers" title="Organisers" right={<EditLink onPress={() => setDialog('organisers')} />}>
+      <Text className="font-inter text-sm text-ink">{organizers.length ? organizers.map(o => o.name).join(' · ') : 'None — the tournament\'s organisers run it'}</Text>
+    </TournamentCard>
+  ) : null;
+  const detailsCard = <React.Fragment key="details">{whereCard}{whenCard}{organisersCard}</React.Fragment>;
   const standingsCard = drawn ? (
     <TournamentCard key="standings" title="Standings">
       <DivisionStandings divisionId={divisionId} canEdit={canEdit} />
@@ -407,6 +457,10 @@ export default function DivisionScreen() {
         sites={sites}
         facilities={facilities}
       />
+      <DivisionWhereDialog visible={dialog === 'where'} onClose={() => setDialog(null)} event={event} division={division} orgId={orgId} sites={sites} facilities={facilities} facilityTerm={facilityTerm} />
+      <DivisionWhenDialog visible={dialog === 'when'} onClose={() => setDialog(null)} event={event} division={division} orgId={orgId} />
+      <GapsDialog visible={dialog === 'gaps'} onClose={() => setDialog(null)} event={event} division={division} orgId={orgId} />
+      <DivisionOrganisersDialog visible={dialog === 'organisers'} onClose={() => setDialog(null)} orgId={orgId} eventId={eventId} event={event} division={division} organizers={organizers} onOrganizersChange={setOrganizers} />
       <FormatDialog
         visible={dialog === 'format'}
         onClose={() => setDialog(null)}

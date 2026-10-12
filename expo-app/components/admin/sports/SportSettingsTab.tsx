@@ -121,6 +121,28 @@ export function SportSettingsTab({ form, setField, showCardSettings }: SportSett
           way keeps the clock it started with.
         </Text>
 
+        <View className="flex-row gap-4">
+          <NumberField
+            className="flex-1"
+            label="Break Between Periods (minutes)"
+            value={form.breakMinutes}
+            onChangeText={(text) => setField('breakMinutes', text)}
+            placeholder="e.g. 10"
+          />
+          <NumberField
+            className="flex-1"
+            label="Extra-time Allowance (minutes)"
+            value={form.extraTimeMinutes}
+            onChangeText={(text) => setField('extraTimeMinutes', text)}
+            placeholder="e.g. 0"
+          />
+        </View>
+        <Text className="font-inter text-[10px] text-ink-muted">
+          With the two above, how long a fixture takes when a tournament is scheduled: periods × period
+          length, the breaks between them, and time allowed for a game to run over. A sport without a
+          period length and number of periods cannot be scheduled.
+        </Text>
+
         <NumberField
           label="Max Reserves"
           value={form.maxReserves}

@@ -17,6 +17,8 @@ export interface SportForm {
   maxReserves: string;
   scheduledPeriods: string;
   periodLengthMinutes: string;
+  breakMinutes: string;
+  extraTimeMinutes: string;
   yellowCardMinutes: string;
   redCardMinutes: string;
   allowTimedRedCard: boolean;
@@ -34,6 +36,8 @@ export const EMPTY_FORM: SportForm = {
   maxReserves: '',
   scheduledPeriods: '',
   periodLengthMinutes: '',
+  breakMinutes: '',
+  extraTimeMinutes: '',
   yellowCardMinutes: '',
   redCardMinutes: '',
   allowTimedRedCard: false,
@@ -59,6 +63,8 @@ export function formFromSport(sport: Sport): SportForm {
     maxReserves: settings.maxReserves === undefined ? '' : String(settings.maxReserves),
     scheduledPeriods: settings.scheduledPeriods === undefined ? '' : String(settings.scheduledPeriods),
     periodLengthMinutes: msToMinutes(settings.periodLengthMS),
+    breakMinutes: msToMinutes(settings.breakBetweenPeriodsMS),
+    extraTimeMinutes: msToMinutes(settings.extraTimeAllowanceMS),
     yellowCardMinutes: msToMinutes(settings.yellowCardDurationMS),
     redCardMinutes: msToMinutes(settings.redCardDurationMS),
     allowTimedRedCard: !!settings.allowTimedRedCard,
@@ -84,6 +90,8 @@ export function payloadFromForm(form: SportForm, original: Sport | null): SportW
       maxReserves: form.maxReserves.trim() === '' ? undefined : Number(form.maxReserves),
       scheduledPeriods: form.scheduledPeriods.trim() === '' ? undefined : Number(form.scheduledPeriods),
       periodLengthMS: minutesToMs(form.periodLengthMinutes),
+      breakBetweenPeriodsMS: minutesToMs(form.breakMinutes),
+      extraTimeAllowanceMS: minutesToMs(form.extraTimeMinutes),
       yellowCardDurationMS: minutesToMs(form.yellowCardMinutes),
       redCardDurationMS: minutesToMs(form.redCardMinutes),
       allowTimedRedCard: form.allowTimedRedCard,

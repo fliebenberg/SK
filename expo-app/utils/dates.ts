@@ -113,6 +113,50 @@ export function formatCalendarDate(value?: CalendarDate | null, options?: { week
 }
 
 /**
+ * A playing day as a schedule names it — "Sat 21 Nov": the weekday and the day, no year, since the
+ * days listed together are of one tournament (Phase 7). `null` when it is not a date.
+ */
+export function formatPlayingDay(value?: CalendarDate | null): string | null {
+  const date = parseCalendarDate(value);
+  if (!date) return null;
+  return `${DAYS[date.getDay()]} ${date.getDate()} ${MONTHS[date.getMonth()]}`;
+}
+
+/** The first day of the month a date is in. */
+export function monthOf(value: CalendarDate): CalendarDate {
+  const parts = calendarDateParts(value);
+  return parts ? toCalendarDate(parts[0], parts[1], 1) : value;
+}
+
+/** The first day of the month `count` months after (or before) the one a date is in. */
+export function addMonths(value: CalendarDate, count: number): CalendarDate {
+  const parts = calendarDateParts(value);
+  if (!parts) return value;
+  const index = parts[0] * 12 + (parts[1] - 1) + count;
+  return toCalendarDate(Math.floor(index / 12), (index % 12) + 1, 1);
+}
+
+/**
+ * A month laid out for a calendar of days to tick (Phase 7's playing days): its name, the weekday
+ * initials Monday first, and the cells week by week — `null` before the 1st, so the 1st falls under
+ * its weekday.
+ */
+export function monthGrid(month: CalendarDate): { label: string; weekdays: string[]; cells: Array<CalendarDate | null> } {
+  const first = parseCalendarDate(monthOf(month));
+  if (!first) return { label: '', weekdays: [], cells: [] };
+  const lead = (first.getDay() + 6) % 7; // Monday first
+  const length = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  const cells: Array<CalendarDate | null> = Array.from({ length: lead }, () => null);
+  for (let d = 1; d <= length; d++) cells.push(toCalendarDate(first.getFullYear(), first.getMonth() + 1, d));
+  return { label: `${MONTH_NAMES[first.getMonth()]} ${first.getFullYear()}`, weekdays: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], cells };
+}
+
+/** The day of the month, for a calendar cell. */
+export function dayOfMonth(value: CalendarDate): number {
+  return calendarDateParts(value)?.[2] ?? 0;
+}
+
+/**
  * Age in whole years today, from a birthdate — `null` when it is not a date. Someone turns a year
  * older **on** their birthday, the same rule as `isUnderAge` in `@sk/shared`.
  */

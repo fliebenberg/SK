@@ -515,6 +515,9 @@ export interface SportSettings {
   /** Periods a fixture is scheduled to run; games and events may override it under the same name. */
   scheduledPeriods?: number;
   periodLengthMS?: number;
+  /** Phase 7: the break between periods and time allowed for running over — with the two above, a fixture's length for scheduling. */
+  breakBetweenPeriodsMS?: number;
+  extraTimeAllowanceMS?: number;
   yellowCardDurationMS?: number;
   redCardDurationMS?: number;
   allowTimedRedCard?: boolean;

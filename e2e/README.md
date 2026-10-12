@@ -18,8 +18,9 @@ npm run e2e:report     # the last run's report, with traces of any failure
   the API so its caches reload. That deletes anything made by hand under a test organisation.
   `E2E_SKIP_RESET=1` runs against the data as it is.
 - **The files run in order, one at a time,** and later ones start from what earlier ones did: the
-  tournament page, the division page, a coach, an organisation's own page, then invitations (which takes
-  organisations out, so it is last). A single file run on its own may therefore fail where the suite
+  tournament page, the division page, a coach, an organisation's own page, invitations (which takes
+  organisations out), then scheduling setup (`06-schedule-setup.spec.ts`: When, the gaps, a
+  division's Where and When, on *Test Saturday Fixtures* and the Spring Festival's days). A single file run on its own may therefore fail where the suite
   passes.
 - **The phone runs first and only tests tagged `@phone`** — ones that read and change nothing — so it sees
   the data before the desktop tests change it.

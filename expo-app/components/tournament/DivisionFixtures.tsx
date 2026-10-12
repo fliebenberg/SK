@@ -33,7 +33,7 @@ import { formatFixtureWhen } from '../../utils/dates';
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const SHOWN = 8;
 
-export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games, entrants, format, facilities, canEdit, started, entriesLocked, lockGaps, isWide, ownOrgId, dialog: dialogProp, onDialog }: {
+export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games, entrants, format, facilities, canEdit, started, entriesLocked, lockGaps, isWide, ownOrgId, dialog: dialogProp, onDialog, footer }: {
   orgId: string;
   eventId: string;
   divisionId: string;
@@ -57,6 +57,8 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
   /** Make the draw and Redo the draw may be opened from the page's what's-next strip too. */
   dialog?: null | 'make' | 'redo';
   onDialog?: (dialog: null | 'make' | 'redo') => void;
+  /** Below the fixtures: the division's scheduling gaps (Phase 7). */
+  footer?: React.ReactNode;
 }) {
   const router = useRouter();
   const ordered = useMemo(() => [...stages].sort((a, b) => (a.sequence || 0) - (b.sequence || 0)), [stages]);
@@ -233,6 +235,8 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
           <LinkButton label="Redo the draw" quiet onPress={() => setDialog('redo')} />
         )
       ) : null}
+
+      {footer}
 
       <EditDialog
         visible={dialog === 'make'}

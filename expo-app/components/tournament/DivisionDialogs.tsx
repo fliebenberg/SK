@@ -289,8 +289,6 @@ export function DivisionDetailsDialog({
   const [sportId, setSportId] = useState(division.sportId || '');
   const [ageGroupId, setAgeGroupId] = useState<string | null>(division.ageGroupId || null);
   const [ageGroupName, setAgeGroupName] = useState(division.ageGroup || '');
-  const [courtIds, setCourtIds] = useState<string[]>(division.facilityIds || []);
-  const [pickingCourts, setPickingCourts] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Seeded each time it opens, from the division as it is then.
@@ -300,8 +298,6 @@ export function DivisionDetailsDialog({
     setSportId(division.sportId || '');
     setAgeGroupId(division.ageGroupId || null);
     setAgeGroupName(division.ageGroup || '');
-    setCourtIds(division.facilityIds || []);
-    setPickingCourts(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
@@ -328,7 +324,7 @@ export function DivisionDetailsDialog({
   const ageChanging = ageGroupId !== (division.ageGroupId || null);
 
   const recordDirty = canEditRecord && (customName !== savedCustom || sportChanging || ageChanging);
-  const courtsDirty = canEdit && [...courtIds].sort().join() !== [...(division.facilityIds || [])].sort().join();
+  const courtsDirty = false;
 
   const save = async () => {
     setSaving(true);
@@ -340,18 +336,10 @@ export function DivisionDetailsDialog({
       });
       if (!result.ok) { setSaving(false); return; }
     }
-    if (courtsDirty) {
-      const result = await sendAction(SocketAction.SET_DIVISION_FACILITIES, { divisionId: division.id, orgId, facilityIds: courtIds });
-      if (!result.ok) { setSaving(false); return; }
-    }
     setSaving(false);
     onClose();
   };
 
-  const courtName = (id: string) => facilities.find(f => f.id === id)?.name || 'A court';
-  // A sport may name its playing surface — "Court" — and the field takes the plural.
-  const singular = sports.find(s => s.id === division.sportId)?.facilityTerm?.trim();
-  const term = singular ? `${singular}s` : 'Facilities';
 
   return (
     <EditDialog
@@ -429,52 +417,38 @@ export function DivisionDetailsDialog({
         ) : null}
       </View>
 
-      {canEdit ? (
-        <OrganizerPicker
-          eventId={eventId}
-          divisionId={division.id}
-          hostOrgId={event.orgId}
-          actingOrgId={orgId}
-          organizers={organizers}
-          onChange={onOrganizersChange}
-          canManage={canEdit}
-          label="Division organisers"
-          help="People who run this division: its teams, how it is played, the draw and the fixtures. Added and removed at once, not with Save."
-          optional
-        />
-      ) : null}
+    </EditDialog>
+  );
+}
 
-      <View className="gap-1.5">
-        <FieldLabel label={term} optional help={`Where this division plays. None chosen means any of the tournament's. One the tournament does not use yet is added to the tournament as well, so it shows on the map.`} />
-        <View className="flex-row flex-wrap items-center gap-1.5">
-          {courtIds.map(id => (
-            <View key={id} className="flex-row items-center gap-1.5 rounded-xl border border-line bg-sunken px-3 py-1.5">
-              <Text className="font-inter-semibold text-[13px] text-ink">{courtName(id)}</Text>
-              {canEdit ? (
-                <TouchableOpacity onPress={() => setCourtIds(prev => prev.filter(c => c !== id))} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Remove ${courtName(id)}`}>
-                  <Ionicons name="close" size={14} color={themeColor(isDark, 'ink-muted')} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          ))}
-          {!courtIds.length ? <Text className="font-inter text-[13px] text-ink-muted">Any of the tournament's.</Text> : null}
-          {canEdit ? (
-            <TouchableOpacity
-              onPress={() => setPickingCourts(p => !p)}
-              accessibilityRole="button"
-              accessibilityLabel={`Add ${term.toLowerCase()}`}
-              className="rounded-xl border border-dashed border-line-strong px-3 py-1.5"
-            >
-              <Text className="font-inter-bold text-[13px] text-primary-ink">{pickingCourts ? 'Done' : '＋'}</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-        {pickingCourts ? (
-          <View className="rounded-xl border border-line p-3">
-            <FacilityPicker sites={sites} facilities={facilities} value={courtIds} onChange={setCourtIds} baseSiteId={event.siteId || undefined} />
-          </View>
-        ) : null}
-      </View>
+/**
+ * The division's *Organisers* (Phase 7 split them from *Organisers & courts*): the people who run
+ * it. Added and removed at once by the picker — there is nothing to save.
+ */
+export function DivisionOrganisersDialog({ visible, onClose, orgId, eventId, event, division, organizers, onOrganizersChange }: {
+  visible: boolean;
+  onClose: () => void;
+  orgId: string;
+  eventId: string;
+  event: Event;
+  division: TournamentDivision;
+  organizers: TournamentOrganizer[];
+  onOrganizersChange: (next: TournamentOrganizer[]) => void;
+}) {
+  return (
+    <EditDialog visible={visible} title={`Organisers — ${division.name}`} onClose={onClose}>
+      <OrganizerPicker
+        eventId={eventId}
+        divisionId={division.id}
+        hostOrgId={event.orgId}
+        actingOrgId={orgId}
+        organizers={organizers}
+        onChange={onOrganizersChange}
+        canManage
+        label="Division organisers"
+        help="People who run this division: its teams, how it is played, the draw and the fixtures. Added and removed at once."
+        optional
+      />
     </EditDialog>
   );
 }

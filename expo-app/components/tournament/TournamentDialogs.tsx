@@ -23,7 +23,7 @@ import { sendAction } from '../../services/actions';
 import { useToastStore } from '../../store/toastStore';
 import { useWsStore } from '../../store/wsStore';
 import { wsService } from '../../services/websocket';
-import { isCalendarDate } from '../../utils/dates';
+import { formatDateRange, isCalendarDate } from '../../utils/dates';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
 
@@ -35,7 +35,11 @@ import { themeColor } from '../../constants/Colors';
 
 const sameIds = (a: string[], b: string[]) => a.length === b.length && a.every(id => b.includes(id));
 
-/** The banner's Edit: the name, and when — the first day, and the last when it runs over more than one. */
+/**
+ * The banner's Edit: the name, and when — the first day, and the last when it runs over more than one.
+ * **Once the tournament has playing days (Phase 7) its dates are theirs** — the first and last day,
+ * rewritten whenever the days change — so they are shown, not edited, here; When is where they change.
+ */
 export function EditTournamentDialog({ visible, event, orgId, onClose }: {
   visible: boolean;
   event: Event;
@@ -57,12 +61,13 @@ export function EditTournamentDialog({ visible, event, orgId, onClose }: {
     setMultiDay(!!event.endDate && event.endDate > event.startDate);
   }, [visible, event]);
 
-  const dateError = !isCalendarDate(start)
+  const fromDays = !!event.days?.length;
+  const dateError = fromDays ? null : !isCalendarDate(start)
     ? 'Choose the first day.'
     : multiDay && (!isCalendarDate(end) || end <= start)
     ? 'The last day must come after the first.'
     : null;
-  const dirty = name.trim() !== (event.name || '') || start !== event.startDate || (multiDay ? end : '') !== (event.endDate && event.endDate > event.startDate ? event.endDate : '');
+  const dirty = name.trim() !== (event.name || '') || (!fromDays && (start !== event.startDate || (multiDay ? end : '') !== (event.endDate && event.endDate > event.startDate ? event.endDate : '')));
 
   const save = async () => {
     if (!name.trim() || dateError) return;
@@ -70,7 +75,7 @@ export function EditTournamentDialog({ visible, event, orgId, onClose }: {
     const result = await sendAction(SocketAction.UPDATE_EVENT, {
       id: event.id,
       orgId,
-      data: { name: name.trim(), startDate: start, endDate: multiDay ? end : null },
+      data: fromDays ? { name: name.trim() } : { name: name.trim(), startDate: start, endDate: multiDay ? end : null },
     });
     setSaving(false);
     if (result.ok) onClose();
@@ -82,6 +87,13 @@ export function EditTournamentDialog({ visible, event, orgId, onClose }: {
         <FieldLabel label="Name" />
         <TextInput value={name} onChangeText={setName} placeholderTextColor={themeColor(isDark, 'ink-muted')} accessibilityLabel="Name" className={TEXT_INPUT} />
       </View>
+      {fromDays ? (
+        <View className="gap-1.5">
+          <FieldLabel label="Dates" />
+          <Text className="font-inter text-sm text-ink">{formatDateRange(event.startDate, event.endDate, { compact: true })}</Text>
+          <Text className="font-inter text-xs text-ink-muted">From its playing days. Change them under When.</Text>
+        </View>
+      ) : <>
       <View className="flex-row flex-wrap gap-3">
         <View className="gap-1.5" style={{ width: 200 }}>
           <FieldLabel label="First day" />
@@ -99,6 +111,7 @@ export function EditTournamentDialog({ visible, event, orgId, onClose }: {
         <Text className="font-inter text-sm text-ink-soft">Runs over more than one day</Text>
       </View>
       {dateError && (start || multiDay) ? <Text className="font-inter text-xs text-danger-ink">{dateError}</Text> : null}
+      </>}
     </EditDialog>
   );
 }

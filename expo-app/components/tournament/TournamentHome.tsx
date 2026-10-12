@@ -36,11 +36,12 @@ import {
 } from './TournamentBits';
 import { useOrganisationsSection, useSportsSection } from './TournamentSections';
 import { EditTournamentDialog, ScoringDialog, WhereDialog } from './TournamentDialogs';
+import { GapsDialog, WhenDialog, gapsLine } from './ScheduleSetup';
 import { OrganisationResponse } from './OrganisationResponse';
 import { useAuthStore } from '../../store/authStore';
 import { sendAction } from '../../services/actions';
 import { useActiveTheme, useSettingsStore } from '../../store/settingsStore';
-import { calendarRangeStatus, dateCountdown, eventDayOfRange, formatDateRange, formatKickoffTime, whenMs } from '../../utils/dates';
+import { calendarRangeStatus, dateCountdown, eventDayOfRange, formatDateRange, formatKickoffTime, formatPlayingDay, venueTimeZone, whenMs } from '../../utils/dates';
 import { themeColor } from '../../constants/Colors';
 import { LAYOUT } from '../../constants/layout';
 
@@ -58,7 +59,7 @@ import { LAYOUT } from '../../constants/layout';
  * Sports & divisions and Organisations & teams open as full pages; Fixtures opens the Schedule tab.
  */
 
-export type StepKey = 'basics' | 'divisions' | 'entrants' | 'scoring' | 'fixtures';
+export type StepKey = 'basics' | 'when' | 'divisions' | 'entrants' | 'scoring' | 'fixtures';
 
 export interface TournamentStep {
   key: StepKey;
@@ -69,6 +70,10 @@ export interface TournamentStep {
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** A division's fixture with no time or no facility yet (Phase 7) — what keeps Fixtures from done. */
+export const unscheduledIn = (g: GameSummary, playing: TournamentDivision[]) =>
+  !!g.divisionId && playing.some(d => d.id === g.divisionId) && g.status !== 'Cancelled' && (!g.startTime || !!g.timeTbd || !g.facilityId);
 
 /** Where each section of setting up stands, from the state of the data — never from having been visited (U17). */
 export function useTournamentSteps({ event, divisions, games, entrants, entrantsByDivision, facilityIds, sports, sites }: {
@@ -103,6 +108,10 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
      */
     const entrantsDone = playing.length > 0 && entered.length > 0 && !notInvited.length && !unanswered.length && !leaving.length && !empty.length;
     const drawn = playing.filter(d => games.some(g => g.divisionId === d.id));
+    // Phase 7: a fixture is scheduled when it has a time and a facility. Fixtures is done only once
+    // every division is drawn *and* scheduled (agreed 2026-10-11).
+    const unscheduled = games.filter(g => unscheduledIn(g, playing));
+    const days = event.days || [];
     // The whole roster: a team that withdrew after the draw is one of the changes (`drawChanges`).
     const changed = playing.filter(d => drawChanges(d.firstStageId, games.filter(g => g.divisionId === d.id), entrantsByDivision.get(d.id) || []).count > 0);
     const scoring = event.settings?.scoring;
@@ -115,6 +124,11 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
         summary: event.siteId || facilityIds.length
           ? [sites.find(s => s.id === event.siteId)?.name, `${facilityIds.length} ${facilityIds.length === 1 ? 'facility' : 'facilities'}`].filter(Boolean).join(' · ')
           : 'No venue yet',
+      },
+      {
+        key: 'when', title: 'When',
+        state: days.length ? 'done' : 'none',
+        summary: days.length ? `${plural(days.length, 'day')} · ${formatDateRange(days[0].day, days[days.length - 1].day, { compact: true })}` : 'No playing days yet',
       },
       {
         key: 'divisions', title: 'Sports & divisions',
@@ -144,8 +158,8 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
       },
       {
         key: 'fixtures', title: 'Fixtures',
-        state: playing.length && drawn.length === playing.length && !changed.length ? 'done' : drawn.length || games.length ? 'part' : 'none',
-        summary: !playing.length ? 'After teams are entered' : `${drawn.length} of ${plural(playing.length, 'division')} drawn${changed.length ? ` · ${changed.length} changed since` : ''}`,
+        state: playing.length && drawn.length === playing.length && !changed.length && !unscheduled.length ? 'done' : drawn.length || games.length ? 'part' : 'none',
+        summary: !playing.length ? 'After teams are entered' : `${drawn.length} of ${plural(playing.length, 'division')} drawn${changed.length ? ` · ${changed.length} changed since` : ''}${unscheduled.length ? ` · ${plural(unscheduled.length, 'fixture')} without a time` : ''}`,
       },
     ];
     const nextIndex = steps.findIndex(s => !isFinished(s.state));
@@ -214,7 +228,7 @@ export function TournamentHome({
     return narrowed;
   }, [mine, allEntrantsByDivision, myEntrants]);
 
-  const [dialog, setDialog] = useState<null | 'details' | 'where' | 'scoring'>(null);
+  const [dialog, setDialog] = useState<null | 'details' | 'where' | 'when' | 'gaps' | 'scoring'>(null);
   const close = () => setDialog(null);
   const eventId = event.id;
   const setupMode = canEdit && !complete;
@@ -226,6 +240,8 @@ export function TournamentHome({
   const playing = divisions.filter(d => !!d.sportId);
   const gamesIn = (d: TournamentDivision) => games.filter(g => g.divisionId === d.id);
   const liveGames = games.filter(g => g.status === 'Live');
+  const unscheduledCount = games.filter(g => unscheduledIn(g, playing)).length;
+  const timeZone = venueTimeZone(site as any, hostOrg as any);
   const today = calendarRangeStatus(event.startDate, event.endDate);
   const onTheDay = !setupMode && (today === 'during' || liveGames.length > 0);
   const stepOf = (key: TournamentStep['key']) => steps.find(s => s.key === key);
@@ -395,6 +411,9 @@ export function TournamentHome({
         return strip('wait', <>{bold('Scoring runs on the default 3 / 1 / 0.')} Confirm it, or change it, before the first result is entered.</>, { label: 'Confirm', onPress: confirmScoring });
       case 'fixtures': {
         const undrawn = playing.filter(d => !gamesIn(d).length).length;
+        if (!undrawn && unscheduledCount) {
+          return strip('wait', <>{bold(`${plural(unscheduledCount, 'fixture')} without a time.`)} Fixtures is done once every division is scheduled.</>, undefined, { label: 'Fixtures', onPress: () => jump('fixtures') });
+        }
         return strip('wait', <>{bold(undrawn ? `${plural(undrawn, 'division')} still to draw.` : 'Some draws have changed since they were made.')} Each division is drawn on its own page.</>, undefined, { label: 'Fixtures', onPress: () => jump('fixtures') });
       }
     }
@@ -429,6 +448,34 @@ export function TournamentHome({
       <View className="gap-1">
         <Text className="font-inter text-[13px] text-ink-muted">Add where it is played — the base site, and the courts, fields and amenities it uses.</Text>
         {link('＋ Add venue', () => setDialog('where'))}
+      </View>
+    </TournamentCard>
+  ) : null;
+
+  /*
+   * When (Phase 7, agreed 2026-10-11): its own section, listing each playing day and its hours —
+   * the banner says only the span. Days need not follow each other.
+   */
+  const playingDays = event.days || [];
+  const whenCard = playingDays.length ? (
+    <TournamentCard title="When" count={plural(playingDays.length, 'day')} {...cardProps('when')} right={canEdit ? edit(() => setDialog('when')) : undefined}>
+      <View className="gap-1.5">
+        <View>
+          {playingDays.map((d, i) => (
+            <View key={d.day} className={`flex-row items-center justify-between gap-3 py-1 ${i ? 'border-t border-line-soft' : ''}`}>
+              <Text className="font-inter text-sm text-ink">{formatPlayingDay(d.day)}</Text>
+              <Text className="font-inter text-sm text-ink">{d.dayStarts} – {d.dayEnds}</Text>
+            </View>
+          ))}
+        </View>
+        <Text className="font-inter text-xs text-ink-muted">When the first games start and by when the last must end, at the venue.</Text>
+      </View>
+    </TournamentCard>
+  ) : canEdit ? (
+    <TournamentCard title="When" {...cardProps('when')}>
+      <View className="gap-1">
+        <Text className="font-inter text-[13px] text-ink-muted">Add the days it is played, and their hours — what the schedule fits the fixtures into.</Text>
+        {link('＋ Add playing days', () => setDialog('when'))}
       </View>
     </TournamentCard>
   ) : null;
@@ -701,6 +748,14 @@ export function TournamentHome({
       right={<>{playing.length ? seeAll(onOpenSchedule, 'Schedule') : null}</>}
     >
       {fixturesBody}
+      {/* The scheduling gaps (Phase 7): how the scheduler spaces games, so they sit with the fixtures, not under When. */}
+      <View className="flex-row items-center gap-3 border-t border-line-soft pt-2.5 mt-1">
+        <View className="flex-1 min-w-0">
+          <Text className="font-inter text-xs text-ink-muted">Scheduling</Text>
+          <Text className="font-inter text-sm text-ink">{gapsLine(event.gapBetweenGamesMin ?? 5, event.minTeamBreakMin ?? 0)}</Text>
+        </View>
+        {canEdit ? edit(() => setDialog('gaps')) : null}
+      </View>
       {lockAllDialog}
     </TournamentCard>
   );
@@ -790,18 +845,19 @@ export function TournamentHome({
   const [rootWidth, setRootWidth] = useState(0);
   const three = isWide && rootWidth >= LAYOUT.threeColumnsMinWidth;
   const live = anchor('live', liveCard), sportsA = anchor('divisions', sportsCard), fixturesA = anchor('fixtures', fixturesCard);
+  const whenA = anchor('when', whenCard);
   const whereA = anchor('basics', whereCard), orgsA = anchor('entrants', orgsCard), rulesA = anchor('scoring', rulesCard), organizersA = anchor('organizers', organizersCard);
   const columns = onTheDay
     ? three
-      ? [[live, fixturesA], [sportsA, orgsA], [whereA, rulesA, organizersA]]
-      : [[live, sportsA, fixturesA], [whereA, orgsA, rulesA, organizersA]]
+      ? [[live, fixturesA], [sportsA, orgsA], [whereA, whenA, rulesA, organizersA]]
+      : [[live, sportsA, fixturesA], [whereA, whenA, orgsA, rulesA, organizersA]]
     : !canEdit
       ? three
-        ? [[sportsA, fixturesA], [whereA, rulesA], [orgsA]]
-        : [[sportsA, fixturesA], [whereA, orgsA, rulesA]]
+        ? [[sportsA, fixturesA], [whereA, whenA, rulesA], [orgsA]]
+        : [[sportsA, fixturesA], [whereA, whenA, orgsA, rulesA]]
       : three
-        ? [[sportsA], [orgsA], [whereA, rulesA, fixturesA, organizersA]]
-        : [[sportsA, orgsA], [whereA, rulesA, fixturesA, organizersA]];
+        ? [[sportsA], [orgsA], [whereA, whenA, rulesA, fixturesA, organizersA]]
+        : [[sportsA, orgsA], [whereA, whenA, rulesA, fixturesA, organizersA]];
 
   // The teams this viewer answers for, still invited: theirs as coach, or any of an organisation they admin.
   const coachTeamIds = new Set<string>(teamMemberships.filter((m: any) => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach').map((m: any) => m.teamId));
@@ -855,6 +911,8 @@ export function TournamentHome({
           <EditTournamentDialog visible={dialog === 'details'} event={event} orgId={orgId} onClose={close} />
           <WhereDialog visible={dialog === 'where'} event={event} orgId={orgId} sites={sites} facilities={facilities} facilityIds={facilityIds} onClose={close} />
           <ScoringDialog visible={dialog === 'scoring'} event={event} orgId={orgId} onClose={close} />
+          <WhenDialog visible={dialog === 'when'} event={event} orgId={orgId} games={allGames} timeZone={timeZone} onClose={close} />
+          <GapsDialog visible={dialog === 'gaps'} event={event} orgId={orgId} onClose={close} />
         </>
       ) : null}
     </View>
