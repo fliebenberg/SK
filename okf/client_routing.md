@@ -121,9 +121,8 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
 > tabs. **Since U50 this is layout only for divisions:** setup always lists the division and links
 > to `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`, one included, and so does the Schedule tab. The rule lives in
 > [shared/src/utils/collapseRule.ts](file:///c:/Fred/Coding/SK/shared/src/utils/collapseRule.ts) and
-> the shared rendering is
-> [DivisionPanel](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionPanel.tsx), so the
-> inline case and the routed case cannot drift apart. Adding a second child restructures the screen,
+> the shared rendering was `DivisionPanel`, so the inline case and the routed case could not drift
+> apart. **Revised 2026-10-12 (Phase 7):** the Schedule tab is now the tournament's schedule — a grid by facility on a wide screen, a list by start time on a phone — for any number of divisions, so it no longer collapses to one division's panel, and `DivisionPanel` is deleted. A division's fixtures live on its page (`DivisionFixturesCard`). The collapse rule still governs the pickers. Adding a second child restructures the screen,
 > which is **announced before it happens** rather than sprung on the organiser. It applies to the
 > pickers too: the entry screen shows no division picker when there is one division, and
 > `games/new` shows no division or stage picker in that case either.

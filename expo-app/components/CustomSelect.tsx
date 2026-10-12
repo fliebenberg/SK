@@ -9,6 +9,11 @@ interface Option {
   label: string;
   /** Shown under the label in the list only; the closed control shows the label alone. */
   description?: string;
+  /**
+   * A heading the option is listed under — the sport a division is in, the venue a facility is at.
+   * Options of one group must be next to each other; the heading shows above the first of them.
+   */
+  group?: string;
 }
 
 interface CustomSelectProps {
@@ -21,6 +26,10 @@ interface CustomSelectProps {
   showSearch?: boolean;
   searchPlaceholder?: string;
   clearable?: boolean;
+  /** Read by a screen reader and a test as the control's name, e.g. "Division". */
+  accessibilityLabel?: string;
+  /** A compact control, for a toolbar of filters. */
+  compact?: boolean;
 }
 
 export default function CustomSelect({
@@ -33,6 +42,8 @@ export default function CustomSelect({
   showSearch = false,
   searchPlaceholder = 'Search...',
   clearable = false,
+  accessibilityLabel,
+  compact = false,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -60,10 +71,12 @@ export default function CustomSelect({
       <TouchableOpacity
         onPress={() => setIsOpen(true)}
         activeOpacity={0.8}
-        className={`flex-row items-center justify-between bg-field border border-line rounded-xl px-4 py-3 ${className}`}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ? `${accessibilityLabel}: ${selectedOption?.label || placeholder}` : undefined}
+        className={`flex-row items-center justify-between border rounded-xl ${compact ? 'bg-card border-line px-3 py-1.5 gap-2' : 'bg-field border-line px-4 py-3'} ${className}`}
         style={style}
       >
-        <Text className={`font-inter text-sm flex-1 ${selectedOption ? 'text-ink' : 'text-ink-muted'}`}>
+        <Text className={`font-inter ${compact ? 'text-[13px] font-inter-semibold' : 'text-sm flex-1'} ${selectedOption ? 'text-ink' : 'text-ink-muted'}`} numberOfLines={1}>
           {selectedOption ? selectedOption.label : placeholder}
         </Text>
         <View className="flex-row items-center gap-1.5">
@@ -120,12 +133,18 @@ export default function CustomSelect({
               showsVerticalScrollIndicator={true}
               style={{ maxHeight: 250 }}
             >
-              {filteredOptions.map((opt) => {
+              {filteredOptions.map((opt, index) => {
                 const isSelected = opt.value === value;
+                const heading = opt.group && opt.group !== filteredOptions[index - 1]?.group ? (
+                  <Text key={`group-${opt.group}`} className="font-inter-bold text-[11px] text-ink-muted uppercase tracking-wider mt-2 px-1">{opt.group}</Text>
+                ) : null;
                 return (
+                  <React.Fragment key={opt.value}>
+                  {heading}
                   <TouchableOpacity
-                    key={opt.value}
                     onPress={() => handleSelect(opt.value)}
+                    accessibilityRole="button"
+                    accessibilityLabel={opt.label}
                     activeOpacity={0.7}
                     className={`flex-row items-center justify-between p-3 rounded-xl border ${
                       isSelected
@@ -147,6 +166,7 @@ export default function CustomSelect({
                       <Ionicons name="checkmark" size={16} color={themeColor(isDark, 'ink')} />
                     )}
                   </TouchableOpacity>
+                  </React.Fragment>
                 );
               })}
 

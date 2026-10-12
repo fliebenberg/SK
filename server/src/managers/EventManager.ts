@@ -35,6 +35,7 @@ export class EventManager extends BaseManager {
       g.site_id as "siteId", g.facility_id as "facilityId",
       (g.custom_settings->>'timeTbd')::boolean as "timeTbd",
       g.placed_by as "placedBy",
+      (g.custom_settings->'tournament'->>'round')::int as "round",
       -- The recorded result outranks the live score, the order the standings engine reads them
       -- in; a result recorded as not provided has no score to show at all. Before 2026-09-21 this
       -- read the live score alone, so a recorded result counted in the table and never appeared on

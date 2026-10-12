@@ -216,6 +216,22 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
   the draw** has *Schedule them straight away*, ticked, or unticked with the reason when the
   division cannot be scheduled yet (no playing days, no game length for its sport). Scheduling only
   ever places fixtures with no time.
+- **The Schedule tab** (Phase 7; U23–U26, D16, D34). **Wide: a time × facility grid** for one day —
+  facilities under their venue, the day's window plain and the time outside it shaded, *Day ends*
+  marked, each fixture coloured by its division and named with its schools' short codes. **Narrow: a
+  list** for the day by start time, each fixture with its division and facility (named with its venue
+  when more than one is in play). **Three dropdowns** filter it — Day, Division (grouped by sport) and
+  Facility (grouped by venue); a division narrows the grid to its own facilities, any its fixtures were
+  moved onto and any sharing ground with them, and the clashes and the tray with it. **Moving**: drag a
+  fixture on the web — its top edge lands where it is dropped, snapped to five minutes, with a dashed
+  preview of the times and any clash — or tap it for the **move sheet** (day, facility — its division's
+  own first, *Other…* for the rest — and start, with *Take its time away*). A move that clashes is made
+  and says so, with **Undo**. **Clashes** are the shared check the scheduler uses, over the
+  tournament's fixtures and other events' at its facilities: a facility booked twice, shared ground,
+  too little time between games, a team in two games at once, a short team break, past the day's end
+  — beside the grid, or behind the ⚠ count on a phone. **Without a time** lists what is left to
+  place, by division (folded on a phone); a fixture dragged onto it loses its time. Offline, the
+  schedule reads and moving says it needs a connection.
 - Sports & divisions carries its explanation as text while field help is on ("Choose the sports
   being played, then the divisions within each. A division is a group of teams that compete against
   each other — usually an age group, e.g. Rugby U16. …").
@@ -444,7 +460,7 @@ from [DivisionTeams.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournamen
 `DivisionStateLine` and `TournamentCard` in
 [TournamentBits.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentBits.tsx), and
 a division record carries `stageShapes` so its tile names the format as its page does. The
-division's `/schedule` screen is gone; the Schedule tab's `DivisionPanel` links to the page.
+division's `/schedule` screen is gone. **Revised 2026-10-12 (Phase 7):** the Schedule tab is now the tournament's schedule — a grid by facility on a wide screen, a list by start time on a phone — for any number of divisions, so it no longer collapses to one division's panel, and `DivisionPanel` is deleted. A division's fixtures live on its page (`DivisionFixturesCard`). The collapse rule still governs the pickers.
 Deleting a division deletes its unplayed fixtures with it. **Teams' answers, the lock and adding
 built 2026-10-10 (`FIX-31` stage 2):** the badge, the request row, the adding line and the lock bar
 are [DivisionEntries.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionEntries.tsx),

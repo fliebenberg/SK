@@ -421,8 +421,10 @@ applies to a `Festival` division with a single stage.
 > [`isCollapsed`](file:///c:/Fred/Coding/SK/shared/src/utils/collapseRule.ts), with tests, and it
 > collapses **nothing as well as one** — a tournament with no divisions yet must not render a picker
 > over an empty list either. The inline case and the routed case mount the *same* component
-> ([DivisionPanel](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionPanel.tsx)), which
-> is what stops "the event screen *is* the division screen" from becoming two renderings that drift.
+> (`DivisionPanel`), which is what stops "the event screen *is* the division screen" from becoming
+> two renderings that drift.
+>
+> **Revised 2026-10-12 (Phase 7):** the Schedule tab is now the tournament's schedule — a grid by facility on a wide screen, a list by start time on a phone — for any number of divisions, so it no longer collapses to one division's panel, and `DivisionPanel` is deleted. A division's fixtures live on its page (`DivisionFixturesCard`). The collapse rule still governs the pickers.
 >
 > The announcement is a confirmation before the write, and it **names the existing child** —
 > "the existing division is called *u14 Rugby*; you can rename it once both are visible" — because

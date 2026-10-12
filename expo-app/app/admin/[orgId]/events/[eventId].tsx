@@ -30,7 +30,7 @@ import { OrganizersDialog } from '../../../../components/tournament/TournamentDi
 import { useTournamentData } from '../../../../hooks/useTournamentData';
 import { StandingsTable } from '../../../../components/tournament/StandingsTable';
 import { DivisionStandings } from '../../../../components/tournament/DivisionStandings';
-import { DivisionPanel } from '../../../../components/tournament/DivisionPanel';
+import { ScheduleTab } from '../../../../components/tournament/ScheduleTab';
 import { EventRoleChips } from '../../../../components/EventRoleChips';
 import { useLiveRoom } from '../../../../hooks/useLiveRoom';
 import { useMyEventGrants } from '../../../../hooks/useEventCapabilities';
@@ -649,110 +649,29 @@ export default function EventDetails() {
           </PageBody>
         )}
         {activeTab === 'schedule' && (
-          <PageBody className="gap-6">
-            {/* THE COLLAPSE RULE (U15).
-                One division and its panel is shown here directly — no list of one to click through.
-                Several, and each is listed and opens its own screen. Setup names the division
-                either way (U50); this is a shortcut, not a secret. */}
-            {onlyDivision ? (
-              <DivisionPanel
-                orgId={orgId}
-                eventId={eventId}
-                divisionId={onlyDivision.id}
-                canEdit={canEdit || capabilities?.convenesDivisionIds.includes(onlyDivision.id) === true}
-                collapsed
-              />
-            ) : orderedDivisions.length > 1 ? (
-              <View className="gap-3">
-                <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-widest pl-1">
-                  Divisions
-                </Text>
-                {orderedDivisions.map(division => (
-                    <TouchableOpacity
-                      key={division.id}
-                      onPress={() =>
-                        router.push(`/admin/${orgId}/events/${eventId}/divisions/${division.id}`)
-                      }
-                      activeOpacity={0.85}
-                    >
-                      <GlassCard className="border border-line p-4 flex-row items-center justify-between">
-                        <View className="flex-1 min-w-0">
-                          <Text
-                            className="font-orbitron-bold text-sm text-ink"
-                            numberOfLines={1}
-                          >
-                            {division.name}
-                          </Text>
-                          <Text className="font-inter text-[10px] text-ink-muted mt-0.5">
-                            {[
-                              sports.find(s => s.id === division.sportId)?.name,
-                              division.ageGroup,
-                              capabilities?.convenesDivisionIds.includes(division.id)
-                                ? 'You run this'
-                                : undefined,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ') || 'No sport set'}
-                          </Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={16} color={secondary} />
-                      </GlassCard>
-                    </TouchableOpacity>
-                ))}
-              </View>
-            ) : (
-              <GlassCard className="border border-dashed border-line p-6 items-center">
-                <Ionicons name="git-branch-outline" size={36} color={secondary} style={{ opacity: 0.3 }} />
-                <Text className="font-orbitron text-[10px] text-ink-muted uppercase tracking-widest mt-2">
-                  Nothing set up yet
-                </Text>
-                <Text className="font-inter text-xs text-ink-muted text-center mt-2">
-                  No divisions yet. Choose the tournament's sports under Setup, Sports & Divisions —
-                  each sport gets its first division as soon as it is chosen.
-                </Text>
-              </GlassCard>
-            )}
-
-            {/* Fixtures that belong to no division at all. They exist on events built before this
-                release, and they would otherwise be invisible on a multi-division tournament. */}
-            {orderedDivisions.length > 1 && games.some(g => !g.stageId) && (
-              <GlassCard className="border border-line p-5">
-                <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-3">
-                  Not in a division
-                </Text>
-                <View className="gap-2">
-                  {games
-                    .filter(g => !g.stageId)
-                    .map(game => (
-                      <TouchableOpacity
-                        key={game.id}
-                        onPress={() =>
-                          router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/view`)
-                        }
-                        className="flex-row items-center justify-between bg-sunken rounded-xl px-3 py-3 active:opacity-85"
-                      >
-                        <Text
-                          className="font-inter-bold text-xs text-ink flex-1"
-                          numberOfLines={1}
-                        >
-                          {participantLabel(game.participants?.[0]) || 'TBD'} vs{' '}
-                          {participantLabel(game.participants?.[1]) || 'TBD'}
-                        </Text>
-                        <Text className="font-inter text-[10px] text-ink-muted pl-2">
-                          {game.status}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                </View>
-              </GlassCard>
-            )}
-
+          <PageBody className="gap-4">
+            {/* The Schedule tab (Phase 7): the grid on a wide screen, the day's list on a phone, the
+                fixtures without a time, the clashes, and moving a fixture — replacing the list of
+                divisions it used to be (the collapse rule's one-division panel included). */}
+            <ScheduleTab
+              event={event}
+              orgId={orgId}
+              canEdit={canEdit || !!capabilities?.convenesDivisionIds?.length || !!capabilities?.convenesSportIds?.length}
+              isWide={isWide}
+              divisions={divisions}
+              games={games}
+              sports={sports}
+              sites={sites}
+              facilities={facilities}
+              facilityIds={savedFacilityIds}
+              hostOrg={hostOrg as any}
+            />
             {canEdit && (
               <Button
                 title="Add a fixture"
                 variant="secondary"
                 onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/new`)}
-                className="py-2.5 rounded-lg"
+                className="py-2.5 rounded-lg self-start"
               />
             )}
           </PageBody>

@@ -1,6 +1,6 @@
 # Tournaments — Phased Implementation Plan
 
-**Status:** In progress. **Phases 0–6 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 and 5 on 2026-09-03, 6 on 2026-09-04). The tournament is now **usable**: teams can be entered on both axes, a draw generated from them, results recorded, and the day ranked — by school across the whole tournament or by entrant within a division. **Phase 7 started 2026-10-11** — scheduling: where and when; decisions at the head of the phase, mockups first.
+**Status:** In progress. **Phases 0–6 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 and 5 on 2026-09-03, 6 on 2026-09-04). The tournament is now **usable**: teams can be entered on both axes, a draw generated from them, results recorded, and the day ranked — by school across the whole tournament or by entrant within a division. **Phase 7 in progress** (started 2026-10-11) — scheduling: where and when. Mockups, the server, and the app's setup, scheduling and Schedule tab are built (2026-10-12); the offline result queue (item 9) is what remains.
 **Implements:** [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) (D1–D33),
 [tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md),
 [tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) (U1–U42).

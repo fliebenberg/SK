@@ -113,8 +113,8 @@ same shape recurs wherever a container usually holds one child and occasionally 
 Two obligations come with it:
 
 - **One rendering, not two.** The inline case and the routed case must be the same component, or they
-  drift. `DivisionPanel` is mounted by both the event screen and the division schedule route for exactly this
-  reason.
+  drift. `DivisionPanel` was mounted by both the event screen and the division schedule route for exactly this
+  reason. **Revised 2026-10-12 (Phase 7):** the Schedule tab is now the tournament's schedule — a grid by facility on a wide screen, a list by start time on a phone — for any number of divisions, so it no longer collapses to one division's panel, and `DivisionPanel` is deleted. A division's fixtures live on its page (`DivisionFixturesCard`). The collapse rule still governs the pickers.
 - **Announce the appearance.** Adding the second child restructures the screen, so say what will
   happen *before* it happens — naming the existing child, since its name is about to become visible
   having never been seen. A structural change is never a surprise.
