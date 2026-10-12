@@ -1,3 +1,4 @@
+import type { EventDay } from '../../utils/schedule';
 /**
  * What kind of thing an event is.
  *
@@ -153,6 +154,16 @@ export interface Event {
    * approval, and adding closes when the division is locked.
    */
   orgsMayAddTeams?: boolean;
+  /**
+   * A tournament's playing days (Phase 7), in date order: when the first games start and by when
+   * the last must end, in venue clock time. Days need not follow each other. `startDate` / `endDate`
+   * are the first and last of them. Written by `SET_EVENT_DAYS`.
+   */
+  days?: EventDay[];
+  /** *Between games*: minutes kept free on a facility between one game ending and the next starting. */
+  gapBetweenGamesMin?: number;
+  /** *Minimum team break*: the least time a team gets between games; 0 is no minimum. */
+  minTeamBreakMin?: number;
   settings?: {
     /**
      * The tournament's points system (D17), which every division inherits unless it carries its

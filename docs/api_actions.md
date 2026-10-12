@@ -666,8 +666,15 @@ may hold no membership anywhere and so act from no workspace at all.
 | `SET_DIVISION_ENTRANTS` | `{ divisionId, orgId, entrants[], idempotencyKey? }` | **yes** | `DIVISION_ENTRANTS_SYNC`, standings, and a `GAME_SUMMARY_UPDATED` per affected fixture |
 | `REPLACE_ENTRANT` | `ReplaceEntrantPayload` — `{ divisionId, orgId, entrantId }` plus `teamId` \| `orgProfileId` \| `label` \| `replacementEntrantId` | no | `DIVISION_ENTRANTS_SYNC`, `STAGE_ENTRANTS_SYNC` per stage, `STAGES_SYNC`, standings, a summary per fixture that changed hands. Answers `{ entrantId, inPlace, movedFixtures, keptResults }` |
 | `SET_STAGE_ENTRANTS` | `{ stageId, orgId, entrants[], idempotencyKey? }` | **yes** | `STAGE_ENTRANTS_SYNC`, `STAGES_SYNC` |
-| `GENERATE_STAGE_FIXTURES` | `{ stageId, orgId, mode, deleteResults? }` — refused until the division's entries are locked (`FIX-31`); `regenerate` is refused once a game in the division has started | server-side fan-out | `STAGE_FIXTURES_SYNC` (one message), `STAGES_SYNC`, standings |
-| `SCHEDULE_STAGE` | `ScheduleStagePayload` | server-side fan-out | `STAGE_FIXTURES_SYNC`, plus a summary per fixture |
+| `GENERATE_STAGE_FIXTURES` | `{ stageId, orgId, mode, deleteResults?, scheduleNow? }` — refused until the division's entries are locked (`FIX-31`); `regenerate` is refused once a game in the division has started. `scheduleNow` schedules the division straight after the draw; a schedule that cannot be made comes back as `schedule: { error }` and the draw stands | server-side fan-out | `STAGE_FIXTURES_SYNC` (one message), `STAGES_SYNC`, standings; with `scheduleNow`, a summary per fixture placed |
+| `SET_EVENT_DAYS` | `{ eventId, orgId, days: [{ day, dayStarts, dayEnds }] }` — the playing days, replaced whole; `dayEnds` is by when the last game must end. Rewrites the event's `startDate` / `endDate` from them. The tournament's organisers | no | `EVENT_UPDATED` (the event carries `days`) |
+| `SET_EVENT_SCHEDULING` | `{ eventId, orgId, gapBetweenGamesMin?, minTeamBreakMin? }` — whole minutes, 0–240; a team break of 0 is no minimum | no | `EVENT_UPDATED` |
+| `SET_DIVISION_DAYS` | `{ divisionId, orgId, days: [{ day, plays, firstGameStart?, lastGameEnds? }] }` — only where the division differs; a day must be one of the tournament's. `lastGameEnds` null is calculated | no | `DIVISION_UPDATED` (the division carries `days`) |
+| `SET_DIVISION_SCHEDULING` | `{ divisionId, orgId, gapBetweenGamesMin?, minTeamBreakMin? }` — `null` follows the tournament | no | `DIVISION_UPDATED` |
+| `SCHEDULE_DIVISION` | `{ divisionId, orgId, again?, keepPlacedByHand?, idempotencyKey? }` — places the fixtures with no time (`again`: all not yet played, keeping hand placings unless `keepPlacedByHand: false`). Refused with a reason when there are no playing days, no facilities for its sport, or the sport has no game length. Answers `{ placed, afterDayEnd, unplaced, gameIds }`. Replaces `SCHEDULE_STAGE` (2026-10-12) | server-side fan-out | a summary per fixture placed |
+| `SCHEDULE_ALL` | `{ eventId, orgId, divisionIds (in order), idempotencyKey? }` — one division after another; earlier gets first pick of shared facilities. A division that cannot be scheduled is a `{ divisionId, error }` line, not a failure of the rest. The tournament's organisers only | server-side fan-out | a summary per fixture placed |
+| `MOVE_FIXTURE` | `{ gameId, orgId, startAt \| null, facilityId \| null }` — a move by hand (`placedBy: 'hand'`), or both null to take its time away. Never refused for a clash: answers `{ clashes }`, the warnings it caused (U26). Refused once the fixture has started | no | `GAME_SUMMARY_UPDATED` |
+| `GET_SCHEDULE_CONTEXT` | `{ eventId, orgId, divisionId? }` — read-only: the venue's `timeZone`, other events' `bookings` at the tournament's facilities on its days, and the `sharedGround` pairs, for the Schedule tab's clash check | no | — |
 | `ADD_GAMES` / `UPDATE_GAMES` | `{ games[], idempotencyKey? }` | **yes** | a summary per fixture |
 | `RESOLVE_PARTICIPANT` | `{ gameParticipantId, orgId, teamId? \| orgProfileId? \| entrantId? }` | no | `GAME_SUMMARY_UPDATED`, standings |
 | `CHANGE_FIXTURE_SIDE` | `{ gameParticipantId, orgId, teamId? \| orgProfileId?, initiatorOrgProfileId? }` | no | `GAME_SUMMARY_UPDATED`, standings, and a `SIDE_CHANGED` entry in the fixture's log. The side keeps its entrant |
@@ -690,7 +697,8 @@ may hold no membership anywhere and so act from no workspace at all.
 | `APPOINT_ORGANIZER` / `WITHDRAW_ORGANIZER` | `{ eventId \| (eventId + sportId) \| divisionId, orgProfileId, orgId? }` | no | `EVENT_CAPABILITIES_UPDATED` to `user:{id}` — **not** to a division room |
 
 **Which of these a division convenor may send** (Phase 4, widened from D31 on 2026-09-03): every
-action that names their division — entrants, stages, fixtures, scheduling, results and adjustments —
+action that names their division — entrants, stages, fixtures, scheduling (its days, gaps,
+scheduling and moves; not `SET_EVENT_DAYS`, `SET_EVENT_SCHEDULING` or `SCHEDULE_ALL`), results and adjustments —
 so that an event organiser can hand a division over and stop thinking about it. **Not**
 `ADD_DIVISION`, `UPDATE_DIVISION`, `DELETE_DIVISION` or `SET_EVENT_FACILITIES`: the division's own
 record and the shape of the event belong to whoever runs the event. The assignment actions are

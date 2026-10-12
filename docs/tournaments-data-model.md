@@ -561,14 +561,26 @@ already carries loose configuration:
 {
   "scoringSubject": "Organisation",  // divisions inherit unless they override
   "scoring": { "pointsPerWin": 3, "pointsPerDraw": 1, "pointsPerLoss": 0, "bonusRules": {} },
-  "tiebreakers": ["pointsDifference", "pointsFor", "headToHead", "mostWins", "fewestCards"],
-  "schedule": {
-    "days": [ { "date": "2026-09-12", "startTime": "08:00", "lastStartTime": "15:30" } ],
-    "turnaroundMinutes": 5,
-    "durationBySport": { "rugby": 25, "netball": 15 }
-  }
+  "tiebreakers": ["pointsDifference", "pointsFor", "headToHead", "mostWins", "fewestCards"]
 }
 ```
+
+> **Revised in Phase 7 (2026-10-12): the schedule is not a settings key.** This section planned a
+> `schedule` key — days with a start and a *last start*, a turnaround, a duration per sport. It was
+> never built, and Phase 7 replaced every part of it:
+>
+> - **The playing days are the `event_days` table**, one row per day with `day_starts` and
+>   `day_ends` — by when the last game must **end**, not the latest start, because games differ in
+>   length; days need not follow each other. A division's differences are `division_days`.
+> - **The turnaround is two columns**, `gap_between_games_min` and `min_team_break_min`, on the
+>   event and (nullable, following it) on the division — columns because `settings` is replaced
+>   whole on update.
+> - **A game's length is not stored** at all: it is worked out from the sport's timing (periods,
+>   period length, break, extra-time allowance) by `fixtureMinutes` in `@sk/shared`.
+>
+> See [database_structure.md](file:///c:/Fred/Coding/SK/docs/database_structure.md) §11l–11m and
+> the Phase 7 decisions in
+> [tournaments-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/tournaments-implementation-plan.md).
 
 `cached_standings` is a real column rather than another settings key because it is written by the
 recalculation path on every result and read on every view — it is data, not configuration, and it
@@ -832,14 +844,14 @@ contract (one transaction, per-item error report, one broadcast, idempotency key
 | `SET_DIVISION_ENTRANTS` | `{ divisionId, entrants: [...] }` | **yes** — a whole roster arrives at once |
 | `REPLACE_ENTRANT` | `{ divisionId, entrantId, teamId? \| orgProfileId? \| label? \| replacementEntrantId? }` | no — one entrant's place changes hands (2026-09-24) |
 | `GENERATE_STAGE_FIXTURES` | `{ stageId, mode: 'create' \| 'regenerate' }` | server-side fan-out |
-| `SCHEDULE_STAGE` | `{ stageId, ...constraints }` | server-side fan-out |
+| `SCHEDULE_DIVISION` / `SCHEDULE_ALL` | `{ divisionId }` / `{ eventId, divisionIds }` — replaced `SCHEDULE_STAGE` in Phase 7 | server-side fan-out |
 | `ADD_GAMES` | `{ games: [...] }` | **yes** — the 90-fixture case |
 | `UPDATE_GAMES` | `{ games: [...] }` | **yes** — rescheduling a day moves many at once |
 | `RESOLVE_PARTICIPANT` | `{ gameParticipantId, teamId? , entrantId? }` | no — the manual override |
 | `CHANGE_FIXTURE_SIDE` | `{ gameParticipantId, teamId? \| orgProfileId? }` | no — another team played one match; the side keeps its entrant (2026-09-24) |
 | `ADD_ADJUSTMENT` / `DELETE_ADJUSTMENT` | an adjustment | no |
 
-`GENERATE_STAGE_FIXTURES` and `SCHEDULE_STAGE` are single actions that write many rows inside one
+`GENERATE_STAGE_FIXTURES` and `SCHEDULE_DIVISION` are single actions that write many rows inside one
 transaction, rather than the client sending ninety `ADD_GAME` calls. `ADD_GAMES` still exists for
 the organiser hand-adding fixtures to a `Festival`.
 

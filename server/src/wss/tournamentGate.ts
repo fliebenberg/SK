@@ -41,7 +41,18 @@ export const TOURNAMENT_ACTION_EVENT: Partial<Record<SocketAction, (payload: any
     p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
   [SocketAction.SET_STAGE_ENTRANTS]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
   [SocketAction.GENERATE_STAGE_FIXTURES]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
-  [SocketAction.SCHEDULE_STAGE]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
+  // Scheduling (Phase 7). The days and the tournament's gaps are the tournament's; Schedule all
+  // spans divisions, so it is event scope only. A division's days, gaps, scheduling and moves are
+  // also its organisers' (the division map below).
+  [SocketAction.SET_EVENT_DAYS]: async (p) => p?.eventId ?? null,
+  [SocketAction.SET_EVENT_SCHEDULING]: async (p) => p?.eventId ?? null,
+  [SocketAction.SCHEDULE_ALL]: async (p) => p?.eventId ?? null,
+  [SocketAction.SET_DIVISION_DAYS]: async (p) => (p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null),
+  [SocketAction.SET_DIVISION_SCHEDULING]: async (p) => (p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null),
+  [SocketAction.SCHEDULE_DIVISION]: async (p) => (p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null),
+  [SocketAction.MOVE_FIXTURE]: async (p) => (p?.gameId ? (await dataManager.getGameStageContext(p.gameId)).eventId : null),
+  // A division's organiser reads the context as the division, naming it; the event must match.
+  [SocketAction.GET_SCHEDULE_CONTEXT]: async (p) => p?.eventId ?? null,
   [SocketAction.ADD_ADJUSTMENT]: async (p) => (p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null),
   [SocketAction.DELETE_ADJUSTMENT]: async (p) => {
     if (!p?.id) return null;
@@ -197,7 +208,14 @@ export const TOURNAMENT_ACTION_DIVISION: Partial<Record<SocketAction, (payload: 
   [SocketAction.REPLACE_ENTRANT]: async (p) => p?.divisionId ?? null,
   [SocketAction.SET_STAGE_ENTRANTS]: async (p) => (p?.stageId ? divisionOfStage(p.stageId) : null),
   [SocketAction.GENERATE_STAGE_FIXTURES]: async (p) => (p?.stageId ? divisionOfStage(p.stageId) : null),
-  [SocketAction.SCHEDULE_STAGE]: async (p) => (p?.stageId ? divisionOfStage(p.stageId) : null),
+  [SocketAction.SET_DIVISION_DAYS]: async (p) => p?.divisionId ?? null,
+  [SocketAction.SET_DIVISION_SCHEDULING]: async (p) => p?.divisionId ?? null,
+  [SocketAction.SCHEDULE_DIVISION]: async (p) => p?.divisionId ?? null,
+  [SocketAction.MOVE_FIXTURE]: async (p) => (p?.gameId ? accessManager.getGameDivisionId(p.gameId) : null),
+  [SocketAction.GET_SCHEDULE_CONTEXT]: async (p) => {
+    if (!p?.divisionId || !p?.eventId) return null;
+    return (await dataManager.getDivisionEventId(p.divisionId)) === p.eventId ? p.divisionId : null;
+  },
   [SocketAction.ADD_ADJUSTMENT]: async (p) => p?.divisionId ?? null,
   [SocketAction.DELETE_ADJUSTMENT]: async (p) => {
     if (!p?.id) return null;

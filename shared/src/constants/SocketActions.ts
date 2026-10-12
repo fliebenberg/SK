@@ -534,11 +534,36 @@ export enum SocketAction {
      * `ADD_GAME` calls.
      */
     GENERATE_STAGE_FIXTURES = 'GENERATE_STAGE_FIXTURES',
+
+    // --- Tournaments: scheduling (Phase 7) ---
+    //
+    // The rules — game length, day windows, clashes, the greedy pass — are `utils/schedule.ts`, so
+    // the scheduler and the Schedule tab can never disagree. These actions load and write.
+
+    /** A tournament's playing days, replaced whole. Expects payload: `SetEventDaysPayload` */
+    SET_EVENT_DAYS = 'SET_EVENT_DAYS',
+    /** Where a division differs from those days. Expects payload: `SetDivisionDaysPayload` */
+    SET_DIVISION_DAYS = 'SET_DIVISION_DAYS',
+    /** The tournament's scheduling gaps. Expects payload: `SetEventSchedulingPayload` */
+    SET_EVENT_SCHEDULING = 'SET_EVENT_SCHEDULING',
+    /** A division's own gaps; `null` follows the tournament. Expects payload: `SetDivisionSchedulingPayload` */
+    SET_DIVISION_SCHEDULING = 'SET_DIVISION_SCHEDULING',
     /**
-     * Action to allocate a stage's fixtures to times and facilities.
-     * Expects payload: `ScheduleStagePayload`
+     * Place a division's fixtures that have no time — or, with `again`, place them afresh, keeping
+     * hand placings unless told not to. Replaces `SCHEDULE_STAGE` (2026-10-12), which no screen used.
+     * Expects payload: `ScheduleDivisionPayload`
      */
-    SCHEDULE_STAGE = 'SCHEDULE_STAGE',
+    SCHEDULE_DIVISION = 'SCHEDULE_DIVISION',
+    /** Schedule several divisions, one after another, in the order given. Expects payload: `ScheduleAllPayload` */
+    SCHEDULE_ALL = 'SCHEDULE_ALL',
+    /** Move a fixture by hand, or take its time away; returns the clashes it caused. Expects payload: `MoveFixturePayload` */
+    MOVE_FIXTURE = 'MOVE_FIXTURE',
+    /**
+     * What the Schedule tab's clash check needs beyond the tournament's own fixtures: other events'
+     * games at its facilities on its days, and the facilities sharing ground. Read-only.
+     * Expects payload: `{ eventId, divisionId? }`
+     */
+    GET_SCHEDULE_CONTEXT = 'GET_SCHEDULE_CONTEXT',
 
     /**
      * Action to create several fixtures at once.

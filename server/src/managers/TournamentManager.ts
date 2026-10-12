@@ -173,7 +173,12 @@ export class TournamentManager extends BaseManager {
            ELSE json_build_object('userId', d.entries_locked_by_user_id,
                                   'name', COALESCE((SELECT u.name FROM users u WHERE u.id = d.entries_locked_by_user_id), 'Someone'))
       END as "entriesLockedBy",
-      d.orgs_may_add_teams as "orgsMayAddTeams"`;
+      d.orgs_may_add_teams as "orgsMayAddTeams",
+      d.gap_between_games_min as "gapBetweenGamesMin", d.min_team_break_min as "minTeamBreakMin",
+      COALESCE((SELECT json_agg(json_build_object('day', dd.day::text, 'plays', dd.plays,
+                                                  'firstGameStart', to_char(dd.first_game_start, 'HH24:MI'),
+                                                  'lastGameEnds', to_char(dd.last_game_ends, 'HH24:MI')) ORDER BY dd.day)
+                  FROM division_days dd WHERE dd.division_id = d.id), '[]'::json) as "days"`;
 
   private STAGE_COLUMNS = `
       s.id, s.division_id as "divisionId", s.name, s.format, s.sequence, s.status,
@@ -2537,154 +2542,6 @@ export class TournamentManager extends BaseManager {
   // ============================================================================================
   // Scheduling — the server half. Phase 7 owns the rest.
   // ============================================================================================
-
-  /**
-   * Allocate a stage's fixtures to times and facilities.
-   *
-   * Two hard constraints, and only two (D14): **an entrant plays once at a time**, and **a
-   * facility hosts once at a time**. Fixtures are placed greedily in generated order, which for a
-   * round robin is round order — so the rounds stay recognisable rather than being interleaved by
-   * a cleverer packing.
-   *
-   * **This is the server half of Phase 7, not the whole of it.** Day windows (a last start time
-   * per day), turnaround by sport, the schedule grid, moving a fixture, and conflicts that warn
-   * rather than block all belong there, on top of this. Two known limits, stated rather than
-   * discovered: an entrant is only checked against *this stage*, so a school playing in two
-   * divisions at once is not detected yet; and slots run continuously from `startAt` with no
-   * notion of a day ending.
-   */
-  async scheduleStage(payload: {
-    stageId: string;
-    startAt: string;
-    slotMinutes: number;
-    facilityIds?: string[];
-    keepScheduled?: boolean;
-  }): Promise<{ stageId: string; divisionId: string; eventId: string; scheduled: number }> {
-    const stage = await this.getStage(payload.stageId);
-    if (!stage) throw new Error(`Stage ${payload.stageId} not found.`);
-    const division = await this.getDivision(stage.divisionId);
-    if (!division) throw new Error(`Division ${stage.divisionId} not found.`);
-
-    if (!(payload.slotMinutes > 0)) throw new Error('A slot needs a positive length in minutes.');
-
-    // The facility cascade (data model §3.5): what the caller named, else the division's
-    // allocation, else the event's. A stage with none available is refused rather than scheduled
-    // nowhere, because "scheduled at no venue" is not a state anybody asked for.
-    let facilityIds = payload.facilityIds?.length ? payload.facilityIds : await this.getDivisionFacilities(division.id);
-    if (!facilityIds.length) facilityIds = await this.getEventFacilities(division.eventId);
-    if (!facilityIds.length) {
-      throw new Error(
-        `${division.name} has no facilities to schedule into. Give the event its facilities first, or ` +
-          `name the facilities in this request.`
-      );
-    }
-
-    const facilities = await this.query(
-      `SELECT id, site_id as "siteId" FROM facilities WHERE id = ANY($1::text[])`,
-      [facilityIds]
-    );
-    const sitesByFacility = new Map<string, string | null>(facilities.rows.map((f: any) => [f.id, f.siteId]));
-    const usableFacilities = facilityIds.filter(id => sitesByFacility.has(id));
-    if (!usableFacilities.length) throw new Error('None of the named facilities exist.');
-
-    // D15: a stage may not start before its own gate, whatever the caller asked for. A greedy
-    // scheduler with no gate will happily start a semi-final before its pool has finished.
-    let start = new Date(payload.startAt);
-    if (stage.earliestStart) {
-      const gate = new Date(stage.earliestStart);
-      if (gate > start) start = gate;
-    }
-    if (Number.isNaN(start.getTime())) throw new Error(`'${payload.startAt}' is not a time.`);
-
-    const games = await this.query(
-      `SELECT g.id, g.start_time as "startTime", g.facility_id as "facilityId",
-              g.custom_settings as "customSettings",
-              COALESCE((
-                SELECT jsonb_agg(COALESCE(gp.entrant_id, gp.team_id, gp.org_profile_id))
-                FROM game_participants gp
-                WHERE gp.game_id = g.id AND COALESCE(gp.entrant_id, gp.team_id, gp.org_profile_id) IS NOT NULL
-              ), '[]'::jsonb) AS competitors
-         FROM games g
-        WHERE g.stage_id = $1
-        ORDER BY (g.custom_settings->'tournament'->>'round')::int NULLS LAST,
-                 (g.custom_settings->'tournament'->>'matchIndex')::int NULLS LAST,
-                 g.id`,
-      [payload.stageId]
-    );
-
-    const pending: Array<{ id: string; competitors: string[] }> = [];
-    /** slot index -> facilities and competitors already taken in it. */
-    const taken = new Map<number, { facilities: Set<string>; competitors: Set<string> }>();
-    const slotOf = (time: Date) => Math.round((time.getTime() - start.getTime()) / (payload.slotMinutes * 60_000));
-    const reserve = (slot: number) => {
-      if (!taken.has(slot)) taken.set(slot, { facilities: new Set(), competitors: new Set() });
-      return taken.get(slot)!;
-    };
-
-    for (const game of games.rows) {
-      const competitors: string[] = (game.competitors || []).filter(Boolean);
-      if (payload.keepScheduled && game.startTime) {
-        // Already placed by hand, so it holds its slot rather than being moved around it.
-        const slot = slotOf(new Date(game.startTime));
-        const held = reserve(slot);
-        if (game.facilityId) held.facilities.add(game.facilityId);
-        competitors.forEach(c => held.competitors.add(c));
-        continue;
-      }
-      pending.push({ id: game.id, competitors });
-    }
-
-    const assignments: Array<{ id: string; startAt: Date; facilityId: string }> = [];
-    let slot = 0;
-    while (pending.length) {
-      const held = reserve(slot);
-      let placedInThisSlot = false;
-
-      for (const facilityId of usableFacilities) {
-        if (held.facilities.has(facilityId)) continue;
-        const index = pending.findIndex(game => game.competitors.every(c => !held.competitors.has(c)));
-        if (index === -1) break;
-
-        const [game] = pending.splice(index, 1);
-        held.facilities.add(facilityId);
-        game.competitors.forEach(c => held.competitors.add(c));
-        assignments.push({
-          id: game.id,
-          startAt: new Date(start.getTime() + slot * payload.slotMinutes * 60_000),
-          facilityId,
-        });
-        placedInThisSlot = true;
-        if (!pending.length) break;
-      }
-
-      // Every remaining fixture conflicted with something already in this slot, and an empty slot
-      // cannot become non-empty by waiting — so stop rather than loop forever.
-      if (!placedInThisSlot && pending.length) {
-        if (held.facilities.size === 0 && held.competitors.size === 0) {
-          throw new Error(
-            `Could not place ${pending.length} fixture(s): no facility is free and no entrant is ` +
-              `available in any remaining slot. This is a bug in the scheduler, not in the data.`
-          );
-        }
-      }
-      slot++;
-    }
-
-    await this.transaction(async (tx) => {
-      for (const assignment of assignments) {
-        await tx(
-          `UPDATE games
-              SET start_time = $1, scheduled_start_time = $1, facility_id = $2, site_id = $3,
-                  custom_settings = jsonb_set(COALESCE(custom_settings, '{}'::jsonb), '{timeTbd}', 'false'::jsonb),
-                  updated_at = NOW()
-            WHERE id = $4`,
-          [assignment.startAt.toISOString(), assignment.facilityId, sitesByFacility.get(assignment.facilityId) || null, assignment.id]
-        );
-      }
-    });
-
-    return { stageId: stage.id, divisionId: division.id, eventId: division.eventId, scheduled: assignments.length };
-  }
 
   // ============================================================================================
   // Scoring configuration (data model §6): division overrides event overrides 3/1/0

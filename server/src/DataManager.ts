@@ -317,7 +317,6 @@ export class DataManager {
 
   generateStageFixtures = (stageId: string, mode: 'create' | 'regenerate', deleteResults?: boolean) =>
     tournamentManager.generateStageFixtures(stageId, mode, deleteResults);
-  scheduleStage = (payload: any) => tournamentManager.scheduleStage(payload);
   getStageGames = (stageId: string) => tournamentManager.getStageGames(stageId);
   getDivisionGames = (divisionId: string) => tournamentManager.getDivisionGames(divisionId);
 

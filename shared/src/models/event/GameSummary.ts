@@ -86,6 +86,8 @@ export interface GameSummary {
   facilityId?: string;
   /** Kick-off deliberately not set yet, as opposed to simply absent. */
   timeTbd?: boolean;
+  /** Who gave it its time and facility — the scheduler or a person — so scheduling again keeps hand placings (Phase 7). */
+  placedBy?: 'scheduler' | 'hand' | null;
   participants: GameSummaryParticipant[];
   /**
    * Points by `gameParticipantId` — the recorded result where there is one, the live score

@@ -23,6 +23,7 @@ import { Notification } from "../models/notification/Notification";
 import { League, Season, SeasonTeam, LeagueSettings, LeagueStandingRow } from "../models/league/League";
 import { GameSummary } from "../models/event/GameSummary";
 import type { PeopleImportRow, PeopleImportReport } from "../utils/peopleImport";
+import type { Booking, Clash, DivisionDay, EventDay } from "../utils/schedule";
 import {
     ScoringSubject,
     StageEntrant,
@@ -783,24 +784,110 @@ export interface GenerateStageFixturesPayload {
      */
     mode: 'create' | 'regenerate';
     deleteResults?: boolean;
+    /** *Schedule them straight away* (Phase 7): schedule the division once the draw is made. */
+    scheduleNow?: boolean;
     idempotencyKey?: string;
 }
 
-export interface ScheduleStagePayload {
-    stageId: string;
+// --- Tournament scheduling (Phase 7) ---
+
+export interface SetEventDaysPayload {
+    eventId: string;
     orgId: string;
-    /** ISO. The stage's own `earliestStart` wins when it is later. */
-    startAt: string;
-    /** How long a fixture occupies its facility, including the turnaround. */
-    slotMinutes: number;
-    /**
-     * Facilities to allocate across. Falls back to the division's allocation, then the event's
-     * (data model §3.5). A stage with none available is refused rather than scheduled nowhere.
-     */
-    facilityIds?: string[];
-    /** Leave already-scheduled fixtures where they are. Default false. */
-    keepScheduled?: boolean;
+    /** Every playing day, replacing the list. `dayEnds` is by when the last game must end. */
+    days: EventDay[];
+}
+
+export interface SetDivisionDaysPayload {
+    divisionId: string;
+    orgId: string;
+    /** Only the days the division differs on; the rest play the tournament's hours. */
+    days: DivisionDay[];
+}
+
+export interface SetEventSchedulingPayload {
+    eventId: string;
+    orgId: string;
+    gapBetweenGamesMin?: number;
+    minTeamBreakMin?: number;
+}
+
+export interface SetDivisionSchedulingPayload {
+    divisionId: string;
+    orgId: string;
+    /** `null` follows the tournament's. */
+    gapBetweenGamesMin?: number | null;
+    minTeamBreakMin?: number | null;
+}
+
+export interface ScheduleDivisionPayload {
+    divisionId: string;
+    orgId: string;
+    /** *Schedule again*: place every fixture afresh, not only those with no time. */
+    again?: boolean;
+    /** With `again`: leave fixtures placed by hand where they are. Default true. */
+    keepPlacedByHand?: boolean;
     idempotencyKey?: string;
+}
+
+/** What scheduling one division did. */
+export interface ScheduleDivisionResult {
+    divisionId: string;
+    eventId: string;
+    placed: number;
+    /** Placed after the end of the division's last day, for want of room — a warning. */
+    afterDayEnd: number;
+    /** Not placed at all: the last day was full to midnight. */
+    unplaced: number;
+    gameIds: string[];
+}
+
+export interface ScheduleAllPayload {
+    eventId: string;
+    orgId: string;
+    /** In order: earlier gets first pick of shared facilities. */
+    divisionIds: string[];
+    idempotencyKey?: string;
+}
+
+/** One line per division, as the result dialog shows them; a refusal is a line, not a failure of the rest. */
+export interface ScheduleAllResult {
+    eventId: string;
+    results: Array<ScheduleDivisionResult | { divisionId: string; error: string }>;
+}
+
+export interface MoveFixturePayload {
+    gameId: string;
+    orgId: string;
+    /** Instant; `null` with `facilityId` null takes its time away. */
+    startAt: string | null;
+    facilityId: string | null;
+}
+
+export interface MoveFixtureResult {
+    gameId: string;
+    eventId: string;
+    divisionId: string | null;
+    /** The clashes the fixture is in now — warnings for the message, never a refusal (U26). */
+    clashes: Clash[];
+}
+
+export interface GetScheduleContextPayload {
+    eventId: string;
+    orgId: string;
+    /** A division's organiser asks as the division. */
+    divisionId?: string;
+}
+
+/** Beyond the tournament's own fixtures: what its clash check also needs. */
+export interface ScheduleContext {
+    eventId: string;
+    /** The venue's timezone, which the days' clock times are read in. */
+    timeZone: string;
+    /** Other events' games at its facilities on its days. */
+    bookings: Array<Booking & { startAt: string }>;
+    /** Facilities sharing ground (D34), each pair once. */
+    sharedGround: Array<[string, string]>;
 }
 
 export interface AddGamesPayload extends BatchPayload {
@@ -1034,6 +1121,8 @@ export interface StageFixturesResult {
     created: number;
     updated: number;
     deleted: number;
+    /** With `scheduleNow`: what scheduling did, or why it could not — the draw stands either way. */
+    schedule?: ScheduleDivisionResult | { divisionId: string; error: string };
 }
 
 // --- Protocol Map ---
@@ -1140,7 +1229,14 @@ export interface ProtocolMap {
     [SocketAction.SET_STAGE_ENTRANTS]: { payload: SetStageEntrantsPayload; response: BatchResponse<StageEntrant> };
     [SocketAction.REPLACE_ENTRANT]: { payload: ReplaceEntrantPayload; response: ReplaceEntrantResult };
     [SocketAction.GENERATE_STAGE_FIXTURES]: { payload: GenerateStageFixturesPayload; response: StageFixturesResult };
-    [SocketAction.SCHEDULE_STAGE]: { payload: ScheduleStagePayload; response: StageFixturesResult };
+    [SocketAction.SET_EVENT_DAYS]: { payload: SetEventDaysPayload; response: Event };
+    [SocketAction.SET_DIVISION_DAYS]: { payload: SetDivisionDaysPayload; response: TournamentDivision };
+    [SocketAction.SET_EVENT_SCHEDULING]: { payload: SetEventSchedulingPayload; response: Event };
+    [SocketAction.SET_DIVISION_SCHEDULING]: { payload: SetDivisionSchedulingPayload; response: TournamentDivision };
+    [SocketAction.SCHEDULE_DIVISION]: { payload: ScheduleDivisionPayload; response: ScheduleDivisionResult };
+    [SocketAction.SCHEDULE_ALL]: { payload: ScheduleAllPayload; response: ScheduleAllResult };
+    [SocketAction.MOVE_FIXTURE]: { payload: MoveFixturePayload; response: MoveFixtureResult };
+    [SocketAction.GET_SCHEDULE_CONTEXT]: { payload: GetScheduleContextPayload; response: ScheduleContext };
     [SocketAction.ADD_GAMES]: { payload: AddGamesPayload; response: BatchResponse<GameSummary> };
     [SocketAction.UPDATE_GAMES]: { payload: UpdateGamesPayload; response: BatchResponse<GameSummary> };
     [SocketAction.RESOLVE_PARTICIPANT]: { payload: ResolveParticipantPayload; response: GameSummary };

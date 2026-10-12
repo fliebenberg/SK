@@ -1,3 +1,4 @@
+import type { DivisionDay } from '../../utils/schedule';
 import { LeagueStandingRow } from "../league/League";
 import { EventFormat } from "./Event";
 import type { OrgBadge } from "../organization/Organization";
@@ -135,6 +136,15 @@ export interface TournamentDivision {
    * organiser's explicit choice overrides it. See `divisionAllowsOrgAdding`.
    */
   orgsMayAddTeams?: boolean | null;
+  /**
+   * Where this division differs from the tournament's playing days (Phase 7): a day it does not
+   * play, its own first start, a set last end. A day with no entry plays the tournament's hours.
+   * Written by `SET_DIVISION_DAYS`; `dayWindows` turns it and the event's days into its windows.
+   */
+  days?: DivisionDay[];
+  /** The division's own scheduling gaps; `null` follows the tournament's. */
+  gapBetweenGamesMin?: number | null;
+  minTeamBreakMin?: number | null;
 }
 
 /** A person named on a record — who answered, asked or locked — with the organisation they acted from. */

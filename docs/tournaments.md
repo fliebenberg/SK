@@ -613,6 +613,16 @@ the day windows below.
 > *start*, so a day does not overrun). Stages may additionally carry an **earliest start** — the
 > knockout rounds begin on day 2 even if day 1 has daylight left after the pools. Without that, a
 > greedy scheduler will happily start a semi-final before the pool it depends on has finished.
+>
+> **Revised 2026-10-11 (Phase 7): a day has an end, not a last start.** Games differ in length by
+> sport and division, so "the latest a fixture may start" leaves the real end of the day unknown.
+> The end time is now the latest the last game must **finish** (*Day ends*), and the scheduler
+> places a fixture only if it ends by then, working back from each division's game length. Playing
+> days need not follow each other, and a division may narrow its own hours per day. A fixture that
+> does not fit moves to the next playing day; only on the last day is it placed after the end, with
+> a warning. Built as `event_days` / `division_days`
+> ([tournaments-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/tournaments-implementation-plan.md),
+> Phase 7).
 
 ---
 

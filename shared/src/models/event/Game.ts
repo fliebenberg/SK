@@ -53,6 +53,8 @@ export interface Game {
   siteId?: string | null;
   /** `null` on an update clears it. */
   facilityId?: string | null;
+  /** Who placed it — the scheduler or a person (Phase 7). Read-only: written by scheduling and `MOVE_FIXTURE`. */
+  placedBy?: 'scheduler' | 'hand' | null;
   finalScoreData?: any;
   customSettings?: any;
   liveState?: {

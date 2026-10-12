@@ -38,6 +38,7 @@ import { canJoinRoom } from './wss/roomAccess';
 import { broadcast, pushToSocket, setBroadcastIo } from './wss/broadcast';
 import { publishGameSummary, publishGameRemoved, captureFixtureRooms, publishEventToOrgs } from './wss/fixtures';
 import { tournamentManager } from './managers/TournamentManager';
+import { schedulingManager } from './managers/SchedulingManager';
 import { runIdempotent, BatchRefused, BatchFailed } from './wss/batch';
 import { enforceTournamentAction } from './wss/tournamentGate';
 import { payloadProblem } from './wss/actionPayloads';
@@ -2524,16 +2525,26 @@ io.on('connection', (socket) => {
                     additionalBroadcasts.push({ topic: `facility:${result.id}`, type: 'FACILITY_ADDED', data: result });
                 }
                 break;
-            case SocketAction.UPDATE_FACILITY:
+            case SocketAction.UPDATE_FACILITY: {
+                // Shared ground (D34) is symmetric, so a change here changes the facilities on the
+                // other side of each pair too — they are re-sent with this one.
+                const sharingBefore = action.payload.data?.sharesGroundWith !== undefined
+                    ? await schedulingManager.getSharedGround(action.payload.id) : [];
                 result = await dataManager.updateFacility(action.payload.id, action.payload.data);
                 if (result) {
+                    const touched = [result, ...await Promise.all(
+                        [...new Set([...sharingBefore, ...(result.sharesGroundWith || [])])].map((fid: string) => dataManager.getFacility(fid))
+                    )].filter(Boolean) as any[];
                     const parentSite = await dataManager.getSite(result.siteId);
-                    if (parentSite) {
-                        additionalBroadcasts.push({ topic: `org:${parentSite.orgId}:facilities`, type: 'FACILITY_UPDATED', data: result });
+                    for (const facility of touched) {
+                        if (parentSite) {
+                            additionalBroadcasts.push({ topic: `org:${parentSite.orgId}:facilities`, type: 'FACILITY_UPDATED', data: facility });
+                        }
+                        additionalBroadcasts.push({ topic: `facility:${facility.id}`, type: 'FACILITY_UPDATED', data: facility });
                     }
-                    additionalBroadcasts.push({ topic: `facility:${result.id}`, type: 'FACILITY_UPDATED', data: result });
                 }
                 break;
+            }
             case SocketAction.DELETE_FACILITY:
                 result = await dataManager.deleteFacility(action.payload.id);
                 if (result) {
@@ -3503,31 +3514,107 @@ io.on('connection', (socket) => {
                         action.payload.mode,
                         action.payload.deleteResults
                     );
-                    return { ...outcome, updated: 0, games: await dataManager.getStageGames(action.payload.stageId) };
+                    // "Schedule them straight away" (Phase 7, agreed 2026-10-11): the draw and the
+                    // schedule stay two steps, but the usual case is one press. A schedule that
+                    // cannot be made (no days, no facilities) does not undo the draw — it comes
+                    // back as the reason, and the division can be scheduled once that is fixed.
+                    let schedule: any;
+                    if (action.payload.scheduleNow) {
+                        try {
+                            schedule = await schedulingManager.scheduleDivision(outcome.divisionId);
+                        } catch (err: any) {
+                            schedule = { divisionId: outcome.divisionId, error: err?.message || String(err) };
+                        }
+                    }
+                    return { ...outcome, updated: 0, schedule, games: await dataManager.getStageGames(action.payload.stageId) };
                 });
                 // Rule 3: one broadcast for the whole batch. Ninety fixtures published one at a
                 // time would put back on the client exactly the cost the contract removed.
                 publishStageFixtures(result.divisionId, result.stageId, result.games);
+                if (result.schedule?.gameIds) for (const gameId of result.schedule.gameIds) await publishGameSummary(gameId);
                 publishStages(result.divisionId, await dataManager.getStages(result.divisionId));
                 await publishStandings(result.divisionId, result.eventId);
                 break;
             }
 
-            case SocketAction.SCHEDULE_STAGE: {
-                result = await runIdempotent(action.payload.idempotencyKey, async () => {
-                    const outcome = await dataManager.scheduleStage(action.payload);
-                    return {
-                        ...outcome,
-                        created: 0,
-                        deleted: 0,
-                        updated: outcome.scheduled,
-                        games: await dataManager.getStageGames(action.payload.stageId),
-                    };
+            /*
+             * Scheduling (Phase 7). The rules are `@sk/shared`'s `utils/schedule.ts`; these load,
+             * write and publish. A placed or moved fixture goes out as a summary through the
+             * ordinary fixture path, since it changes every list that shows it, not only the
+             * Schedule tab.
+             */
+            case SocketAction.SET_EVENT_DAYS:
+            case SocketAction.SET_EVENT_SCHEDULING: {
+                const p = action.payload as any;
+                if (action.type === SocketAction.SET_EVENT_DAYS) await schedulingManager.setEventDays(p.eventId, p.days || []);
+                else await schedulingManager.setEventScheduling(p.eventId, p);
+                result = await dataManager.getEvent(p.eventId);
+                if (result) {
+                    publishEventToOrgs([result.orgId, ...(result.participatingOrgIds || [])], 'EVENT_UPDATED', result);
+                    broadcast(eventRoom(result.id), 'EVENT_UPDATED', result);
+                }
+                break;
+            }
+
+            case SocketAction.SET_DIVISION_DAYS:
+            case SocketAction.SET_DIVISION_SCHEDULING: {
+                const p = action.payload as any;
+                if (action.type === SocketAction.SET_DIVISION_DAYS) await schedulingManager.setDivisionDays(p.divisionId, p.days || []);
+                else await schedulingManager.setDivisionScheduling(p.divisionId, p);
+                result = await dataManager.getDivision(p.divisionId);
+                if (result) await publishDivision(p.divisionId, 'DIVISION_UPDATED', result, result.eventId);
+                break;
+            }
+
+            case SocketAction.SCHEDULE_DIVISION: {
+                const p = action.payload as any;
+                result = await runIdempotent(p.idempotencyKey, () =>
+                    schedulingManager.scheduleDivision(p.divisionId, { again: !!p.again, keepPlacedByHand: p.keepPlacedByHand !== false }));
+                for (const gameId of result.gameIds) await publishGameSummary(gameId);
+                break;
+            }
+
+            case SocketAction.SCHEDULE_ALL: {
+                // One division after another, in the organisers' order: earlier gets first pick of
+                // shared facilities. A division that cannot be scheduled is a line in the result,
+                // not a reason to stop the rest.
+                const p = action.payload as any;
+                result = await runIdempotent(p.idempotencyKey, async () => {
+                    const results: any[] = [];
+                    for (const divisionId of p.divisionIds || []) {
+                        if ((await dataManager.getDivisionEventId(divisionId)) !== p.eventId) {
+                            results.push({ divisionId, error: 'That division is not in this tournament.' });
+                            continue;
+                        }
+                        try {
+                            results.push(await schedulingManager.scheduleDivision(divisionId));
+                        } catch (err: any) {
+                            results.push({ divisionId, error: err?.message || String(err) });
+                        }
+                    }
+                    return { eventId: p.eventId, results };
                 });
-                publishStageFixtures(result.divisionId, result.stageId, result.games);
-                // A rescheduled fixture changes what every org's list shows, not only the division
-                // screen's — so each publishes a summary through the ordinary fixture path.
-                for (const game of result.games) await publishGameSummary(game.id);
+                for (const line of result.results) for (const gameId of line.gameIds || []) await publishGameSummary(gameId);
+                break;
+            }
+
+            case SocketAction.MOVE_FIXTURE: {
+                const p = action.payload as any;
+                result = await schedulingManager.moveFixture(p.gameId, p.startAt ?? null, p.facilityId ?? null);
+                await publishGameSummary(p.gameId);
+                break;
+            }
+
+            case SocketAction.GET_SCHEDULE_CONTEXT: {
+                const p = action.payload as any;
+                const facilityIds = await dataManager.getEventFacilities(p.eventId);
+                const bookings = await schedulingManager.venueBookings(p.eventId);
+                result = {
+                    eventId: p.eventId,
+                    timeZone: await schedulingManager.eventTimeZone(p.eventId),
+                    bookings,
+                    sharedGround: await schedulingManager.sharedGroundPairs(facilityIds),
+                };
                 break;
             }
 

@@ -1,5 +1,6 @@
 import { Facility } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
+import { schedulingManager } from "./SchedulingManager";
 
 export class FacilityManager extends BaseManager {
   private facilityCache: Facility[] | null = null;
@@ -9,7 +10,10 @@ export class FacilityManager extends BaseManager {
         SELECT f.id, f.name, f.site_id as "siteId", 
                ARRAY(SELECT sport_id FROM facility_sports WHERE facility_id = f.id) as "supportedSportIds",
                f.surface_type as "surfaceType", f.latitude, f.longitude, f.is_active as "isActive",
-               f.category, f.primary_sport_id as "primarySportId"
+               f.category, f.primary_sport_id as "primarySportId",
+               ARRAY(SELECT CASE WHEN g.facility_id = f.id THEN g.other_facility_id ELSE g.facility_id END
+                       FROM facility_shared_ground g WHERE g.facility_id = f.id OR g.other_facility_id = f.id
+                      ORDER BY 1) as "sharesGroundWith"
         FROM facilities f
     `;
     const params: any[] = [];
@@ -26,7 +30,10 @@ export class FacilityManager extends BaseManager {
         SELECT f.id, f.name, f.site_id as "siteId", 
                ARRAY(SELECT sport_id FROM facility_sports WHERE facility_id = f.id) as "supportedSportIds",
                f.surface_type as "surfaceType", f.latitude, f.longitude, f.is_active as "isActive",
-               f.category, f.primary_sport_id as "primarySportId"
+               f.category, f.primary_sport_id as "primarySportId",
+               ARRAY(SELECT CASE WHEN g.facility_id = f.id THEN g.other_facility_id ELSE g.facility_id END
+                       FROM facility_shared_ground g WHERE g.facility_id = f.id OR g.other_facility_id = f.id
+                      ORDER BY 1) as "sharesGroundWith"
         FROM facilities f
         JOIN sites s ON f.site_id = s.id
         WHERE s.org_id = $1
@@ -39,7 +46,10 @@ export class FacilityManager extends BaseManager {
         SELECT f.id, f.name, f.site_id as "siteId", 
                ARRAY(SELECT sport_id FROM facility_sports WHERE facility_id = f.id) as "supportedSportIds",
                f.surface_type as "surfaceType", f.latitude, f.longitude, f.is_active as "isActive",
-               f.category, f.primary_sport_id as "primarySportId"
+               f.category, f.primary_sport_id as "primarySportId",
+               ARRAY(SELECT CASE WHEN g.facility_id = f.id THEN g.other_facility_id ELSE g.facility_id END
+                       FROM facility_shared_ground g WHERE g.facility_id = f.id OR g.other_facility_id = f.id
+                      ORDER BY 1) as "sharesGroundWith"
         FROM facilities f
         WHERE f.id = $1
     `, [id]);
@@ -81,6 +91,10 @@ export class FacilityManager extends BaseManager {
     await this.transaction(async (tx) => {
         const supportedSportIds = data.supportedSportIds;
         delete data.supportedSportIds;
+        // D34: written with the rest of the facility, in the same transaction.
+        const sharesGroundWith = data.sharesGroundWith;
+        delete data.sharesGroundWith;
+        if (sharesGroundWith !== undefined) await schedulingManager.setSharedGround(id, sharesGroundWith || [], tx);
 
         const keys = Object.keys(data).filter(k => k !== 'id' && k !== 'siteId');
         if (keys.length > 0) {

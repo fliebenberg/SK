@@ -318,7 +318,9 @@ async function main() {
     [SocketAction.SET_DIVISION_FORMAT, { divisionId: divisionA.id, format: 'RoundRobin' }, 'set how their division is played'],
     [SocketAction.UPDATE_STAGE, { id: stageA.id, data: { name: 'Pools' } }, 'rename their stage'],
     [SocketAction.GENERATE_STAGE_FIXTURES, { stageId: stageA.id, mode: 'create' }, 'generate their fixtures'],
-    [SocketAction.SCHEDULE_STAGE, { stageId: stageA.id }, 'schedule their fixtures'],
+    [SocketAction.SCHEDULE_DIVISION, { divisionId: divisionA.id }, 'schedule their fixtures'],
+    [SocketAction.SET_DIVISION_DAYS, { divisionId: divisionA.id, days: [] }, 'set their playing times'],
+    [SocketAction.SET_DIVISION_SCHEDULING, { divisionId: divisionA.id, minTeamBreakMin: 10 }, 'set their scheduling gaps'],
     [SocketAction.ADD_ADJUSTMENT, { divisionId: divisionA.id, entrantId: 'x', pointsDelta: 1, reason: 'y' }, 'record an adjustment'],
     [SocketAction.SET_DIVISION_FACILITIES, { divisionId: divisionA.id, facilityIds: [] }, 'narrow their facilities'],
     // D33, revised 2026-09-19: co-convenors. Whether a withdrawal is theirs to make — only the
@@ -351,6 +353,12 @@ async function main() {
     [SocketAction.DELETE_DIVISION, { id: divisionA.id }, 'delete their own division'],
     [SocketAction.UPDATE_DIVISION, { id: divisionA.id, data: { weighting: 5 } }, "change their division's weighting"],
     [SocketAction.SET_EVENT_FACILITIES, { eventId: event.id, facilityIds: [] }, "set the event's facilities"],
+    // Phase 7: the tournament's days and gaps, and Schedule all across divisions, are the tournament's.
+    [SocketAction.SET_EVENT_DAYS, { eventId: event.id, days: [] }, "set the tournament's playing days"],
+    [SocketAction.SET_EVENT_SCHEDULING, { eventId: event.id, minTeamBreakMin: 5 }, "set the tournament's scheduling gaps"],
+    [SocketAction.SCHEDULE_ALL, { eventId: event.id, divisionIds: [divisionA.id] }, 'schedule the whole tournament'],
+    [SocketAction.SCHEDULE_DIVISION, { divisionId: divisionB.id }, "schedule another division's fixtures"],
+    [SocketAction.SET_DIVISION_DAYS, { divisionId: divisionB.id, days: [] }, "set another division's playing times"],
     [SocketAction.APPOINT_ORGANIZER, { divisionId: divisionB.id, orgProfileId: stranger.profileId }, 'appoint to another division'],
     [SocketAction.APPOINT_ORGANIZER, { eventId: event.id, orgProfileId: stranger.profileId }, 'appoint an event organiser'],
     [SocketAction.APPOINT_ORGANIZER, { eventId: event.id, divisionId: divisionA.id, orgProfileId: stranger.profileId }, 'reach event scope by naming their division alongside it'],
