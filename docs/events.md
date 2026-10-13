@@ -427,7 +427,9 @@ first, at `events/[eventId]/divisions/[divisionId]`.
 - **How it's played**: *Round robin* (once / twice), *Pools & knockout*, *Knockout* (a game for third
   place), *Set fixtures by hand* (`Festival`: no draw). Chosen when the division is added, changed
   on the page until the draw — after it, changing means redoing the draw. What each option means may
-  still change; the UI is what is settled.
+  still change; the UI is what is settled. **The two knockout formats are not offered for now**
+  (`TOUR-1`, 2026-10-13): the picker shows only *Round robin* and *Set fixtures by hand*, plus
+  whichever knockout format a division is already set to, so it still reads correctly.
 - **The draw** is made from locked entries (`FIX-31`); an unlocked division's *Make the draw* lists,
   as warnings, what still waits — or, when nothing does, offers **Lock and make the draw** in one
   press (rule 3). The strip says the same: what is left, then *🔒 Lock entries*, then *Make the

@@ -1,6 +1,6 @@
 # Tournaments — Phased Implementation Plan
 
-**Status:** In progress. **Phases 0–6 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 and 5 on 2026-09-03, 6 on 2026-09-04). The tournament is now **usable**: teams can be entered on both axes, a draw generated from them, results recorded, and the day ranked — by school across the whole tournament or by entrant within a division. **Phase 7 complete** (2026-10-11 – 2026-10-12) — scheduling: where and when, exit criterion met; see its *Done* section.
+**Status:** In progress. **Phases 0–6 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 and 5 on 2026-09-03, 6 on 2026-09-04). The tournament is now **usable**: teams can be entered on both axes, a draw generated from them, results recorded, and the day ranked — by school across the whole tournament or by entrant within a division. **Phase 7 complete** (2026-10-11 – 2026-10-12) — scheduling: where and when, exit criterion met; see its *Done* section. **Phases 8 and 9 are parked** (2026-10-13), to get a proof of concept in front of users first: the knockout formats and the bracket graphic as `TOUR-1`, copy-a-tournament as `TOUR-2` in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md). Their sections below stay as the plan for when they are picked up.
 **Implements:** [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) (D1–D33),
 [tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md),
 [tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) (U1–U42).
@@ -297,9 +297,9 @@ fresh database is mislabelled.
 | 4 | Permissions: organiser assignments and capability flags | M | ✅ done | A component, not yet a screen |
 | 5 | Client foundations: routes, screens, the collapse rule | L | ✅ done | Yes — a tournament you can navigate |
 | 6 | `Festival` and `RoundRobin`: entrants, generation, standings | L | ✅ done | **Yes — the first genuinely usable tournament** |
-| 7 | Scheduling: facilities, day windows, the greedy pass, the grid | L | ← next | Yes |
-| 8 | `Knockout` and `PoolsKnockout` on the round list | L | | Yes |
-| 9 | The bracket graphic, and copy-a-tournament | M | | Yes |
+| 7 | Scheduling: facilities, day windows, the greedy pass, the grid | L | ✅ done | Yes |
+| 8 | `Knockout` and `PoolsKnockout` on the round list | L | parked — `TOUR-1` | Yes |
+| 9 | The bracket graphic, and copy-a-tournament | M | parked — `TOUR-1`, `TOUR-2` | Yes |
 
 Phases 0–3 build nothing visible. That is four phases of foundation before the first screen, which is
 worth naming up front rather than discovering in week three — it follows directly from D12 ("model
@@ -1793,6 +1793,10 @@ this phase:
 
 ## Phase 8 — `Knockout` and `PoolsKnockout` on the round list
 
+> **Parked 2026-10-13 as `TOUR-1`.** Festival and round robin are enough for a first proof of concept,
+> so the knockout formats wait for user feedback; the picker stops offering them meanwhile. `TOUR-1`
+> records what Phase 3 already built for this phase and what is missing.
+
 **Goal:** brackets work, without a bracket being drawn. Per U37 the expensive part of a knockout is
 the progression, not the drawing — and the round-by-round list is the narrow-screen rendering we need
 in any case, so nothing built here is thrown away.
@@ -1826,6 +1830,9 @@ Confirm the standings, the progression and the fixture list all agree afterwards
 ---
 
 ## Phase 9 — The bracket graphic, and copy-a-tournament
+
+> **Parked 2026-10-13.** The bracket graphic goes with Phase 8 into `TOUR-1`, since it draws what
+> Phase 8 builds; copy-a-tournament does not depend on Phase 8 and is `TOUR-2` on its own.
 
 **Goal:** the last two pieces, both additive to an already-working feature.
 

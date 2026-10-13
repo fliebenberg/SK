@@ -3,7 +3,10 @@
 **Status:** Settled — nothing open. Four review rounds: round 1 on 2026-08-30 (34 comments, 29
 questions), then rounds 2, 3 and 4 on 2026-08-31 closing the remainder and the parked work in §16.
 Forty-eight decisions recorded — `U45`-`U47` were added on 2026-09-10 and `U48` on 2026-09-13,
-from the first sustained use of the Setup tab (§7). Ready to build.
+from the first sustained use of the Setup tab (§7). Ready to build. **Built** through scheduling (plan
+Phase 7); the knockout formats, the round list and the bracket (§10.3, §14) and copying a tournament
+(U18) are **parked** as `TOUR-1` and `TOUR-2` (2026-10-13), and the format picker offers neither
+knockout format until then.
 **Implements the surfaces for:** [docs/tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md)
 and [docs/tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md).
 Ids `D1…D33` refer to the feature spec's decision table; `U1…` are decisions about the interface.

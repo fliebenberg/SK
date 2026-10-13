@@ -50,10 +50,15 @@ export interface FormatSetting {
 
 export const DEFAULT_FORMAT: FormatSetting = { format: 'RoundRobin', legs: 1, thirdPlacePlayoff: false };
 
-const FORMAT_CHOICES: Array<{ format: EventFormat; label: string; description: string }> = [
+/**
+ * `deferred` choices are not offered (`TOUR-1`): the knockout formats wait for tournaments Phase 8 —
+ * a drawn knockout game or a withdrawal has no way forward yet, and nothing sets up pools. They stay
+ * listed so a division already set to one still reads by its label, and still shows as chosen.
+ */
+const FORMAT_CHOICES: Array<{ format: EventFormat; label: string; description: string; deferred?: boolean }> = [
   { format: 'RoundRobin', label: 'Round robin', description: 'Everyone plays everyone. Every team gets the same number of games.' },
-  { format: 'PoolsKnockout', label: 'Pools & knockout', description: 'Round robin in pools, then the top teams play a knockout.' },
-  { format: 'Knockout', label: 'Knockout', description: "Lose and you're out. The fewest games." },
+  { format: 'PoolsKnockout', label: 'Pools & knockout', description: 'Round robin in pools, then the top teams play a knockout.', deferred: true },
+  { format: 'Knockout', label: 'Knockout', description: "Lose and you're out. The fewest games.", deferred: true },
   { format: 'Festival', label: 'Set fixtures by hand', description: 'No draw — add each fixture yourself. For a day where each team plays arranged games.' },
 ];
 
@@ -107,12 +112,12 @@ export function drawSummary(setting: FormatSetting | null, teams: number): strin
   return 'the fixtures';
 }
 
-/** The four choices as a list, each with its settings under it when chosen. */
+/** The choices on offer as a list, each with its settings under it when chosen. */
 function FormatPicker({ value, onChange, disabled }: { value: FormatSetting; onChange: (next: FormatSetting) => void; disabled?: boolean }) {
   const isDark = useActiveTheme() === 'dark';
   return (
     <View className="gap-2">
-      {FORMAT_CHOICES.map(choice => {
+      {FORMAT_CHOICES.filter(choice => !choice.deferred || choice.format === value.format).map(choice => {
         const on = value.format === choice.format;
         return (
           <TouchableOpacity
