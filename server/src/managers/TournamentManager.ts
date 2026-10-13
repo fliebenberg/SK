@@ -34,6 +34,10 @@ import {
   calculateStandings,
   isResultNotProvided,
   rollUpByOrganisation,
+  hasLeft,
+  isDualEvent,
+  isPlayedFixture,
+  pairInNameOrder,
 } from "@sk/shared";
 import { BaseManager, Tx } from "./BaseManager";
 import { eventManager } from "./EventManager";
@@ -305,7 +309,7 @@ export class TournamentManager extends BaseManager {
    * for its fixtures to belong (`PEOPLE-3`).
    */
   async createDivisionsForSports(
-    event: { id: string; name: string; format?: EventFormat | null },
+    event: { id: string; name: string; format?: EventFormat | null; type?: string; orgId?: string },
     sportIds: string[]
   ): Promise<TournamentDivision[]> {
     const created: TournamentDivision[] = [];
@@ -314,6 +318,31 @@ export class TournamentManager extends BaseManager {
     const existing = await this.getDivisions(event.id);
     for (const sportId of [...new Set(sportIds)]) {
       const takenNames = existing.filter(d => d.sportId === sportId).map(d => d.name);
+      /*
+       * A Head to Head (`H2H-1`, agreed 2026-10-13) gets a division for every age group the
+       * organising organisation has teams in for the sport, since those are the games it is
+       * arranging; the organiser adds or removes divisions from there. One with no such teams gets
+       * the usual single division, so the sport still has one.
+       */
+      if (isDualEvent(event) && event.orgId) {
+        const ageGroups = await this.query(
+          `SELECT DISTINCT ag.id, ag.name, ag.sort_order
+             FROM teams t JOIN sport_age_groups ag ON ag.sport_id = t.sport_id AND ag.id = t.age_group_id
+            WHERE t.org_id = $1 AND t.sport_id = $2 AND t.is_active IS NOT FALSE
+            ORDER BY ag.sort_order, ag.name`,
+          [event.orgId, sportId]
+        );
+        if (ageGroups.rows.length) {
+          for (const ag of ageGroups.rows) {
+            const name = divisionAutoName(ag.name, takenNames);
+            takenNames.push(name);
+            const division = await this.addDivision({ eventId: event.id, name, sportId, ageGroupId: ag.id });
+            for (const stage of stagePlanForFormat('Dual')) await this.addStage({ divisionId: division.id, ...stage });
+            created.push((await this.getDivision(division.id))!);
+          }
+          continue;
+        }
+      }
       const name = divisionAutoName(undefined, takenNames);
       const division = await this.addDivision({ eventId: event.id, name, sportId });
       // Round robin unless the tournament names another format (`defaultDivisionFormat`).
@@ -470,6 +499,11 @@ export class TournamentManager extends BaseManager {
     settings: { legs?: number; thirdPlacePlayoff?: boolean } = {}
   ): Promise<TournamentStage[]> {
     await this.assertDivisionNotStarted(divisionId, 'how it is played can no longer change');
+    // A Head to Head's divisions are paired, never drawn (`H2H-1`); a format is a full tournament's.
+    const eventId = await this.getDivisionEventId(divisionId);
+    if (eventId && isDualEvent(await eventManager.getEvent(eventId))) {
+      throw new Error('A Head to Head division is paired rather than drawn, so it has no format to choose.');
+    }
     const plan = stagePlanForFormat(format);
     await this.transaction(async (tx) => {
       await tx(
@@ -2336,6 +2370,172 @@ export class TournamentManager extends BaseManager {
       created: planned.length,
       deleted: mode === 'regenerate' ? total : 0,
     };
+  }
+
+  // ============================================================================================
+  // Head to Head (`H2H-1`)
+  // ============================================================================================
+
+  /** The two organisations of a Head to Head: the host, and the one it plays, once chosen. */
+  private async dualSides(eventId: string): Promise<{ eventId: string; hostOrgId: string; guestOrgId: string | null }> {
+    const event = await eventManager.getEvent(eventId);
+    if (!event) throw new Error('That event no longer exists.');
+    if (!isDualEvent(event)) throw new Error('Only a Head to Head is paired.');
+    const guest = (event.participatingOrgs || []).find(o => o.id !== event.orgId && !hasLeft(o.invitation));
+    return { eventId, hostOrgId: event.orgId, guestOrgId: guest?.id ?? null };
+  }
+
+  /**
+   * Pair a Head to Head's divisions automatically (agreed 2026-10-13).
+   *
+   * For each division: both organisations' teams of its sport — and its age group, when it has
+   * one — are entered, unless already entered elsewhere in the event; then the entered teams are
+   * paired in name order (`pairInNameOrder`), A v A, B v B, as the games of its one stage. Teams
+   * left over stay entered with no game, for the organiser to pair or leave out. The other
+   * organisation's teams start invited, as in any tournament.
+   *
+   * A division that already has games is left alone, so *Pair all* never undoes an organiser's
+   * changes — unless `replace`, which is *Pair again*, and is refused once a game has started.
+   */
+  async pairDualDivisions(
+    eventId: string,
+    divisionIds?: string[],
+    replace = false
+  ): Promise<{
+    eventId: string;
+    divisions: Array<{ divisionId: string; games: number; unpaired: number; deletedGameIds: string[]; stageId: string }>;
+    skipped: string[];
+  }> {
+    const { hostOrgId, guestOrgId } = await this.dualSides(eventId);
+    if (!guestOrgId) throw new Error('Choose the organisation you are playing first.');
+
+    const all = await this.getDivisions(eventId);
+    const targets = divisionIds?.length ? all.filter(d => divisionIds.includes(d.id)) : all;
+    if (divisionIds?.length && targets.length !== divisionIds.length) {
+      throw new Error('One of those divisions is not part of this Head to Head.');
+    }
+
+    const divisions: Array<{ divisionId: string; games: number; unpaired: number; deletedGameIds: string[]; stageId: string }> = [];
+    const skipped: string[] = [];
+    for (const division of targets) {
+      if (!division.sportId) { skipped.push(division.id); continue; }
+      const existingGames = (await this.getDivisionGames(division.id)).filter(g => g.status !== 'Cancelled');
+      if (existingGames.length && !replace) { skipped.push(division.id); continue; }
+      if (existingGames.length) await this.assertDivisionNotStarted(division.id, 'its games can no longer be paired again');
+
+      let stage = (await this.getStages(division.id))[0];
+      if (!stage) {
+        for (const planned of stagePlanForFormat('Dual')) await this.addStage({ divisionId: division.id, ...planned });
+        stage = (await this.getStages(division.id))[0];
+      }
+
+      // Enter both sides' teams of this sport and age group that are not playing elsewhere in it.
+      const teams = await this.query(
+        `SELECT t.id FROM teams t
+          WHERE t.is_active IS NOT FALSE AND t.sport_id = $1 AND t.org_id = ANY($2::text[])
+            AND ($3::text IS NULL OR t.age_group_id = $3)
+            AND NOT EXISTS (
+              SELECT 1 FROM division_entrants e JOIN tournament_divisions d ON d.id = e.division_id
+               WHERE d.event_id = $4 AND e.team_id = t.id AND e.status IN ${TAKES_A_PLACE})`,
+        [division.sportId, [hostOrgId, guestOrgId], division.ageGroupId || null, eventId]
+      );
+      if (teams.rows.length) {
+        const current = await this.getEntrants(division.id);
+        await this.setDivisionEntrants(division.id, [
+          ...current.map(e => ({
+            id: e.id, teamId: e.teamId, orgProfileId: e.orgProfileId, orgId: e.orgId, label: e.label, seed: e.seed,
+            status: e.status === 'withdrawn' ? ('withdrawn' as const) : undefined,
+          })),
+          ...teams.rows.map((t: any) => ({ teamId: t.id as string })),
+        ]);
+      }
+
+      const entered = (await this.getEntrants(division.id)).filter(e => isEntrantEntered(e.status));
+      const { pairs, unpaired } = pairInNameOrder(
+        entered.filter(e => e.orgId === hostOrgId),
+        entered.filter(e => e.orgId === guestOrgId),
+        e => e.name || e.label || ''
+      );
+
+      const deletedGameIds = existingGames.map(g => g.id);
+      if (deletedGameIds.length) await this.query(`DELETE FROM games WHERE id = ANY($1::text[])`, [deletedGameIds]);
+      if (pairs.length) {
+        await this.addGamesBatch(pairs.map(([h, g]) => ({
+          eventId,
+          sportId: division.sportId!,
+          stageId: stage.id,
+          customSettings: { timeTbd: true },
+          participants: [{ teamId: h.teamId, entrantId: h.id }, { teamId: g.teamId, entrantId: g.id }],
+        })));
+      }
+      await this.recalculateDivision(division.id);
+      divisions.push({ divisionId: division.id, games: pairs.length, unpaired: unpaired.length, deletedGameIds, stageId: stage.id });
+    }
+    return { eventId, divisions, skipped };
+  }
+
+  /**
+   * Set one Head to Head division's games, whole: what its two-column pairing editor saves.
+   *
+   * A game whose two sides are unchanged is kept as it is, with its time and court; a game no
+   * longer listed is deleted, refused once it has started; a new pair is added without a time.
+   * Every pair is one of each organisation's entered teams. A team may play twice — a team with no
+   * counterpart can be given a game against one that already has one.
+   */
+  async setDualPairing(
+    divisionId: string,
+    pairs: Array<{ entrantIds: [string, string] }>
+  ): Promise<{ divisionId: string; eventId: string; stageId: string; deletedGameIds: string[]; addedGameIds: string[] }> {
+    const division = await this.getDivision(divisionId);
+    if (!division) throw new Error('That division no longer exists.');
+    const { eventId, hostOrgId, guestOrgId } = await this.dualSides(division.eventId);
+    if (!division.sportId) throw new Error(`${division.name} has no sport yet.`);
+    const stage = (await this.getStages(divisionId))[0];
+    if (!stage) throw new Error(`${division.name} has no stage to hold its games.`);
+
+    const entrants = new Map((await this.getEntrants(divisionId)).filter(e => isEntrantEntered(e.status)).map(e => [e.id, e]));
+    const wanted = pairs.map(({ entrantIds }) => {
+      const sides = (entrantIds || []).map(id => entrants.get(id));
+      const host = sides.find(e => e?.orgId === hostOrgId);
+      const guest = sides.find(e => e?.orgId === guestOrgId);
+      if (sides.length !== 2 || !host || !guest) {
+        throw new Error('Each game is one of your teams against one of theirs, both entered in this division.');
+      }
+      return { host, guest, key: `${host.id}|${guest.id}` };
+    });
+
+    const games = (await this.getDivisionGames(divisionId)).filter(g => g.status !== 'Cancelled');
+    const keyOf = (g: GameSummary) => {
+      const ids = (g.participants || []).map(p => p.entrantId);
+      const host = ids.find(id => entrants.get(id || '')?.orgId === hostOrgId);
+      const guest = ids.find(id => entrants.get(id || '')?.orgId === guestOrgId);
+      return host && guest ? `${host}|${guest}` : `game:${g.id}`;
+    };
+    const unmatched = [...wanted];
+    const deleted: GameSummary[] = [];
+    for (const game of games) {
+      const i = unmatched.findIndex(w => w.key === keyOf(game));
+      if (i >= 0) unmatched.splice(i, 1);
+      else deleted.push(game);
+    }
+    const started = deleted.find(isPlayedFixture);
+    if (started) {
+      const names = (started.participants || []).map(p => p.name).filter(Boolean).join(' v ');
+      throw new Error(`${names || 'That game'} has started, so it can no longer be changed.`);
+    }
+
+    if (deleted.length) await this.query(`DELETE FROM games WHERE id = ANY($1::text[])`, [deleted.map(g => g.id)]);
+    const added = unmatched.length
+      ? await this.addGamesBatch(unmatched.map(({ host, guest }) => ({
+          eventId,
+          sportId: division.sportId!,
+          stageId: stage.id,
+          customSettings: { timeTbd: true },
+          participants: [{ teamId: host.teamId, entrantId: host.id }, { teamId: guest.teamId, entrantId: guest.id }],
+        })))
+      : { ids: [] as string[] };
+    await this.recalculateDivision(divisionId);
+    return { divisionId, eventId, stageId: stage.id, deletedGameIds: deleted.map(g => g.id), addedGameIds: added.ids };
   }
 
   /** Dispatch on format. Every branch returns fixtures that are ready to write. */

@@ -11,6 +11,7 @@ import {
   TournamentDivision,
   TournamentEntrant,
   entryLockGaps,
+  isDualEvent,
   entrantStatusShown,
   isPlayedFixture,
   teamQualifies,
@@ -108,6 +109,7 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
     !id || id === event.orgId ? null : event.participatingOrgs?.find(o => o.id === id)?.invitation || null;
   const locked = !!division.entriesLockedAt;
   const gaps = entryLockGaps(entrants, event);
+  const dual = isDualEvent(event);
 
   // Requests wait at the top; teams taking part next; teams out of it under *Not taking part*.
   const requests = entrants.filter(e => e.status === 'requested' || e.status === 'withdrawal_pending');
@@ -335,7 +337,8 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
         </View>
       )}
 
-      {canEdit && !locked ? (
+      {/* A Head to Head has no lock and no adding of teams by the other side (`H2H-1`): the pairing is the entry. */}
+      {canEdit && !locked && !dual ? (
         <OrgAddingLine
           division={division}
           event={event}
@@ -344,7 +347,7 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
           onFollow={() => setAddingAllowed(null)}
         />
       ) : null}
-      {entrants.length ? (
+      {entrants.length && !dual ? (
         <DivisionLockBar
           division={division}
           gaps={gaps}

@@ -20,6 +20,8 @@ import {
   fixtureMinutes,
   minuteOfDay,
   timeOfDay,
+  dualUnpaired,
+  isDualEvent,
 } from '@sk/shared';
 import { lockGapsLine } from '../../../../../../../components/tournament/DivisionEntries';
 import { ScreenHeader } from '../../../../../../../components/ScreenHeader';
@@ -36,6 +38,7 @@ import { formatPlayingDay, instantToVenueInputs, venueTimeZone } from '../../../
 import { DivisionTeamsCard } from '../../../../../../../components/tournament/DivisionTeams';
 import { DivisionFixturesCard } from '../../../../../../../components/tournament/DivisionFixtures';
 import { DivisionStandings } from '../../../../../../../components/tournament/DivisionStandings';
+import { DualPairingCard } from '../../../../../../../components/tournament/DualPairing';
 import { useLiveRoom } from '../../../../../../../hooks/useLiveRoom';
 import { useEventDivisions, useEventRecord, useSports } from '../../../../../../../hooks/useEventRooms';
 import { useOrgSites } from '../../../../../../../hooks/useOrgSites';
@@ -164,7 +167,7 @@ export default function DivisionScreen() {
     ? afterDayEndByDivision(scheduleModel({ event, divisions: [division], games, sports, timeZone: venueZone }), games).get(division.id) || 0
     : 0;
   const unscheduledCount = games.filter(isUnscheduled).length;
-  const state = divisionStateOf({ setupMode: canEdit, games, entrants, firstStageId: ordered[0]?.id, afterDayEnd: lateCount });
+  const state = divisionStateOf({ setupMode: canEdit, games, entrants, firstStageId: ordered[0]?.id, afterDayEnd: lateCount, dual: isDualEvent(event) });
   // What stands between the division and its lock (`FIX-31`); the draw is made from locked entries.
   const gaps = entryLockGaps(entrants, event || {});
   const locked = !!division?.entriesLockedAt;
@@ -198,6 +201,12 @@ export default function DivisionScreen() {
   }
 
   const sport = sports.find(s => s.id === division.sportId);
+  /*
+   * A Head to Head's division (`H2H-1`): paired rather than drawn, so no format, no lock and no
+   * table — its games card is the two-column pairing, and its strip says what pairing still needs.
+   */
+  const dual = isDualEvent(event);
+  const unpaired = dual ? dualUnpaired(entrants, games) : [];
   const lastOfSport = !!division.sportId && !siblings.some(d => d.sportId === division.sportId);
   // Deleting the last division of a sport takes the sport out of the tournament, which is the
   // tournament's decision; once a game has started, nobody deletes it.
@@ -217,7 +226,7 @@ export default function DivisionScreen() {
   const menu: OverflowMenuItem[] = [];
   if (canEdit) {
     menu.push({ label: 'Edit details', icon: 'pencil-outline', onPress: () => setDialog('details') });
-    menu.push({ label: "How it's played", icon: 'git-network-outline', onPress: () => setDialog('format') });
+    if (!dual) menu.push({ label: "How it's played", icon: 'git-network-outline', onPress: () => setDialog('format') });
   }
   if (canDelete) {
     menu.push(started
@@ -232,11 +241,11 @@ export default function DivisionScreen() {
         <Text className="font-inter-semibold text-xs text-ink-muted" numberOfLines={1}>{event.name}{sport ? ` · ${sport.name}` : ''}</Text>
         <Text className="font-inter-bold text-ink" style={{ fontSize: isWide ? 24 : 20 }}>{division.name}</Text>
         <Text className="font-inter text-sm text-ink-soft">
-          {[division.ageGroup ? `Age group ${division.ageGroup}` : 'Any age', formatLabel(format, ordered), `${active.length} ${active.length === 1 ? 'team' : 'teams'}`].join('  ·  ')}
+          {[division.ageGroup ? `Age group ${division.ageGroup}` : 'Any age', dual ? `${games.length} ${games.length === 1 ? 'game' : 'games'}` : formatLabel(format, ordered), `${active.length} ${active.length === 1 ? 'team' : 'teams'}`].join('  ·  ')}
         </Text>
         <View className="mt-1 flex-row flex-wrap items-center gap-x-3 gap-y-1">
           <DivisionStateLine state={state} large />
-          {canEdit && active.length ? (
+          {canEdit && active.length && !dual ? (
             <View className={`rounded-full px-2 py-0.5 ${locked ? 'bg-sunken border border-line' : 'bg-sunken'}`}>
               <Text className={`font-inter-semibold text-[11px] ${locked ? 'text-ink-soft' : 'text-ink-muted'}`}>{locked ? '🔒 Entries locked' : 'Entries open'}</Text>
             </View>
@@ -249,6 +258,17 @@ export default function DivisionScreen() {
 
   const nextStrip = (() => {
     if (!canEdit) return null;
+    if (dual) {
+      if (!drawn) return null; // The games card says how to pair, with the button.
+      if (unpaired.length) {
+        const names = unpaired.map(e => e.name || e.label || 'A team');
+        return <NextStrip tone="wait" text={`${names.length === 1 ? `${names[0]} has` : `${names.length} teams have`} no game.`} detail="Give each one an opponent, or leave it out." />;
+      }
+      if (!started && unscheduledCount) {
+        return <NextStrip tone="go" text={unscheduledCount === games.filter(g => g.status !== 'Cancelled').length ? 'Paired — ready to schedule.' : `${unscheduledCount} ${unscheduledCount === 1 ? 'game has' : 'games have'} no time yet.`} action={{ label: 'Schedule', onPress: () => setDialog('schedule') }} />;
+      }
+      return null;
+    }
     const byHand = format?.format === 'Festival';
     if (active.length < 2) {
       return <NextStrip tone="wait" text="Needs at least two teams." detail="Add them here, or from each organisation's page." action={{ label: '＋ Add teams', onPress: () => setAdding(true) }} />;
@@ -332,7 +352,37 @@ export default function DivisionScreen() {
     />
   );
   const ownGaps = division.gapBetweenGamesMin != null || division.minTeamBreakMin != null;
-  const fixturesCard = (
+  const schedulingFooter = (
+    // Scheduling sits with the settings it uses: a primary Schedule once drawn, a quiet Schedule
+    // again once anything has a time, and before the draw just why there is nothing to schedule.
+    <View className="gap-2.5 border-t border-line-soft pt-2.5 mt-1">
+    <View className="flex-row items-center gap-3">
+      <View className="flex-1 min-w-0">
+        <Text className="font-inter text-xs text-ink-muted">Scheduling{ownGaps ? '' : " · the tournament's"}</Text>
+        <Text className="font-inter text-sm text-ink">{gapsLine(division.gapBetweenGamesMin ?? event.gapBetweenGamesMin ?? 5, division.minTeamBreakMin ?? event.minTeamBreakMin ?? 0)}</Text>
+      </View>
+      {canEdit ? <EditLink onPress={() => setDialog('gaps')} /> : null}
+    </View>
+    {canEdit && !started ? (
+      !drawn ? (
+        <Text className="font-inter text-xs text-ink-muted">
+          {dual ? 'Games can be scheduled once they are paired.' : format?.format === 'Festival' ? 'Fixtures can be scheduled once they are added.' : 'Fixtures can be scheduled once the draw is made.'}
+        </Text>
+      ) : unscheduledCount === games.filter(g => g.status !== 'Cancelled').length ? (
+        <TouchableOpacity onPress={() => setDialog('schedule')} accessibilityRole="button" className="self-start rounded-xl bg-primary px-4 py-2">
+          <Text className="font-inter-bold text-sm text-on-primary">Schedule</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity onPress={() => setDialog('reschedule')} accessibilityRole="button" className="self-start">
+          <Text className="font-inter-semibold text-[13px] text-ink-muted">Schedule again</Text>
+        </TouchableOpacity>
+      )
+    ) : null}
+    </View>
+  );
+  const fixturesCard = dual ? (
+    <DualPairingCard key="fixtures" event={event} division={division} orgId={orgId} entrants={entrants} games={games} canEdit={canEdit} footer={schedulingFooter} />
+  ) : (
     <DivisionFixturesCard
       key="fixtures"
       orgId={orgId}
@@ -352,34 +402,7 @@ export default function DivisionScreen() {
       dialog={drawDialog}
       onDialog={setDrawDialog}
       scheduleOffer={scheduleReadiness({ event, division, sport })}
-      footer={
-        // Scheduling sits with the settings it uses: a primary Schedule once drawn, a quiet Schedule
-        // again once anything has a time, and before the draw just why there is nothing to schedule.
-        <View className="gap-2.5 border-t border-line-soft pt-2.5 mt-1">
-        <View className="flex-row items-center gap-3">
-          <View className="flex-1 min-w-0">
-            <Text className="font-inter text-xs text-ink-muted">Scheduling{ownGaps ? '' : " · the tournament's"}</Text>
-            <Text className="font-inter text-sm text-ink">{gapsLine(division.gapBetweenGamesMin ?? event.gapBetweenGamesMin ?? 5, division.minTeamBreakMin ?? event.minTeamBreakMin ?? 0)}</Text>
-          </View>
-          {canEdit ? <EditLink onPress={() => setDialog('gaps')} /> : null}
-        </View>
-        {canEdit && !started ? (
-          !drawn ? (
-            <Text className="font-inter text-xs text-ink-muted">
-              {format?.format === 'Festival' ? 'Fixtures can be scheduled once they are added.' : 'Fixtures can be scheduled once the draw is made.'}
-            </Text>
-          ) : unscheduledCount === games.filter(g => g.status !== 'Cancelled').length ? (
-            <TouchableOpacity onPress={() => setDialog('schedule')} accessibilityRole="button" className="self-start rounded-xl bg-primary px-4 py-2">
-              <Text className="font-inter-bold text-sm text-on-primary">Schedule</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={() => setDialog('reschedule')} accessibilityRole="button" className="self-start">
-              <Text className="font-inter-semibold text-[13px] text-ink-muted">Schedule again</Text>
-            </TouchableOpacity>
-          )
-        ) : null}
-        </View>
-      }
+      footer={schedulingFooter}
     />
   );
   const formatCard = (
@@ -446,18 +469,22 @@ export default function DivisionScreen() {
     </TournamentCard>
   ) : null;
   const detailsCard = <React.Fragment key="details">{whereCard}{whenCard}{organisersCard}</React.Fragment>;
-  const standingsCard = drawn ? (
+  const standingsCard = drawn && !dual ? (
     <TournamentCard key="standings" title="Standings">
       <DivisionStandings divisionId={divisionId} canEdit={canEdit} />
     </TournamentCard>
   ) : null;
 
   // The order follows the moment (option A): teams while setting up, fixtures on the day.
-  const columns: [React.ReactNode[], React.ReactNode[]] = started
-    ? [[fixturesCard], [standingsCard, canEdit ? teamsCard : null, formatCard, detailsCard]]
+  const format_ = dual ? null : formatCard;
+  const columns: [React.ReactNode[], React.ReactNode[]] = dual
+    // A Head to Head's games are its teams' pairing, so they lead from the start.
+    ? [[fixturesCard], [canEdit ? teamsCard : null, detailsCard]]
+    : started
+    ? [[fixturesCard], [standingsCard, canEdit ? teamsCard : null, format_, detailsCard]]
     : drawn
-      ? [[canEdit ? teamsCard : null, formatCard, detailsCard], [fixturesCard, standingsCard]]
-      : [[canEdit ? teamsCard : null], [formatCard, fixturesCard, detailsCard]];
+      ? [[canEdit ? teamsCard : null, format_, detailsCard], [fixturesCard, standingsCard]]
+      : [[canEdit ? teamsCard : null], [format_, fixturesCard, detailsCard]];
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>

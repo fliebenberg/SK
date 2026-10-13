@@ -10,6 +10,10 @@ and Sites ([sites.md](file:///c:/Fred/Coding/SK/docs/sites.md)). It is done in s
 3. **One game page** in place of `games/[gameId]/view` and `edit` (`FIX-21`).
 4. Later, if wanted: divisions, entrants and the other setup steps.
 
+**A Head to Head** (`H2H-1`, 2026-10-13) is the second entry in *New event*, between Match and
+Tournament: a tournament between two organisations, on the tournament page with its own cards. Its
+decisions are in [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) §14.
+
 **A single match has no event page.** The match *is* the event: its name, date and venue are the
 game's, and a page for it would say the same things twice and add a tap. Its row opens the game; the
 event page is for tournaments. Until stage 3 lands, a game opens its edit screen for someone who may

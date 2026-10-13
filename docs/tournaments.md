@@ -943,6 +943,62 @@ Everything else has an answer. The concrete tables and types that implement thes
 
 ---
 
+## 14. Head to Head: two organisations (`H2H-1`)
+
+Agreed 2026-10-12 and designed 2026-10-13 on `mockups/head-to-head.html` (kept local). A **Head to
+Head** is a day, or several, between two organisations — usually the organiser and one guest — where
+each team plays its counterpart from the other side once: U16A v U16A, U16B v U16B, across one sport
+or several. It is a tournament on the same model, with everything a tournament needs to *decide*
+taken away: one game per pairing, results are won, drawn or lost, and there are no formats, points or
+tiebreakers.
+
+**What was decided, and why:**
+
+- **A `Tournament` whose format is `'Dual'`** ([Event.ts](file:///c:/Fred/Coding/SK/shared/src/models/event/Event.ts),
+  `isDualEvent`). "Head to Head" is the UI's name only — in code that phrase already means the sport
+  flag `MatchTopology.HEAD_TO_HEAD` and the standings tiebreaker. Being a format rather than a type
+  keeps every tournament path (divisions, entrants, invitations, scheduling, scoring a game) working
+  unchanged, and makes converting one into a full tournament a change of format (`H2H-2`, parked).
+- **Two organisations, no more.** The server refuses a third (`addEventOrgs`); one that declined or
+  withdrew frees the place. The other organisation is chosen when the event is created, added but not
+  invited, and invited when the organiser is ready — then it and its teams answer as in a tournament.
+- **Divisions come from the organiser's teams.** Adding a sport gives a division for every age group
+  the organising organisation has teams in for it (agreed 2026-10-13); with none, the usual single
+  division. "Divisions", not "age groups", in the UI: for a club they are not always age groups.
+- **Pairing is by name order** (`pairInNameOrder` in
+  [dual.ts](file:///c:/Fred/Coding/SK/shared/src/utils/dual.ts)): teams carry no A/B field, so each
+  side's teams are sorted by name and the first meets the first. *Pair automatically* enters both
+  sides' teams of the division's age group, then pairs them; a team left over has no game, and the
+  organiser gives it one — a team may play twice — or leaves it out. *Pair all* leaves a division that
+  already has games alone; *Pair again* replaces a division's games, until one has started.
+- **The pairing editor is two columns** (option A): each game a row of two pickers, the host's team on
+  the left. Changing a picker swaps the teams around, so every team keeps one game. Each change saves
+  the division's whole set of games (`SET_DUAL_PAIRING`); a game whose two sides did not change keeps
+  its time and court.
+- **No lock, no format, no table.** A Head to Head division has one stage of games set by hand
+  (`stagePlanForFormat('Dual')`), never drawn, so entries are never locked and the format cannot be
+  changed (the server refuses `SET_DIVISION_FORMAT`).
+- **Results, not standings**: games won by each side and drawn, for the day, each sport and each
+  division (`dualTally`), with a dot per game in the winner's colours — primary, ringed in the
+  secondary. Shown in full, like every result in the app; the task to hide results or show only the
+  outcome has to cover this summary too when it lands.
+
+**Where it lives:** created from the events list's *New event* menu, between Match and Tournament
+([EventListDialogs.tsx](file:///c:/Fred/Coding/SK/expo-app/components/events/EventListDialogs.tsx));
+the tournament page shows *Playing against* for *Organisations & teams* and *Pairings* for *Fixtures*,
+drops *Rules & scoring*, and calls its third tab *Results*
+([TournamentHome.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentHome.tsx),
+[DualResults.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DualResults.tsx)); a
+division's page shows the pairing ([DualPairing.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DualPairing.tsx)).
+The server half is `pairDualDivisions` and `setDualPairing` in
+[TournamentManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/TournamentManager.ts), checked by
+[test-head-to-head.ts](file:///c:/Fred/Coding/SK/server/src/scripts/test-head-to-head.ts) and
+`e2e/10-head-to-head.spec.ts`.
+
+**Not in the proof of concept:** converting into a full tournament (`H2H-2`), and hiding results.
+
+---
+
 ## Appendix: what exists today
 
 So that implementation starts from an accurate picture rather than this document's proposals.

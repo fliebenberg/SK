@@ -19,6 +19,8 @@ import {
   participantLabel,
   hasLiveScore,
   isScoreNotProvided,
+  dualUnpaired,
+  isDualEvent,
 } from '@sk/shared';
 
 import { Tabs } from '../../../../components/Tabs';
@@ -31,6 +33,7 @@ import { useTournamentData } from '../../../../hooks/useTournamentData';
 import { StandingsTable } from '../../../../components/tournament/StandingsTable';
 import { DivisionStandings } from '../../../../components/tournament/DivisionStandings';
 import { ScheduleTab } from '../../../../components/tournament/ScheduleTab';
+import { DualResults } from '../../../../components/tournament/DualResults';
 import { EventRoleChips } from '../../../../components/EventRoleChips';
 import { useLiveRoom } from '../../../../hooks/useLiveRoom';
 import { useMyEventGrants } from '../../../../hooks/useEventCapabilities';
@@ -333,7 +336,9 @@ export default function EventDetails() {
   const dateLabel = formatDateRange(event.startDate, event.endDate);
   const countdown = dateCountdown(event.startDate, event.endDate);
   const isMultiDay = !!dateLabel && dateLabel.includes('–');
-  const subjectNoun = resolved.kind === 'SingleMatch' ? 'match' : 'tournament';
+  // A Head to Head (`H2H-1`) is a tournament between two organisations, under its own name.
+  const dual = isDualEvent(event);
+  const subjectNoun = resolved.kind === 'SingleMatch' ? 'match' : dual ? 'Head to Head' : 'tournament';
 
   const resultsRecorded = games.filter(g => g.status === 'Finished').length;
   const header = (
@@ -342,7 +347,7 @@ export default function EventDetails() {
           this header anyway and the menu it gained is exactly what the `right` prop is for. */}
       <ScreenHeader
         /* A tournament's name is its banner's (stage 2), so the bar names what the page is. */
-        title={resolved.kind === 'Tournament' ? 'Tournament' : event.name}
+        title={resolved.kind === 'Tournament' ? (dual ? 'Head to Head' : 'Tournament') : event.name}
         onBack={() => safeBack(`/admin/${orgId}/events`)}
         right={
           /* The danger zone, relocated here from the bottom of the Setup tab (U49): it belongs to
@@ -381,7 +386,7 @@ export default function EventDetails() {
                       ? 'Permanently deletes the match and everything recorded against it.'
                       : resultsRecorded
                       ? `Not available: ${resultsRecorded} result${resultsRecorded === 1 ? ' is' : 's are'} recorded. Cancel it instead.`
-                      : 'Permanently deletes the tournament, its divisions and its fixtures.',
+                      : `Permanently deletes the ${subjectNoun}, its divisions and its ${dual ? 'games' : 'fixtures'}.`,
                   icon: 'trash-outline',
                   destructive: true,
                   disabled: resolved.kind === 'Tournament' && resultsRecorded > 0,
@@ -608,7 +613,8 @@ export default function EventDetails() {
           items={[
             { key: 'setup', label: 'Overview' },
             { key: 'schedule', label: 'Schedule' },
-            { key: 'standings', label: 'Standings' },
+            // A Head to Head has no tables: it is won by games, so its third tab is Results.
+            { key: 'standings', label: dual ? 'Results' : 'Standings' },
           ]}
           activeKey={activeTab}
           onChange={(key) => setActiveTab(key as typeof activeTab)}
@@ -643,6 +649,7 @@ export default function EventDetails() {
               hostOrg={hostOrg}
               viewerOrgIds={(orgMemberships || []).map((m: any) => m.orgId)}
               onOpenSchedule={() => setActiveTab('schedule')}
+              onOpenResults={() => setActiveTab('standings')}
               mySportIds={capabilities?.convenesSportIds}
               onScrollTo={y => scrollRef.current?.scrollTo({ y: Math.max(0, overviewTop.current + y - 8), animated: true })}
             />
@@ -680,7 +687,24 @@ export default function EventDetails() {
           </PageBody>
         )}
 
-        {activeTab === 'standings' && (
+        {activeTab === 'standings' && dual && (
+          <PageBody>
+            <DualResults
+              event={event}
+              orgId={orgId}
+              hostOrg={hostOrg as any}
+              divisions={orderedDivisions}
+              games={games}
+              sports={sports}
+              unpairedNames={divisionId => {
+                const orgName = (id?: string) => event.participatingOrgs?.find(o => o.id === id)?.name || '';
+                return dualUnpaired(entrantsByDivision.get(divisionId) || [], games.filter(g => g.divisionId === divisionId))
+                  .map(e => `${orgName(e.orgId)} ${e.name || e.label || ''}`.trim());
+              }}
+            />
+          </PageBody>
+        )}
+        {activeTab === 'standings' && !dual && (
           <PageBody className="gap-4">
             {/*
               One table with a division scope selector (U28), rather than a `By division / By

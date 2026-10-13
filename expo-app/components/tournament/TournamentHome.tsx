@@ -19,6 +19,8 @@ import {
   hasLeft,
   isEntrantEntered,
   entryLockGaps,
+  dualUnpaired,
+  isDualEvent,
 } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { lockGapsLine } from './DivisionEntries';
@@ -39,6 +41,7 @@ import { EditTournamentDialog, ScoringDialog, WhereDialog } from './TournamentDi
 import { GapsDialog, WhenDialog, gapsLine } from './ScheduleSetup';
 import { ScheduleAllDialog } from './ScheduleActions';
 import { OrganisationResponse } from './OrganisationResponse';
+import { DualResultsCard, SideCrest, dualSides } from './DualResults';
 import { useAuthStore } from '../../store/authStore';
 import { sendAction } from '../../services/actions';
 import { useActiveTheme, useSettingsStore } from '../../store/settingsStore';
@@ -117,6 +120,17 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
     const changed = playing.filter(d => drawChanges(d.firstStageId, games.filter(g => g.divisionId === d.id), entrantsByDivision.get(d.id) || []).count > 0);
     const scoring = event.settings?.scoring;
     const sportName = (id: string) => sports.find(s => s.id === id)?.name;
+    /*
+     * A Head to Head (`H2H-1`): the organisation it plays rather than a list of organisations, its
+     * pairings rather than draws, and no rules or scoring — it is won by games.
+     */
+    const dual = isDualEvent(event);
+    const guest = others[0];
+    const unpairedIn = (d: TournamentDivision) => dualUnpaired(entrantsByDivision.get(d.id) || [], games.filter(g => g.divisionId === d.id));
+    const withUnpaired = dual ? playing.filter(d => unpairedIn(d).length > 0) : [];
+    // Paired once pairing has run: it entered teams, even where none had a counterpart.
+    const paired = playing.filter(d => games.some(g => g.divisionId === d.id) || (entrantsByDivision.get(d.id) || []).some(e => isEntrantEntered(e.status)));
+    const unpairedTeams = withUnpaired.reduce((n, d) => n + unpairedIn(d).length, 0);
 
     const steps: TournamentStep[] = [
       {
@@ -136,7 +150,13 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
         state: !sportIds.length ? 'none' : divisions.some(d => !d.sportId) ? 'part' : 'done',
         summary: sportIds.length ? `${sportIds.map(sportName).filter(Boolean).join(', ')} · ${plural(divisions.length, 'division')}` : 'No sports yet',
       },
-      {
+      dual ? {
+        key: 'entrants', title: 'Playing against',
+        state: !guest ? 'none' : guest.invitation === 'accepted' ? 'done' : 'part',
+        summary: !guest
+          ? 'Nobody chosen yet'
+          : `${guest.name} · ${guest.invitation === 'accepted' ? 'accepted' : guest.invitation === 'not_invited' ? 'not invited yet' : guest.invitation === 'withdrawal_pending' ? 'asks to withdraw' : 'invited'}`,
+      } : {
         key: 'entrants', title: 'Organisations & teams',
         state: !playing.length ? 'none' : entrantsDone ? 'done' : entered.length || others.length ? 'part' : 'none',
         summary: !playing.length
@@ -150,14 +170,18 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
               warnings ? `⚠ ${warnings}` : '',
             ].filter(Boolean).join(' · '),
       },
-      {
-        key: 'scoring', title: 'Rules & scoring',
-        state: scoring ? 'done' : 'part',
+      ...(dual ? [] : [{
+        key: 'scoring' as const, title: 'Rules & scoring',
+        state: (scoring ? 'done' : 'part') as StepState,
         summary: scoring?.mode === 'byResult'
           ? `${scoring.pointsPerWin} / ${scoring.pointsPerDraw} / ${scoring.pointsPerLoss} for a win, draw, loss`
           : scoring?.mode === 'byPlacing' ? 'Points by finishing position' : 'Default 3 / 1 / 0, not confirmed',
-      },
-      {
+      }]),
+      dual ? {
+        key: 'fixtures', title: 'Pairings',
+        state: playing.length && paired.length === playing.length && !unpairedTeams && !unscheduled.length ? 'done' : paired.length || games.length ? 'part' : 'none',
+        summary: !playing.length ? 'Once there are divisions' : `${paired.length} of ${plural(playing.length, 'division')} paired${unpairedTeams ? ` · ${plural(unpairedTeams, 'team')} without a game` : ''}${unscheduled.length ? ` · ${plural(unscheduled.length, 'game')} without a time` : ''}`,
+      } : {
         key: 'fixtures', title: 'Fixtures',
         state: playing.length && drawn.length === playing.length && !changed.length && !unscheduled.length ? 'done' : drawn.length || games.length ? 'part' : 'none',
         summary: !playing.length ? 'After teams are entered' : `${drawn.length} of ${plural(playing.length, 'division')} drawn${changed.length ? ` · ${changed.length} changed since` : ''}${unscheduled.length ? ` · ${plural(unscheduled.length, 'fixture')} without a time` : ''}`,
@@ -171,7 +195,7 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
 export function TournamentHome({
   event, orgId, canEdit, isWide, steps, complete, sports, sites, facilities, facilityIds,
   divisions: allDivisions, games: allGames, entrantsByDivision: allEntrantsByDivision, organizers, onEditOrganizers, hostOrg, viewerOrgIds,
-  onOpenSchedule, onScrollTo, mySportIds = [],
+  onOpenSchedule, onOpenResults, onScrollTo, mySportIds = [],
 }: {
   event: Event;
   orgId: string;
@@ -193,6 +217,8 @@ export function TournamentHome({
   viewerOrgIds: string[];
   /** Fixtures' *Schedule ›*: the Schedule tab is Fixtures' full page. */
   onOpenSchedule: () => void;
+  /** A Head to Head's *All results ›*: the Results tab. */
+  onOpenResults?: () => void;
   /** Scroll the page to a point measured from the top of this component — the progress bar's jumps. */
   onScrollTo: (y: number) => void;
   /** The sports the viewer organises without running the tournament — theirs to run on the card. */
@@ -248,6 +274,18 @@ export function TournamentHome({
   const stepOf = (key: TournamentStep['key']) => steps.find(s => s.key === key);
   const statusOf = (key: TournamentStep['key']) => (setupMode ? stepOf(key)?.state ?? null : null);
 
+  const dual = isDualEvent(event);
+  const sides = dual ? dualSides(event, hostOrg) : null;
+  const guestOrg = dual ? (event.participatingOrgs || []).find(o => o.id !== event.orgId && !hasLeft(o.invitation)) : undefined;
+  const unpairedOf = (d: TournamentDivision) => dualUnpaired(entrantsByDivision.get(d.id) || [], gamesIn(d));
+  /** Not paired yet: no games, and no teams entered by a pairing or by hand. */
+  const notPaired = (d: TournamentDivision) => !gamesIn(d).length && !(entrantsByDivision.get(d.id) || []).some(e => isEntrantEntered(e.status));
+  const [pairing, setPairing] = useState(false);
+  const pairAll = async () => {
+    setPairing(true);
+    await sendAction(SocketAction.PAIR_DUAL_DIVISIONS, { eventId, orgId });
+    setPairing(false);
+  };
   const sportsSection = useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode, complete, mySportIds, timeZone: venueTimeZone(site as any, hostOrg as any) });
   const orgs = useOrganisationsSection({ event, orgId, sports, divisions, entrantsByDivision, hostOrg, viewerOrgIds, canEdit, setupMode });
   const openSportsPage = () => router.push(`/admin/${orgId}/events/${eventId}/sports` as any);
@@ -328,7 +366,16 @@ export function TournamentHome({
   const banner = (
     <View className="rounded-2xl border border-line bg-card p-4 gap-3">
       <View className="flex-row gap-3.5 items-center">
-        <TournamentMark size={isWide ? 60 : 48} />
+        {sides ? (
+          // Crest over crest on a phone, where the name needs the width and the banner has the height.
+          <View className={`items-center gap-1.5 ${isWide ? 'flex-row' : ''}`}>
+            <SideCrest side={sides.host} size={isWide ? 44 : 34} />
+            <Text className="font-orbitron-bold text-xs text-ink-muted">V</Text>
+            {sides.guest ? <SideCrest side={sides.guest} size={isWide ? 44 : 34} /> : null}
+          </View>
+        ) : (
+          <TournamentMark size={isWide ? 60 : 48} />
+        )}
         <View className="flex-1 min-w-0 gap-0.5">
           <View className="flex-row items-center gap-2 flex-wrap">
             <Text className="font-inter-bold text-ink" style={{ fontSize: isWide ? 22 : 19 }}>{event.name}</Text>
@@ -381,7 +428,11 @@ export function TournamentHome({
   const nextStrip = (() => {
     if (!canEdit) return null;
     if (!setupMode) {
-      return today === 'before' ? strip('go', <>{bold('Set up and ready.')} Every organisation has accepted and every division is drawn.</>) : null;
+      return today === 'before'
+        ? strip('go', dual
+          ? <>{bold('Set up and ready.')} {guestOrg?.name || 'They'} accepted and every division is paired.</>
+          : <>{bold('Set up and ready.')} Every organisation has accepted and every division is drawn.</>)
+        : null;
     }
     const next = steps.find(s => !isFinished(s.state));
     if (!next) return null;
@@ -393,13 +444,21 @@ export function TournamentHome({
           ? strip('wait', <>{bold('A division has no sport.')} Open it from Sports & divisions and choose one.</>, undefined, { label: 'Sports & divisions', onPress: () => jump('divisions') })
           : strip('wait', <>{bold('Choose the sports being played')} — each gets its first division straight away.</>, { label: '＋ Add a sport', onPress: sportsSection.chooseSports });
       case 'entrants': {
+        if (dual) {
+          if (!guestOrg) return strip('wait', <>{bold('Choose who you are playing.')}</>, orgs.addOrganisation ? { label: '＋ Choose', onPress: orgs.addOrganisation } : undefined);
+          if (guestOrg.invitation === 'not_invited') {
+            return strip('wait', <>{bold(`${guestOrg.name} is not invited yet`)} — they can't see this until invited. Pair the divisions first if you'd like them to see the games.</>, { label: 'Invite', onPress: orgs.inviteAll });
+          }
+          if (guestOrg.invitation === 'withdrawal_pending') return strip('wait', <>{bold(`${guestOrg.name} asks to withdraw.`)}</>, undefined, { label: 'Playing against', onPress: () => jump('entrants') });
+          return strip('wait', <>{bold(`Waiting for ${guestOrg.name} to accept.`)} They see the days, the divisions and the pairings before answering.</>);
+        }
         if (!playing.length && !orgs.orgRows.some(r => !r.isHost)) {
           return strip('wait', <>{bold('Add the organisations taking part.')} You can enter their teams once there are divisions.</>, orgs.addOrganisation ? { label: '＋ Add organisation', onPress: orgs.addOrganisation } : undefined);
         }
         const more = orgs.warnings.length ? { label: `${plural(orgs.warnings.length, 'more thing')} to sort out`, onPress: () => jump('entrants') } : undefined;
         if (orgs.notInvited.length) {
           const n = orgs.notInvited.length;
-          return strip('wait', <>{bold(n === 1 ? `${orgs.notInvited[0].name} is not invited yet` : `${n} organisations are not invited yet`)} — {n === 1 ? 'it' : 'they'} can't see this tournament until invited.</>, { label: n === 1 ? 'Invite' : `Invite all ${n}`, onPress: orgs.inviteAll }, more);
+          return strip('wait', <>{bold(n === 1 ? `${orgs.notInvited[0].name} is not invited yet` : `${n} organisations are not invited yet`)} — {n === 1 ? 'it' : 'they'} can't see this {dual ? 'Head to Head' : 'tournament'} until invited.</>, { label: n === 1 ? 'Invite' : `Invite all ${n}`, onPress: orgs.inviteAll }, more);
         }
         const [first, ...rest] = orgs.warnings;
         if (first) {
@@ -411,6 +470,15 @@ export function TournamentHome({
       case 'scoring':
         return strip('wait', <>{bold('Scoring runs on the default 3 / 1 / 0.')} Confirm it, or change it, before the first result is entered.</>, { label: 'Confirm', onPress: confirmScoring });
       case 'fixtures': {
+        if (dual) {
+          const unpairedDivisions = playing.filter(notPaired).length;
+          if (unpairedDivisions) {
+            return strip('wait', <>{bold(`${plural(unpairedDivisions, 'division')} still to pair.`)} Each of your teams plays the other side's team in the same place: A v A, B v B.</>, guestOrg ? { label: pairing ? 'Pairing…' : 'Pair all', onPress: pairAll } : undefined);
+          }
+          const alone = playing.reduce((n, d) => n + unpairedOf(d).length, 0);
+          if (alone) return strip('wait', <>{bold(`${plural(alone, 'team')} without a game.`)} Give each an opponent, or leave it out, on its division's page.</>, undefined, { label: 'Pairings', onPress: () => jump('fixtures') });
+          return strip('wait', <>{bold(`${plural(unscheduledCount, 'game')} without a time.`)}</>, { label: 'Schedule all', onPress: () => setDialog('scheduleAll') });
+        }
         const undrawn = playing.filter(d => !gamesIn(d).length).length;
         if (!undrawn && unscheduledCount) {
           return strip('wait', <>{bold(`${plural(unscheduledCount, 'fixture')} without a time.`)} Fixtures is done once every division is scheduled.</>, { label: 'Schedule all', onPress: () => setDialog('scheduleAll') });
@@ -500,12 +568,15 @@ export function TournamentHome({
             {setupMode ? (
               <>
                 <Text className="font-inter-semibold text-ink-soft">Choose the sports being played, then the divisions within each. </Text>
-                A division is a group of teams that compete against each other — usually an age group, e.g. Rugby U16. Each division has its own draw and table, and teams are entered into a division. A sport can have one division or several.
+                {dual
+                  ? 'Each sport gets a division for every age group your teams play in, e.g. Rugby U13; each of your teams there plays its counterpart. Add or remove divisions as you need.'
+                  : 'A division is a group of teams that compete against each other — usually an age group, e.g. Rugby U16. Each division has its own draw and table, and teams are entered into a division. A sport can have one division or several.'}
               </>
-            ) : 'A division is a group of teams that compete against each other — usually an age group, e.g. Rugby U16.'}
+            ) : dual ? 'A division is one age group of a sport, e.g. Rugby U13, where each of your teams plays its counterpart.' : 'A division is a group of teams that compete against each other — usually an age group, e.g. Rugby U16.'}
           </Text>
         ) : null}
         <SportsDivisions
+          dual={dual}
           sports={sports}
           sportIds={mine ? (event.sportIds || []).filter(id => divisions.some(d => d.sportId === id)) : event.sportIds || []}
           divisions={divisions}
@@ -534,13 +605,14 @@ export function TournamentHome({
   const orgRowsShown = mine ? orgs.visibleRows.filter(r => r.teams + r.players + r.toBeNamed > 0) : orgs.visibleRows;
   const orgsCard = orgRowsShown.length || canEdit ? (
     <TournamentCard
-      title={canEdit ? 'Organisations & teams' : 'Taking part'}
-      count={orgRowsShown.length}
+      title={dual ? 'Playing against' : canEdit ? 'Organisations & teams' : 'Taking part'}
+      count={dual ? undefined : orgRowsShown.length}
       {...cardProps('entrants')}
       right={narrow => (
         <>
           {setupMode ? <WarningsCount count={orgs.warnings.length} /> : null}
-          {orgs.addOrganisation && !onTheDay ? edit(orgs.addOrganisation, narrow || phone ? '＋ Add' : '＋ Add organisation') : null}
+          {/* A Head to Head plays one organisation: once it has one, there is nobody to add. */}
+          {orgs.addOrganisation && !onTheDay && !(dual && guestOrg) ? edit(orgs.addOrganisation, dual ? '＋ Choose' : narrow || phone ? '＋ Add' : '＋ Add organisation') : null}
           {orgRowsShown.length ? seeAll(openOrgsPage) : null}
         </>
       )}
@@ -550,7 +622,7 @@ export function TournamentHome({
           <Text className="font-inter text-[13px] text-ink-muted">Teams are entered into divisions, so entering starts once there are some. Organisations can be added and invited now.</Text>
         ) : null}
         <WarningsList warnings={orgs.warnings} limit={3} onMore={openOrgsPage} />
-        {canEdit ? <NotInvitedBox count={orgs.notInvited.length} nobodyYet={orgs.nobodyInvited} onInviteAll={orgs.inviteAll} /> : null}
+        {canEdit ? <NotInvitedBox count={orgs.notInvited.length} nobodyYet={orgs.nobodyInvited} onInviteAll={orgs.inviteAll} subject={dual ? 'Head to Head' : 'tournament'} orgName={dual ? guestOrg?.name : undefined} /> : null}
         <View>
           <OrgsList rows={orgRowsShown} isWide={isWide} showInvitations={canEdit} onOpen={canEdit ? orgs.openOrg : undefined} highlightOrgId={orgs.highlightOrgId} beforeDivisions={setupMode && beforeDivisions} />
           <UnnamedList entrants={orgs.unnamed} divisionName={orgs.divisionName} onOpen={canEdit ? orgs.openUnnamed : undefined} />
@@ -563,7 +635,7 @@ export function TournamentHome({
     </TournamentCard>
   ) : null;
 
-  const rulesCard = (
+  const rulesCard = dual ? null : (
     <TournamentCard
       title="Rules & scoring"
       {...cardProps('scoring')}
@@ -631,6 +703,42 @@ export function TournamentHome({
       </TouchableOpacity>
     );
   };
+  const pairingRow = (d: TournamentDivision, i: number) => {
+    const n = gamesIn(d).filter(g => g.status !== 'Cancelled').length;
+    const alone = unpairedOf(d);
+    const orgName = (id?: string) => (event.participatingOrgs || []).find(o => o.id === id)?.name || '';
+    return (
+      <TouchableOpacity key={d.id} onPress={() => sportsSection.openDivision(d)} accessibilityRole="link" className={`flex-row items-center gap-2 py-2 ${i ? 'border-t border-line-soft' : ''}`}>
+        <View className="flex-1 min-w-0">
+          <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{divisionFullName(d.name, sportName(d.sportId))}</Text>
+          <Text className={`font-inter text-xs ${alone.length && n ? 'text-warning-ink' : 'text-ink-muted'}`} numberOfLines={1}>
+            {notPaired(d) ? 'Not paired yet' : alone.length ? `${plural(n, 'game')} · ${alone.map(e => `${orgName(e.orgId)} ${e.name || e.label || ''}`.trim()).join(', ')} without a game` : `${plural(n, 'game')} · paired`}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-muted')} />
+      </TouchableOpacity>
+    );
+  };
+  const pairingsBody = (() => {
+    if (!playing.length) return <Text className="font-inter text-[13px] text-ink-muted">Each division is paired once there are some.</Text>;
+    const unpairedDivisions = playing.filter(notPaired);
+    return (
+      <View className="gap-1.5">
+        {meter(playing.length - unpairedDivisions.length, playing.length)}
+        {canEdit && unpairedDivisions.length && guestOrg && !onTheDay ? (
+          <View className="flex-row items-center gap-2.5 flex-wrap rounded-xl bg-sunken px-3 py-2">
+            <Text className="font-inter text-[13px] text-ink-soft flex-1" style={{ minWidth: 160 }}>
+              {plural(unpairedDivisions.length, 'division')} not paired yet. Pairing enters both sides' teams and puts A v A, B v B.
+            </Text>
+            <TouchableOpacity onPress={pairAll} disabled={pairing} accessibilityRole="button" className="rounded-xl border border-line bg-card px-3 py-1.5">
+              <Text className="font-inter-bold text-[13px] text-ink">{pairing ? 'Pairing…' : 'Pair all automatically'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        <View>{playing.map(pairingRow)}</View>
+      </View>
+    );
+  })();
   const fixturesBody = (() => {
     if (!playing.length) {
       return <Text className="font-inter text-[13px] text-ink-muted">Each division is drawn on its own, once its teams are in.</Text>;
@@ -753,11 +861,12 @@ export function TournamentHome({
   );
   const fixturesCard = (
     <TournamentCard
-      title="Fixtures"
+      title={dual ? 'Pairings' : 'Fixtures'}
+      count={dual && games.length ? plural(games.filter(g => g.status !== 'Cancelled').length, 'game') : undefined}
       {...cardProps('fixtures')}
       right={<>{playing.length ? seeAll(onOpenSchedule, 'Schedule') : null}</>}
     >
-      {fixturesBody}
+      {dual ? pairingsBody : fixturesBody}
       {/* The scheduling gaps (Phase 7): how the scheduler spaces games, so they sit with the fixtures, not under When. */}
       <View className="flex-row items-center gap-3 border-t border-line-soft pt-2.5 mt-1">
         <View className="flex-1 min-w-0">
@@ -798,6 +907,11 @@ export function TournamentHome({
         })}
       </View>
     </TournamentCard>
+  ) : null;
+
+  const anyPlayed = games.some(g => g.status === 'Finished' || g.status === 'Live');
+  const resultsCard = dual && (anyPlayed || onTheDay) ? (
+    <DualResultsCard event={event} hostOrg={hostOrg} divisions={divisions} games={games} sports={sports} onOpenAll={onOpenResults || onOpenSchedule} />
   ) : null;
 
   const organizersCard = canEdit && organizers.length ? (
@@ -868,6 +982,9 @@ export function TournamentHome({
       : three
         ? [[sportsA], [orgsA], [whereA, whenA, rulesA, fixturesA, organizersA]]
         : [[sportsA, orgsA], [whereA, whenA, rulesA, fixturesA, organizersA]];
+  // A Head to Head's results lead once anything is played (`H2H-1`).
+  const resultsA = anchor('results', resultsCard);
+  if (resultsA) columns[0].unshift(resultsA);
 
   // The teams this viewer answers for, still invited: theirs as coach, or any of an organisation they admin.
   const coachTeamIds = new Set<string>(teamMemberships.filter((m: any) => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach').map((m: any) => m.teamId));

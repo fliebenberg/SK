@@ -26,7 +26,8 @@ npm run e2e:report     # the last run's report, with traces of any failure
   move by the sheet with Undo, a real drag that lands at the time aimed for, dragging the day's hours, and
   Schedule again), then results entered offline (`09-offline-results.spec.ts`: the connection cut by
   routing the socket through the test — Playwright's offline mode leaves an open WebSocket alone —
-  a result waiting and then sent, and one refused over a result changed meanwhile). A single file run on its own may therefore fail where the suite
+  a result waiting and then sent, and one refused over a result changed meanwhile), then a Head to Head (`10-head-to-head.spec.ts`: made from the
+  events list against St Aldric's, its divisions from Doringkloof's age groups, *Pair all*, and a division's two columns). A single file run on its own may therefore fail where the suite
   passes.
 - **The phone runs first and only tests tagged `@phone`** — ones that read and change nothing — so it sees
   the data before the desktop tests change it.

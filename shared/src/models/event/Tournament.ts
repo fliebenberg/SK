@@ -531,6 +531,11 @@ export function defaultDivisionFormat(eventFormat?: EventFormat | null): EventFo
   return eventFormat && eventFormat !== 'Festival' ? eventFormat : 'RoundRobin';
 }
 
+/**
+ * A Head to Head's division (`H2H-1`) plays one stage of games set by pairing rather than drawn:
+ * a `Festival` stage, so every fixture path that already handles "set by hand" handles it.
+ */
+
 export function stagePlanForFormat(
   format?: EventFormat | null
 ): Array<{ name: string; format: TournamentFormat; sequence: number }> {
@@ -544,6 +549,8 @@ export function stagePlanForFormat(
       return [{ name: 'Round Robin', format: 'RoundRobin', sequence: 1 }];
     case 'Knockout':
       return [{ name: 'Knockout', format: 'Knockout', sequence: 1 }];
+    case 'Dual':
+      return [{ name: 'Games', format: 'Festival', sequence: 1 }];
     // A `Festival` is the degenerate case and so is the fall-through: an unset format means an
     // event created before formats existed, and `Festival` is what the migration gave those rows
     // for the same reason — it assumes least about structure.

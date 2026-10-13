@@ -16,6 +16,7 @@ import {
   findTakenDivisionName,
   isAutomaticDivisionName,
   isEntrantEntered,
+  isDualEvent,
 } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { FieldLabel } from '../FieldLabel';
@@ -502,6 +503,7 @@ export function AddDivisionDialog({ visible, onClose, onAdded, orgId, event, spo
   const name = customName?.trim() || derived;
   const clash = findTakenDivisionName(name, taken);
   if (!sport) return null;
+  const dual = isDualEvent(event);
 
   const save = async () => {
     setSaving(true);
@@ -521,8 +523,9 @@ export function AddDivisionDialog({ visible, onClose, onAdded, orgId, event, spo
       if (!added.ok) { setSaving(false); return; }
       divisionId = added.data.id;
     }
-    // The settings under a format, and an existing division's format, need the format action.
-    if (divisionId && (existing || format.legs > 1 || format.thirdPlacePlayoff)) {
+    // The settings under a format, and an existing division's format, need the format action. A
+    // Head to Head's divisions have none: they are paired (`H2H-1`).
+    if (divisionId && !dual && (existing || format.legs > 1 || format.thirdPlacePlayoff)) {
       const formatted = await sendAction(SocketAction.SET_DIVISION_FORMAT, {
         divisionId,
         orgId,
@@ -578,10 +581,12 @@ export function AddDivisionDialog({ visible, onClose, onAdded, orgId, event, spo
         />
         {clash ? <Text className="font-inter text-xs text-danger-ink">Another {sport.name} division is already called "{clash}".</Text> : null}
       </View>
-      <View className="gap-1.5">
-        <FieldLabel label="How it's played" help="Can be changed on the division's page until a game has started." />
-        <FormatPicker value={format} onChange={setFormat} />
-      </View>
+      {dual ? null : (
+        <View className="gap-1.5">
+          <FieldLabel label="How it's played" help="Can be changed on the division's page until a game has started." />
+          <FormatPicker value={format} onChange={setFormat} />
+        </View>
+      )}
     </EditDialog>
   );
 }

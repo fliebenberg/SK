@@ -15,6 +15,7 @@ import {
     findTakenDivisionName,
     stagePlanForFormat,
     defaultDivisionFormat,
+    isDualEvent,
     organizerScopeFields,
     organizerScopeOf,
     minorsSettingsOf,
@@ -2789,6 +2790,11 @@ io.on('connection', (socket) => {
                         // One division per sport chosen (U52); none until a sport is.
                         await createSportDivisions(result, result.sportIds || []);
                     }
+                    // A Head to Head names the organisation it plays when it is created (`H2H-1`):
+                    // added, not invited — nothing is sent until the organiser is ready.
+                    if (isDualEvent(result) && action.payload.guestOrgId) {
+                        result = await dataManager.addEventOrgs(result.id, [action.payload.guestOrgId], false, { userId: authUserId || null, orgId: result.orgId });
+                    }
                     publishEventToOrgs([result.orgId, ...(result.participatingOrgIds || [])], 'EVENT_ADDED', result);
                     additionalBroadcasts.push({ topic: eventRoom(result.id), type: 'EVENT_ADDED', data: result });
                     await broadcastOrgSummaries([result.orgId, ...(result.participatingOrgIds || [])]);
@@ -3275,7 +3281,7 @@ io.on('connection', (socket) => {
                 // *Add a division* names the format (`FIX-27`); without either, the tournament's.
                 if (stage) await dataManager.addStage({ ...stage, divisionId: division.id });
                 else {
-                    for (const planned of stagePlanForFormat(format || defaultDivisionFormat(parentEvent?.format))) {
+                    for (const planned of stagePlanForFormat(isDualEvent(parentEvent) ? 'Dual' : format || defaultDivisionFormat(parentEvent?.format))) {
                         await dataManager.addStage({ ...planned, divisionId: division.id });
                     }
                 }
@@ -3512,6 +3518,51 @@ io.on('connection', (socket) => {
                 }));
                 publishStageEntrants(entrantStage.divisionId, entrantStage.id, result.applied);
                 publishStages(entrantStage.divisionId, await dataManager.getStages(entrantStage.divisionId));
+                break;
+            }
+
+            /*
+             * Head to Head pairing (`H2H-1`). Both write games into a division's one stage, so they
+             * publish as a draw does — the stage's set in one message — plus each game's summary for
+             * the event's lists, and each deleted game as removed, its audience captured first.
+             */
+            case SocketAction.PAIR_DUAL_DIVISIONS:
+            case SocketAction.SET_DUAL_PAIRING: {
+                const p = action.payload as any;
+                const divisionIds: string[] = action.type === SocketAction.SET_DUAL_PAIRING
+                    ? [p.divisionId]
+                    : (p.divisionIds?.length ? p.divisionIds : (await dataManager.getDivisions(p.eventId)).map((d: any) => d.id));
+                const rooms = new Map<string, string[]>();
+                for (const divisionId of divisionIds) {
+                    for (const captured of await captureDivisionGameRooms(divisionId)) rooms.set(captured.gameId, captured.rooms);
+                }
+                let touched: Array<{ divisionId: string; stageId: string; deletedGameIds: string[] }>;
+                let eventIdOf: string;
+                if (action.type === SocketAction.PAIR_DUAL_DIVISIONS) {
+                    const outcome = await runIdempotent(p.idempotencyKey, () => tournamentManager.pairDualDivisions(p.eventId, p.divisionIds, !!p.replace));
+                    touched = outcome.divisions;
+                    eventIdOf = outcome.eventId;
+                    result = { eventId: outcome.eventId, skipped: outcome.skipped, divisions: outcome.divisions.map(d => ({ divisionId: d.divisionId, games: d.games, unpaired: d.unpaired })) };
+                } else {
+                    const outcome = await runIdempotent(p.idempotencyKey, () => tournamentManager.setDualPairing(p.divisionId, p.pairs || []));
+                    touched = [outcome];
+                    eventIdOf = outcome.eventId;
+                    result = { divisionId: outcome.divisionId, eventId: outcome.eventId, games: await dataManager.getStageGames(outcome.stageId) };
+                }
+                for (const division of touched) {
+                    for (const gameId of division.deletedGameIds) {
+                        additionalBroadcasts.push({ topic: `game:${gameId}`, type: 'GAME_DELETED', data: { id: gameId } });
+                        additionalBroadcasts.push({ topic: eventFixturesRoom(eventIdOf), type: 'GAME_DELETED', data: { id: gameId } });
+                        publishGameRemoved(gameId, rooms.get(gameId) || []);
+                    }
+                    const games = await dataManager.getStageGames(division.stageId);
+                    publishStageFixtures(division.divisionId, division.stageId, games);
+                    for (const game of games) await publishGameSummary(game.id);
+                    // *Pair* enters teams too, so the rosters moved as well as the games.
+                    await publishEntrants(division.divisionId, await dataManager.getDivisionEntrants(division.divisionId), eventIdOf);
+                    publishStages(division.divisionId, await dataManager.getStages(division.divisionId));
+                    await publishStandings(division.divisionId, eventIdOf);
+                }
                 break;
             }
 

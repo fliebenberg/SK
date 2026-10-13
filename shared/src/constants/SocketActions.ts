@@ -535,6 +535,23 @@ export enum SocketAction {
      */
     GENERATE_STAGE_FIXTURES = 'GENERATE_STAGE_FIXTURES',
 
+    /**
+     * Pair a Head to Head's divisions automatically (`H2H-1`). Expects payload: `PairDualDivisionsPayload`
+     *
+     * For each division: enters both organisations' teams of its sport and age group, and pairs them
+     * in name order (`pairInNameOrder`) as one stage of games. A division that already has games is
+     * left alone unless `replace`, which re-pairs it while none has been played.
+     */
+    PAIR_DUAL_DIVISIONS = 'PAIR_DUAL_DIVISIONS',
+
+    /**
+     * Set one Head to Head division's games, whole (`H2H-1`). Expects payload: `SetDualPairingPayload`
+     *
+     * The pairs are the division's games after the write: a game whose two sides are unchanged stays as
+     * it is, one no longer listed is deleted (refused once it has started), and a new pair is added.
+     */
+    SET_DUAL_PAIRING = 'SET_DUAL_PAIRING',
+
     // --- Tournaments: scheduling (Phase 7) ---
     //
     // The rules — game length, day windows, clashes, the greedy pass — are `utils/schedule.ts`, so

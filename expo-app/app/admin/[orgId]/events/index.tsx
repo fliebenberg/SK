@@ -32,6 +32,7 @@ import {
   EventListFilters,
   EventListRole,
   NO_FILTERS,
+  NewHeadToHeadDialog,
   NewTournamentDialog,
   ROLE_OPTIONS,
 } from '../../../../components/events/EventListDialogs';
@@ -61,6 +62,7 @@ import {
 } from '../../../../utils/dates';
 import { themeColor } from '../../../../constants/Colors';
 import { PageBody } from '../../../../components/PageBody';
+import { useOrgSummary } from '../../../../hooks/useOrgSummary';
 
 /**
  * Fixtures & Events (docs/events.md). One row per event, and a row opens its page: a single match
@@ -137,6 +139,9 @@ export default function OrgEventsList() {
     setLocalOverride(filtersKey(orgId), typeof next === 'function' ? next(filters) : next);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [namingTournament, setNamingTournament] = useState(false);
+  const [namingHeadToHead, setNamingHeadToHead] = useState(false);
+  // The organising organisation's name, for the name a new Head to Head is given.
+  const { org: hostSummary } = useOrgSummary(canCreate ? orgId : null);
 
   const { items: listedEvents, isLoading: eventsLoading, accessDenied } = useLiveRoom<Event>(orgId ? `org:${orgId}:events` : null, {
     reduce: (message) => {
@@ -529,6 +534,13 @@ export default function OrgEventsList() {
           onPress: () => router.push(`/admin/${orgId}/events/create`),
         },
         {
+          // Second: simpler than a tournament, which is the most involved and so comes last (`H2H-1`).
+          label: 'Head to Head',
+          description: "Your teams against one other organisation's, A v A, B v B, across one or more sports",
+          icon: 'swap-horizontal-outline',
+          onPress: () => setNamingHeadToHead(true),
+        },
+        {
           label: 'Tournament',
           description: 'A festival, league or knockout. Name it and pick a date; the rest is set up on the tournament',
           icon: 'trophy-outline',
@@ -858,6 +870,18 @@ export default function OrgEventsList() {
         onWhenChange={isWide ? undefined : setWhen}
         shownLabel={`Show ${shownCount} ${shownCount === 1 ? noun.slice(0, -1) : noun}`}
       />
+      {canCreate ? (
+        <NewHeadToHeadDialog
+          visible={namingHeadToHead}
+          orgId={orgId!}
+          hostName={hostSummary?.name}
+          onClose={() => setNamingHeadToHead(false)}
+          onCreated={id => {
+            setNamingHeadToHead(false);
+            router.push(`/admin/${orgId}/events/${id}`);
+          }}
+        />
+      ) : null}
       {canCreate ? (
         <NewTournamentDialog
           visible={namingTournament}

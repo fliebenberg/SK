@@ -297,8 +297,9 @@ A single match, or a tournament containing many.
 - `status` (TEXT)
 - `cached_standings` (JSONB): written by the recalculation path, read on every view — data, not
   configuration, exactly as `seasons.cached_standings` is.
-- `format` (TEXT): `'Festival' | 'RoundRobin' | 'Knockout' | 'PoolsKnockout'`. A column rather than
-  a settings key, because it is what the event screen keys its tabs and setup steps off.
+- `format` (TEXT): `'Festival' | 'RoundRobin' | 'Knockout' | 'PoolsKnockout' | 'Dual'`. A column rather than
+  a settings key, because it is what the event screen keys its tabs and setup steps off. `'Dual'` is a
+  Head to Head between two organisations (`H2H-1`, [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) §14).
 - `orgs_may_add_teams` (BOOLEAN): NOT NULL DEFAULT false. May invited organisations add teams
   themselves (`FIX-33`).
 - `gap_between_games_min` (SMALLINT): NOT NULL DEFAULT 5. *Between games*: minutes kept free on a

@@ -13,6 +13,7 @@ import {
   hasLeft,
   isTakingPart,
   isEntrantEntered,
+  isDualEvent,
 } from '@sk/shared';
 import { OverflowMenu } from '../OverflowMenu';
 import { RegisterOrgModal } from '../RegisterOrgModal';
@@ -68,7 +69,7 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
     [event, divisions, games, sports, timeZone]
   );
   const divisionState = (d: TournamentDivision): DivisionState =>
-    divisionStateOf({ setupMode, games: gamesIn(d), entrants: entrantsByDivision.get(d.id) || [], firstStageId: d.firstStageId, afterDayEnd: lateByDivision.get(d.id) || 0 });
+    divisionStateOf({ setupMode, games: gamesIn(d), entrants: entrantsByDivision.get(d.id) || [], firstStageId: d.firstStageId, afterDayEnd: lateByDivision.get(d.id) || 0, dual: isDualEvent(event) });
   /**
    * A dot on a sport's chip: red while one of its games is live; amber while setting up when one of
    * its divisions needs seeing to — too few teams, or changed since its draw. Not drawn yet is not
@@ -87,7 +88,14 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
   const [sportsOpen, setSportsOpen] = useState(false);
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [firstFor, setFirstFor] = useState<string[]>([]);
-  const firstDivision = firstFor.length ? divisions.find(d => d.sportId === firstFor[0]) || null : null;
+  // A Head to Head's sport arrives with a division per age group the host plays (`H2H-1`), already
+  // named; only the fallback, for a sport the host has no teams in, still needs naming.
+  const needsNaming = (sportId: string) => {
+    const own = divisions.filter(d => d.sportId === sportId);
+    return !isDualEvent(event) || (own.length === 1 && !own[0].ageGroupId);
+  };
+  const namingSportId = firstFor.find(needsNaming);
+  const firstDivision = namingSportId ? divisions.find(d => d.sportId === namingSportId) || null : null;
   const [organisersOf, setOrganisersOf] = useState<string | null>(null);
   /* A sport's organiser runs their own sports here as the step screen let them (`FIX-28`): they
      add its divisions while the tournament is being set up and appoint its organisers, but choose
@@ -148,10 +156,10 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
       />
       {canEdit ? <AddDivisionDialog
         visible={!!firstDivision && !sportsOpen}
-        onClose={() => setFirstFor(prev => prev.slice(1))}
+        onClose={() => setFirstFor(prev => prev.filter(id => id !== namingSportId))}
         orgId={orgId}
         event={event}
-        sport={sports.find(s => s.id === firstFor[0]) || null}
+        sport={sports.find(s => s.id === namingSportId) || null}
         divisions={divisions}
         existing={firstDivision}
       /> : null}

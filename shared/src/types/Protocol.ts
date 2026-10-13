@@ -137,7 +137,13 @@ export interface DeleteFacilityPayload {
     id: string;
 }
 
-export interface AddEventPayload extends Omit<Event, "id"> {}
+export interface AddEventPayload extends Omit<Event, "id"> {
+    /**
+     * A Head to Head's other organisation (`H2H-1`), added — not invited — as the event is created.
+     * Read only when `format` is `Dual`.
+     */
+    guestOrgId?: string;
+}
 
 export interface UpdateEventPayload {
     id: string;
@@ -1118,6 +1124,40 @@ export interface OrganizersResult {
 }
 
 /** What a generation or scheduling run actually did, so the client can say so. */
+/** `PAIR_DUAL_DIVISIONS` (`H2H-1`). */
+export interface PairDualDivisionsPayload {
+    eventId: string;
+    orgId: string;
+    /** The divisions to pair; every division of the Head to Head when absent. */
+    divisionIds?: string[];
+    /** Re-pair divisions that already have games, deleting them first. Refused once one is played. */
+    replace?: boolean;
+    idempotencyKey?: string;
+}
+
+export interface PairDualDivisionsResult {
+    eventId: string;
+    /** Each division paired: how many games it now has, and how many of its teams have none. */
+    divisions: Array<{ divisionId: string; games: number; unpaired: number }>;
+    /** Divisions left alone because they already had games. */
+    skipped: string[];
+}
+
+/** `SET_DUAL_PAIRING` (`H2H-1`). */
+export interface SetDualPairingPayload {
+    divisionId: string;
+    orgId: string;
+    /** Every game the division should have, as its two entrants, the host's first. */
+    pairs: Array<{ entrantIds: [string, string] }>;
+    idempotencyKey?: string;
+}
+
+export interface SetDualPairingResult {
+    divisionId: string;
+    eventId: string;
+    games: GameSummary[];
+}
+
 export interface StageFixturesResult {
     stageId: string;
     divisionId: string;
@@ -1235,6 +1275,8 @@ export interface ProtocolMap {
     [SocketAction.SET_STAGE_ENTRANTS]: { payload: SetStageEntrantsPayload; response: BatchResponse<StageEntrant> };
     [SocketAction.REPLACE_ENTRANT]: { payload: ReplaceEntrantPayload; response: ReplaceEntrantResult };
     [SocketAction.GENERATE_STAGE_FIXTURES]: { payload: GenerateStageFixturesPayload; response: StageFixturesResult };
+    [SocketAction.PAIR_DUAL_DIVISIONS]: { payload: PairDualDivisionsPayload; response: PairDualDivisionsResult };
+    [SocketAction.SET_DUAL_PAIRING]: { payload: SetDualPairingPayload; response: SetDualPairingResult };
     [SocketAction.SET_EVENT_DAYS]: { payload: SetEventDaysPayload; response: Event };
     [SocketAction.SET_DIVISION_DAYS]: { payload: SetDivisionDaysPayload; response: TournamentDivision };
     [SocketAction.SET_EVENT_SCHEDULING]: { payload: SetEventSchedulingPayload; response: Event };

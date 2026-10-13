@@ -39,6 +39,7 @@ export * from './types/Protocol';
 export * from './utils/stringUtils';
 export * from './utils/gameUtils';
 export * from './utils/standings';
+export * from './utils/dual';
 export * from './utils/fixtureSide';
 export * from './utils/socketActionUtils';
 export * from './utils/templateSteps';

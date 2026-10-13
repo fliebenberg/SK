@@ -18,8 +18,15 @@ import type { CalendarDate } from '../../utils/calendarDate';
 /**
  * How a tournament is structured — what the event screen keys its tabs and setup steps off.
  * Null on a `SingleMatch`, which has no structure to describe.
+ *
+ * `Dual` is a **Head to Head** (`H2H-1`, 2026-10-13): two organisations, each team playing its
+ * counterpart from the other side once, U16A v U16A. It is a tournament on the same model — divisions,
+ * a stage, entrants, invitations — with no formats, points or tiebreakers, so it is never offered in
+ * {@link EVENT_FORMATS}. "Head to Head" is the UI's name only: in code that phrase already means the
+ * sport flag `MatchTopology.HEAD_TO_HEAD` and the standings tiebreaker. Converting one into a full
+ * tournament is a change of this value (`H2H-2`).
  */
-export type EventFormat = 'Festival' | 'RoundRobin' | 'Knockout' | 'PoolsKnockout';
+export type EventFormat = 'Festival' | 'RoundRobin' | 'Knockout' | 'PoolsKnockout' | 'Dual';
 
 /**
  * The formats an organiser picks from, in the order the picker offers them.
@@ -53,7 +60,13 @@ export const EVENT_FORMATS: Array<{ value: EventFormat; label: string; descripti
 
 /** The organiser-facing name of a format, for anywhere a label is rendered from a stored value. */
 export function eventFormatLabel(format?: EventFormat | null): string {
+  if (format === 'Dual') return 'Head to Head';
   return EVENT_FORMATS.find(f => f.value === format)?.label || 'Festival';
+}
+
+/** Whether an event is a Head to Head (`H2H-1`) — a tournament between exactly two organisations. */
+export function isDualEvent(event?: { type?: string | null; format?: string | null } | null): boolean {
+  return event?.type === 'Tournament' && event?.format === 'Dual';
 }
 
 /**
@@ -80,6 +93,8 @@ export const hasLeft = (invitation: EventOrgInvitation) => invitation === 'decli
 
 /** An organisation taking part in an event, with its invitation. */
 export interface EventOrgBadge extends OrgBadge {
+  /** For a Head to Head's results, which paint each side in its two colours (`H2H-1`). */
+  secondaryColor?: string | null;
   invitation: EventOrgInvitation;
   /** When it was invited — an instant. `null` while it is not invited yet. */
   invitedAt?: string | null;

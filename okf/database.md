@@ -74,7 +74,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
 A tournament is four levels deep, and each level is named for its parent so that a table name tells
 you what deletes it:
 
-    events (type='Tournament', format='Festival'|…)
+    events (type='Tournament', format='Festival'|…|'Dual')   'Dual' is a Head to Head: two organisations, no draw (docs/tournaments.md §14)
       └─ tournament_divisions        the netball, the U14 rugby
            ├─ division_stages        pools, then the knockout
            │    └─ stage_entrants    who is in this stage, and in which pool

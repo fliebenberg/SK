@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Event } from '@sk/shared';
+import { Event, isDualEvent } from '@sk/shared';
 import { ScreenHeader } from '../../../../../components/ScreenHeader';
 import { AccessDenied } from '../../../../../components/AccessDenied';
 import { useShowFieldHelp } from '../../../../../components/FieldLabel';
@@ -118,6 +118,7 @@ function SportsPage({ orgId, event, data, onBack }: {
           {sportIds.length ? sportIds.map(id => (
             <View key={id} onLayout={e => { sportY.current[id] = e.nativeEvent.layout.y; }} className="rounded-2xl border border-line bg-card p-4">
               <SportBlock
+                dual={isDualEvent(event)}
                 sportId={id}
                 sportName={section.sportName(id)}
                 divisions={divisionsOf(id)}

@@ -41,6 +41,9 @@ export const TOURNAMENT_ACTION_EVENT: Partial<Record<SocketAction, (payload: any
     p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
   [SocketAction.SET_STAGE_ENTRANTS]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
   [SocketAction.GENERATE_STAGE_FIXTURES]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
+  // Head to Head pairing (`H2H-1`): the whole event's, or one division's like its draw.
+  [SocketAction.PAIR_DUAL_DIVISIONS]: async (p) => p?.eventId ?? null,
+  [SocketAction.SET_DUAL_PAIRING]: async (p) => (p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null),
   // Scheduling (Phase 7). The days and the tournament's gaps are the tournament's; Schedule all
   // spans divisions, so it is event scope only. A division's days, gaps, scheduling and moves are
   // also its organisers' (the division map below).
@@ -208,6 +211,9 @@ export const TOURNAMENT_ACTION_DIVISION: Partial<Record<SocketAction, (payload: 
   [SocketAction.REPLACE_ENTRANT]: async (p) => p?.divisionId ?? null,
   [SocketAction.SET_STAGE_ENTRANTS]: async (p) => (p?.stageId ? divisionOfStage(p.stageId) : null),
   [SocketAction.GENERATE_STAGE_FIXTURES]: async (p) => (p?.stageId ? divisionOfStage(p.stageId) : null),
+  // One division paired is that division's; *Pair all* spans divisions, so it is event scope only.
+  [SocketAction.PAIR_DUAL_DIVISIONS]: async (p) => (p?.divisionIds?.length === 1 ? p.divisionIds[0] : null),
+  [SocketAction.SET_DUAL_PAIRING]: async (p) => p?.divisionId ?? null,
   [SocketAction.SET_DIVISION_DAYS]: async (p) => p?.divisionId ?? null,
   [SocketAction.SET_DIVISION_SCHEDULING]: async (p) => p?.divisionId ?? null,
   [SocketAction.SCHEDULE_DIVISION]: async (p) => p?.divisionId ?? null,

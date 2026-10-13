@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SocketAction } from '@sk/shared';
+import { Organization, SocketAction } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { FieldLabel } from '../FieldLabel';
 import { SegmentedControl } from '../SegmentedControl';
 import DatePicker from '../DatePicker';
 import { TEXT_INPUT } from '../formStyles';
 import { sendAction } from '../../services/actions';
+import { wsService } from '../../services/websocket';
+import { FixtureCrest } from './EventBits';
 import { isCalendarDate, todayCalendarDate } from '../../utils/dates';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
@@ -87,6 +89,154 @@ export function NewTournamentDialog({ visible, orgId, onClose, onCreated }: {
       </View>
       <Text className="font-inter text-xs text-ink-muted leading-relaxed">
         Sports, divisions, venues and teams are set up on the tournament, in whatever order they are settled.
+      </Text>
+    </EditDialog>
+  );
+}
+
+/**
+ * New Head to Head (`H2H-1`, agreed 2026-10-13 on `mockups/head-to-head.html`): who you are playing,
+ * a name, and the first day. The name is filled in as "Valley Prep v Menlopark" until it is changed.
+ * The other organisation is added but not invited — nothing is sent until the organiser is ready,
+ * from the event's *Playing against* card. More days, sports and divisions are set up on the event.
+ */
+export function NewHeadToHeadDialog({ visible, orgId, hostName, onClose, onCreated }: {
+  visible: boolean;
+  orgId: string;
+  /** The organising organisation's name, for the name filled in. */
+  hostName?: string;
+  onClose: () => void;
+  onCreated: (eventId: string) => void;
+}) {
+  const isDark = useActiveTheme() === 'dark';
+  const [opponent, setOpponent] = useState<Organization | null>(null);
+  const [query, setQuery] = useState('');
+  const [found, setFound] = useState<Organization[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [name, setName] = useState('');
+  const [nameTouched, setNameTouched] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setOpponent(null);
+    setQuery('');
+    setFound([]);
+    setName('');
+    setNameTouched(false);
+    setStartDate(todayCalendarDate());
+  }, [visible]);
+
+  // A search, as in Add organisations: "every organisation but us" is a set no room owns.
+  useEffect(() => {
+    const text = query.trim();
+    if (!text) { setFound([]); return; }
+    setSearching(true);
+    const timer = setTimeout(() => {
+      wsService.emit('get_data', { type: 'search_similar_orgs', name: text }, (res: any) => {
+        setSearching(false);
+        if (Array.isArray(res)) setFound(res.filter((o: Organization) => o.id !== orgId).slice(0, 8));
+      });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [query, orgId]);
+
+  const choose = (org: Organization) => {
+    setOpponent(org);
+    if (!nameTouched) setName(hostName ? `${hostName} v ${org.name}` : org.name);
+  };
+
+  const canSave = !!opponent && !!name.trim() && isCalendarDate(startDate);
+
+  const save = async () => {
+    if (!canSave || !opponent) return;
+    setIsSaving(true);
+    const result = await sendAction(SocketAction.ADD_EVENT, {
+      name: name.trim(),
+      type: 'Tournament',
+      format: 'Dual',
+      startDate,
+      orgId,
+      status: 'Scheduled',
+      guestOrgId: opponent.id,
+    });
+    setIsSaving(false);
+    if (!result.ok) return;
+    onCreated(result.data.id);
+  };
+
+  const crest = (org: Organization) => (
+    <FixtureCrest participant={{ id: org.id, orgId: org.id, orgLogo: org.logo, orgLogoConfig: (org.settings as any)?.logoConfig, orgPrimaryColor: org.primaryColor }} size={26} />
+  );
+
+  return (
+    <EditDialog
+      visible={visible}
+      title="New Head to Head"
+      onClose={onClose}
+      onSave={save}
+      saveLabel="Create"
+      saveDisabled={!canSave}
+      isSaving={isSaving}
+      isDirty={!!opponent || !!name.trim()}
+    >
+      <View className="gap-1.5">
+        <FieldLabel label="Playing against" />
+        {opponent ? (
+          <View className="flex-row items-center gap-2.5 rounded-xl border border-line px-3 py-2">
+            {crest(opponent)}
+            <Text className="flex-1 font-inter-semibold text-sm text-ink" numberOfLines={1}>{opponent.name}</Text>
+            <TouchableOpacity onPress={() => setOpponent(null)} accessibilityRole="button" hitSlop={8}>
+              <Text className="font-inter-bold text-[13px] text-primary-ink">Change</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              autoFocus
+              placeholder="Search schools and clubs…"
+              placeholderTextColor={themeColor(isDark, 'ink-muted')}
+              accessibilityLabel="Playing against"
+              className={TEXT_INPUT}
+            />
+            {searching ? <ActivityIndicator /> : null}
+            {found.map(org => (
+              <TouchableOpacity key={org.id} onPress={() => choose(org)} accessibilityRole="button" className="flex-row items-center gap-2.5 py-1.5">
+                {crest(org)}
+                <View className="flex-1 min-w-0">
+                  <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{org.name}</Text>
+                  {org.shortName ? <Text className="font-inter text-xs text-ink-muted">{org.shortName}</Text> : null}
+                </View>
+              </TouchableOpacity>
+            ))}
+            {query.trim() && !searching && !found.length ? (
+              <Text className="font-inter text-xs text-ink-muted">No organisation by that name. It can be registered from Add organisations on a tournament.</Text>
+            ) : null}
+          </>
+        )}
+      </View>
+      <View className="gap-1.5">
+        <FieldLabel label="Name" />
+        <TextInput
+          value={name}
+          onChangeText={text => { setName(text); setNameTouched(true); }}
+          placeholder="e.g. Valley Prep v Menlopark"
+          placeholderTextColor={themeColor(isDark, 'ink-muted')}
+          accessibilityLabel="Name"
+          className={TEXT_INPUT}
+        />
+      </View>
+      <View className="gap-1.5">
+        <FieldLabel label="First day" />
+        <View style={{ maxWidth: 220 }}>
+          <DatePicker value={startDate} onChange={setStartDate} />
+        </View>
+      </View>
+      <Text className="font-inter text-xs text-ink-muted leading-relaxed">
+        Sports, divisions and pairings are set up on the event. {opponent ? opponent.name : 'The other organisation'} is invited when you are ready.
       </Text>
     </EditDialog>
   );

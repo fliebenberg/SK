@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { EventOrgInvitation, GameSummary, OrgBadge, Sport, TournamentDivision, TournamentEntrant, drawChanges, isEntrantEntered } from '@sk/shared';
+import { EventOrgInvitation, GameSummary, OrgBadge, Sport, TournamentDivision, TournamentEntrant, drawChanges, dualUnpaired, isEntrantEntered } from '@sk/shared';
 import { FixtureCrest } from '../events/EventBits';
 import { formatLabel, formatOfStages } from './DivisionDialogs';
 import { useActiveTheme } from '../../store/settingsStore';
@@ -137,8 +137,10 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
  * `entrants` is the whole roster, withdrawn teams included — a withdrawn team still in the draw is
  * one of the two changes `drawChanges` looks for.
  */
-export function divisionStateOf({ setupMode, games, entrants, firstStageId, afterDayEnd = 0 }: {
+export function divisionStateOf({ setupMode, games, entrants, firstStageId, afterDayEnd = 0, dual = false }: {
   setupMode: boolean;
+  /** A Head to Head's division (`H2H-1`): paired rather than drawn, so it speaks of games and pairing. */
+  dual?: boolean;
   /** The division's own fixtures. */
   games: GameSummary[];
   entrants: TournamentEntrant[];
@@ -149,6 +151,17 @@ export function divisionStateOf({ setupMode, games, entrants, firstStageId, afte
   const live = games.filter(g => g.status === 'Live').length;
   const played = games.filter(g => g.status === 'Finished').length;
   const started = live > 0 || played > 0;
+  if (setupMode && !started && dual) {
+    const entered = entrants.filter(e => isEntrantEntered(e.status));
+    if (!games.length && !entered.length) return { tone: 'mute', label: 'Not paired yet' };
+    const alone = dualUnpaired(entrants, games).length;
+    if (alone) return { tone: 'wait', label: `${plural(alone, 'team')} without a game` };
+    const unscheduled = games.filter(g => g.status !== 'Cancelled' && (!g.startTime || !!g.timeTbd || !g.facilityId)).length;
+    if (unscheduled === games.length) return { tone: 'mute', label: 'Paired · not scheduled' };
+    if (unscheduled) return { tone: 'wait', label: `${plural(unscheduled, 'game')} without a time` };
+    if (afterDayEnd) return { tone: 'wait', label: `${afterDayEnd} after the day ends` };
+    return { tone: 'ok', label: 'Scheduled' };
+  }
   if (setupMode && !started) {
     if (entrants.filter(e => isEntrantEntered(e.status)).length < 2) return { tone: 'wait', label: 'Needs more teams' };
     if (!games.length) return { tone: 'mute', label: 'Not drawn yet' };
@@ -161,10 +174,10 @@ export function divisionStateOf({ setupMode, games, entrants, firstStageId, afte
     return { tone: 'ok', label: 'Scheduled' };
   }
   if (live) return { tone: 'live', label: `${live} live · ${played} of ${games.length} played` };
-  if (!games.length) return { tone: 'mute', label: 'Fixtures to come' };
+  if (!games.length) return { tone: 'mute', label: dual ? 'Games to come' : 'Fixtures to come' };
   if (played === games.length) return { tone: 'ok', label: 'Finished' };
   if (played) return { tone: 'ok', label: `${played} of ${games.length} played` };
-  return { tone: 'ok', label: plural(games.length, 'fixture') };
+  return { tone: 'ok', label: plural(games.length, dual ? 'game' : 'fixture') };
 }
 
 /** A division's state as its tile and its page show it: a coloured dot and the words. */
@@ -384,8 +397,10 @@ const TILE_GAP = 10;
  * ＋ Add a … division while setting up. The same on the Sports & divisions card, which shows the
  * chosen sport, and on the full page, which shows every sport.
  */
-export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, divisionState, onOpenDivision, onAddDivision, canAddDivision, sportMenu }: {
+export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, divisionState, onOpenDivision, onAddDivision, canAddDivision, sportMenu, dual }: {
   sportId: string;
+  /** A Head to Head's divisions are paired, so a tile names no format (`H2H-1`). */
+  dual?: boolean;
   sportName: string;
   /** This sport's divisions. */
   divisions: TournamentDivision[];
@@ -427,7 +442,7 @@ export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, 
           >
             <Text className="font-inter-bold text-[15px] text-ink" numberOfLines={1}>{d.name}</Text>
             <Text className="font-inter text-xs text-ink-muted" numberOfLines={2}>
-              {divisionFormatLabel(d)}{'\n'}{d.ageGroup || 'Any age'} · {plural(teamsIn(d), 'team')}
+              {dual ? '' : `${divisionFormatLabel(d)}\n`}{d.ageGroup || 'Any age'} · {plural(teamsIn(d), 'team')}
             </Text>
             <View className="mt-auto">
               <DivisionStateLine state={divisionState(d)} />
@@ -455,9 +470,10 @@ export function SportBlock({ sportId, sportName, divisions, entrantsByDivision, 
  * *All N* list any more (2026-10-09): the arrows and the card's *See all ›* page cover jumping.
  */
 export function SportsDivisions({
-  sports, sportIds, divisions, entrantsByDivision, divisionState, isWide, attention, onOpenDivision, onAddDivision, canAddDivision, sportMenu,
+  sports, sportIds, divisions, entrantsByDivision, divisionState, isWide, attention, onOpenDivision, onAddDivision, canAddDivision, sportMenu, dual,
 }: {
   sports: Sport[];
+  dual?: boolean;
   /** The tournament's sports, in its order. */
   sportIds: string[];
   divisions: TournamentDivision[];
@@ -503,6 +519,7 @@ export function SportsDivisions({
         ))}
       </ChipCarousel>
       <SportBlock
+        dual={dual}
         sportId={current}
         sportName={sportName(current)}
         divisions={divisionsOf(current)}
@@ -819,17 +836,25 @@ export function WarningsList({ warnings, limit, onMore }: { warnings: StepWarnin
  * Organisations added but not invited yet: the count and *Invite all* on one line, what that means
  * on one quiet line under it.
  */
-export function NotInvitedBox({ count, nobodyYet, onInviteAll }: { count: number; nobodyYet: boolean; onInviteAll: () => void }) {
+export function NotInvitedBox({ count, nobodyYet, onInviteAll, subject = 'tournament', orgName }: {
+  count: number;
+  nobodyYet: boolean;
+  onInviteAll: () => void;
+  /** What they cannot see: "tournament", or "Head to Head" (`H2H-1`). */
+  subject?: string;
+  /** The one organisation not invited, named — a Head to Head has only one to invite. */
+  orgName?: string;
+}) {
   if (!count) return null;
   return (
     <View className="rounded-xl border border-line px-3 py-2.5 gap-0.5">
       <View className="flex-row items-center gap-2.5">
-        <Text className="flex-1 font-inter-bold text-sm text-ink">{nobodyYet ? 'Nobody invited yet' : `${count} not invited yet`}</Text>
+        <Text className="flex-1 font-inter-bold text-sm text-ink">{orgName && count === 1 ? `${orgName} is not invited yet` : nobodyYet ? 'Nobody invited yet' : `${count} not invited yet`}</Text>
         <TouchableOpacity onPress={onInviteAll} accessibilityRole="button" className="rounded-xl bg-primary px-3 py-1.5">
           <Text className="font-inter-bold text-[13px] text-on-primary">{count === 1 ? 'Invite' : `Invite all ${count}`}</Text>
         </TouchableOpacity>
       </View>
-      <Text className="font-inter text-xs text-ink-muted">{count === 1 ? 'It' : 'They'} can't see this tournament until invited.</Text>
+      <Text className="font-inter text-xs text-ink-muted">{count === 1 && !orgName ? 'It' : 'They'} can't see this {subject} until invited.</Text>
     </View>
   );
 }

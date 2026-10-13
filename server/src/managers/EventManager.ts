@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { Event, EventOrgHistory, Game, GameParticipant, GameClockState, GameEvent, GameSummary, AddGamePayload, UpdateGamePayload } from "@sk/shared";
-import { getPeriodLabel, assertCalendarDates } from "@sk/shared";
+import { getPeriodLabel, assertCalendarDates, hasLeft, isDualEvent } from "@sk/shared";
 import { BaseManager, Tx } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 import { INVITATION_LIST, LISTED, NOT_LISTED } from "./eventVisibility";
@@ -15,7 +15,7 @@ export interface EventOrgActor {
 }
 
 export class EventManager extends BaseManager {
-  private EVENT_COLUMNS = 'id, name, type, format, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", ARRAY(SELECT org_id FROM event_organizations WHERE event_id = events.id AND invitation IN (\'accepted\', \'withdrawal_pending\')) as "participatingOrgIds", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', o.id, \'name\', o.name, \'shortName\', o.short_name, \'logo\', o.logo, \'logoConfig\', o.settings->\'logoConfig\', \'primaryColor\', o.primary_color, \'isClaimed\', o.is_claimed, \'invitation\', eo.invitation, \'invitedAt\', eo.invited_at, \'answeredAt\', eo.answered_at) ORDER BY o.name) FROM event_organizations eo JOIN organizations o ON o.id = eo.org_id WHERE eo.event_id = events.id), \'[]\'::jsonb) as "participatingOrgs", ARRAY(SELECT sport_id FROM event_sports WHERE event_id = events.id) as "sportIds", settings, status, orgs_may_add_teams as "orgsMayAddTeams", gap_between_games_min as "gapBetweenGamesMin", min_team_break_min as "minTeamBreakMin", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'day\', ed.day::text, \'dayStarts\', to_char(ed.day_starts, \'HH24:MI\'), \'dayEnds\', to_char(ed.day_ends, \'HH24:MI\')) ORDER BY ed.day) FROM event_days ed WHERE ed.event_id = events.id), \'[]\'::jsonb) as days';
+  private EVENT_COLUMNS = 'id, name, type, format, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", ARRAY(SELECT org_id FROM event_organizations WHERE event_id = events.id AND invitation IN (\'accepted\', \'withdrawal_pending\')) as "participatingOrgIds", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', o.id, \'name\', o.name, \'shortName\', o.short_name, \'logo\', o.logo, \'logoConfig\', o.settings->\'logoConfig\', \'primaryColor\', o.primary_color, \'secondaryColor\', o.secondary_color, \'isClaimed\', o.is_claimed, \'invitation\', eo.invitation, \'invitedAt\', eo.invited_at, \'answeredAt\', eo.answered_at) ORDER BY o.name) FROM event_organizations eo JOIN organizations o ON o.id = eo.org_id WHERE eo.event_id = events.id), \'[]\'::jsonb) as "participatingOrgs", ARRAY(SELECT sport_id FROM event_sports WHERE event_id = events.id) as "sportIds", settings, status, orgs_may_add_teams as "orgsMayAddTeams", gap_between_games_min as "gapBetweenGamesMin", min_team_break_min as "minTeamBreakMin", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'day\', ed.day::text, \'dayStarts\', to_char(ed.day_starts, \'HH24:MI\'), \'dayEnds\', to_char(ed.day_ends, \'HH24:MI\')) ORDER BY ed.day) FROM event_days ed WHERE ed.event_id = events.id), \'[]\'::jsonb) as days';
   private GAME_COLUMNS = 'g.id, g.event_id as "eventId", g.sport_id as "sportId", g.stage_id as "stageId", (SELECT ds.division_id FROM division_stages ds WHERE ds.id = g.stage_id) as "divisionId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", g.placed_by as "placedBy", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', p.id, \'gameId\', p.game_id, \'teamId\', p.team_id, \'name\', t.name, \'orgProfileId\', p.org_profile_id, \'status\', p.status, \'sortOrder\', p.sort_order, \'entrantId\', p.entrant_id, \'sourceGameId\', p.source_game_id, \'sourceStageId\', p.source_stage_id, \'sourceRule\', p.source_rule) ORDER BY p.sort_order, p.id) FROM game_participants p LEFT JOIN teams t ON t.id = p.team_id WHERE p.game_id = g.id), \'[]\'::jsonb) as participants';
 
   /**
@@ -311,6 +311,20 @@ export class EventManager extends BaseManager {
     if (!unique.length) throw new Error('Choose at least one organisation to add.');
     const known = await this.query('SELECT id FROM organizations WHERE id = ANY($1::text[])', [unique]);
     if (known.rows.length !== unique.length) throw new Error('One of those organisations no longer exists.');
+    /*
+     * A Head to Head is between two organisations (`H2H-1`): the host and one other. One that
+     * declined or withdrew no longer counts, so the organiser can ask somebody else. Playing a third
+     * is a full tournament, which converting one is for (`H2H-2`).
+     */
+    if (isDualEvent(event)) {
+      const others = new Set([
+        ...(event.participatingOrgs || []).filter(o => o.id !== event.orgId && !hasLeft(o.invitation)).map(o => o.id),
+        ...unique.filter(id => id !== event.orgId),
+      ]);
+      if (others.size > 1) {
+        throw new Error('A Head to Head is between two organisations, so it already has the one it plays. Remove that one first to play somebody else.');
+      }
+    }
 
     await this.transaction(async (tx) => {
       for (const orgId of unique) {
