@@ -375,6 +375,51 @@ This document is a space to jot down brilliant ideas for the application while w
       how long records are kept, since they are minors' data; whether attendance feeds anything —
       selection, a season attendance percentage on the player — or is only a record; and whether
       several people can mark the same roll call at once (two teachers, one bus each).
+- [ ] **Disciplines: sports made of several sports (athletics, gymnastics, swimming).** The 100m, high
+  jump and 4×100m relay are each nearly a sport of their own, yet an athlete *does athletics* and a
+  school has *one* athletics convenor. Agreed in brainstorming (2026-10-13): add a **discipline** level
+  under the sport rather than making each one a sport — athletics alone has ~40, which would swamp the
+  sports list, break "plays athletics" on a profile and the single sport organiser, and lose the rules
+  that span disciplines.
+    - **The split.** About the person or the organisation → the **sport**: a player's sports, coaches,
+      teams, which sports a tournament includes, sport organisers (`event_sport_organizers`), the
+      organisation roll-up, cross-discipline rules ("max 3 individual events per athlete"). About how a
+      result is measured or ranked → the **discipline**: measure (time / distance / height / judged
+      score), which direction wins, format (lane race / field attempts / judged routine), individual or
+      team (relay), rounds (heats → final, already division stages per D11).
+    - **In a tournament** a division becomes discipline × age group × sex ("U13 Girls 100m"). Divisions
+      already belong to a sport, so the athletics convenor covers all of them unchanged; a division
+      organiser can be the high-jump judge.
+    - **Name clash.** Athletics and swimming call a discipline an "event", and "event" already means a
+      tournament here. Call it `discipline` in code; let each sport set the label users see — "Events"
+      for athletics and swimming, "Apparatus" for gymnastics.
+    - **Combined disciplines, one level deep.** A combined discipline is made of ordinary disciplines;
+      it never contains another combined one. Two flavours the model must distinguish:
+      **gymnastics all-around** reuses the *same* routines that count for the apparatus rankings and
+      adds raw scores; **decathlon / heptathlon** has its own component contests that only its
+      entrants take part in (the decathlon 100m is not the open 100m), and turns each performance into
+      points via the combined-events tables (see the scoring entry below) before adding them.
+    - **Best all-round athlete is not a discipline.** A school's victor ludorum adds up an athlete's
+      placing points across whatever they entered — an individuals' standings table for the tournament,
+      the counterpart of the organisations' table.
+    - **Where disciplines are defined.** The standard list is part of the sport template, beside
+      `event_templates` in the sport seed files, with the seed as the source of truth as for rugby and
+      netball. Each discipline gets a stable id that never changes, so results line up across meets for
+      personal bests and records. An organiser's own disciplines (a prep school's sack race) belong to
+      that tournament, not to the sport.
+    - **Setting up a meet needs a programme grid.** 30 disciplines × 8 age groups ≈ 240 divisions:
+      tick disciplines and age groups, and the divisions are created for you. Likely a tournament type
+      of its own — the **Ranked meet** format already named in
+      [docs/tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md#L388).
+    - **Scheduling runs to a programme.** Field events run at the same time as each other; track
+      events run one after another. Direction: treat the track and each field area as facilities that
+      fixtures are allocated to with timeslots, reusing `event_facilities` and shared ground (D34). The
+      difference to design for: the track is used in short turns, race after race, while a field area
+      holds one long session with many athletes — so there a "fixture" is a whole session. Detail
+      deferred to when these sports are built.
+    - **Builds on** the ranked-meet groundwork in
+      [docs/tournaments.md §4](file:///c:/Fred/Coding/SK/docs/tournaments.md) (ranked results,
+      placing-to-points, `MatchTopology` actually consulted) and `SPORT-10`.
 - [ ] **Lane-based race timing by consensus start.** Replace the stopwatch-and-shout process at
   non-professional meets: one timekeeper per lane in the app, each pressing start on the gun and stop
   on their competitor, with the app attributing the time to the right competitor automatically.
