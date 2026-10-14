@@ -53,11 +53,17 @@ export function LeftNavigationRail() {
     return () => animation.stop();
   }, [isHovered, hoverAnim]);
 
-  // The rail occupies real layout width, so growing it pushes the page across
-  // instead of covering it.
+  // The fly-out grows over the page rather than pushing it across: only the resting
+  // rail's width is reserved in the layout (see the wrapper below).
   const railWidth = hoverAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [RAIL_WIDTH, PANEL_WIDTH],
+  });
+
+  // The fly-out casts a shadow onto the page it covers; the resting rail casts none.
+  const flyoutShadowOpacity = hoverAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.18],
   });
 
   // Cross-fade the two trees, with a slight overlap so neither edge is ever bare.
@@ -498,52 +504,62 @@ export function LeftNavigationRail() {
     const edgeColor = themeColor(isDark, 'line');
 
     return (
-      <AnimatedBox
-        {...webHoverHandlers}
-        style={{
-          width: railWidth,
-          height: '100%',
-          zIndex: 40,
-          backgroundColor: surfaceColor,
-          borderRightWidth: 1,
-          borderRightColor: edgeColor,
-          // Clip the panel so widening the rail wipes it into view.
-          overflow: 'hidden',
-        }}
-      >
-        {/* Resting icon rail */}
+      // Reserves the resting rail's width, so the page never resizes; the fly-out is
+      // absolutely positioned inside it and widens over the page.
+      <View style={{ width: RAIL_WIDTH, height: '100%', zIndex: 40 }}>
         <AnimatedBox
-          pointerEvents={isHovered ? 'none' : 'auto'}
+          {...webHoverHandlers}
           style={{
             position: 'absolute',
             top: 0,
             left: 0,
+            width: railWidth,
             height: '100%',
-            width: RAIL_WIDTH,
-            opacity: iconRailOpacity,
+            backgroundColor: surfaceColor,
+            borderRightWidth: 1,
+            borderRightColor: edgeColor,
+            shadowColor: themeColor(isDark, 'shadow'),
+            shadowOffset: { width: 4, height: 0 },
+            shadowOpacity: flyoutShadowOpacity,
+            shadowRadius: 12,
+            // Clip the panel so widening the rail wipes it into view.
+            overflow: 'hidden',
           }}
         >
-          {renderMinimizedRail()}
-        </AnimatedBox>
+          {/* Resting icon rail */}
+          <AnimatedBox
+            pointerEvents={isHovered ? 'none' : 'auto'}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              height: '100%',
+              width: RAIL_WIDTH,
+              opacity: iconRailOpacity,
+            }}
+          >
+            {renderMinimizedRail()}
+          </AnimatedBox>
 
-        {/* Full panel, revealed as the rail widens */}
-        <AnimatedBox
-          pointerEvents={isHovered ? 'auto' : 'none'}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            height: '100%',
-            width: PANEL_WIDTH,
-            paddingVertical: 24,
-            paddingHorizontal: 16,
-            justifyContent: 'space-between',
-            opacity: panelOpacity,
-          }}
-        >
-          {renderExpandedContent()}
+          {/* Full panel, revealed as the rail widens */}
+          <AnimatedBox
+            pointerEvents={isHovered ? 'auto' : 'none'}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              height: '100%',
+              width: PANEL_WIDTH,
+              paddingVertical: 24,
+              paddingHorizontal: 16,
+              justifyContent: 'space-between',
+              opacity: panelOpacity,
+            }}
+          >
+            {renderExpandedContent()}
+          </AnimatedBox>
         </AnimatedBox>
-      </AnimatedBox>
+      </View>
     );
   }
 
