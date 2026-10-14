@@ -448,7 +448,7 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
         };
         await insert('events',
             ['id', 'name', 'type', 'format', 'start_date', 'end_date', 'site_id', 'org_id', 'settings', 'status', 'orgs_may_add_teams', 'gap_between_games_min', 'min_team_break_min'],
-            [tourId, tour.name, 'Tournament', 'Festival', tour.startDate, tour.endDate, fixtureIds.site(host.key), fixtureIds.org(host.key), {}, 'Scheduled', tour.orgsMayAddTeams,
+            [tourId, tour.name, 'Tournament', tour.format || 'Festival', tour.startDate, tour.endDate, fixtureIds.site(host.key), fixtureIds.org(host.key), {}, 'Scheduled', tour.orgsMayAddTeams,
              tour.gapBetweenGamesMin ?? 5, tour.minTeamBreakMin ?? 0]);
         // Phase 7: playing days and the facilities in play.
         if (tour.days?.length) {
@@ -483,7 +483,9 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
                 ['id', 'event_id', 'name', 'sport_id', 'age_group_id', 'sort_order', 'entries_locked_at', 'entries_locked_by_user_id', 'orgs_may_add_teams'],
                 [divisionId, tourId, division.name, division.sportId, starterAgeGroupId(division.sportId, division.ageGroup), sortOrder,
                  division.locked ? FIXTURE_MEMBERSHIP_START : null, division.locked ? userOf(host.admin.name) : null, division.orgsMayAddTeams ?? null]);
-            await insert('division_stages', ['id', 'division_id', 'name', 'format', 'sequence'], [stageId, divisionId, 'Fixtures', 'RoundRobin', 1]);
+            // A Head to Head's division plays one stage of games set by hand (`stagePlanForFormat('Dual')`).
+            await insert('division_stages', ['id', 'division_id', 'name', 'format', 'sequence'],
+                tour.format === 'Dual' ? [stageId, divisionId, 'Games', 'Festival', 1] : [stageId, divisionId, 'Fixtures', 'RoundRobin', 1]);
             for (const [seed, entry] of division.teams.entries()) {
                 const org = TEST_ORGS.find(o => o.key === entry.org);
                 if (!org?.teams.some(t => t.key === entry.team)) throw new Error(`Tournament ${tour.key}: there is no team ${entry.team} in ${entry.org}.`);
@@ -502,6 +504,31 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
             }
             for (const key of division.facilities || []) await insert('division_facilities', ['division_id', 'facility_id'], [divisionId, hostFacility(key)]);
             if (division.drawn) await drawAndSchedule(tour, division, divisionId, stageId, booked, hostFacility);
+            // A Head to Head's games, as pairing writes them; a result keyed by participant, as the app records one.
+            for (const [n, game] of (division.games || []).entries()) {
+                const guestOrg = tour.orgs[0]?.org;
+                if (!guestOrg) throw new Error(`Tournament ${tour.key}: a Head to Head needs the organisation it plays.`);
+                const gameId = fixtureIds.tournamentGame(tour.key, division.key, n + 1);
+                const sides = [
+                    { org: tour.host, team: game.host, id: `${gameId}-home` },
+                    { org: guestOrg, team: game.guest, id: `${gameId}-away` },
+                ];
+                for (const side of sides) {
+                    if (!division.teams.some(t => t.org === side.org && t.team === side.team)) {
+                        throw new Error(`Tournament ${tour.key}, ${division.key}: ${side.org} ${side.team} is not entered in the division.`);
+                    }
+                }
+                const start = zonedInputsToInstant(tour.startDate, game.time, SITE_TIMEZONE);
+                const finished = game.status === 'Finished';
+                await insert('games',
+                    ['id', 'event_id', 'sport_id', 'stage_id', 'scheduled_start_time', 'start_time', 'status', 'site_id', 'facility_id', 'placed_by', 'final_score_data', 'custom_settings'],
+                    [gameId, tourId, division.sportId, stageId, start, start, game.status, fixtureIds.site(tour.host), hostFacility(game.facility), 'hand',
+                     finished && game.score ? { scores: { [sides[0].id]: game.score[0], [sides[1].id]: game.score[1] } } : null, {}]);
+                for (const [sortOrder, side] of sides.entries()) {
+                    await insert('game_participants', ['id', 'game_id', 'team_id', 'entrant_id', 'sort_order'],
+                        [side.id, gameId, fixtureIds.team(side.org, side.team), fixtureIds.entrant(tour.key, division.key, side.org, side.team), sortOrder]);
+                }
+            }
         }
     }
 

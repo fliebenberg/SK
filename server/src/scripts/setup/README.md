@@ -63,6 +63,11 @@ lists every person with `account: true`.
   (spilling onto the second Saturday, with one fixture left **without a time**), Rugby U16 on the
   two mini fields, and Rugby 1st XV on A Field — which waits for the minis on its ground and so
   finishes **after the second Saturday's end**, the one clash the Schedule tab shows.
+- **A Head to Head** (`H2H-1`): *Test Head to Head* (`fx-tour-h2h`), Doringkloof against St
+  Aldric's, who accepted, played on Sat 10 Oct. Its divisions are Doringkloof's age groups, each
+  team against St Aldric's of the same age, with one of every result: Doringkloof won Rugby U16
+  (24–10), St Aldric's Rugby U19 (12–17), Netball U14 was drawn (9–9), Netball U16 is still to play,
+  and Doringkloof's Netball U19 had nobody to play.
 - **Shared ground (D34)**: Doringkloof's *Field A1* and *Field A2* are marked out on *A Field* —
   either may run with the other, never with A Field.
 - **Game lengths**: the netball and rugby seeds carry a break between periods (3 and 10 minutes), so

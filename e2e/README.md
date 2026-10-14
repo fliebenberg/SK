@@ -14,7 +14,8 @@ npm run e2e:report     # the last run's report, with traces of any failure
 - **Every run resets the data.** `global-setup.ts` runs `npm run db:test-orgs` in `server/` — the test
   organisations, and the tournament *Test Spring Festival* (`fx-tour-spring`, `TEST_TOURNAMENTS` in
   `server/src/scripts/setup/fixtures/testOrgs.ts`), which holds every kind of team answer, and *Test
-  Saturday Fixtures* (`fx-tour-saturday`), drawn and scheduled for the Schedule tab — and restarts
+  Saturday Fixtures* (`fx-tour-saturday`), drawn and scheduled for the Schedule tab, and *Test Head to
+  Head* (`fx-tour-h2h`), played with one of every result — and restarts
   the API so its caches reload. That deletes anything made by hand under a test organisation.
   `E2E_SKIP_RESET=1` runs against the data as it is.
 - **The files run in order, one at a time,** and later ones start from what earlier ones did: the
@@ -26,8 +27,9 @@ npm run e2e:report     # the last run's report, with traces of any failure
   move by the sheet with Undo, a real drag that lands at the time aimed for, dragging the day's hours, and
   Schedule again), then results entered offline (`09-offline-results.spec.ts`: the connection cut by
   routing the socket through the test — Playwright's offline mode leaves an open WebSocket alone —
-  a result waiting and then sent, and one refused over a result changed meanwhile), then a Head to Head (`10-head-to-head.spec.ts`: made from the
-  events list against St Aldric's, its divisions from Doringkloof's age groups, *Pair all*, and a division's two columns). A single file run on its own may therefore fail where the suite
+  a result waiting and then sent, and one refused over a result changed meanwhile), then a Head to Head (`10-head-to-head.spec.ts`: one made from the
+  events list against St Aldric's, its divisions from Doringkloof's age groups, *Pair all*, a division's games changed in its two
+  columns, and St Aldric's accepting it and its teams; then *Test Head to Head*'s results, the same from both sides). A single file run on its own may therefore fail where the suite
   passes.
 - **The phone runs first and only tests tagged `@phone`** — ones that read and change nothing — so it sees
   the data before the desktop tests change it.

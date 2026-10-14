@@ -581,10 +581,18 @@ export interface FixtureTournamentDivision {
     /** Fixtures (by index in the draw) left without a time — for the Schedule tab's tray. */
     leaveUnscheduled?: number[];
     teams: FixtureTournamentTeam[];
+    /**
+     * A Head to Head's games (`H2H-1`), paired by hand: the host's team key against the other
+     * organisation's, at a time on the tournament's first day, with a result when played. The score
+     * is the host's first.
+     */
+    games?: Array<{ host: string; guest: string; time: string; facility: string; status: 'Scheduled' | 'Finished'; score?: [number, number] }>;
 }
 export interface FixtureTournament {
     key: string;
     name: string;
+    /** `Dual` for a Head to Head (`H2H-1`): its divisions hold one stage of games paired by hand. */
+    format?: 'Festival' | 'Dual';
     /** The hosting organisation's key; it takes part as accepted. */
     host: string;
     startDate: string;
@@ -714,6 +722,47 @@ export const TEST_TOURNAMENTS: FixtureTournament[] = [
                     { org: 'sac', team: 'rugby-1stxv', status: 'accepted' },
                     { org: 'rbh', team: 'rugby-1stxv', status: 'accepted' },
                 ],
+            },
+        ],
+    },
+    /**
+     * *Test Head to Head* (`H2H-1`): Doringkloof against St Aldric's, who accepted, on a Saturday
+     * already played. Its divisions are Doringkloof's age groups, each team paired with St Aldric's
+     * team of the same age. The results give one of everything: Doringkloof won the rugby U16, St
+     * Aldric's the 1st XV, the netball U14 was drawn, the U16 is still to play, and Doringkloof's
+     * netball U19 had nobody to play.
+     */
+    {
+        key: 'h2h', name: 'Test Head to Head', format: 'Dual', host: 'dkl', startDate: '2026-10-10', endDate: '2026-10-10',
+        days: [{ day: '2026-10-10', dayStarts: '08:00', dayEnds: '13:00' }],
+        facilities: ['a-field', 'court-1', 'court-2'],
+        sportIds: ['rugby', 'netball'], orgsMayAddTeams: false,
+        orgs: [{ org: 'sac', invitation: 'accepted', by: 'Catherine Whitfield' }],
+        divisions: [
+            {
+                key: 'rugby-u16', name: 'U16', sportId: 'rugby', ageGroup: 'U16',
+                teams: [{ org: 'dkl', team: 'rugby-u16a', status: 'accepted' }, { org: 'sac', team: 'rugby-u16a', status: 'accepted' }],
+                games: [{ host: 'rugby-u16a', guest: 'rugby-u16a', time: '09:00', facility: 'a-field', status: 'Finished', score: [24, 10] }],
+            },
+            {
+                key: 'rugby-1stxv', name: 'U19', sportId: 'rugby', ageGroup: 'U19',
+                teams: [{ org: 'dkl', team: 'rugby-1stxv', status: 'accepted' }, { org: 'sac', team: 'rugby-1stxv', status: 'accepted' }],
+                games: [{ host: 'rugby-1stxv', guest: 'rugby-1stxv', time: '11:00', facility: 'a-field', status: 'Finished', score: [12, 17] }],
+            },
+            {
+                key: 'netball-u14', name: 'U14', sportId: 'netball', ageGroup: 'U14',
+                teams: [{ org: 'dkl', team: 'netball-u14a', status: 'accepted' }, { org: 'sac', team: 'netball-u14a', status: 'accepted' }],
+                games: [{ host: 'netball-u14a', guest: 'netball-u14a', time: '09:00', facility: 'court-1', status: 'Finished', score: [9, 9] }],
+            },
+            {
+                key: 'netball-u16', name: 'U16', sportId: 'netball', ageGroup: 'U16',
+                teams: [{ org: 'dkl', team: 'netball-u16a', status: 'accepted' }, { org: 'sac', team: 'netball-u16a', status: 'accepted' }],
+                games: [{ host: 'netball-u16a', guest: 'netball-u16a', time: '10:00', facility: 'court-2', status: 'Scheduled' }],
+            },
+            {
+                key: 'netball-u19', name: 'U19', sportId: 'netball', ageGroup: 'U19',
+                teams: [{ org: 'dkl', team: 'netball-u19a', status: 'accepted' }],
+                games: [],
             },
         ],
     },

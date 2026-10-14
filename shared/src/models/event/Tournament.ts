@@ -95,6 +95,12 @@ export interface TournamentDivision {
     /** Overrides the event's; most specific wins (data model §6). */
     scoring?: ScoringSystem;
     tiebreakers?: TiebreakFactor[];
+    /**
+     * A Head to Head's division (`H2H-1`): when it was first paired, an instant. After that *Pair all*
+     * leaves it alone, so a team the organiser left out is not entered again, and a division whose
+     * teams were all left out does not read as *not paired yet*.
+     */
+    pairedAt?: string;
   };
   sortOrder: number;
   /**

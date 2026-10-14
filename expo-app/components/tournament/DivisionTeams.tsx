@@ -337,8 +337,8 @@ export function DivisionTeamsCard({ division, event, orgId, entrants, games, org
         </View>
       )}
 
-      {/* A Head to Head has no lock and no adding of teams by the other side (`H2H-1`): the pairing is the entry. */}
-      {canEdit && !locked && !dual ? (
+      {/* A Head to Head has no lock (`H2H-1`), but the other side may still add a team, for the organisers to approve. */}
+      {canEdit && !locked ? (
         <OrgAddingLine
           division={division}
           event={event}

@@ -130,6 +130,13 @@ async function main() {
 
   const again = await tournamentManager.pairDualDivisions(event.id);
   expect([again.divisions.length, again.skipped.length], [0, 2], 'pairing all again leaves divisions with games alone');
+  expect(!!(await tournamentManager.getDivision(u14.id))?.settings?.pairedAt, true, 'and a paired division is marked so');
+  // A division paired once stays the organiser's even with no games left: Pair all must not enter
+  // again a team they left out.
+  await query(`DELETE FROM games WHERE stage_id IN (SELECT id FROM division_stages WHERE division_id = $1)`, [u14.id]);
+  await query(`DELETE FROM division_entrants WHERE division_id = $1`, [u14.id]);
+  const afterLeftOut = await tournamentManager.pairDualDivisions(event.id);
+  expect(afterLeftOut.skipped.includes(u14.id), true, 'Pair all leaves a paired division whose teams were all left out alone');
 
   // ------------------------------------------------------------------------------------------
   // 3. Setting the pairing by hand

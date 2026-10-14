@@ -167,7 +167,7 @@ export default function DivisionScreen() {
     ? afterDayEndByDivision(scheduleModel({ event, divisions: [division], games, sports, timeZone: venueZone }), games).get(division.id) || 0
     : 0;
   const unscheduledCount = games.filter(isUnscheduled).length;
-  const state = divisionStateOf({ setupMode: canEdit, games, entrants, firstStageId: ordered[0]?.id, afterDayEnd: lateCount, dual: isDualEvent(event) });
+  const state = divisionStateOf({ setupMode: canEdit, games, entrants, firstStageId: ordered[0]?.id, afterDayEnd: lateCount, dual: isDualEvent(event), division });
   // What stands between the division and its lock (`FIX-31`); the draw is made from locked entries.
   const gaps = entryLockGaps(entrants, event || {});
   const locked = !!division?.entriesLockedAt;

@@ -969,15 +969,19 @@ tiebreakers.
   [dual.ts](file:///c:/Fred/Coding/SK/shared/src/utils/dual.ts)): teams carry no A/B field, so each
   side's teams are sorted by name and the first meets the first. *Pair automatically* enters both
   sides' teams of the division's age group, then pairs them; a team left over has no game, and the
-  organiser gives it one — a team may play twice — or leaves it out. *Pair all* leaves a division that
-  already has games alone; *Pair again* replaces a division's games, until one has started.
+  organiser gives it one — a team may play twice — or leaves it out. A division is marked paired
+  (`settings.pairedAt`) the first time, and *Pair all* leaves a paired division alone — otherwise it
+  would enter again a team the organiser left out; *Pair again* replaces a division's games, until
+  one has started.
 - **The pairing editor is two columns** (option A): each game a row of two pickers, the host's team on
   the left. Changing a picker swaps the teams around, so every team keeps one game. Each change saves
   the division's whole set of games (`SET_DUAL_PAIRING`); a game whose two sides did not change keeps
   its time and court.
 - **No lock, no format, no table.** A Head to Head division has one stage of games set by hand
   (`stagePlanForFormat('Dual')`), never drawn, so entries are never locked and the format cannot be
-  changed (the server refuses `SET_DIVISION_FORMAT`).
+  changed (the server refuses `SET_DIVISION_FORMAT`). *Organisations can add their own teams* stays
+  (decided 2026-10-14): the other side may have a team the organiser did not know about. One it adds
+  waits for the organisers' approval, then shows as a team without a game, to be given an opponent.
 - **Results, not standings**: games won by each side and drawn, for the day, each sport and each
   division (`dualTally`), with a dot per game in the winner's colours — primary, ringed in the
   secondary. Shown in full, like every result in the app; the task to hide results or show only the
@@ -993,7 +997,7 @@ division's page shows the pairing ([DualPairing.tsx](file:///c:/Fred/Coding/SK/e
 The server half is `pairDualDivisions` and `setDualPairing` in
 [TournamentManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/TournamentManager.ts), checked by
 [test-head-to-head.ts](file:///c:/Fred/Coding/SK/server/src/scripts/test-head-to-head.ts) and
-`e2e/10-head-to-head.spec.ts`.
+`e2e/10-head-to-head.spec.ts`, with *Test Head to Head* (`fx-tour-h2h`) in the test data.
 
 **Not in the proof of concept:** converting into a full tournament (`H2H-2`), and hiding results.
 

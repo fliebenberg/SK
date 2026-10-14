@@ -2420,7 +2420,8 @@ export class TournamentManager extends BaseManager {
     for (const division of targets) {
       if (!division.sportId) { skipped.push(division.id); continue; }
       const existingGames = (await this.getDivisionGames(division.id)).filter(g => g.status !== 'Cancelled');
-      if (existingGames.length && !replace) { skipped.push(division.id); continue; }
+      // Paired before: its games, or the teams left out since, are the organiser's — only Pair again redoes it.
+      if ((existingGames.length || division.settings?.pairedAt) && !replace) { skipped.push(division.id); continue; }
       if (existingGames.length) await this.assertDivisionNotStarted(division.id, 'its games can no longer be paired again');
 
       let stage = (await this.getStages(division.id))[0];
@@ -2468,6 +2469,10 @@ export class TournamentManager extends BaseManager {
           participants: [{ teamId: h.teamId, entrantId: h.id }, { teamId: g.teamId, entrantId: g.id }],
         })));
       }
+      await this.query(
+        `UPDATE tournament_divisions SET settings = COALESCE(settings, '{}'::jsonb) || jsonb_build_object('pairedAt', NOW()) WHERE id = $1`,
+        [division.id]
+      );
       await this.recalculateDivision(division.id);
       divisions.push({ divisionId: division.id, games: pairs.length, unpaired: unpaired.length, deletedGameIds, stageId: stage.id });
     }

@@ -137,8 +137,10 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
  * `entrants` is the whole roster, withdrawn teams included — a withdrawn team still in the draw is
  * one of the two changes `drawChanges` looks for.
  */
-export function divisionStateOf({ setupMode, games, entrants, firstStageId, afterDayEnd = 0, dual = false }: {
+export function divisionStateOf({ setupMode, games, entrants, firstStageId, afterDayEnd = 0, dual = false, division }: {
   setupMode: boolean;
+  /** The division itself, for a Head to Head's `settings.pairedAt`. */
+  division?: Pick<TournamentDivision, 'settings'>;
   /** A Head to Head's division (`H2H-1`): paired rather than drawn, so it speaks of games and pairing. */
   dual?: boolean;
   /** The division's own fixtures. */
@@ -153,7 +155,7 @@ export function divisionStateOf({ setupMode, games, entrants, firstStageId, afte
   const started = live > 0 || played > 0;
   if (setupMode && !started && dual) {
     const entered = entrants.filter(e => isEntrantEntered(e.status));
-    if (!games.length && !entered.length) return { tone: 'mute', label: 'Not paired yet' };
+    if (!games.length && !entered.length) return { tone: 'mute', label: division?.settings?.pairedAt ? 'No games' : 'Not paired yet' };
     const alone = dualUnpaired(entrants, games).length;
     if (alone) return { tone: 'wait', label: `${plural(alone, 'team')} without a game` };
     const unscheduled = games.filter(g => g.status !== 'Cancelled' && (!g.startTime || !!g.timeTbd || !g.facilityId)).length;

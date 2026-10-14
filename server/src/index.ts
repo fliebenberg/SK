@@ -3558,8 +3558,9 @@ io.on('connection', (socket) => {
                     const games = await dataManager.getStageGames(division.stageId);
                     publishStageFixtures(division.divisionId, division.stageId, games);
                     for (const game of games) await publishGameSummary(game.id);
-                    // *Pair* enters teams too, so the rosters moved as well as the games.
+                    // *Pair* enters teams too, so the rosters moved as well as the games, and marks the division paired.
                     await publishEntrants(division.divisionId, await dataManager.getDivisionEntrants(division.divisionId), eventIdOf);
+                    await publishDivision(division.divisionId, 'DIVISION_UPDATED', await dataManager.getDivisionDetail(division.divisionId), eventIdOf);
                     publishStages(division.divisionId, await dataManager.getStages(division.divisionId));
                     await publishStandings(division.divisionId, eventIdOf);
                 }

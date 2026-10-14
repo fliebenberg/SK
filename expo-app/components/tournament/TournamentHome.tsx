@@ -129,7 +129,7 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
     const unpairedIn = (d: TournamentDivision) => dualUnpaired(entrantsByDivision.get(d.id) || [], games.filter(g => g.divisionId === d.id));
     const withUnpaired = dual ? playing.filter(d => unpairedIn(d).length > 0) : [];
     // Paired once pairing has run: it entered teams, even where none had a counterpart.
-    const paired = playing.filter(d => games.some(g => g.divisionId === d.id) || (entrantsByDivision.get(d.id) || []).some(e => isEntrantEntered(e.status)));
+    const paired = playing.filter(d => !!d.settings?.pairedAt || games.some(g => g.divisionId === d.id) || (entrantsByDivision.get(d.id) || []).some(e => isEntrantEntered(e.status)));
     const unpairedTeams = withUnpaired.reduce((n, d) => n + unpairedIn(d).length, 0);
 
     const steps: TournamentStep[] = [
@@ -279,7 +279,7 @@ export function TournamentHome({
   const guestOrg = dual ? (event.participatingOrgs || []).find(o => o.id !== event.orgId && !hasLeft(o.invitation)) : undefined;
   const unpairedOf = (d: TournamentDivision) => dualUnpaired(entrantsByDivision.get(d.id) || [], gamesIn(d));
   /** Not paired yet: no games, and no teams entered by a pairing or by hand. */
-  const notPaired = (d: TournamentDivision) => !gamesIn(d).length && !(entrantsByDivision.get(d.id) || []).some(e => isEntrantEntered(e.status));
+  const notPaired = (d: TournamentDivision) => !d.settings?.pairedAt && !gamesIn(d).length && !(entrantsByDivision.get(d.id) || []).some(e => isEntrantEntered(e.status));
   const [pairing, setPairing] = useState(false);
   const pairAll = async () => {
     setPairing(true);
@@ -572,7 +572,7 @@ export function TournamentHome({
                   ? 'Each sport gets a division for every age group your teams play in, e.g. Rugby U13; each of your teams there plays its counterpart. Add or remove divisions as you need.'
                   : 'A division is a group of teams that compete against each other — usually an age group, e.g. Rugby U16. Each division has its own draw and table, and teams are entered into a division. A sport can have one division or several.'}
               </>
-            ) : dual ? 'A division is one age group of a sport, e.g. Rugby U13, where each of your teams plays its counterpart.' : 'A division is a group of teams that compete against each other — usually an age group, e.g. Rugby U16.'}
+            ) : dual ? 'A division is one age group of a sport, e.g. Rugby U13, where each team plays its counterpart from the other side.' : 'A division is a group of teams that compete against each other — usually an age group, e.g. Rugby U16.'}
           </Text>
         ) : null}
         <SportsDivisions
@@ -605,7 +605,7 @@ export function TournamentHome({
   const orgRowsShown = mine ? orgs.visibleRows.filter(r => r.teams + r.players + r.toBeNamed > 0) : orgs.visibleRows;
   const orgsCard = orgRowsShown.length || canEdit ? (
     <TournamentCard
-      title={dual ? 'Playing against' : canEdit ? 'Organisations & teams' : 'Taking part'}
+      title={dual && canEdit ? 'Playing against' : canEdit ? 'Organisations & teams' : 'Taking part'}
       count={dual ? undefined : orgRowsShown.length}
       {...cardProps('entrants')}
       right={narrow => (
@@ -712,7 +712,7 @@ export function TournamentHome({
         <View className="flex-1 min-w-0">
           <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{divisionFullName(d.name, sportName(d.sportId))}</Text>
           <Text className={`font-inter text-xs ${alone.length && n ? 'text-warning-ink' : 'text-ink-muted'}`} numberOfLines={1}>
-            {notPaired(d) ? 'Not paired yet' : alone.length ? `${plural(n, 'game')} · ${alone.map(e => `${orgName(e.orgId)} ${e.name || e.label || ''}`.trim()).join(', ')} without a game` : `${plural(n, 'game')} · paired`}
+            {notPaired(d) ? 'Not paired yet' : !n && !alone.length ? 'No games — every team left out' : alone.length ? `${plural(n, 'game')} · ${alone.map(e => `${orgName(e.orgId)} ${e.name || e.label || ''}`.trim()).join(', ')} without a game` : `${plural(n, 'game')} · paired`}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-muted')} />
@@ -951,6 +951,10 @@ export function TournamentHome({
         myUserId={myUserId}
         wide={false}
         onRemove={() => {}}
+        // Its teams, so *Accept for all invited teams* has them to accept, as on its own page.
+        teams={Array.from(allEntrantsByDivision.values()).flat().filter(e => e.orgId === o.id)}
+        divisions={allDivisions}
+        sportName={sportName}
       />
       {link(`${o.name}'s page in this tournament ›`, () => orgs.openOrg(o.id))}
     </View>

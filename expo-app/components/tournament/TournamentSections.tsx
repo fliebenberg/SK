@@ -69,7 +69,7 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
     [event, divisions, games, sports, timeZone]
   );
   const divisionState = (d: TournamentDivision): DivisionState =>
-    divisionStateOf({ setupMode, games: gamesIn(d), entrants: entrantsByDivision.get(d.id) || [], firstStageId: d.firstStageId, afterDayEnd: lateByDivision.get(d.id) || 0, dual: isDualEvent(event) });
+    divisionStateOf({ setupMode, games: gamesIn(d), entrants: entrantsByDivision.get(d.id) || [], firstStageId: d.firstStageId, afterDayEnd: lateByDivision.get(d.id) || 0, dual: isDualEvent(event), division: d });
   /**
    * A dot on a sport's chip: red while one of its games is live; amber while setting up when one of
    * its divisions needs seeing to — too few teams, or changed since its draw. Not drawn yet is not
@@ -336,6 +336,8 @@ export function useOrganisationsSection({ event, orgId, sports, divisions, entra
    * toggle at the foot of the section — the same line a division's Teams card has.
    */
   const [savingAdding, setSavingAdding] = useState(false);
+  // On a Head to Head too (`H2H-1`, the user's call 2026-10-14): the other side may have a team the
+  // organiser did not know about. A team added waits for approval, then shows as without a game.
   const addingLine = canEdit ? (
     <OrgAddingLine
       event={event}
