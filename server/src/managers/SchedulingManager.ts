@@ -298,6 +298,91 @@ export class SchedulingManager extends BaseManager {
   }
 
   /**
+   * What a single match, or a game about to be added, would clash with (`FIX-23`, 2026-10-15): the
+   * same check as the Schedule tab's (`findClashes`), looked up by facility rather than by tournament.
+   * Against every event's games on that day at the facility and any sharing ground with it, and
+   * every game either team plays that day. Warnings only — the caller saves anyway (U26).
+   *
+   * Different facilities of one site at the same time are not a clash (agreed 2026-10-15): festivals
+   * run games side by side on purpose.
+   */
+  async proposedGameClashes(p: {
+    gameId?: string | null; startAt: string; facilityId?: string | null; siteId?: string | null;
+    teamIds?: string[]; sportId?: string | null;
+  }): Promise<{ warnings: string[] }> {
+    if (!p.startAt || Number.isNaN(new Date(p.startAt).getTime())) return { warnings: [] };
+    const teamIds = (p.teamIds || []).filter(Boolean);
+    const tzRes = await this.query(
+      `SELECT COALESCE(s.timezone, o.timezone) AS tz
+         FROM sites s LEFT JOIN organizations o ON o.id = s.org_id
+        WHERE s.id = COALESCE((SELECT site_id FROM facilities WHERE id = $1), $2)`,
+      [p.facilityId || null, p.siteId || null]
+    );
+    const timeZone = tzRes.rows[0]?.tz || DEFAULT_TIME_ZONE;
+    const local = instantToZonedInputs(new Date(p.startAt).toISOString(), timeZone);
+    if (!local) return { warnings: [] };
+    const day = local.date as CalendarDate;
+
+    const pairs = p.facilityId ? await this.sharedGroundPairs([p.facilityId]) : [];
+    const reach = p.facilityId ? [...new Set([p.facilityId, ...pairs.flat()])] : [];
+    if (!reach.length && !teamIds.length) return { warnings: [] };
+
+    const sport = p.sportId ? await this.query(`SELECT default_settings FROM sports WHERE id = $1`, [p.sportId]) : null;
+    const self: Booking = {
+      id: 'proposed', day, facilityId: p.facilityId || 'none:proposed', start: minuteOfDay(local.time) ?? 0,
+      minutes: fixtureMinutes(sport?.rows[0]?.default_settings, null) ?? UNTIMED_GAME_MINUTES,
+      competitors: teamIds, gap: 0, teamBreak: 0,
+    };
+
+    const res = await this.query(
+      `SELECT g.id, g.facility_id AS "facilityId", g.start_time AS "startTime", g.custom_settings AS "customSettings",
+              sp.default_settings AS "sportSettings", f.name AS "facilityName",
+              COALESCE((SELECT jsonb_agg(gp.team_id) FROM game_participants gp WHERE gp.game_id = g.id AND gp.team_id IS NOT NULL), '[]'::jsonb) AS competitors,
+              (SELECT string_agg(COALESCE(o.short_name, o.name) || ' ' || t.name, ' v ' ORDER BY gp.sort_order)
+                 FROM game_participants gp JOIN teams t ON t.id = gp.team_id LEFT JOIN organizations o ON o.id = t.org_id
+                WHERE gp.game_id = g.id) AS label
+         FROM games g LEFT JOIN sports sp ON sp.id = g.sport_id LEFT JOIN facilities f ON f.id = g.facility_id
+        WHERE g.id <> COALESCE($1, '') AND COALESCE(g.status, '') <> 'Cancelled'
+          AND g.start_time BETWEEN $2 AND $3
+          AND COALESCE((g.custom_settings->>'timeTbd')::boolean, false) = false
+          AND (g.facility_id = ANY($4) OR EXISTS (SELECT 1 FROM game_participants gp WHERE gp.game_id = g.id AND gp.team_id = ANY($5)))`,
+      [p.gameId || null, zonedInputsToInstant(day, '00:00', timeZone), zonedInputsToInstant(day, '23:59', timeZone), reach, teamIds]
+    );
+    const others = new Map<string, { label: string; start: number; minutes: number; facilityName: string }>();
+    const bookings: Booking[] = [self];
+    for (const r of res.rows) {
+      const at = instantToZonedInputs(new Date(r.startTime).toISOString(), timeZone);
+      if (!at || at.date !== day) continue;
+      const b: Booking = {
+        id: r.id, day, facilityId: r.facilityId || `none:${r.id}`, start: minuteOfDay(at.time) ?? 0,
+        minutes: fixtureMinutes(r.sportSettings, r.customSettings) ?? UNTIMED_GAME_MINUTES,
+        competitors: r.competitors, gap: 0, teamBreak: 0,
+      };
+      bookings.push(b);
+      others.set(r.id, { label: r.label || 'Another game', start: b.start, minutes: b.minutes, facilityName: r.facilityName || '' });
+    }
+
+    const names = await this.query(
+      `SELECT 'f' AS kind, id, name FROM facilities WHERE id = ANY($1)
+       UNION ALL
+       SELECT 't', t.id, COALESCE(o.short_name, o.name) || ' ' || t.name FROM teams t LEFT JOIN organizations o ON o.id = t.org_id WHERE t.id = ANY($2)`,
+      [reach, teamIds]
+    );
+    const nameOf = (kind: string, id?: string | null) => names.rows.find((n: any) => n.kind === kind && n.id === id)?.name || '';
+    const span = (o: { start: number; minutes: number }) => `from ${timeOfDay(o.start)} to ${timeOfDay(o.start + o.minutes)}`;
+    const warnings: string[] = [];
+    for (const c of findClashes(bookings, sharedGroundMap(pairs))) {
+      if (!c.ids.includes('proposed')) continue;
+      const other = others.get(c.ids.find(id => id !== 'proposed') || '');
+      if (!other) continue;
+      if (c.kind === 'facility') warnings.push(`${nameOf('f', p.facilityId)} has ${other.label} ${span(other)}`);
+      else if (c.kind === 'sharedGround') warnings.push(`${other.facilityName} shares ground with ${nameOf('f', p.facilityId)} and has ${other.label} ${span(other)}`);
+      else if (c.kind === 'teamAtOnce') warnings.push(`${nameOf('t', c.competitor)} also plays ${other.label} ${span(other)}`);
+    }
+    return { warnings: [...new Set(warnings)] };
+  }
+
+  /**
    * Every clash in a tournament, against its own fixtures and other events' at its facilities —
    * the server's copy of what the Schedule tab shows, used to report what a move caused.
    */

@@ -87,3 +87,35 @@ export function validateRecordedResult(
     throw new Error('A score must be a number, zero or more.');
   }
 }
+
+/**
+ * Refuse an `UPDATE_GAME` that changes the team on a side that comes from a tournament's draw
+ * (`FIX-21`, 2026-10-15).
+ *
+ * `updateGame` reconciles sides by team, so a changed team is a deleted side and a new one with no
+ * entrant, source rule or scores: the side drops out of the draw, the table stops counting it and
+ * any score keyed by the old side is orphaned. A different team turning up for one game is
+ * *Who played* (`CHANGE_FIXTURE_SIDE`); another team taking the place for good is *Replace*, on the
+ * division. A side the request leaves as it was is fine, so a fixture's time and venue still save
+ * with its participants sent back unchanged.
+ */
+export function refuseTeamChangeOnDrawnSide(data: any, current: Pick<Game, 'participants'>): void {
+  if (!data?.participants) return;
+  const sent = new Set((data.participants as any[]).map(p => p?.teamId || null));
+  const drawn = (current.participants || []).filter(p => !!p.entrantId);
+  if (drawn.some(p => !sent.has(p.teamId || null))) {
+    throw new Error(
+      "This team comes from the tournament's draw. Use Who played if another team played this game, or Replace on the division to change the team for good."
+    );
+  }
+}
+
+/**
+ * Refuse deleting a match that has started (2026-10-14). Its result is corrected instead; deleting
+ * would take a played game, and whatever it counted for, out of the record.
+ */
+export function refuseDeletingStartedGame(game: Pick<Game, 'status'> | null | undefined): void {
+  if (game && (game.status === 'Live' || game.status === 'Finished')) {
+    throw new Error('This match has started, so it cannot be deleted. Correct its result instead.');
+  }
+}

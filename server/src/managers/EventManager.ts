@@ -480,6 +480,12 @@ export class EventManager extends BaseManager {
     };
   }
 
+  /** Whether any game of this event is live or finished — a single match with one is not deleted. */
+  async hasStartedGame(eventId: string): Promise<boolean> {
+    const res = await this.query(`SELECT 1 FROM games WHERE event_id = $1 AND status IN ('Live', 'Finished') LIMIT 1`, [eventId]);
+    return res.rows.length > 0;
+  }
+
   async deleteEvent(id: string): Promise<Event | null> {
     const event = await this.getEvent(id);
     if (!event) return null;

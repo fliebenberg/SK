@@ -147,6 +147,7 @@ export class DataManager {
   cancelEventWithdrawal = (eventId: string, orgId: string) => eventManager.cancelEventWithdrawal(eventId, orgId);
   getEventInvitationsForOrg = (orgId: string) => eventManager.getEventInvitationsForOrg(orgId);
   deleteEvent = (id: string) => eventManager.deleteEvent(id);
+  hasStartedGame = (eventId: string) => eventManager.hasStartedGame(eventId);
 
   // Games
   getGames = (orgId?: string) => eventManager.getGames(orgId);

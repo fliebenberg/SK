@@ -352,7 +352,30 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
     `liveState`, a status of `Live` or `Finished`, and any status change on a match that has already
     started. An *unchanged* status is allowed, so editing a finished match's site or facility still saves. It
     used to finish matches without writing a game-log entry, and to finish a started match with an
-    empty live score that the table read as 0–0.
+    empty live score that the table read as 0–0. So a started match cannot be **cancelled** either.
+    **A side from a tournament's draw keeps its team** (`FIX-21`, 2026-10-15):
+    `refuseTeamChangeOnDrawnSide` refuses `participants` that drop the team of a side with an
+    `entrantId`, since `updateGame` reconciles sides by team and a changed one would lose its entrant,
+    source rule and scores. A different team turning up is `CHANGE_FIXTURE_SIDE` (*Who played*); a
+    team leaving for good is `REPLACE_ENTRANT`. Sending the sides back unchanged still saves.
+
+#### `DELETE_GAME` and `DELETE_EVENT` — not once started
+*   **Authorised**: `orgGate`, rules `edit-fixture` and `edit-event`.
+*   **Logic**: Since 2026-10-15 a game that is `Live` or `Finished` is not deleted
+    (`refuseDeletingStartedGame`): its result is corrected instead. `DELETE_EVENT` applies the same
+    rule to a **single match**, which *is* its game (`hasStartedGame`). Deleting a tournament is
+    unchanged.
+
+#### `GET_GAME_CLASHES` — read-only
+*   **Payload**: `GetGameClashesPayload` — `{ orgId, gameId?, startAt, facilityId?, siteId?, teamIds?, sportId? }`.
+*   **Authorised**: `orgGate`, `manage-org` on `orgId`.
+*   **Logic**: What one proposed game would clash with (`FIX-23`, 2026-10-15) — a single match being
+    created or edited. The Schedule's check (`findClashes`), looked up by facility rather than by
+    tournament: every event's games that day at the facility and any sharing ground with it, and every
+    game either team plays that day. `gameId` is left out of its own check. Two facilities of one
+    site at the same time are not a clash. **Warnings only**: nothing is refused.
+*   **Returns**: `{ warnings: string[] }`, worded for the screen ("Field 1 has Valley Prep U14 A v
+    Waterkloof U14 A from 09:30 to 10:40"); empty when there is nothing to say.
 
 #### `RECORD_GAME_RESULT`
 *   **Payload**: `{ id, scores?, notProvided?, initiatorOrgProfileId?, resultWas? }` — exactly one of

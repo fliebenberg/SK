@@ -5,7 +5,7 @@ import { query } from '../db';
 import pool from '../db';
 import { enforceOrgAction } from '../wss/orgGate';
 import { enforceProfileAction } from '../wss/profileGate';
-import { refuseResultInFixtureEdit, validateRecordedResult } from '../wss/fixtureRules';
+import { refuseDeletingStartedGame, refuseResultInFixtureEdit, refuseTeamChangeOnDrawnSide, validateRecordedResult } from '../wss/fixtureRules';
 import { accessManager } from '../managers/AccessManager';
 import { dataManager } from '../DataManager';
 
@@ -391,6 +391,42 @@ async function main() {
     ],
     ['refused', 'refused', 'refused', 'refused', 'refused', 'ok', 'ok', 'ok'],
     'UPDATE_GAME plans a fixture — it cancels and reinstates, but does not start, finish or score one'
+  );
+
+  // FIX-21: a side from the draw keeps its team through UPDATE_GAME; a hand-added side does not.
+  const drawn = [{ id: 'p1', teamId: 't1', entrantId: 'e1' }, { id: 'p2', teamId: 't2', entrantId: 'e2' }] as any;
+  const byHand = [{ id: 'p1', teamId: 't1' }, { id: 'p2', teamId: 't2' }] as any;
+  const teams = (current: any, data: any) => {
+    try {
+      refuseTeamChangeOnDrawnSide(data, { participants: current });
+      return 'ok';
+    } catch {
+      return 'refused';
+    }
+  };
+  expect(
+    [
+      teams(drawn, { siteId: 'x' }),
+      teams(drawn, { participants: [{ teamId: 't1' }, { teamId: 't2' }] }),
+      teams(drawn, { participants: [{ teamId: 't1' }, { teamId: 't3' }] }),
+      teams(byHand, { participants: [{ teamId: 't1' }, { teamId: 't3' }] }),
+    ],
+    ['ok', 'ok', 'refused', 'ok'],
+    "UPDATE_GAME does not change the team on a side from the draw — that is Who played or Replace"
+  );
+
+  const del = (status: string) => {
+    try {
+      refuseDeletingStartedGame({ status } as any);
+      return 'ok';
+    } catch {
+      return 'refused';
+    }
+  };
+  expect(
+    ['Scheduled', 'Cancelled', 'Live', 'Finished'].map(del),
+    ['ok', 'ok', 'refused', 'refused'],
+    'a match that has started is not deleted'
   );
 
   const sides = [

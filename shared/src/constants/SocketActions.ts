@@ -581,6 +581,12 @@ export enum SocketAction {
      * Expects payload: `{ eventId, divisionId? }`
      */
     GET_SCHEDULE_CONTEXT = 'GET_SCHEDULE_CONTEXT',
+    /**
+     * What one proposed game would clash with — a single match being created or edited, or a game
+     * about to be added (`FIX-23`). The Schedule's check, by facility rather than by tournament.
+     * Read-only. Expects payload: `GetGameClashesPayload`
+     */
+    GET_GAME_CLASHES = 'GET_GAME_CLASHES',
 
     /**
      * Action to create several fixtures at once.

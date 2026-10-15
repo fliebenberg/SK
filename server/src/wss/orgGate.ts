@@ -187,6 +187,9 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   // Planning only since 2026-09-21 — the result is `RECORD_GAME_RESULT`'s, under the scoring gate.
   [SocketAction.UPDATE_GAME]: { kind: 'edit-fixture' },
   [SocketAction.DELETE_GAME]: { kind: 'edit-fixture' },
+  // Read-only, but it names other organisations' games at a facility: for whoever plans this
+  // workspace's matches.
+  [SocketAction.GET_GAME_CLASHES]: { kind: 'manage-org', org: orgId },
   // Anybody who can give a team, division or league an age group can need one the list lacks.
   // That the sport exists is the handler's question — it is validation, not permission.
   [SocketAction.ADD_AGE_GROUP]: { kind: 'signed-in' },

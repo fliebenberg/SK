@@ -46,7 +46,7 @@ import { enforceTournamentAction } from './wss/tournamentGate';
 import { payloadProblem } from './wss/actionPayloads';
 import { enforceProfileAction } from './wss/profileGate';
 import { GateRefusal, enforceOrgAction } from './wss/orgGate';
-import { refuseResultInFixtureEdit, validateRecordedResult } from './wss/fixtureRules';
+import { refuseDeletingStartedGame, refuseResultInFixtureEdit, refuseTeamChangeOnDrawnSide, validateRecordedResult } from './wss/fixtureRules';
 import {
   publishAdjustments,
   publishDivision,
@@ -2690,6 +2690,7 @@ io.on('connection', (socket) => {
                     const current = await dataManager.getGame(action.payload.id);
                     if (!current) throw new Error('That match no longer exists.');
                     refuseResultInFixtureEdit(action.payload.data, current);
+                    refuseTeamChangeOnDrawnSide(action.payload.data, current);
                 }
                 result = await dataManager.updateGame(action.payload.id, action.payload.data);
                 if (result) {
@@ -2747,6 +2748,7 @@ io.on('connection', (socket) => {
                 break;
             case SocketAction.DELETE_GAME: {
                 // Authorised in `orgGate` (`edit-fixture`), before this handler runs.
+                refuseDeletingStartedGame(await dataManager.getGame(action.payload.id));
                 // The audience has to be captured before the row goes, or there is
                 // nothing left to resolve the participating orgs from.
                 const deletedGameRooms = await captureFixtureRooms(action.payload.id);
@@ -2859,14 +2861,20 @@ io.on('connection', (socket) => {
                     }
                 }
                 break;
-            case SocketAction.DELETE_EVENT:
+            case SocketAction.DELETE_EVENT: {
                 // Authorised in `orgGate` (`edit-event`), before this handler runs.
+                // A single match *is* its game, so it follows the game's rule: not once it has started.
+                const deleting = await dataManager.getEvent(action.payload.id);
+                if (deleting?.type === 'SingleMatch' && (await dataManager.hasStartedGame(action.payload.id))) {
+                    throw new Error('This match has started, so it cannot be deleted. Correct its result instead.');
+                }
                 result = await dataManager.deleteEvent(action.payload.id);
                 if (result) {
                     publishEventToOrgs([result.orgId, ...(result.participatingOrgIds || [])], 'EVENT_DELETED', { id: result.id });
                     await broadcastOrgSummaries([result.orgId, ...(result.participatingOrgIds || [])]);
                 }
                 break;
+            }
 
             case SocketAction.ADD_ORG:
                 result = await dataManager.addOrganization(action.payload);
@@ -3662,6 +3670,11 @@ io.on('connection', (socket) => {
                 const p = action.payload as any;
                 result = await schedulingManager.moveFixture(p.gameId, p.startAt ?? null, p.facilityId ?? null);
                 await publishGameSummary(p.gameId);
+                break;
+            }
+
+            case SocketAction.GET_GAME_CLASHES: {
+                result = await schedulingManager.proposedGameClashes(action.payload as any);
                 break;
             }
 

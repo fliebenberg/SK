@@ -891,6 +891,20 @@ export interface GetScheduleContextPayload {
     divisionId?: string;
 }
 
+/** One proposed game, for `GET_GAME_CLASHES`. */
+export interface GetGameClashesPayload {
+    /** The workspace asking. */
+    orgId: string;
+    /** The game being edited, so it is not counted against itself; absent for a new one. */
+    gameId?: string | null;
+    startAt: string;
+    facilityId?: string | null;
+    /** Used for the timezone when there is no facility. */
+    siteId?: string | null;
+    teamIds?: string[];
+    sportId?: string | null;
+}
+
 /** Beyond the tournament's own fixtures: what its clash check also needs. */
 export interface ScheduleContext {
     eventId: string;
@@ -1285,6 +1299,7 @@ export interface ProtocolMap {
     [SocketAction.SCHEDULE_ALL]: { payload: ScheduleAllPayload; response: ScheduleAllResult };
     [SocketAction.MOVE_FIXTURE]: { payload: MoveFixturePayload; response: MoveFixtureResult };
     [SocketAction.GET_SCHEDULE_CONTEXT]: { payload: GetScheduleContextPayload; response: ScheduleContext };
+    [SocketAction.GET_GAME_CLASHES]: { payload: GetGameClashesPayload; response: { warnings: string[] } };
     [SocketAction.ADD_GAMES]: { payload: AddGamesPayload; response: BatchResponse<GameSummary> };
     [SocketAction.UPDATE_GAMES]: { payload: UpdateGamesPayload; response: BatchResponse<GameSummary> };
     [SocketAction.RESOLVE_PARTICIPANT]: { payload: ResolveParticipantPayload; response: GameSummary };
