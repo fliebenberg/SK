@@ -13,7 +13,6 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { useAuthStore } from '../../../../../../../store/authStore';
@@ -696,7 +695,7 @@ export default function GameSelectionScreen() {
       {/* STANDARD MATCH HEADER BAR */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
-          onPress={() => safeBack(`/admin/${orgId}/events/${eventId}`)}
+          onPress={() => safeBack(`/admin/${orgId}/events/${eventId}/games/${gameId}`)}
           activeOpacity={0.7}
           className="flex-row items-center gap-1.5"
         >
@@ -710,13 +709,9 @@ export default function GameSelectionScreen() {
           Team Selection
         </Text>
 
-        <MatchViewSwitcher
-          orgId={orgId as string}
-          eventId={eventId as string}
-          gameId={gameId as string}
-          currentView="selection"
-          permissions={permissions}
-        />
+        {/* Back to the game's page — there is no View / Lineup / Edit / Score switcher since stage 3. */}
+
+        <View style={{ width: 60 }} />
       </View>
 
       {/* Participant Switcher Tabs (Team 1 vs Team 2) */}

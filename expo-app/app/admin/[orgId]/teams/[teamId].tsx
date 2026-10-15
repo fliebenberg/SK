@@ -149,7 +149,7 @@ export default function TeamPage() {
       ? () => router.push({ pathname: '/admin/[orgId]/people/[membershipId]', params: { orgId: orgId!, membershipId: membership } })
       : undefined;
   };
-  const openGame = (g: GameSummary) => router.push(`/admin/${orgId}/events/${g.eventId}/games/${g.id}/view`);
+  const openGame = (g: GameSummary) => router.push(`/admin/${orgId}/events/${g.eventId}/games/${g.id}`);
   const pickTeam = (g: GameSummary) => router.push(`/admin/${orgId}/events/${g.eventId}/games/${g.id}/selection?teamId=${teamId}`);
 
   const rowMenu = (m: TeamMember): OverflowMenuItem[] | undefined => {

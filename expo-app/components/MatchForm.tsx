@@ -16,7 +16,8 @@ import { GlassCard } from './GlassCard';
 import { AgeGroupPicker } from './AgeGroupPicker';
 import { pickableTeams } from './teams/TeamBits';
 import { pickableFacilities, pickableSites } from './sites/SiteBits';
-import { venueTimeHint, venueTimeZone, type TimeZone } from '../utils/dates';
+import { venueInputsToInstant, venueTimeHint, venueTimeZone, type TimeZone } from '../utils/dates';
+import { ClashWarning, useGameClashes } from './game/GameDialogs';
 import { themeColor } from '../constants/Colors';
 
 export interface MatchFormData {
@@ -334,6 +335,14 @@ export default function MatchForm({
     [hostOrg, sites, selectedSiteId],
   );
   const timeHint = timeZone ? venueTimeHint(timeZone) : null;
+
+  // What this match would clash with — the Schedule's check, by field and team (`FIX-23`). Warned under
+  // the time, never blocking; nothing is said when there is nothing to say.
+  const proposedStart = !isTbd && gameDate && timeZone ? venueInputsToInstant(gameDate as any, startTime, timeZone) : null;
+  const clashes = useGameClashes({
+    orgId, startAt: proposedStart, facilityId: selectedFacilityId, siteId: selectedSiteId,
+    teamIds: [selectedHomeTeamId, selectedAwayTeamId], sportId: selectedSportId, enabled: !!proposedStart,
+  });
 
   // Notify parent on change
   useEffect(() => {
@@ -918,6 +927,7 @@ export default function MatchForm({
                     <Text className="font-inter text-xs text-ink-muted">{timeHint}</Text>
                   )}
                 </View>
+                <ClashWarning warnings={clashes} />
               </View>
             </GlassCard>
           </View>

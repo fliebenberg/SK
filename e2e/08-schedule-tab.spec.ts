@@ -93,7 +93,7 @@ test.describe('the Schedule tab, as the host', () => {
     const beneath = await page.getByText(/09:15 U16 R1/).first().boundingBox();
     if (!column || !beneath) throw new Error('No Court 3 column or fixture');
     await page.mouse.click(column.x + 8, beneath.y + 20);
-    await expect(page.getByRole('button', { name: 'Take its time away' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove time and court' })).toBeVisible();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
     await expect(page.getByText(/Netball Court 3 is booked twice/)).toHaveCount(0);
@@ -129,7 +129,7 @@ test.describe('the Schedule tab, as the host', () => {
   test('a fixture dragged onto the grid lands where its top edge is, and back to the tray loses its time', async ({ page }) => {
     // Free a fixture first, by the sheet, so there is one to drag.
     await page.getByText(/^08:00 U14 R1/).first().click();
-    await page.getByRole('button', { name: 'Take its time away' }).click();
+    await page.getByRole('button', { name: 'Remove time and court' }).click();
     await expect(page.getByText('Without a time', { exact: true })).toBeVisible();
     await expect(page.getByText('It has no time now.')).toBeVisible();
     const chip = page.locator('[data-testid^="schedule-tray-fx-game-saturday-netball-u14"]').first();

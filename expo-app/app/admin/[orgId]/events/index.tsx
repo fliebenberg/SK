@@ -43,7 +43,6 @@ import { useMyEventGrants } from '../../../../hooks/useEventCapabilities';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../../store/authStore';
 import { useActiveTheme, useSettingsStore } from '../../../../store/settingsStore';
-import { getMatchPermissions } from '../../../../utils/matchPermissions';
 import {
   calendarRangeStatus,
   calendarRangeTile,
@@ -430,10 +429,9 @@ export default function OrgEventsList() {
   /* ---------------------------------------------------------------------------------------------
    * Navigation
    * ------------------------------------------------------------------------------------------- */
-  /** A game opens its edit screen for someone who may edit it, its view otherwise — the game page is stage 3. */
-  const openGame = (game: GameSummary, event?: Event) => {
-    const perms = getMatchPermissions({ game, event: event || null, currentOrgId: orgId, user, orgMemberships, teamMemberships });
-    router.push(`/admin/${orgId}/events/${game.eventId}/games/${game.id}/${perms.canEdit ? 'edit' : 'view'}`);
+  /** A game opens its page, whoever is looking: what they may do there is the page's to show (stage 3). */
+  const openGame = (game: GameSummary, _event?: Event) => {
+    router.push(`/admin/${orgId}/events/${game.eventId}/games/${game.id}`);
   };
   const openEvent = (event: Event) => {
     const single = resolveEventType(event).kind === 'SingleMatch' ? (gamesByEvent.get(event.id) || [])[0] : undefined;

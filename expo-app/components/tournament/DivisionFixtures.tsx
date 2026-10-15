@@ -131,7 +131,7 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
     return (
       <TouchableOpacity
         key={g.id}
-        onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}/view`)}
+        onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}`)}
         accessibilityRole="link"
         className={`py-2 ${i ? 'border-t border-line-soft' : ''} ${live ? 'bg-danger-soft rounded-lg px-2 -mx-2' : ''}`}
       >

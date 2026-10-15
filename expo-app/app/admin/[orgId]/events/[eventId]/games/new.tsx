@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, Switch } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeBack } from '../../../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../../../components/GlassCard';
 import { Button } from '../../../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { ConfirmationModal } from '../../../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../services/websocket';
 import { sendAction } from '../../../../../../services/actions';
@@ -14,9 +13,7 @@ import { useWsStore } from '../../../../../../store/wsStore';
 import {
   SocketAction,
   Event,
-  Game,
   Sport,
-  Site,
   Team,
   Organization,
   TournamentDivision,
@@ -27,13 +24,9 @@ import { RegisterOrgModal } from '../../../../../../components/RegisterOrgModal'
 import { UnclaimedOrgBadge } from '../../../../../../components/UnclaimedOrgBadge';
 import { nominateOrgContact } from '../../../../../../services/nominations';
 
-import DatePicker from '../../../../../../components/DatePicker';
 import CustomSelect from '../../../../../../components/CustomSelect';
 import { AgeGroupPicker } from '../../../../../../components/AgeGroupPicker';
-import { venueInputsToInstant, venueTimeHint, venueTimeZone } from '../../../../../../utils/dates';
-import { useToastStore } from '../../../../../../store/toastStore';
 import { pickableTeams } from '../../../../../../components/teams/TeamBits';
-import { pickableSites } from '../../../../../../components/sites/SiteBits';
 import { themeColor } from '../../../../../../constants/Colors';
 
 export default function ScheduleGame() {
@@ -47,11 +40,7 @@ export default function ScheduleGame() {
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [event, setEvent] = useState<Event | null>(null);
-  const [games, setGames] = useState<Game[]>([]);
   const [sports, setSports] = useState<Sport[]>([]);
-  const [sites, setSites] = useState<Site[]>([]);
-  /** Whose venues these are, and whose timezone a venue without one uses (DATE-2). */
-  const [hostOrg, setHostOrg] = useState<Organization | null>(null);
   const [orgsList, setOrgsList] = useState<Organization[]>([]);
 
   // Team cache by organization
@@ -63,10 +52,6 @@ export default function ScheduleGame() {
   const [selectedHomeTeamId, setSelectedHomeTeamId] = useState('');
   const [selectedAwayOrgId, setSelectedAwayOrgId] = useState('');
   const [selectedAwayTeamId, setSelectedAwayTeamId] = useState('');
-  const [selectedSiteId, setSelectedSiteId] = useState('');
-  const [gameDate, setGameDate] = useState('');
-  const [startTime, setStartTime] = useState('09:00');
-  const [isTbd, setIsTbd] = useState(false);
 
   // Quick Create Modals
   const [isCreatingOrg, setIsCreatingOrg] = useState(false);
@@ -98,7 +83,6 @@ export default function ScheduleGame() {
   const [selectedStageId, setSelectedStageId] = useState('');
 
   // Modal alert
-  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
 
   /**
    * The chosen division's stages.
@@ -137,13 +121,9 @@ export default function ScheduleGame() {
         if (res.sportIds && res.sportIds.length > 0) {
           setSelectedSportId(res.sportIds[0]);
         }
-        if (res.siteId) setSelectedSiteId(res.siteId);
       }
     });
 
-    wsService.emit('get_data', { type: 'games', orgId }, (res: any) => {
-      if (Array.isArray(res)) setGames(res);
-    });
 
     // Empty for a single match, which is the collapse rule having nothing to collapse.
     wsService.emit('get_data', { type: 'divisions', eventId }, (res: any) => {
@@ -172,13 +152,6 @@ export default function ScheduleGame() {
       }
     });
 
-    wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
-      if (Array.isArray(res)) setSites(res);
-    });
-
-    wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-      if (res) setHostOrg(res);
-    });
 
     wsService.emit('get_data', { type: 'organizations' }, (res: any) => {
       if (res && Array.isArray(res.items)) {
@@ -189,12 +162,6 @@ export default function ScheduleGame() {
     });
   }, [isConnected, orgId, eventId]);
 
-  // Fallback gameDate to event.startDate if not set
-  useEffect(() => {
-    if (event && !gameDate) {
-      setGameDate(event.startDate || '');
-    }
-  }, [event, gameDate]);
 
   // Load teams for host and participating orgs when event/organizations are loaded
   useEffect(() => {
@@ -293,68 +260,27 @@ export default function ScheduleGame() {
   };
 
   // The clock the kick-off is typed on: the chosen venue's, else the organisation's (DATE-2).
-  const timeZone = hostOrg ? venueTimeZone(sites.find(s => s.id === selectedSiteId), hostOrg) : null;
-  const timeHint = timeZone ? venueTimeHint(timeZone) : null;
 
   // Submit Handler
-  const handleSubmit = (ignoreConflict = false) => {
+  /**
+   * Add the fixture with its teams only, then open its page with *When & where* showing — the
+   * Schedule's sheet, with the Schedule's clash check (`FIX-23`, agreed 2026-10-15: one way to place a
+   * tournament game everywhere). Closing the sheet leaves it *Without a time*, to place later.
+   */
+  const handleSubmit = () => {
     if (!event || !selectedHomeTeamId || !selectedAwayTeamId) return;
-    if (!timeZone) {
-      useToastStore.getState().showError('Still loading the site — try again in a moment.', 'Not Ready');
-      return;
-    }
-
-    // The kick-off as the organiser typed it, on the venue's clock — or noon there that day while it
-    // is TBD (date-formatting skill, DATE-2). Refused before anything is sent if the date or time is
-    // half-typed.
-    const scheduledTime = venueInputsToInstant(gameDate || event.startDate, isTbd ? null : startTime, timeZone);
-    if (!scheduledTime) {
-      useToastStore.getState().showError('Enter the full game date and start time.', 'Date Needed');
-      return;
-    }
-
-    // Conflict Check
-    if (!isTbd && scheduledTime && !ignoreConflict) {
-      const matchConflict = games.find(g => {
-        if (g.status === 'Cancelled' || !g.startTime) return false;
-        
-        // Compare same site and same time
-        const gTime = new Date(g.startTime).getTime();
-        const propTime = new Date(scheduledTime).getTime();
-        return g.siteId === selectedSiteId && gTime === propTime;
-      });
-
-      if (matchConflict) {
-        const homeName = getTeamName(matchConflict.participants?.[0]?.teamId || '');
-        const awayName = getTeamName(matchConflict.participants?.[1]?.teamId || '');
-        setConflictWarning(
-          `There is already a game scheduled at this site and time:\n\n"${homeName} vs ${awayName}"\n\nDo you want to schedule this anyway?`
-        );
-        return;
-      }
-    }
-
     setIsProcessing(true);
-
     const gamePayload = {
       eventId: eventId,
       sportId: selectedSportId,
-      // `FIX-12`: a tournament fixture names its stage, and through it its division. Undefined on a
-      // single match, which has neither and correctly belongs to no stage.
+      // `FIX-12`: a tournament fixture names its stage, and through it its division.
       stageId: selectedStageId || undefined,
       participants: [{ teamId: selectedHomeTeamId }, { teamId: selectedAwayTeamId }],
-      scheduledStartTime: scheduledTime,
-      startTime: scheduledTime,
-      siteId: selectedSiteId || undefined,
-      customSettings: {
-        timeTbd: isTbd
-      }
     };
     sendAction(SocketAction.ADD_GAME, gamePayload).then(result => {
       setIsProcessing(false);
-      setConflictWarning(null);
       // A failed save stays on the form, as filled in; the refusal is already toasted.
-      if (result.ok) safeBack(`/admin/${orgId}/events/${eventId}`);
+      if (result.ok) router.replace(`/admin/${orgId}/events/${eventId}/games/${result.data.id}?place=1` as any);
     });
   };
 
@@ -395,12 +321,12 @@ export default function ScheduleGame() {
           </Text>
         </TouchableOpacity>
         <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase flex-1 text-center px-4" numberOfLines={1}>
-          Schedule Game
+          Add fixture
         </Text>
         <TouchableOpacity 
           className={`active:opacity-85 ${(!selectedHomeTeamId || !selectedAwayTeamId) ? 'opacity-40' : ''}`}
           disabled={!selectedHomeTeamId || !selectedAwayTeamId || isProcessing}
-          onPress={() => handleSubmit(false)}
+          onPress={handleSubmit}
         >
           {isProcessing ? (
             <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />
@@ -667,76 +593,8 @@ export default function ScheduleGame() {
             </View>
           )}
 
-          {/* Site selection */}
-          <View className="gap-1.5 pt-2 border-t border-line-soft">
-            <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
-              Site Field/Court
-            </Text>
-            <CustomSelect
-              value={selectedSiteId}
-              onChange={(val: string) => setSelectedSiteId(val)}
-              options={pickableSites(sites, [selectedSiteId]).map(s => ({ label: s.name, value: s.id }))}
-              placeholder="Select site..."
-              clearable={true}
-            />
-          </View>
-
-          {/* Match Date & Time */}
-          <View className="gap-3 pt-2 border-t border-line-soft">
-            <View className="gap-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
-                Match Date
-              </Text>
-              <DatePicker
-                value={gameDate}
-                onChange={setGameDate}
-                placeholder="Select Date"
-              />
-            </View>
-
-            <View className="gap-3 pt-2">
-              <View className="flex-row justify-between items-center">
-                <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
-                  Start Time
-                </Text>
-                <View className="flex-row items-center gap-2">
-                  <Text className="font-inter text-xs text-ink-muted">TBD</Text>
-                  <Switch
-                    value={isTbd}
-                    onValueChange={setIsTbd}
-                    trackColor={{ false: themeColor(isDark, 'line-strong'), true: themeColor(isDark, 'primary') }}
-                  />
-                </View>
-              </View>
-
-              {!isTbd && (
-                <TextInput
-                  placeholder="e.g. 09:00"
-                  placeholderTextColor={themeColor(isDark, 'ink-muted')}
-                  value={startTime}
-                  onChangeText={setStartTime}
-                  className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
-                />
-              )}
-              {!isTbd && timeHint && (
-                <Text className="font-inter text-xs text-ink-muted">{timeHint}</Text>
-              )}
-            </View>
-          </View>
         </GlassCard>
       </ScrollView>
-
-      {/* CONFLICT ALERT MODAL */}
-      <ConfirmationModal
-        isOpen={conflictWarning !== null}
-        title="Schedule Conflict!"
-        description={conflictWarning || ''}
-        confirmText="Schedule Anyway"
-        cancelText="Cancel"
-        onConfirm={() => handleSubmit(true)}
-        onClose={() => setConflictWarning(null)}
-        isProcessing={isProcessing}
-      />
 
       {/* Registering a school that is not on the system — the shared dialog (2026-09-21). */}
       <RegisterOrgModal

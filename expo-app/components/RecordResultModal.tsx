@@ -43,13 +43,15 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({ isOpen, on
   const [notProvided, setNotProvided] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Start from what is recorded each time the dialog opens, not from an abandoned earlier attempt.
+  // Start from what is recorded each time the dialog opens, not from an abandoned earlier attempt —
+  // and only then: the game page reads the record again whenever the match moves, and a fresh copy
+  // arriving while the dialog is open must not wipe what is being typed.
   useEffect(() => {
     if (!isOpen) return;
     const known = gameResultScores(game) || {};
     setScores(Object.fromEntries(sides.map(p => [p.id, known[p.id] !== undefined ? String(known[p.id]) : ''])));
     setNotProvided(isResultNotProvided(game.finalScoreData));
-  }, [isOpen, game]);
+  }, [isOpen, game.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const parsed = sides.map(p => Number((scores[p.id] ?? '').trim()));
   const scoresComplete = sides.every((p, i) => (scores[p.id] ?? '').trim() !== '' && Number.isFinite(parsed[i]) && parsed[i] >= 0);

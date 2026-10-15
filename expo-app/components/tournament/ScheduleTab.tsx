@@ -1,21 +1,22 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  Booking, Clash, DivisionDay, Event, EventDay, Facility, GameSummary, ScheduleContext, Site, SocketAction, Sport, TournamentDivision,
-  divisionFullName, findClashes, isPlayedFixture, minuteOfDay, sharedGroundMap, timeOfDay,
+  Booking, DivisionDay, Event, EventDay, Facility, GameSummary, Site, SocketAction, Sport, TournamentDivision,
+  divisionFullName, findClashes, isPlayedFixture, minuteOfDay, timeOfDay,
 } from '@sk/shared';
 import CustomSelect from '../CustomSelect';
-import { EditDialog } from '../EditDialog';
 import { TournamentCard } from './TournamentBits';
-import { isUnscheduled, scheduleModel } from './scheduleModel';
+import { isUnscheduled } from './scheduleModel';
 import { ScheduleDivisionDialog } from './ScheduleActions';
+import { MoveSheet, fixtureName } from './MoveSheet';
+import { useScheduleCheck } from './useScheduleCheck';
 import { sendAction } from '../../services/actions';
 import { useWsStore } from '../../store/wsStore';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
-import { formatPlayingDay, venueInputsToInstant, venueTimeZone, type CalendarDate } from '../../utils/dates';
+import { formatPlayingDay, venueInputsToInstant, type CalendarDate } from '../../utils/dates';
 
 /**
  * The tournament's **Schedule** tab (Phase 7, agreed on `mockups/tournament-schedule.html`).
@@ -85,14 +86,6 @@ export function overlapLanes(items: Array<{ id: string; start: number; minutes: 
 
 const plural = (n: number, word: string, many?: string) => `${n} ${n === 1 ? word : many || `${word}s`}`;
 
-/** A side as the schedule names it: the organisation's short code and the team — "DKL U16 A". */
-const sideName = (p?: GameSummary['participants'][number]) => {
-  if (!p) return 'TBC';
-  const team = p.teamShortName || p.name || p.entrantLabel || 'TBC';
-  return p.orgShortName && !team.startsWith(p.orgShortName) ? `${p.orgShortName} ${team}` : team;
-};
-const fixtureName = (g?: GameSummary) => { const [home, away] = g?.participants || []; return `${sideName(home)} v ${sideName(away)}`; };
-
 /** Each division's colour on the grid — theme tokens, in turn. */
 const DIVISION_TONES = ['info', 'special', 'success', 'primary', 'accent', 'warning', 'danger'] as const;
 
@@ -118,22 +111,8 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
   }, [savedGames, movesSaving]);
   const isDark = useActiveTheme() === 'dark';
   const online = useWsStore((s: any) => s.isConnected);
-  const site = sites.find(s => s.id === event.siteId);
-  const timeZone = venueTimeZone(site as any, hostOrg as any);
-
-  /* -- the venue's other bookings and shared ground, read on opening and after each move -- */
-  const [context, setContext] = useState<ScheduleContext | null>(null);
-  const loadContext = useCallback(async () => {
-    if (!canEdit) return;
-    const res = await sendAction(SocketAction.GET_SCHEDULE_CONTEXT, { eventId: event.id, orgId });
-    if (res.ok) setContext(res.data);
-  }, [canEdit, event.id, orgId]);
-  useEffect(() => { loadContext(); }, [loadContext]);
-
-  const model = useMemo(() => scheduleModel({ event, divisions, games, sports, timeZone }), [event, divisions, games, sports, timeZone]);
-  const ground = useMemo(() => sharedGroundMap(context?.sharedGround || []), [context]);
-  const allBookings = useMemo(() => [...model.bookings, ...(context?.bookings || [])], [model, context]);
-  const clashes = useMemo(() => findClashes(allBookings, ground), [allBookings, ground]);
+  const check = useScheduleCheck({ event, orgId, canEdit, divisions, games, sports, sites, facilities, facilityIds, hostOrg });
+  const { timeZone, loadContext, model, ground, allBookings, clashes, divisionOf, sportName, divisionName, facilityOf, siteName, facilityLabel, gameOf, divisionFacilityIds, bookingOf, span, clashText } = check;
 
   /* -- filters ----------------------------------------------------------------------------- */
   const playingDays = (event.days || []).map(d => d.day);
@@ -150,33 +129,11 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
   const [facilityId, setFacilityId] = useState('all');
   const [extras, setExtras] = useState<Set<string>>(new Set());
 
-  const divisionOf = (id?: string | null) => divisions.find(d => d.id === id);
-  const sportName = (id?: string | null) => sports.find(s => s.id === id)?.name || '';
-  const divisionName = (id?: string | null) => { const d = divisionOf(id); return d ? divisionFullName(d.name, sportName(d.sportId)) : 'Another event'; };
-  const facilityOf = (id?: string | null) => facilities.find(f => f.id === id);
-  const sitesInPlay = new Set(facilityIds.map(id => facilityOf(id)?.siteId).filter(Boolean));
-  const siteName = (id?: string) => sites.find(s => s.id === id)?.name || '';
-  /** D16: with more than one venue in play, a facility is named with its venue. */
-  const facilityLabel = (id?: string | null) => {
-    const f = facilityOf(id);
-    if (!f) return 'No facility';
-    return sitesInPlay.size > 1 ? `${siteName(f.siteId)} · ${f.name}` : f.name;
-  };
-  const gameOf = (id: string) => games.find(g => g.id === id);
   const toneOf = (divisionId?: string | null) => {
     const i = divisions.findIndex(d => d.id === divisionId);
     return themeColor(isDark, i < 0 ? 'line-strong' : DIVISION_TONES[i % DIVISION_TONES.length]);
   };
 
-  /** The facilities a division's view shows: its own, any of its fixtures are on, and their shared ground. */
-  const divisionFacilityIds = (id: string): Set<string> => {
-    const d = divisionOf(id);
-    const own = d?.facilityIds?.length ? d.facilityIds
-      : facilityIds.filter(fid => { const f = facilityOf(fid); return !!f && (f.primarySportId === d?.sportId || (f.supportedSportIds || []).includes(d?.sportId || '')); });
-    const ids = new Set<string>([...own, ...games.filter(g => g.divisionId === id && g.facilityId).map(g => g.facilityId!)]);
-    [...ids].forEach(fid => (ground[fid] || []).forEach(o => ids.add(o)));
-    return ids;
-  };
   /** The tournament's facilities a division's sport can be played on, beyond its own. */
   const suitableFacilityIds = (id: string): string[] => {
     const sportId = divisionOf(id)?.sportId || '';
@@ -201,26 +158,6 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
   const dayClashes = clashes.filter(c => c.day === day && (divisionId === 'all' || c.ids.some(id => gameOf(id)?.divisionId === divisionId)));
   const clashIds = new Set(clashes.filter(c => c.day === day).flatMap(c => c.ids));
   const unscheduled = games.filter(g => isUnscheduled(g) && inDivision(g) && g.divisionId);
-
-  /* -- words for a clash -- */
-  const competitorName = (id?: string) => {
-    for (const g of games) for (const p of g.participants || []) if (p.teamId === id || p.entrantId === id || (p as any).orgProfileId === id) return p.name || 'A team';
-    return 'A team';
-  };
-  const bookingOf = (id: string) => allBookings.find(b => b.id === id);
-  const span = (id: string) => { const b = bookingOf(id); return b ? `${timeOfDay(b.start)}–${timeOfDay(b.start + b.minutes)}` : ''; };
-  const whoOf = (id: string) => (gameOf(id) ? divisionName(gameOf(id)?.divisionId) : bookingOf(id)?.label || 'Another event');
-  const clashText = (c: Clash): { title: string; detail: string; icon: React.ComponentProps<typeof Ionicons>['name'] } => {
-    const pair = c.ids.map(id => `${whoOf(id)} ${span(id)}`).join(' · ');
-    switch (c.kind) {
-      case 'facility': return { icon: 'grid-outline', title: `${facilityOf(c.facilityIds[0])?.name || 'A facility'} is booked twice`, detail: pair };
-      case 'sharedGround': return { icon: 'layers-outline', title: `${facilityOf(c.facilityIds[0])?.name} and ${facilityOf(c.facilityIds[1])?.name} share ground`, detail: pair };
-      case 'gap': return { icon: 'hourglass-outline', title: `${c.minutesBetween} min between games on ${facilityOf(c.facilityIds[0])?.name}`, detail: `Between games is ${c.minutesWanted} min · ${pair}` };
-      case 'teamAtOnce': return { icon: 'people-outline', title: `${competitorName(c.competitor)} plays two games at once`, detail: pair };
-      case 'teamBreak': return { icon: 'timer-outline', title: `${competitorName(c.competitor)} gets ${c.minutesBetween} min between games`, detail: `The minimum team break is ${c.minutesWanted} min` };
-      case 'afterDayEnd': return { icon: 'alarm-outline', title: `${whoOf(c.ids[0])} runs past the day's end`, detail: span(c.ids[0]) };
-    }
-  };
 
   /* -- moving ----------------------------------------------------------------------------- */
   const [moving, setMoving] = useState<GameSummary | null>(null);
@@ -389,7 +326,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
       </View>
     );
     if (other) return <React.Fragment key={b.id}>{inner}</React.Fragment>;
-    const open = () => (canEdit ? setMoving(g!) : router.push(`/admin/${orgId}/events/${event.id}/games/${b.id}/view`));
+    const open = () => (canEdit ? setMoving(g!) : router.push(`/admin/${orgId}/events/${event.id}/games/${b.id}`));
     if (web && canMove) {
       return (
         <div
@@ -589,7 +526,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
             return (
               <TouchableOpacity
                 key={g.id}
-                onPress={() => (canEdit ? setMoving(g) : router.push(`/admin/${orgId}/events/${event.id}/games/${g.id}/view`))}
+                onPress={() => (canEdit ? setMoving(g) : router.push(`/admin/${orgId}/events/${event.id}/games/${g.id}`))}
                 accessibilityRole="button"
                 className={`flex-row items-center gap-2 rounded-lg px-3 py-2 border-l-4 ${why.length ? 'bg-warning-soft' : 'bg-sunken'}`}
                 style={{ borderLeftColor: toneOf(g.divisionId) }}
@@ -809,12 +746,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
           divisionFacilityIds={moving.divisionId ? divisionFacilityIds(moving.divisionId) : new Set()}
           facilityLabel={facilityLabel}
           model={model}
-          wouldClash={(fid, d, start) => {
-            const g = moving;
-            const minutes = model.minutesOf(g) ?? 60;
-            const self: Booking = { id: g.id, day: d, facilityId: fid, start, minutes, competitors: (g.participants || []).map(p => p.teamId || p.entrantId).filter(Boolean) as string[], gap: bookingOf(g.id)?.gap, teamBreak: bookingOf(g.id)?.teamBreak, dayEnds: model.windowsOf(g.divisionId).find(w => w.day === d)?.ends };
-            return findClashes([...allBookings.filter(b => b.id !== g.id), self], ground).filter(c => c.ids.includes(g.id)).map(c => clashText(c).title);
-          }}
+          wouldClash={(fid, d, start) => check.wouldClash(moving, fid, d, start)}
           online={online}
           onClose={() => setMoving(null)}
           onMove={async to => { const g = moving; setMoving(null); await move(g, to); }}
@@ -838,99 +770,3 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
   );
 }
 
-/**
- * The move sheet (U23) — the phone's way to move a fixture, and the web's on a click: day, where (the
- * division's own facilities first, *Other…* for the rest of the tournament's), and the start. It says
- * what the move would clash with before it is made, and makes it anyway.
- */
-function MoveSheet({ game, event, days, division, facilities, facilityIds, divisionFacilityIds, facilityLabel, model, wouldClash, online, onClose, onMove }: {
-  game: GameSummary;
-  event: Event;
-  days: CalendarDate[];
-  division?: TournamentDivision;
-  facilities: Facility[];
-  facilityIds: string[];
-  divisionFacilityIds: Set<string>;
-  facilityLabel: (id?: string | null) => string;
-  model: ReturnType<typeof scheduleModel>;
-  wouldClash: (facilityId: string, day: string, start: number) => string[];
-  online: boolean;
-  onClose: () => void;
-  onMove: (to: { day: string; start: number; facilityId: string } | null) => void;
-}) {
-  const isDark = useActiveTheme() === 'dark';
-  const placed = model.placeOf(game);
-  const [day, setDay] = useState(placed?.day || days[0]);
-  const window = (event.days || []).find(d => d.day === day);
-  const [time, setTime] = useState(placed ? timeOfDay(placed.start) : window?.dayStarts || '08:00');
-  const own = [...divisionFacilityIds].filter(id => facilityIds.includes(id) || id === game.facilityId);
-  const [facilityId, setFacilityId] = useState(game.facilityId || own[0] || facilityIds[0]);
-  const [showAll, setShowAll] = useState(false);
-  const start = minuteOfDay(time);
-  const [home, away] = game.participants || [];
-  const minutes = model.minutesOf(game);
-  const warnings = start != null && facilityId ? wouldClash(facilityId, day, start) : [];
-  const choices = showAll ? [...new Set([...own, ...facilityIds])] : own.length ? own : facilityIds;
-  const chip = (on: boolean, label: string, onPress: () => void, key: string) => (
-    <TouchableOpacity key={key} onPress={onPress} accessibilityRole="radio" accessibilityState={{ checked: on }} aria-checked={on} className={`rounded-xl border px-3 py-1.5 ${on ? 'border-line-selected bg-raised' : 'border-line bg-card'}`}>
-      <Text className={`font-inter-semibold text-[13px] ${on ? 'text-ink' : 'text-ink-muted'}`}>{label}</Text>
-    </TouchableOpacity>
-  );
-
-  if (!online) {
-    return (
-      <EditDialog visible title={fixtureName(game)} onClose={onClose}>
-        <Text className="font-inter text-sm text-ink">{placed ? `${formatPlayingDay(placed.day)} · ${timeOfDay(placed.start)} · ${facilityLabel(game.facilityId)}` : 'No time yet'}</Text>
-        <View className="rounded-xl bg-warning-soft px-3 py-2"><Text className="font-inter text-[13px] text-warning-ink">You're offline. Moving a fixture needs a connection.</Text></View>
-      </EditDialog>
-    );
-  }
-
-  return (
-    <EditDialog
-      visible
-      title={fixtureName(game)}
-      onClose={onClose}
-      onSave={start != null && facilityId ? () => onMove({ day, start, facilityId }) : undefined}
-      saveLabel={placed ? 'Move' : 'Place it'}
-      saveDisabled={start == null || !facilityId}
-      footerLeft={placed ? (
-        <TouchableOpacity onPress={() => onMove(null)} accessibilityRole="button"><Text className="font-inter-bold text-[13px] text-primary-ink">Take its time away</Text></TouchableOpacity>
-      ) : undefined}
-    >
-      <Text className="font-inter text-xs text-ink-muted -mt-1">{[division?.name, game.round ? `Round ${game.round}` : '', minutes ? `${minutes} min` : ''].filter(Boolean).join(' · ')}</Text>
-      <View className="gap-1.5">
-        <Text className="font-inter-bold text-[13px] text-ink-soft">Day</Text>
-        <View className="flex-row flex-wrap gap-1.5">{days.map(d => chip(d === day, formatPlayingDay(d) || d, () => setDay(d), d))}</View>
-      </View>
-      <View className="gap-1.5">
-        <Text className="font-inter-bold text-[13px] text-ink-soft">Where</Text>
-        <View className="flex-row flex-wrap gap-1.5">
-          {choices.map(id => chip(id === facilityId, facilityLabel(id), () => setFacilityId(id), id))}
-          {!showAll && facilityIds.some(id => !own.includes(id)) ? chip(false, 'Other…', () => setShowAll(true), 'other') : null}
-        </View>
-      </View>
-      <View className="gap-1.5">
-        <Text className="font-inter-bold text-[13px] text-ink-soft">Starts</Text>
-        <View className="flex-row flex-wrap items-center gap-1.5">
-          <TextInput
-            value={time}
-            onChangeText={setTime}
-            accessibilityLabel="Starts"
-            inputMode="numeric"
-            placeholderTextColor={themeColor(isDark, 'ink-muted')}
-            className="bg-canvas border border-line rounded-xl px-3 py-2 font-inter text-sm text-ink"
-            style={{ width: 84, textAlign: 'center' }}
-          />
-          {start != null ? [-10, -5, 5, 10].map(dm => chip(false, timeOfDay(start + dm), () => setTime(timeOfDay(start + dm)), String(dm))) : null}
-        </View>
-        {start == null ? <Text className="font-inter text-xs text-danger-ink">A time is HH:MM.</Text> : null}
-      </View>
-      {warnings.length ? (
-        <View className="rounded-xl bg-warning-soft px-3 py-2"><Text className="font-inter text-[13px] text-warning-ink">⚠ {warnings.join(' · ')}. You can still move it.</Text></View>
-      ) : start != null ? (
-        <View className="rounded-xl bg-sunken px-3 py-2"><Text className="font-inter text-[13px] text-ink-soft">No clash at this time.</Text></View>
-      ) : null}
-    </EditDialog>
-  );
-}

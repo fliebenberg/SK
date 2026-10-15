@@ -208,7 +208,7 @@ what makes taking the host off the list actually remove its teams from the entry
 
 Two consequences worth knowing. The single-match screens
 ([events/create](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/create.tsx) and
-[games/[gameId]/edit](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/games/%5BgameId%5D/edit.tsx))
+the game page's *Edit match*, [GameDialogs.tsx](file:///c:/Fred/Coding/SK/expo-app/components/game/GameDialogs.tsx))
 used to filter the acting organisation out of `participatingOrgIds` on the same assumption, and
 `UPDATE_EVENT` takes the whole set — so they would have silently removed the host from its own
 match. Both now send both sides. And `syncPlayingOrgs` still excludes the host when adding

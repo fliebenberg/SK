@@ -7,7 +7,7 @@ and Sites ([sites.md](file:///c:/Fred/Coding/SK/docs/sites.md)). It is done in s
 
 1. **The list** — `/admin/[orgId]/events`. **Built 2026-10-04**, below.
 2. **The tournament page** — `/admin/[orgId]/events/[eventId]`. **Built 2026-10-04**: its first tab, below (§7).
-3. **One game page** in place of `games/[gameId]/view` and `edit` (`FIX-21`).
+3. **One game page** in place of `games/[gameId]/view` and `edit` (`FIX-21`). **Built 2026-10-15**, below (§9).
 4. Later, if wanted: divisions, entrants and the other setup steps.
 
 **A Head to Head** (`H2H-1`, 2026-10-13) is the second entry in *New event*, between Match and
@@ -16,8 +16,8 @@ decisions are in [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md)
 
 **A single match has no event page.** The match *is* the event: its name, date and venue are the
 game's, and a page for it would say the same things twice and add a tap. Its row opens the game; the
-event page is for tournaments. Until stage 3 lands, a game opens its edit screen for someone who may
-edit it and its view screen otherwise, as before, and their view switcher reaches Pick team and Score.
+event page is for tournaments. A game opens its page (§9) whoever is looking; what they may do there is
+the page's to show. An address for a single match's event page forwards to its game.
 
 ## 1. What changed on the list
 
@@ -127,8 +127,6 @@ reopened — accepted 2026-10-04 (`LIVE-22`), since they change rarely.
 
 ## 6. Not settled here
 
-- Who-played and team changes on a tournament fixture (`FIX-21`) — stage 3.
-- Double-booking checks (`FIX-23`).
 
 ## 7. The tournament page (stage 2, redone as cards 2026-10-09)
 
@@ -235,7 +233,7 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
   into hours just dragged. **Moving**: drag a
   fixture on the web — its top edge lands where it is dropped, snapped to five minutes, with a dashed
   preview of the times and any clash — or tap it for the **move sheet** (day, facility — its division's
-  own first, *Other…* for the rest — and start, with *Take its time away*). A move that clashes is made
+  own first, *Other…* for the rest — and start, with *Remove time and court*). A move that clashes is made
   and says so, with **Undo**. **Clashes** are the shared check the scheduler uses, over the
   tournament's fixtures and other events' at its facilities: a facility booked twice, shared ground,
   too little time between games, a team in two games at once, a short team break, past the day's end
@@ -488,3 +486,79 @@ shared with the organisation's page; what still waits before the lock is `entryL
 the client's mirror of the server's `entryLockProblem`.
 
 **A division with no format chosen is round robin** (`defaultDivisionFormat`): *Set fixtures by hand* (`Festival`) is only ever chosen, never a default, so a new sport's first division and a division added without a format start as round robin.
+
+## 9. The game page (stage 3, `FIX-21`, `FIX-23`)
+
+[games/[gameId]/index.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/games/%5BgameId%5D/index.tsx),
+with its cards in [GameBits.tsx](file:///c:/Fred/Coding/SK/expo-app/components/game/GameBits.tsx) and its
+dialogs in [GameDialogs.tsx](file:///c:/Fred/Coding/SK/expo-app/components/game/GameDialogs.tsx). Agreed
+2026-10-14/15 on `mockups/game-read-first.html`: **option B, revised** (B was a scoreboard and tabs; A,
+cards like the division page, and C, one column that follows the moment, were not chosen).
+
+**One page instead of two.** The View and Edit screens and the View / Lineup / Edit / Score switcher
+are gone. Score and Pick team stay their own screens, opened from the page and returning to it.
+
+- **The scoreboard**: the two teams with their crests and, between them, the kick-off, the score
+  (red while live) or a *Cancelled* flag. Above them a line back to where the game belongs — the sport
+  for a match; tournament · division · round for a fixture — and the status; below them, when and
+  where once. Then **the buttons, in the order things happen**: Pick team, Start scoring, Record
+  result. **The highlighted one is the next step**: Pick team until this viewer's team is picked (it
+  then reads *Change team*), then Start scoring, then Score while live, then Correct result. On a
+  phone the three sit on one line.
+- **Wide: no tabs.** The teams' sheets side by side on the left, with a fixture's division (both
+  teams' places) under them; *Match events*, scrolling inside a fixed height, and *When & where* in a
+  narrower column on the right. **Phone: tabs** — Overview (the teams first, one line a side), Teams,
+  and Match events once the game has started.
+- **No time.** A single match with a day and no time is **Time TBC**. A tournament fixture with no
+  time or court is **No time yet**, as on the Schedule — TBC means the day is fixed and the time is
+  not. Said in the scoreboard and in *When & where* (with *Set the time* / *Place it*), nowhere else.
+- **Home** is never the first team: it is shown for a team playing at its own organisation's site,
+  and nobody is at home on a neutral ground. The teams are **Teams**, not Home and Away.
+- **Who sees what.** *Edit*, the **⋯** (cancel, reinstate, delete) and *Who played* only for whoever
+  may edit the game. A team's **coach** sees the organiser's page without those — they pick their own
+  team and may score, as before. A **scorer** gets the result buttons. Nothing on the page explains
+  what a viewer cannot do: there is no read-only banner (agreed 2026-10-14; the outside views are
+  `FIX-24` and `FIX-25`).
+- **The other side's team is picked by its own organisation** (agreed 2026-10-14); you see its sheet
+  but no button for it. The server's per-side check is `SCORE-19`, and a tournament's organisers can
+  still pick for any team until `FIX-32`.
+- **Once a game has started** (live or finished) it is **not deleted or cancelled** — only its result
+  is corrected. The server refuses both (`refuseDeletingStartedGame`; a single match through
+  `DELETE_EVENT` too).
+
+**A single match** edits everything in one dialog, *Edit match*: its teams (an organisation and a team
+each, joined by "V"), the day, the kick-off or *Time to be confirmed*, the venue and field, and the
+sport shown but not changed. It saves the game and then the match's event, as the old screen did.
+
+**A tournament fixture has no team pickers** (`FIX-21`). The old form's pickers sent the sides by
+team, and a changed team became a new side with no entrant, source rule or scores — dropped from the
+draw. Now:
+
+- **A different team turned up for this one game** → *Who played* (`CHANGE_FIXTURE_SIDE`), a dialog
+  offering the side's own organisation's teams in the sport. Only this game changes; its result still
+  counts for the place in the draw.
+- **Another team takes the place for good** → *Replace*, on the division page.
+- **Changing who meets whom in one fixture** (A v B becomes A v C, the draw otherwise untouched) is
+  not offered — left out for the proof of concept (2026-10-14).
+- `UPDATE_GAME` refuses a team change on a side from the draw (`refuseTeamChangeOnDrawnSide`).
+
+Its **When & where** is the Schedule's move sheet ([MoveSheet.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/MoveSheet.tsx)),
+with the Schedule's clash check over the whole tournament ([useScheduleCheck.ts](file:///c:/Fred/Coding/SK/expo-app/components/tournament/useScheduleCheck.ts),
+shared with the Schedule tab). Its link **Remove time and court** (was *Take its time away*) sends
+the fixture back to *Without a time*.
+
+**Add fixture** asks for the teams only (and the division and stage), then opens the new game with
+*When & where* showing — one way to place a tournament game everywhere. Closing it leaves the fixture
+*Without a time*.
+
+**Clashes (`FIX-23`)** are the Schedule's check everywhere: a field booked over the same time (or
+ground it shares), a team in two games at once. A tournament fixture uses the tournament's own check;
+*New match* and *Edit match* ask the server, by field and team, with `GET_GAME_CLASHES` — every
+event's games, not only this organisation's. **Warned, never blocked.** **Two fields of one site at
+the same time are not a clash** (2026-10-15): festivals run games side by side on purpose. **No news
+is no message**: when there is no clash, nothing is said (the move sheet's *No clash at this time* is
+gone).
+
+**Later:** a player who turns up on the day, added by the scorer and linked by the coach afterwards,
+is `SCORE-20`; its "say who" line will sit beside that team's sheet on this page.
+

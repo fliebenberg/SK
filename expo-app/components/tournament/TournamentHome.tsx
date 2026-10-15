@@ -800,7 +800,7 @@ export function TournamentHome({
                 const [home, away] = g.participants || [];
                 const division = divisions.find(d => d.id === g.divisionId);
                 return (
-                  <TouchableOpacity key={g.id} onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}/view`)} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`}>
+                  <TouchableOpacity key={g.id} onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}`)} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`}>
                     <View className="flex-row items-center gap-2">
                       <FixtureSideFitted names={fixtureSideNames(home, orgId)} participant={home} align="left" />
                       <Text className="font-inter-semibold text-xs text-ink-muted" style={{ minWidth: 40, textAlign: 'center' }}>{g.timeTbd ? 'TBD' : formatKickoffTime(g.startTime)}</Text>
@@ -891,7 +891,7 @@ export function TournamentHome({
           const scores = sideScores(g);
           const division = divisions.find(d => d.id === g.divisionId);
           return (
-            <TouchableOpacity key={g.id} onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}/view`)} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`} style={{ maxWidth: 560 }}>
+            <TouchableOpacity key={g.id} onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}`)} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`} style={{ maxWidth: 560 }}>
               <View className="flex-row items-center gap-2">
                 <FixtureSideFitted names={fixtureSideNames(home, orgId)} participant={home} align="left" />
                 <View className="items-center" style={{ minWidth: 52 }}>

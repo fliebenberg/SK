@@ -241,6 +241,14 @@ in the banner — and the same cards, without the statuses, once it is (2026-10-
     org's branded card ([`<OrgBrandedCard>`](file:///c:/Fred/Coding/SK/expo-app/components/OrgBrandedCard.tsx))
     carries its secondary-colour accent in the bottom-right corner only, and the top-left corner
     stays plain because the logo sits there.
+30. **No news is no message** (2026-10-15, stage 3). A check that finds nothing says nothing: a clash
+    warning appears only when there is a clash, never "No clash at this time". The space a message
+    would take is kept for the times it matters, so a message is always worth reading. (A *status*
+    is different — the Schedule's green *No clashes* beside the day tells an organiser their whole
+    day is clean, and stays.)
+31. **Home is a fact about the venue, not the order of the teams** (2026-10-15, stage 3). A game's
+    teams are *Teams*, never *Home* and *Away*; the *Home* tag shows under a team playing at its own
+    organisation's site, and at a neutral ground nobody is at home.
 
 ## NativeWind v4 & React Native Styling Constraints
 

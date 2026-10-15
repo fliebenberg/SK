@@ -370,16 +370,28 @@ export class SchedulingManager extends BaseManager {
     );
     const nameOf = (kind: string, id?: string | null) => names.rows.find((n: any) => n.kind === kind && n.id === id)?.name || '';
     const span = (o: { start: number; minutes: number }) => `from ${timeOfDay(o.start)} to ${timeOfDay(o.start + o.minutes)}`;
-    const warnings: string[] = [];
+    // One sentence per game it clashes with, saying everything about that game once: the field it
+    // is on, and which of these teams are already in it.
+    const byGame = new Map<string, { ground?: string; teams: string[] }>();
     for (const c of findClashes(bookings, sharedGroundMap(pairs))) {
       if (!c.ids.includes('proposed')) continue;
-      const other = others.get(c.ids.find(id => id !== 'proposed') || '');
+      const otherId = c.ids.find(id => id !== 'proposed') || '';
+      const other = others.get(otherId);
       if (!other) continue;
-      if (c.kind === 'facility') warnings.push(`${nameOf('f', p.facilityId)} has ${other.label} ${span(other)}`);
-      else if (c.kind === 'sharedGround') warnings.push(`${other.facilityName} shares ground with ${nameOf('f', p.facilityId)} and has ${other.label} ${span(other)}`);
-      else if (c.kind === 'teamAtOnce') warnings.push(`${nameOf('t', c.competitor)} also plays ${other.label} ${span(other)}`);
+      const entry = byGame.get(otherId) || { teams: [] };
+      if (c.kind === 'facility') entry.ground = `${nameOf('f', p.facilityId)} has`;
+      else if (c.kind === 'sharedGround') entry.ground = `${other.facilityName}, which shares ground with ${nameOf('f', p.facilityId)}, has`;
+      else if (c.kind === 'teamAtOnce' && c.competitor) entry.teams.push(nameOf('t', c.competitor));
+      byGame.set(otherId, entry);
     }
-    return { warnings: [...new Set(warnings)] };
+    const warnings: string[] = [];
+    for (const [id, { ground, teams }] of byGame) {
+      const other = others.get(id)!;
+      const who = teams.length === 2 ? 'both teams' : teams[0];
+      if (ground) warnings.push(`${ground} ${other.label} ${span(other)}${teams.length ? `, with ${who} in it too` : ''}`);
+      else if (teams.length) warnings.push(`${who === 'both teams' ? 'Both teams already play' : `${who} already plays`} in ${other.label} ${span(other)}`);
+    }
+    return { warnings };
   }
 
   /**

@@ -117,7 +117,7 @@ export default function SitePage() {
       })
     : upcoming;
 
-  const openGame = (g: GameSummary) => router.push(`/admin/${orgId}/events/${g.eventId}/games/${g.id}/view`);
+  const openGame = (g: GameSummary) => router.push(`/admin/${orgId}/events/${g.eventId}/games/${g.id}`);
   const openFacility = (f: Facility | null) => { setEditing(f); setDialog('facility'); };
 
   /* ---------------- actions ---------------- */

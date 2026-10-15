@@ -110,10 +110,16 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     saved through a save bar. Reached from the Organisations & teams card and its full page. Two readers (`FIX-30`):
     the organisers, and the organisation's own members once it is invited — they answer, ask to
     withdraw, and see their teams read-only.
-*   `/admin/[orgId]/events/[eventId]/games/new`, `/admin/[orgId]/events/[eventId]/games/[gameId]/edit`, `/admin/[orgId]/events/[eventId]/games/[gameId]/view`,
-    `/admin/[orgId]/events/[eventId]/games/[gameId]/selection`, `/admin/[orgId]/events/[eventId]/games/[gameId]/score`: One fixture. `score` is the **Scorekeeper Console** for real-time event entry.
-    `new` picks the division and stage a tournament fixture belongs to — silently where the
-    collapse rule means there is only one of each (`FIX-12`).
+*   `/admin/[orgId]/events/[eventId]/games/[gameId]`: **One game's page** (stage 3, 2026-10-15) —
+    the scoreboard, the teams' sheets, match events and when & where, read first; edited through its
+    dialogs (docs/events.md §9). Replaced the `view` and `edit` screens. `?place=1` opens a tournament
+    fixture's *When & where* straight away (from Add fixture).
+*   `/admin/[orgId]/events/[eventId]/games/new`, `/admin/[orgId]/events/[eventId]/games/[gameId]/selection`,
+    `/admin/[orgId]/events/[eventId]/games/[gameId]/score`: `score` is the **Scorekeeper Console** for
+    real-time event entry, and `selection` is Pick team; both come back to the game's page. `new`
+    (*Add fixture*) asks for the teams and picks the division and stage a tournament fixture belongs
+    to — silently where the collapse rule means there is only one of each (`FIX-12`) — then opens the
+    new game to place it.
 
 > **The collapse rule (U15) decides whether a route is ever reached.** A level with exactly one child
 > renders that child inline and shows no picker — so a tournament with one division shows that

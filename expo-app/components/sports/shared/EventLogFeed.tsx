@@ -16,6 +16,11 @@ interface EventLogFeedProps {
   gameId: string;
   game?: Game;
   canManage?: boolean;
+  /**
+   * Inside a card that already says *Match events* (the game page, stage 3): no frame of its own and
+   * no *Live Feed* title, only the filters and the list.
+   */
+  plain?: boolean;
 }
 
 export type EventFilterCategory = 'TIME' | 'SCORE' | 'DETAIL' | 'GENERAL';
@@ -40,7 +45,7 @@ function getEventCategory(evt: GameEvent): EventFilterCategory {
   return 'DETAIL';
 }
 
-export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedProps) {
+export function EventLogFeed({ gameId, game, canManage = false, plain = false }: EventLogFeedProps) {
   const isDark = useActiveTheme() === 'dark';
   const {
     startDynamicFlow,
@@ -264,10 +269,10 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
   }
 
   return (
-    <View className="flex-1 bg-sunken rounded-2xl border border-line overflow-hidden">
+    <View className={plain ? 'flex-1' : 'flex-1 bg-sunken rounded-2xl border border-line overflow-hidden'}>
       {/* HEADER & FILTER BAR */}
-      <View className="flex-row items-center justify-between px-3 py-2 bg-card border-b border-line">
-        <Text className="font-orbitron-bold text-xs uppercase text-ink-soft">Live Feed</Text>
+      <View className={plain ? 'flex-row items-center justify-end pb-2 border-b border-line-soft' : 'flex-row items-center justify-between px-3 py-2 bg-card border-b border-line'}>
+        {plain ? null : <Text className="font-orbitron-bold text-xs uppercase text-ink-soft">Live Feed</Text>}
 
         <View className="flex-row items-center gap-1.5 flex-wrap">
           <TouchableOpacity
@@ -336,7 +341,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
       {filteredEvents.length === 0 ? (
         <View className="flex-1 items-center justify-center py-10">
           <Text className="font-inter text-xs text-ink-muted italic">
-            {events.length === 0 ? 'Waiting for kickoff...' : 'No events match filters.'}
+            {events.length === 0 ? (game?.status === 'Finished' ? 'Nothing was recorded during the match.' : 'Waiting for kickoff...') : 'No events match filters.'}
           </Text>
         </View>
       ) : (

@@ -52,7 +52,7 @@ The color system relies on a deep, dark foundation punctuated by highly saturate
 
 ### 1.5 Generic & Reusable UI Components
 - **Encourage Component Reuse**: Developers and AI agents must actively prefer creating and consuming generic, domain-agnostic UI components (e.g. `SegmentedControl`, `Button`, `GlassCard`, `ConfirmationModal`) whenever implementing UI patterns across the application.
-- **Prevent Duplicate Implementations**: Avoid re-implementing ad-hoc component layouts or styling blocks in individual screens. Specialized components (such as `MatchViewSwitcher`) should wrap generic base components (like `SegmentedControl`) to preserve single-source-of-truth styling while encapsulating domain logic.
+- **Prevent Duplicate Implementations**: Avoid re-implementing ad-hoc component layouts or styling blocks in individual screens. Specialized components (such as `FixtureCrest` or `TournamentCard`) should wrap generic base components (like `SegmentedControl`) to preserve single-source-of-truth styling while encapsulating domain logic.
 
 ---
 

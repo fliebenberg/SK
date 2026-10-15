@@ -10,7 +10,6 @@ import { SocketAction, Event, Game } from '@sk/shared';
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
-import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
 import { DynamicScoringProvider } from '../../../../../../../components/sports/shared/DynamicScoringContext';
 import { DynamicScoringDialog } from '../../../../../../../components/sports/shared/DynamicScoringDialog';
 import { DynamicScoringPanels } from '../../../../../../../components/sports/shared/DynamicScoringPanels';
@@ -124,7 +123,7 @@ export default function ScoreGameScreen() {
           title="Scoring Restricted"
           message="You do not have permission to score this match. Org admins and staff, or a coach of one of the participating teams, can open the control room."
           actionLabel="Open Match View"
-          onAction={() => router.replace(`/admin/${orgId}/events/${eventId}/games/${gameId}/view` as any)}
+          onAction={() => router.replace(`/admin/${orgId}/events/${eventId}/games/${gameId}` as any)}
         />
       </SafeAreaView>
     );
@@ -141,7 +140,7 @@ export default function ScoreGameScreen() {
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         {/* HEADER BAR */}
         <View className="flex-row items-center justify-between px-4 py-2.5 border-b border-line-soft bg-card z-10">
-          <TouchableOpacity onPress={() => safeBack(`/admin/${orgId}/events/${eventId}`)} className="flex-row items-center gap-1">
+          <TouchableOpacity onPress={() => safeBack(`/admin/${orgId}/events/${eventId}/games/${gameId}`)} className="flex-row items-center gap-1">
             <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
             <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
               Back
@@ -150,13 +149,8 @@ export default function ScoreGameScreen() {
           <Text numberOfLines={1} className="font-orbitron-bold text-sm tracking-widest text-ink uppercase flex-1 text-center px-4">
             Game Control Room
           </Text>
-          <MatchViewSwitcher
-            orgId={orgId!}
-            eventId={eventId!}
-            gameId={gameId!}
-            currentView="score"
-            permissions={permissions}
-          />
+          {/* Back to the game's page — there is no View / Lineup / Edit / Score switcher since stage 3. */}
+          <View style={{ width: 60 }} />
         </View>
 
         <ScrollView className="flex-1 px-4 py-2" contentContainerStyle={{ paddingBottom: 30 }}>

@@ -246,7 +246,7 @@ export function DualResults({ event, orgId, hostOrg, divisions, games, sports, u
                           return (
                             <TouchableOpacity
                               key={g.id}
-                              onPress={() => router.push(`/admin/${orgId}/events/${event.id}/games/${g.id}/view`)}
+                              onPress={() => router.push(`/admin/${orgId}/events/${event.id}/games/${g.id}`)}
                               accessibilityRole="link"
                               className="flex-row items-center gap-2 py-1"
                             >
