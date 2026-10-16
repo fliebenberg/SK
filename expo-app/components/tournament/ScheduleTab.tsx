@@ -3,17 +3,19 @@ import { Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  Booking, DivisionDay, Event, EventDay, Facility, GameSummary, Site, SocketAction, Sport, TournamentDivision,
-  divisionFullName, findClashes, isPlayedFixture, minuteOfDay, timeOfDay,
+  Booking, Clash, DivisionDay, Event, EventDay, Facility, GameSummary, Site, SocketAction, Sport, TournamentDivision,
+  divisionFullName, findClashes, isDualEvent, isPlayedFixture, minuteOfDay, timeOfDay,
 } from '@sk/shared';
 import CustomSelect from '../CustomSelect';
 import { TournamentCard } from './TournamentBits';
 import { isUnscheduled } from './scheduleModel';
 import { ScheduleDivisionDialog } from './ScheduleActions';
 import { MoveSheet, fixtureName } from './MoveSheet';
+import { AddFixtureSheet, type FixtureSlot } from './AddFixtureSheet';
 import { useScheduleCheck } from './useScheduleCheck';
 import { sendAction } from '../../services/actions';
 import { useWsStore } from '../../store/wsStore';
+import { useToastStore } from '../../store/toastStore';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
 import { formatPlayingDay, venueInputsToInstant, type CalendarDate } from '../../utils/dates';
@@ -37,9 +39,14 @@ import { formatPlayingDay, venueInputsToInstant, type CalendarDate } from '../..
  * - **The day's hours** (agreed 2026-10-12): on the web the *Day starts* and *Day ends* lines are
  *   dragged to change that day's hours — the tournament's, or with a division chosen, the division's
  *   *First game start* and *Last game ends*. Fixtures stay put; any now outside the hours are clashes.
- * - **Schedule again** (2026-10-12): with a division chosen, beside the filters — the division page's
+ * - **Schedule again** (2026-10-12): with a division chosen, at the right of the toolbar — the division page's
  *   dialog, so the hours just dragged can be planned into straight away.
- * - **Offline** (U20): the schedule reads; moving needs a connection.
+ * - **Adding a fixture** (2026-10-16): on the web, clicking an empty space on the grid adds one
+ *   there; *＋ Add a fixture* at the right of the toolbar adds one without a time, on any screen. Both open
+ *   `AddFixtureSheet`. Not on a Head to Head, whose games are made by pairing.
+ * - **Opened on a division** (2026-10-16): `?tab=schedule&division=…`, from the division page's
+ *   *Edit in the Schedule* — that division chosen, on the first day it has fixtures.
+ * - **Offline** (U20): the schedule reads; moving and adding need a connection.
  */
 
 const PX = 1.4; // pixels a minute
@@ -61,10 +68,17 @@ interface Props {
   hostOrg?: { timezone?: string | null } | null;
   /** Whether the viewer may change the day's hours: the tournament's (null), or a division's. */
   canSetHours: (divisionId: string | null) => boolean;
+  /** The division to open on, from a link (`?division=`). */
+  initialDivisionId?: string;
 }
 
 /** How far each overlapping fixture is set in from the one beneath it, so that one stays reachable. */
 const LANE_INDENT = 18;
+/** A facility column's width, and how wide one of its overlapping fixtures may grow side by side. */
+const COLUMN_WIDTH = 104;
+const LANE_WIDTH = 150;
+/** Overlapping fixtures sit side by side once each would be at least this wide; narrower, they stack. */
+const SIDE_BY_SIDE_MIN = 96;
 
 /**
  * Lanes for one facility's fixtures on a day: a fixture overlapping one already placed goes in the
@@ -89,7 +103,7 @@ const plural = (n: number, word: string, many?: string) => `${n} ${n === 1 ? wor
 /** Each division's colour on the grid — theme tokens, in turn. */
 const DIVISION_TONES = ['info', 'special', 'success', 'primary', 'accent', 'warning', 'danger'] as const;
 
-export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: savedGames, sports, sites, facilities, facilityIds, hostOrg, canSetHours }: Props) {
+export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: savedGames, sports, sites, facilities, facilityIds, hostOrg, canSetHours, initialDivisionId }: Props) {
   const router = useRouter();
 
   /**
@@ -120,7 +134,21 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
   const days: DayChoice[] = playingDays.length ? playingDays : fixtureDays;
   const [day, setDay] = useState<DayChoice>(days[0] || '');
   useEffect(() => { if (!days.includes(day) && days.length) setDay(days[0]); }, [days.join()]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [divisionId, setDivisionId] = useState('all');
+  const [divisionId, setDivisionId] = useState(initialDivisionId || 'all');
+  /** Opened on a division: its first day with fixtures, once they have arrived — then the viewer's. */
+  const openDay = useRef(!!initialDivisionId);
+  useEffect(() => {
+    if (!initialDivisionId) return;
+    setDivisionId(initialDivisionId);
+    setFacilityId('all');
+    setExtras(new Set());
+    openDay.current = true;
+  }, [initialDivisionId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!openDay.current || divisionId === 'all') return;
+    const first = model.bookings.filter(b => gameOf(b.id)?.divisionId === divisionId).map(b => b.day).filter(d => days.includes(d)).sort()[0];
+    if (first) { setDay(first); openDay.current = false; }
+  }, [model, divisionId, days.join()]); // eslint-disable-line react-hooks/exhaustive-deps
   /**
    * 'all' — every facility, or with a division chosen its own (plus any `extras` added to see where
    * else its games could go); 'every' — with a division chosen, every tournament facility for its
@@ -162,7 +190,31 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
   /* -- moving ----------------------------------------------------------------------------- */
   const [moving, setMoving] = useState<GameSummary | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ text: string; warn?: string; undo?: () => void } | null>(null);
+  /**
+   * What a change did, in the app's own toast (2026-10-16): it names the fixture, fades after a few
+   * seconds, and offers *Undo* meanwhile. A clash it caused turns it into a warning.
+   */
+  const showToast = useToastStore(s => s.showToast);
+  const say = ({ title, text, warn, anyway, undo }: { title: string; text: string; warn?: string; anyway: string; undo: () => Promise<unknown> }) => {
+    showToast({
+      type: warn ? 'warning' : 'success',
+      title,
+      message: warn ? `${text}
+⚠ ${warn} — ${anyway}.` : text,
+      duration: 8000,
+      action: { label: 'Undo', onPress: () => { setFlash(null); void undo(); } },
+    });
+  };
+  /**
+   * The outline on the fixture just moved, added or picked from the clashes is only a pointer to it:
+   * it goes after a few seconds, or on *Undo*, so it is never left looking like a warning
+   * (2026-10-16).
+   */
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 5000);
+    return () => clearTimeout(t);
+  }, [flash]);
   const [scheduling, setScheduling] = useState<TournamentDivision | null>(null);
   const [schedulingAgain, setSchedulingAgain] = useState(false);
   const move = async (g: GameSummary, to: { day: string; start: number; facilityId: string } | null) => {
@@ -181,10 +233,41 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
     setFlash(g.id);
     loadContext();
     const warn = res.data.clashes.map(c => clashText(c).title).join(' · ');
-    setToast({
-      text: to ? `Moved to ${facilityOf(to.facilityId)?.name}, ${formatPlayingDay(to.day)} ${timeOfDay(to.start)}.` : 'It has no time now.',
+    say({
+      title: to ? 'Moved' : 'Time and court removed',
+      text: to
+        ? `${fixtureName(g)} — ${facilityOf(to.facilityId)?.name}, ${formatPlayingDay(to.day)} ${timeOfDay(to.start)}.`
+        : `${fixtureName(g)} is under Without a time, to place later.`,
       warn: warn || undefined,
-      undo: async () => { setToast(null); await send(was); },
+      anyway: 'moved anyway',
+      undo: () => send(was),
+    });
+  };
+
+  /* -- adding ------------------------------------------------------------------------------ */
+  /** The divisions the viewer may add a fixture to; none on a Head to Head, whose games are paired. */
+  const addable = isDualEvent(event) ? [] : divisions.filter(d => canSetHours(d.id));
+  const canAdd = canEdit && online && addable.length > 0;
+  const [adding, setAdding] = useState<{ slot?: FixtureSlot; divisionId?: string } | null>(null);
+  /** A click on the grid adds to the division shown, else the first that plays on that facility. */
+  const addAt = (slot?: FixtureSlot) => {
+    const shown = addable.find(d => d.id === divisionId);
+    const here = slot ? addable.find(d => divisionFacilityIds(d.id).has(slot.facilityId)) : undefined;
+    setAdding({ slot, divisionId: (shown || here || addable[0])?.id });
+  };
+  const added = (g: { id: string; name: string }, placed: FixtureSlot | null, made: Clash[]) => {
+    setAdding(null);
+    setFlash(g.id);
+    loadContext();
+    const warn = made.map(c => clashText(c).title).join(' · ');
+    say({
+      title: 'Fixture added',
+      text: placed
+        ? `${g.name} — ${facilityOf(placed.facilityId)?.name}, ${formatPlayingDay(placed.day)} ${timeOfDay(placed.start)}.`
+        : `${g.name} is under Without a time, to place later.`,
+      warn: warn || undefined,
+      anyway: 'added anyway',
+      undo: () => sendAction(SocketAction.DELETE_GAME, { id: g.id, orgId }),
     });
   };
 
@@ -229,6 +312,14 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
   };
   const web = Platform.OS === 'web';
   const canMove = canEdit && online;
+  /** Where a click on a column's empty space would add a fixture, to the quarter-hour; null on a fixture or a line's grip. */
+  const [hover, setHover] = useState<{ facilityId: string; start: number } | null>(null);
+  const emptyAt = (e: any): number | null => {
+    if (drag.current || (e.target as HTMLElement)?.closest?.('[data-block],[data-grip]')) return null;
+    const y = e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top;
+    return Math.floor((g0 + y / PX) / 15) * 15;
+  };
+  const hoverMinutes = model.minutesOf({ divisionId: (addable.find(d => d.id === divisionId) || addable[0])?.id } as GameSummary) ?? 60;
 
   /* -- dragging the day's hours ------------------------------------------------------------- */
   const hoursEditable = web && online && !!window
@@ -266,10 +357,12 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
       if (which === 'start' && minute < tStart) warn = `It starts before the tournament's day starts (${timeOfDay(tStart)}).`;
       if (which === 'end' && minute > tEnd) warn = `It ends after the tournament's day ends (${timeOfDay(tEnd)}).`;
     }
-    setToast({
+    say({
+      title: 'Hours changed',
       text: `${which === 'start' ? hourLabels.startFull : hourLabels.endFull} ${timeOfDay(minute)} on ${formatPlayingDay(day)}${shownDivision ? ` for ${shownDivision.name}` : ''}.`,
       warn,
-      undo: async () => { setToast(null); await undo(); },
+      anyway: 'saved anyway',
+      undo,
     });
   };
   const hoursRef = useRef<{ which: 'start' | 'end'; y0: number; from: number; minute: number } | null>(null);
@@ -304,11 +397,15 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
       key={`grip-${which}`}
       onPointerDown={(e: any) => beginHoursDrag(which, e)}
       title={`Drag to change ${which === 'start' ? hourLabels.startFull : hourLabels.endFull}`}
+      data-grip
       style={{ position: 'absolute', left: 0, right: 0, top: ((which === 'start' ? dayStart : dayEnd) - g0) * PX - 5, height: 10, cursor: 'row-resize', touchAction: 'none', zIndex: 0 }}
     />
   ) : null);
 
-  const block = (b: Booking, lane = 0) => {
+  const block = (b: Booking, lane = 0, lanes = 1, width = COLUMN_WIDTH) => {
+    // Side by side when the column has room for each; otherwise stacked, each set in from the last.
+    const slot = (width - 6) / lanes;
+    const across = lanes > 1 && slot >= SIDE_BY_SIDE_MIN ? { left: 3 + lane * slot, width: slot - 3 } : { left: 3 + lane * LANE_INDENT, right: 3 };
     const g = gameOf(b.id);
     const other = !g;
     const faded = !other && !inDivision(g);
@@ -319,7 +416,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
     const inner = (
       <View
         className={`absolute rounded-md border px-1.5 py-0.5 overflow-hidden ${bad ? 'bg-warning-soft border-warning' : other ? 'bg-sunken border-line' : 'bg-card border-line'} ${flash === b.id ? 'border-primary' : ''}`}
-        style={{ top: (b.start - g0) * PX, height: Math.max(18, b.minutes * PX - 2), left: 3 + lane * LANE_INDENT, right: 3, zIndex: 1 + lane, opacity: faded ? 0.35 : 1, borderLeftWidth: 4, borderLeftColor: other ? undefined : toneOf(g?.divisionId) }}
+        style={{ top: (b.start - g0) * PX, height: Math.max(18, b.minutes * PX - 2), ...across, zIndex: 1 + lane, opacity: faded ? 0.35 : 1, borderLeftWidth: 4, borderLeftColor: other ? undefined : toneOf(g?.divisionId) }}
       >
         <Text className={`font-inter-bold text-[11px] ${bad ? 'text-warning-ink' : 'text-ink-soft'}`} numberOfLines={1}>{bad ? '⚠ ' : ''}{label}</Text>
         {!other ? <Text className="font-inter text-[11px] text-ink" numberOfLines={b.minutes > 45 ? 3 : 1}>{fixtureName(g)}</Text> : null}
@@ -340,6 +437,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
           }}
           onDragEnd={() => { drag.current = null; setPreview(null); }}
           onClick={open}
+          data-block
           title={`${division?.name || ''} · ${fixtureName(g)} · ${span(b.id)}`}
           style={{ cursor: 'grab' }}
         >
@@ -350,7 +448,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
     return <TouchableOpacity key={b.id} onPress={open} accessibilityRole="button" accessibilityLabel={`${fixtureName(g)}, ${span(b.id)}`} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 0 }}>{inner}</TouchableOpacity>;
   };
 
-  const column = (fid: string) => {
+  const column = (fid: string, width: number) => {
     const lines = quarters.map(m => (
       <View key={m} className={`absolute left-0 right-0 border-t ${m % 60 ? 'border-line-soft' : 'border-line'}`} style={{ top: (m - g0) * PX, borderStyle: m % 60 ? 'dotted' : 'dashed' }} />
     ));
@@ -375,13 +473,19 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
         {preview.clashes ? <Text className="font-inter-semibold text-[11px] text-warning-ink">⚠ {plural(preview.clashes, 'clash', 'clashes')}</Text> : null}
       </View>
     ) : null;
+    // Where a click would add a fixture: a dashed outline the length of one, under the pointer.
+    const addGhost = hover && hover.facilityId === fid && !preview ? (
+      <View pointerEvents="none" className="absolute rounded-md border border-dashed border-primary bg-primary-soft px-1.5" style={{ top: (hover.start - g0) * PX, height: hoverMinutes * PX - 2, left: 3, right: 3, zIndex: 0, opacity: 0.8 }}>
+        <Text className="font-inter-bold text-[11px] text-primary-ink" numberOfLines={1}>＋ {timeOfDay(hover.start)}</Text>
+      </View>
+    ) : null;
     const body = (
       <>
-        {lines}{shade}
+        {lines}{shade}{addGhost}
         {(() => {
           const here = onDay.filter(b => b.facilityId === fid);
-          const lanes = overlapLanes(here);
-          return here.map(b => block(b, lanes.get(b.id) || 0));
+          const { lanes, count } = laneInfo.get(fid)!;
+          return here.map(b => block(b, lanes.get(b.id) || 0, count, width));
         })()}
         {ghost}
       </>
@@ -406,6 +510,17 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
             drag.current = null; setPreview(null);
             if (g) move(g, { day, start, facilityId: fid });
           }}
+          onMouseMove={canAdd ? (e: any) => {
+            const start = emptyAt(e);
+            if (start == null) { if (hover) setHover(null); return; }
+            if (hover?.facilityId !== fid || hover.start !== start) setHover({ facilityId: fid, start });
+          } : undefined}
+          onMouseLeave={canAdd ? () => setHover(null) : undefined}
+          onClick={canAdd ? (e: any) => {
+            const start = emptyAt(e);
+            if (start != null) { setHover(null); addAt({ day, start, facilityId: fid }); }
+          } : undefined}
+          title={canAdd ? 'Click to add a fixture here' : undefined}
           data-testid={`schedule-column-${fid}`}
           style={{ position: 'relative', height: gridHeight, width: '100%' }}
         >
@@ -417,9 +532,23 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
   };
 
   const siteGroups = [...new Set(columnIds.map(id => facilityOf(id)?.siteId || ''))];
+  /**
+   * Column widths (2026-10-16): each facility is COLUMN_WIDTH, and one where fixtures overlap takes
+   * the grid's spare width, up to LANE_WIDTH for each of them, so they can sit side by side.
+   */
+  const [gridBox, setGridBox] = useState(0);
+  const laneInfo = new Map(columnIds.map(fid => {
+    const lanes = overlapLanes(onDay.filter(b => b.facilityId === fid));
+    return [fid, { lanes, count: Math.max(1, ...[...lanes.values()].map(l => l + 1)) }] as const;
+  }));
+  const wants = columnIds.map(fid => { const n = laneInfo.get(fid)!.count; return n > 1 ? n * LANE_WIDTH - COLUMN_WIDTH : 0; });
+  const wanted = wants.reduce((a, b) => a + b, 0);
+  const spare = gridBox ? gridBox - 96 - (columnIds.length - 1) * 6 - columnIds.length * COLUMN_WIDTH : 0;
+  const widthOf = new Map(columnIds.map((fid, i) => [fid, COLUMN_WIDTH + (wanted > 0 && spare > 0 ? Math.min(wants[i], (spare * wants[i]) / wanted) : 0)]));
   const grid = (
+    <View onLayout={e => setGridBox(e.nativeEvent.layout.width)}>
     <ScrollView horizontal showsHorizontalScrollIndicator>
-      <View className="flex-row" style={{ minWidth: '100%' as any }}>
+      <View className="flex-row">
         <View style={{ width: 96, marginTop: 50, height: gridHeight }}>
           {hours.map(m => (
             <Text key={m} className="absolute font-inter text-[11px] text-ink-muted" style={{ top: (m - g0) * PX - 7 }}>{timeOfDay(m)}</Text>
@@ -448,18 +577,18 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
             );
           })}
         </View>
-        <View className="flex-1 flex-row gap-1.5">
+        <View className="flex-row gap-1.5">
           {siteGroups.map(siteId => (
-            <View key={siteId} className="flex-1" style={{ minWidth: columnIds.filter(id => facilityOf(id)?.siteId === siteId).length * 108 }}>
+            <View key={siteId}>
               <Text className="font-inter-bold text-[11px] text-ink-muted uppercase tracking-wider border-b border-line pb-1" numberOfLines={1} style={{ height: 22 }}>{siteName(siteId)}</Text>
               <View className="flex-row gap-1.5">
                 {columnIds.filter(id => facilityOf(id)?.siteId === siteId).map(fid => (
-                  <View key={fid} className="flex-1" style={{ minWidth: 104 }}>
+                  <View key={fid} style={{ width: widthOf.get(fid) }}>
                     <View className="flex-row items-center gap-1" style={{ height: 28 }}>
                       <Text className="font-inter-bold text-[13px] text-ink" numberOfLines={1}>{facilityOf(fid)?.name}</Text>
                       {(ground[fid] || []).length ? <Ionicons name="layers-outline" size={13} color={themeColor(isDark, 'ink-muted')} accessibilityLabel={`Shares ground with ${(ground[fid] || []).map(o => facilityOf(o)?.name).join(', ')}`} /> : null}
                     </View>
-                    <View className="rounded-lg border border-line-soft bg-card overflow-hidden">{column(fid)}</View>
+                    <View className="rounded-lg border border-line-soft bg-card overflow-hidden">{column(fid, widthOf.get(fid)!)}</View>
                   </View>
                 ))}
               </View>
@@ -468,6 +597,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
         </View>
       </View>
     </ScrollView>
+    </View>
   );
 
   /* -- scheduling the chosen division, as on its page: drawn, not started, by those who may -- */
@@ -678,19 +808,26 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
         }}
         options={facilityOptions}
       />
-      {scheduleButton}
+      {/* The filters on the left, what changes the schedule on the right (2026-10-16). */}
       <View className="flex-1" />
-      {canEdit ? (
-        dayClashes.length ? (
-          <TouchableOpacity onPress={() => setPanelOpen(o => !o)} accessibilityRole="button" className="rounded-full bg-warning-soft px-3 py-1">
-            <Text className="font-inter-bold text-xs text-warning-ink">⚠ {plural(dayClashes.length, 'clash', 'clashes')}</Text>
-          </TouchableOpacity>
-        ) : (
-          <View className="flex-row items-center gap-1.5"><View className="w-2 h-2 rounded-full bg-success" /><Text className="font-inter-semibold text-xs text-success-ink">No clashes</Text></View>
-        )
+      {scheduleButton}
+      {canAdd ? (
+        <TouchableOpacity onPress={() => addAt()} accessibilityRole="button" className="rounded-xl border border-line bg-card px-3 py-1.5">
+          <Text className="font-inter-bold text-[13px] text-ink-soft">＋ Add a fixture</Text>
+        </TouchableOpacity>
       ) : null}
     </View>
   );
+  /** The day's clash status, on the Scheduled card's heading line: the count opens the clashes on a phone. */
+  const clashStatus = canEdit ? (
+    dayClashes.length ? (
+      <TouchableOpacity onPress={() => setPanelOpen(o => !o)} accessibilityRole="button" className="rounded-full bg-warning-soft px-3 py-1">
+        <Text className="font-inter-bold text-xs text-warning-ink">⚠ {plural(dayClashes.length, 'clash', 'clashes')}</Text>
+      </TouchableOpacity>
+    ) : (
+      <View className="flex-row items-center gap-1.5"><View className="w-2 h-2 rounded-full bg-success" /><Text className="font-inter-semibold text-xs text-success-ink">No clashes</Text></View>
+    )
+  ) : undefined;
 
   const scheduledCount = games.filter(g => !isUnscheduled(g) && inDivision(g) && model.placeOf(g)?.day === day).length;
   const offline = canEdit && !online ? (
@@ -712,7 +849,10 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
       {isWide ? (
         <View className="flex-row gap-4 items-start">
           <View className="min-w-0" style={{ flex: 3 }}>
-            <TournamentCard title="Scheduled" count={scheduledCount}>{grid}</TournamentCard>
+            <TournamentCard title="Scheduled" count={scheduledCount} right={clashStatus}>
+              {web && canAdd ? <Text className="font-inter text-xs text-ink-muted">Click an empty space to add a fixture there.</Text> : null}
+              {grid}
+            </TournamentCard>
           </View>
           {canEdit && (clashPanel || tray) ? <View className="gap-3" style={{ flex: 1, minWidth: 250 }}>{clashPanel}{tray}</View> : null}
         </View>
@@ -720,20 +860,9 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
         <View className="gap-3">
           {clashPanel}
           {canEdit ? tray : null}
-          <TournamentCard title="Scheduled" count={scheduledCount}>{list}</TournamentCard>
+          <TournamentCard title="Scheduled" count={scheduledCount} right={clashStatus}>{list}</TournamentCard>
         </View>
       )}
-
-      {toast ? (
-        <View className={`flex-row items-center gap-3 rounded-xl px-3.5 py-2.5 ${toast.warn ? 'bg-warning-soft border border-warning-line' : 'bg-sunken border border-line'}`} accessibilityLiveRegion="polite">
-          <View className="flex-1">
-            <Text className="font-inter text-sm text-ink">{toast.text}</Text>
-            {toast.warn ? <Text className="font-inter-semibold text-sm text-warning-ink">⚠ {toast.warn} — moved anyway.</Text> : null}
-          </View>
-          {toast.undo ? <TouchableOpacity onPress={toast.undo} accessibilityRole="button"><Text className="font-inter-bold text-sm text-primary-ink">Undo</Text></TouchableOpacity> : null}
-          <TouchableOpacity onPress={() => setToast(null)} accessibilityRole="button" accessibilityLabel="Dismiss"><Ionicons name="close" size={16} color={themeColor(isDark, 'ink-muted')} /></TouchableOpacity>
-        </View>
-      ) : null}
 
       {moving ? (
         <MoveSheet
@@ -750,6 +879,25 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
           online={online}
           onClose={() => setMoving(null)}
           onMove={async to => { const g = moving; setMoving(null); await move(g, to); }}
+        />
+      ) : null}
+      {adding ? (
+        <AddFixtureSheet
+          event={event}
+          orgId={orgId}
+          divisions={addable}
+          divisionName={divisionName}
+          initialDivisionId={adding.divisionId}
+          slot={adding.slot}
+          days={days}
+          facilityIds={facilityIds}
+          divisionFacilityIds={divisionFacilityIds}
+          facilityLabel={facilityLabel}
+          model={model}
+          timeZone={timeZone}
+          wouldClash={check.wouldClash}
+          onClose={() => setAdding(null)}
+          onAdded={added}
         />
       ) : null}
       {scheduling ? (

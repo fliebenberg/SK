@@ -3,7 +3,6 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, useWindowD
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../store/settingsStore';
@@ -79,10 +78,12 @@ export default function EventDetails() {
    * param is the fallback for the cases where there is no history to pop: a refresh on web, or a
    * deep link straight onto a step.
    */
-  const { orgId, eventId, tab: tabParam } = useLocalSearchParams<{
+  const { orgId, eventId, tab: tabParam, division: divisionParam } = useLocalSearchParams<{
     orgId: string;
     eventId: string;
     tab?: string;
+    /** With `tab=schedule`: the division the Schedule opens on (the division page's *Edit in the Schedule*). */
+    division?: string;
   }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -157,6 +158,8 @@ export default function EventDetails() {
   const [activeTab, setActiveTab] = useState<'setup' | 'schedule' | 'standings'>(
     () => (tabParam === 'schedule' || tabParam === 'standings' ? tabParam : 'setup')
   );
+  // Arriving again with new params — a link back to a page already open — follows them.
+  useEffect(() => { if (tabParam === 'schedule' || tabParam === 'standings') setActiveTab(tabParam); }, [tabParam, divisionParam]);
   const [organizersOpen, setOrganizersOpen] = useState(false);
   /** The page's scroll, and where the Overview starts in it — for the progress bar's jumps to a card. */
   const scrollRef = useRef<ScrollView>(null);
@@ -526,15 +529,8 @@ export default function EventDetails() {
               canSetHours={divisionId => canEdit || (!!divisionId && (
                 !!capabilities?.convenesDivisionIds?.includes(divisionId)
                 || !!capabilities?.convenesSportIds?.includes(divisions.find(d => d.id === divisionId)?.sportId || '')))}
+              initialDivisionId={divisionParam}
             />
-            {canEdit && (
-              <Button
-                title="Add a fixture"
-                variant="secondary"
-                onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/new`)}
-                className="py-2.5 rounded-lg self-start"
-              />
-            )}
           </PageBody>
         )}
 

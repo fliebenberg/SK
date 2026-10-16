@@ -85,7 +85,7 @@ test.describe('the Schedule tab, as the host', () => {
     await page.getByLabel('Starts').fill('09:15');
     await expect(page.getByText(/Netball Court 3 is booked twice\. You can still move it\./)).toBeVisible();
     await page.getByRole('button', { name: 'Move', exact: true }).click();
-    await expect(page.getByText(/Moved to Netball Court 3/)).toBeVisible();
+    await expect(page.getByText(/ — Netball Court 3, Sat 28 Nov/)).toBeVisible();
     await expect(page.getByText(/moved anyway/)).toBeVisible();
     await expect(page.getByText(/Netball Court 3 is booked twice/).first()).toBeVisible();
     // The fixture beneath is set out of the way, not hidden: its strip on the left still opens it.
@@ -131,7 +131,7 @@ test.describe('the Schedule tab, as the host', () => {
     await page.getByText(/^08:00 U14 R1/).first().click();
     await page.getByRole('button', { name: 'Remove time and court' }).click();
     await expect(page.getByText('Without a time', { exact: true })).toBeVisible();
-    await expect(page.getByText('It has no time now.')).toBeVisible();
+    await expect(page.getByText(/ is under Without a time, to place later\.$/)).toBeVisible();
     const chip = page.locator('[data-testid^="schedule-tray-fx-game-saturday-netball-u14"]').first();
     // Court 2 at 12:00, free after Netball U14's last game: the 12:00 line on the time axis, measured
     // against the column. A tray fixture is held by its top, so its top edge lands on the line.
@@ -143,8 +143,53 @@ test.describe('the Schedule tab, as the host', () => {
     // The first native drag of a session sometimes does not start in the test browser; try twice.
     for (let attempt = 0; attempt < 2; attempt++) {
       await chip.dragTo(column, { targetPosition: { x: col.width / 2, y } });
-      if (await page.getByText(/Moved to Netball Court 2/).isVisible()) break;
+      if (await page.getByText(/ — Netball Court 2, Sat 28 Nov/).isVisible()) break;
     }
-    await expect(page.getByText('Moved to Netball Court 2, Sat 28 Nov 12:00.')).toBeVisible();
+    await expect(page.getByText(/ — Netball Court 2, Sat 28 Nov 12:00\./)).toBeVisible();
+  });
+
+  test("a click on an empty space adds a fixture there, between two of the division's teams, and Undo takes it away", async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', "The grid is the wide screen's");
+    await expect(page.getByText('Click an empty space to add a fixture there.')).toBeVisible();
+    // 12:45 on Court 1: the 12:00 line on the time axis, and 45 minutes (1.4px a minute) below it.
+    const col = await page.getByTestId('schedule-column-fx-fac-dkl-court-1').boundingBox();
+    const noon = await page.getByText('12:00', { exact: true }).first().boundingBox();
+    if (!col || !noon) throw new Error('No Court 1 column or 12:00 line');
+    await page.mouse.click(col.x + col.width / 2, noon.y + noon.height / 2 + 48 * 1.4);
+    await expect(page.getByText('Add a fixture', { exact: true })).toBeVisible();
+    // Court 1 is Netball U14's, so it is the division; the sides are its teams.
+    await expect(page.getByRole('radio', { name: 'Netball U14' })).toBeChecked();
+    await expect(page.getByLabel('Starts')).toHaveValue('12:45');
+    await page.locator('[data-testid^="add-fixture-home-"]').first().click();
+    await page.locator('[data-testid^="add-fixture-away-"]').nth(1).click();
+    await page.getByRole('button', { name: 'Add it here', exact: true }).click();
+    await expect(page.getByText(/^.+ v .+ — Netball Court 1, Sat 28 Nov 12:45\./)).toBeVisible();
+    await expect(page.getByText(/^12:45 U14/).first()).toBeVisible();
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(page.getByText(/^12:45 U14/)).toHaveCount(0);
+  });
+
+  test('＋ Add a fixture adds one without a time, to place later', async ({ page }) => {
+    await choose(page, 'Division', 'Netball U16');
+    await page.getByRole('button', { name: '＋ Add a fixture', exact: true }).click();
+    await expect(page.getByRole('radio', { name: 'Netball U16' })).toBeChecked();
+    await expect(page.getByRole('radio', { name: 'Not yet' })).toBeChecked();
+    await page.locator('[data-testid^="add-fixture-home-"]').first().click();
+    await page.locator('[data-testid^="add-fixture-away-"]').nth(1).click();
+    await page.getByRole('button', { name: 'Add it', exact: true }).click();
+    await expect(page.getByText(/^.+ v .+ is under Without a time, to place later\.$/)).toBeVisible();
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(page.getByText('Fixture added', { exact: true })).toHaveCount(0);
+  });
+});
+
+test.describe('the division page opens the Schedule on its division', () => {
+  test('Edit in the Schedule chooses the division, on the day its fixtures are', async ({ page }) => {
+    await signIn(page, USERS.hostAdmin);
+    await page.goto(`${SATURDAY}/divisions/fx-div-saturday-netball-u16`);
+    await page.getByRole('link', { name: 'Edit in the Schedule ›' }).click();
+    await expect(page).toHaveURL(/tab=schedule&division=fx-div-saturday-netball-u16/);
+    await expect(page.getByRole('button', { name: /^Division: Netball U16/ })).toBeVisible();
+    await expect(page.getByTestId('schedule-column-fx-fac-dkl-court-3')).toBeVisible();
   });
 });

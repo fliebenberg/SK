@@ -8,7 +8,7 @@ tags:
   - styling
   - theme
   - accessibility
-timestamp: 2026-10-09T00:00:00Z
+timestamp: 2026-10-16T00:00:00Z
 ---
 
 # Design System & Styling Rules
@@ -249,6 +249,11 @@ in the banner — and the same cards, without the statuses, once it is (2026-10-
 31. **Home is a fact about the venue, not the order of the teams** (2026-10-15, stage 3). A game's
     teams are *Teams*, never *Home* and *Away*; the *Home* tag shows under a team playing at its own
     organisation's site, and at a neutral ground nobody is at home.
+32. **Change a fixture where the others can be seen** (2026-10-16). Moving or adding a tournament
+    fixture is decided against everything else on that day, so the Schedule tab is the primary place
+    to do it: the division page leads there with *Edit in the Schedule ›* (opening on that
+    division), and the grid adds a fixture where an empty space is clicked. A form for one fixture
+    (the game page's *When & where*, *＋ Add a fixture*) stays, as the second way in.
 
 ## NativeWind v4 & React Native Styling Constraints
 

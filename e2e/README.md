@@ -24,8 +24,9 @@ npm run e2e:report     # the last run's report, with traces of any failure
   division's Where and When, on *Test Saturday Fixtures* and the Spring Festival's days)), then running the scheduler (`07-scheduling.spec.ts`: division states, Schedule all,
   Schedule again, and the Spring Festival's Netball U14 scheduled with its draw in `02-division`), then the
   Schedule tab (`08-schedule-tab.spec.ts`: the grid and its filters, the list on a phone, the clashes, a
-  move by the sheet with Undo, a real drag that lands at the time aimed for, dragging the day's hours, and
-  Schedule again), then results entered offline (`09-offline-results.spec.ts`: the connection cut by
+  move by the sheet with Undo, a real drag that lands at the time aimed for, dragging the day's hours,
+  Schedule again, adding a fixture by a click on the grid and by *＋ Add a fixture*, and the division page's
+  *Edit in the Schedule*), then results entered offline (`09-offline-results.spec.ts`: the connection cut by
   routing the socket through the test — Playwright's offline mode leaves an open WebSocket alone —
   a result waiting and then sent, and one refused over a result changed meanwhile), then a Head to Head (`10-head-to-head.spec.ts`: one made from the
   events list against St Aldric's, its divisions from Doringkloof's age groups, *Pair all*, a division's games changed in its two

@@ -7,7 +7,7 @@ tags:
   - routing
   - pages
   - navigation-guards
-timestamp: 2026-10-09T00:00:00Z
+timestamp: 2026-10-16T00:00:00Z
 ---
 
 # Client Pages & Routing Maps
@@ -88,7 +88,8 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     *Setting up* tab of step cards is gone) — then `Schedule / Standings`. An event whose `type`
     cannot be recognised shows an **error state rather than a Tournament** (U39 / `FIX-1`). Takes an
     optional `?tab=` (`setup` is the first tab) so a screen can return to it after a refresh or a
-    deep link.
+    deep link, and with `tab=schedule` an optional `&division=` that opens the Schedule on that
+    division (the division page's *Edit in the Schedule ›*, 2026-10-16).
 *   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`: **One division, read first** (`FIX-27`,
     2026-10-09; docs/events.md §8) — a banner with its state in the same words as its tile, a
     what's-next strip, and cards: its **teams** (added, replaced, withdrawn and removed here — a

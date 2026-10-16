@@ -221,7 +221,10 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
   ever places fixtures with no time.
 - **The Schedule tab** (Phase 7; U23–U26, D16, D34). **Wide: a time × facility grid** for one day —
   facilities under their venue, the day's window plain and the time outside it shaded, *Day starts*
-  and *Day ends* marked, each fixture coloured by its division and named with its schools' short codes. **Narrow: a
+  and *Day ends* marked, each fixture coloured by its division and named with its schools' short codes. Fixtures that overlap
+  on one facility sit **side by side** (2026-10-16): that column takes the grid's spare width, up
+  to about 150px for each, and only where there is not room are they stacked, each set in from
+  the one beneath so it stays reachable. **Narrow: a
   list** for the day by start time, each fixture with its division and facility (named with its venue
   when more than one is in play). **Three dropdowns** filter it — Day, Division (grouped by sport, each
   with its colour) and Facility (grouped by venue); a division narrows the grid to its own facilities, any its fixtures were
@@ -229,20 +232,34 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
   chosen, the Facility dropdown can also show more: *All <sport> facilities* (every tournament
   facility its sport can use), or one at a time under *Also show* (chosen again to hide), beside its
   own — to see where else its games could fit. With a division chosen, **Schedule** (or **Schedule
-  again**, once it has times) sits beside the filters: the division page's dialog, to plan straight
+  again**, once it has times) sits at the right of the toolbar, apart from the filters: the division page's dialog, to plan straight
   into hours just dragged. **Moving**: drag a
   fixture on the web — its top edge lands where it is dropped, snapped to five minutes, with a dashed
   preview of the times and any clash — or tap it for the **move sheet** (day, facility — its division's
   own first, *Other…* for the rest — and start, with *Remove time and court*). A move that clashes is made
-  and says so, with **Undo**. **Clashes** are the shared check the scheduler uses, over the
+  and says so, with **Undo**. What a change did is said in the app's toast (2026-10-16), naming the
+  fixture — *Moved: DKL U16A v RBH U16 A — Field A1, Sat 28 Nov 09:40*, or *Time and court removed:
+  … is under Without a time, to place later* — as a warning when it caused a clash, with **Undo**
+  while it shows; it fades after eight seconds. The fixture is outlined for a few seconds, or until
+  *Undo*, so the outline never lingers as if it were a warning. **Clashes** are the shared check the scheduler uses, over the
   tournament's fixtures and other events' at its facilities: a facility booked twice, shared ground,
   too little time between games, a team in two games at once, a short team break, past the day's end
-  — beside the grid, or behind the ⚠ count on a phone. **Without a time** lists what is left to
+  — beside the grid, or behind the ⚠ count on a phone; the count, or *No clashes*, is on the
+  *Scheduled* heading line. **Without a time** lists what is left to
   place, by division (folded on a phone); a fixture dragged onto it loses its time. **The day's hours** are dragged on the web: the *Day
   starts* and *Day ends* lines change that day's hours for the tournament, or — with a division
   chosen — become its *First game start* and *Last game ends* and change them for the division alone
   (a start dragged back to the tournament's follows it again). Fixtures stay where they are; any now
-  outside the hours show as clashes. It says what changed, with **Undo**. **A result entered
+  outside the hours show as clashes. It says what changed, with **Undo**. **Adding a fixture**
+  (2026-10-16, design rule 32): on the web, an empty space on the grid shows a dashed *＋ time* under
+  the pointer, and a click opens **Add a fixture** there — the division (the one chosen, else the
+  first that plays on that facility), its stage when there are several, two of **its teams in
+  play**, and the day, facility and start, with the clash check. **＋ Add a fixture**, at the right
+  of the toolbar, opens the same sheet *Not yet* placed, on any screen; it then waits under *Without a time*.
+  The sides are the division's entrants, as the draw's are, so the fixture counts for the same
+  teams; it is added (`ADD_GAME`) and then placed (`MOVE_FIXTURE`), and says so with **Undo**, which
+  deletes it. Not on a Head to Head, whose games are made by pairing. **Opened on a division**:
+  `?tab=schedule&division=<id>` chooses that division, on the first day it has fixtures. **A result entered
   offline** (U20) — *Record result* with no connection, or no answer — is kept on the device and sent
   when the connection is back; the match's page shows it *waiting to send*, and the offline banner
   counts them. If somebody changed the result meanwhile it is not sent over theirs: the match shows
@@ -432,6 +449,11 @@ first, at `events/[eventId]/divisions/[divisionId]`.
   still change; the UI is what is settled. **The two knockout formats are not offered for now**
   (`TOUR-1`, 2026-10-13): the picker shows only *Round robin* and *Set fixtures by hand*, plus
   whichever knockout format a division is already set to, so it still reads correctly.
+- **Fixtures are changed in the Schedule** (2026-10-16, design rule 32): at the foot of the
+  Fixtures card — and of a Head to Head's pairing card — **Edit in the Schedule ›** opens the
+  Schedule tab on this division, once it has fixtures; a division set by hand offers **Add fixtures
+  in the Schedule ›** before it has any. Tapping a fixture still opens its game page, where *When &
+  where* moves it; the card's *＋ Add a fixture* is still the form.
 - **The draw** is made from locked entries (`FIX-31`); an unlocked division's *Make the draw* lists,
   as warnings, what still waits — or, when nothing does, offers **Lock and make the draw** in one
   press (rule 3). The strip says the same: what is left, then *🔒 Lock entries*, then *Make the

@@ -124,6 +124,16 @@ const SingleToast: React.FC<SingleToastProps> = ({ toast, onDismiss, isDark }) =
         </Text>
       </View>
 
+      {toast.action ? (
+        <TouchableOpacity
+          onPress={() => { handleDismiss(); toast.action!.onPress(); }}
+          accessibilityRole="button"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text className="font-inter-bold text-sm text-primary-ink">{toast.action.label}</Text>
+        </TouchableOpacity>
+      ) : null}
+
       <TouchableOpacity
         onPress={handleDismiss}
         activeOpacity={0.7}

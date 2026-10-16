@@ -9,6 +9,13 @@ export interface ToastMessage {
   message: string;
   duration?: number; // duration in ms (default: 4500ms)
   timestamp: number;
+  /** One button beside the message — *Undo* after a change (2026-10-16, the Schedule). */
+  action?: ToastAction;
+}
+
+export interface ToastAction {
+  label: string;
+  onPress: () => void;
 }
 
 export interface ShowToastOptions {
@@ -16,6 +23,7 @@ export interface ShowToastOptions {
   title?: string;
   message: string;
   duration?: number;
+  action?: ToastAction;
 }
 
 interface ToastStoreState {
@@ -58,6 +66,7 @@ export const useToastStore = create<ToastStoreState>((set, get) => ({
       message,
       duration: options.duration ?? DEFAULT_DURATION_MS,
       timestamp: now,
+      action: options.action,
     };
 
     set((state) => ({
