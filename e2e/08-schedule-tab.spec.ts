@@ -164,9 +164,9 @@ test.describe('the Schedule tab, as the host', () => {
     await page.locator('[data-testid^="add-fixture-away-"]').nth(1).click();
     await page.getByRole('button', { name: 'Add it here', exact: true }).click();
     await expect(page.getByText(/^.+ v .+ — Netball Court 1, Sat 28 Nov 12:45\./)).toBeVisible();
-    await expect(page.getByText(/^12:45 U14/).first()).toBeVisible();
+    await expect(page.getByText(/^(⚠ )?12:45 U14/).first()).toBeVisible();
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
-    await expect(page.getByText(/^12:45 U14/)).toHaveCount(0);
+    await expect(page.getByText(/^(⚠ )?12:45 U14/)).toHaveCount(0);
   });
 
   test('＋ Add a fixture adds one without a time, to place later', async ({ page }) => {
