@@ -27,7 +27,7 @@ import { EditDialog } from '../EditDialog';
 import { lockGapsLine } from './DivisionEntries';
 import { TeamInvitationRows } from './TeamInvitations';
 import { SegmentedControl } from '../SegmentedControl';
-import { useMineAll } from '../../hooks/useMineAll';
+import { useViewScope, ViewScope } from '../../hooks/useMineAll';
 import { AddressMap } from '../address/AddressMap';
 import { facilityMarkers } from '../address/facilityMarker';
 import { FacilityIcon, addressText } from '../sites/SiteBits';
@@ -231,31 +231,40 @@ export function TournamentHome({
   const showHelp = useShowFieldHelp();
 
   /*
-   * Mine / All (agreed 2026-10-10, `FIX-31`): for someone outside the organisers with a team in the
-   * tournament — the events list's one choice (`useMineAll`), on the line above the cards. Mine
-   * narrows what every card is given — the divisions, the rosters and the fixtures — to their teams,
-   * so the sections narrow without each one knowing why. Shown only when Mine and All would differ.
+   * Mine / My organisation / All (agreed 2026-10-10, `FIX-31`; My organisation 2026-10-17): for
+   * anyone outside the organisers with a team in the tournament, or whose organisation has one — the
+   * events list's one choice (`useViewScope`), on the line above the cards. It narrows what every
+   * card is given — the divisions, the rosters and the fixtures — to their teams or their
+   * organisation's, so the sections narrow without each one knowing why. Only the choices that show
+   * something different are offered, and a saved one not offered here falls to the next wider.
    */
   const teamMemberships = useAuthStore((state: any) => state.teamMemberships) || [];
   const myTeamIds = useMemo(() => new Set<string>(teamMemberships.map((m: any) => m.teamId)), [teamMemberships]);
-  const myEntrants = useMemo(
-    () => Array.from(allEntrantsByDivision.values()).flat().filter(e => !!e.teamId && myTeamIds.has(e.teamId)),
-    [allEntrantsByDivision, myTeamIds]
-  );
+  const everyEntrant = useMemo(() => Array.from(allEntrantsByDivision.values()).flat(), [allEntrantsByDivision]);
+  const myEntrants = useMemo(() => everyEntrant.filter(e => !!e.teamId && myTeamIds.has(e.teamId)), [everyEntrant, myTeamIds]);
+  const orgEntrants = useMemo(() => everyEntrant.filter(e => !!e.orgId && viewerOrgIds.includes(e.orgId)), [everyEntrant, viewerOrgIds]);
   const offersMine = !canEdit && myEntrants.length > 0;
-  const [mineAll, setMineAll] = useMineAll(false);
-  const mine = offersMine && mineAll === 'mine';
-  const myEntrantIds = new Set(myEntrants.map(e => e.id));
-  const divisions = mine ? allDivisions.filter(d => myEntrants.some(e => e.divisionId === d.id)) : allDivisions;
-  const games = mine
-    ? allGames.filter(g => (g.participants || []).some(p => (!!p.entrantId && myEntrantIds.has(p.entrantId)) || (!!p.teamId && myTeamIds.has(p.teamId))))
+  // Different from Mine and from All: the organisation has teams that are not the viewer's, and not every team is its.
+  const offersOrg = !canEdit && orgEntrants.length > myEntrants.length && orgEntrants.length < everyEntrant.length;
+  const [savedScope, setScope] = useViewScope(orgId);
+  const scope: ViewScope = canEdit ? 'all'
+    : savedScope === 'mine' ? (offersMine ? 'mine' : offersOrg ? 'org' : 'all')
+    : savedScope === 'org' ? (offersOrg ? 'org' : offersMine ? 'mine' : 'all')
+    : 'all';
+  const narrowTo = scope === 'mine' ? myEntrants : scope === 'org' ? orgEntrants : null;
+  const mine = !!narrowTo;
+  const narrowIds = new Set((narrowTo || []).map(e => e.id));
+  const narrowTeamIds = scope === 'mine' ? myTeamIds : new Set((narrowTo || []).map(e => e.teamId).filter(Boolean) as string[]);
+  const divisions = narrowTo ? allDivisions.filter(d => narrowTo.some(e => e.divisionId === d.id)) : allDivisions;
+  const games = narrowTo
+    ? allGames.filter(g => (g.participants || []).some(p => (!!p.entrantId && narrowIds.has(p.entrantId)) || (!!p.teamId && narrowTeamIds.has(p.teamId))))
     : allGames;
   const entrantsByDivision = useMemo(() => {
-    if (!mine) return allEntrantsByDivision;
+    if (!narrowTo) return allEntrantsByDivision;
     const narrowed = new Map<string, TournamentEntrant[]>();
-    for (const e of myEntrants) narrowed.set(e.divisionId, [...(narrowed.get(e.divisionId) || []), e]);
+    for (const e of narrowTo) narrowed.set(e.divisionId, [...(narrowed.get(e.divisionId) || []), e]);
     return narrowed;
-  }, [mine, allEntrantsByDivision, myEntrants]);
+  }, [narrowTo, allEntrantsByDivision]);
 
   const [dialog, setDialog] = useState<null | 'details' | 'where' | 'when' | 'gaps' | 'scoring' | 'scheduleAll' | 'addFixture'>(null);
   const close = () => setDialog(null);
@@ -1005,17 +1014,25 @@ export function TournamentHome({
     e.status === 'invited' && !allDivisions.find(d => d.id === e.divisionId)?.entriesLockedAt &&
     ((!!e.teamId && coachTeamIds.has(e.teamId)) || (!!e.orgId && adminsOrg(e.orgId))) &&
     !hasLeft(invitationOf(e.orgId) || 'accepted'));
-  const mineLine = offersMine ? (
+  const scopeOptions = [
+    ...(offersMine ? [{ key: 'mine' as const, label: 'Mine' }] : []),
+    ...(offersOrg ? [{ key: 'org' as const, label: 'My organisation' }] : []),
+    { key: 'all' as const, label: 'All' },
+  ];
+  const myOrgNames = [...new Set(orgEntrants.map(e => event.participatingOrgs?.find(o => o.id === e.orgId)?.name).filter(Boolean))].join(', ');
+  const mineLine = scopeOptions.length > 1 ? (
     <View className={isWide ? 'flex-row items-center gap-3' : 'gap-1'}>
-      <SegmentedControl
+      <SegmentedControl<ViewScope>
         fit
         isCompact
-        value={mineAll}
-        onChange={key => setMineAll(key as 'mine' | 'all')}
-        options={[{ key: 'mine', label: 'Mine' }, { key: 'all', label: 'All' }]}
+        value={scope}
+        onChange={setScope}
+        options={scopeOptions}
       />
       <Text className="font-inter text-xs text-ink-muted">
-        {mine ? `Showing ${[...new Set(myEntrants.map(e => e.name).filter(Boolean))].join(', ')}` : 'Showing the whole tournament'}
+        {scope === 'mine' ? `Showing ${[...new Set(myEntrants.map(e => e.name).filter(Boolean))].join(', ')}`
+          : scope === 'org' ? `Showing ${myOrgNames || 'your organisation'}'s teams`
+          : 'Showing the whole tournament'}
       </Text>
     </View>
   ) : null;

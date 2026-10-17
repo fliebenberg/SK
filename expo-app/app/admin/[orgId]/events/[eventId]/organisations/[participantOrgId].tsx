@@ -87,7 +87,7 @@ export default function OrganisationInTournamentScreen() {
     [teamMemberships]
   );
   // Mine / All — the events list's one choice (`useMineAll`) — for a coach who is not an admin.
-  const [mineAll, setMineAll] = useMineAll(adminsOwnOrg);
+  const [mineAll, setMineAll] = useMineAll(orgId);
 
   /* -- data ------------------------------------------------------------------------------- */
   const { event, items: eventItems, isLoading: eventLoading } = useEventRecord(eventId);

@@ -122,7 +122,7 @@ export default function OrgEventsList() {
   const savedView = useSettingsStore(state => state.localOverrides[VIEW_KEY]) as View_ | undefined;
   const setLocalOverride = useSettingsStore(state => state.setLocalOverride);
   // Shared with the tournament pages (`useMineAll`): one Mine / All everywhere.
-  const [scope, setScope] = useMineAll(canCreate);
+  const [scope, setScope] = useMineAll(orgId);
   const view: View_ = savedView ?? 'events';
   const setView = (next: View_) => setLocalOverride(VIEW_KEY, next);
 

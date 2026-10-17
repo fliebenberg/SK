@@ -4,7 +4,7 @@ import { DIVISION, ORG, USERS, divisionUrl, signIn, tournamentUrl } from './supp
 /**
  * A coach answers for their own team (FIX-31): Riverbend's U16 A rugby coach, while Riverbend has not
  * answered the invitation itself. The invitations box names the team; the tournament page has Mine /
- * All and the team's invitation; the team's own page has its Events card. The organisers see the
+ * My organisation / All and the team's invitation; the team's own page has its Events card. The organisers see the
  * coach's accept as Invited until Riverbend accepts (rule 5).
  */
 const RBH_RUGBY = 'fx-ent-spring-rugby-u16-rbh-rugby-u16a';
@@ -25,6 +25,18 @@ test.describe.serial('a coach answers for their team', () => {
     await expect(page.getByText('Showing U16 A')).toBeVisible();
     await page.getByRole('button', { name: 'All', exact: true }).click();
     await expect(page.getByText('Showing the whole tournament')).toBeVisible();
+    await page.getByRole('button', { name: 'My organisation', exact: true }).click();
+    await expect(page.getByText("Showing Test Riverbend High School's teams")).toBeVisible();
+    await page.getByRole('button', { name: 'Mine', exact: true }).click();
+    await expect(page.getByText('Showing U16 A')).toBeVisible();
+  });
+
+  test('one choice everywhere: All on the events list is My organisation for a coach @phone', async ({ page }) => {
+    await signIn(page, USERS.rbhCoach);
+    await page.goto(`/admin/${ORG.rbh}/events`);
+    await page.getByRole('button', { name: 'All', exact: true }).click();
+    await page.goto(tournamentUrl(ORG.rbh));
+    await expect(page.getByText("Showing Test Riverbend High School's teams")).toBeVisible();
     await page.getByRole('button', { name: 'Mine', exact: true }).click();
     await expect(page.getByText('Showing U16 A')).toBeVisible();
   });

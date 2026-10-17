@@ -96,7 +96,9 @@ The section helpers are in [utils/dates.ts](file:///c:/Fred/Coding/SK/expo-app/u
   Upcoming / Past's place, which moves into Filters; the upcoming list ends with **Past events and
   results**, and Past shows as a chip while it is on.
 - **Remembered on this device**: Mine / All, Events / All games, and the filters (per organisation).
-  Until someone chooses, Admin and Staff see All and everyone else Mine. The search term and
+  Until someone chooses, Admin and Staff see All and everyone else Mine. Mine / All is the same
+  choice as the tournament page's *Mine / My organisation / All* (2026-10-17): here My organisation
+  shows as All, and tapping All saves All for Admin and Staff and My organisation for anyone else. The search term and
   Upcoming / Past are not remembered.
 - **Filters** — one button, a panel (centred on a wide screen, a bottom sheet on a phone) whose
   choices apply as they are made; its button only closes it, saying how many are left ("Show 3
@@ -361,7 +363,7 @@ Say *organisations*, never *schools*: clubs take part too.
     *✓ Accept* / *✕ Decline* while invited; the other answer once answered (confirmed first);
     *Withdraw* once locked (a reason, for the organisers to confirm); *Cancel request*. Its admins
     for any team, a coach for the teams they coach — with **Mine / All** for a coach, the events
-    list's one choice. *＋ Add a team* sits under a division's name where it allows adding and is
+    list's one choice (design_spec, *Mine / My organisation / All*). *＋ Add a team* sits under a division's name where it allows adding and is
     open (`FIX-33`); *＋ Ask to enter late* under a locked one with no team of ours. A strip,
     *Outstanding responses N · Show ›*, and the filter *All · Outstanding · Declined* narrow to
     what needs answering. **Accept** offers *Accept for all invited teams* (on), over its teams as
@@ -402,9 +404,12 @@ each division's stages.
 - *Fixtures*, while setting up, splits the divisions still to draw into **Entries open** — each with
   what still waits, or *ready to lock* — and **Locked, to draw**; **🔒 Lock all…** on the open group
   locks every division that can be and names why the rest stay open (`LOCK_EVENT_DIVISIONS`).
-- **Someone outside the organisers with a team in it** — a coach — sees the whole page, with **Mine /
-  All** (the events list's one remembered choice, `useMineAll`) on the line above the cards: Mine
-  narrows Sports & divisions, Taking part and Fixtures to their teams. Their team's invitation sits
+- **Someone outside the organisers with a team in it, or whose organisation has one** — a coach,
+  an admin of a guest organisation — sees the whole page, with **Mine / My organisation / All** (the
+  events list's one remembered choice, `useViewScope`; My organisation added 2026-10-17) on the line
+  above the cards: Mine narrows Sports & divisions, Taking part and Fixtures to their teams, My
+  organisation to their organisation's; Where, When and Rules stay whole. Only the choices that
+  differ are offered — an admin with no team of their own gets *My organisation / All*. Their team's invitation sits
   under the banner with ✓ Accept / ✕ Decline (`TeamInvitationRows`). A team's own page has an
   **Events** card — every tournament it is in, an invitation as a tinted row to answer — and a strip
   under its banner while one waits; the events list's invitations box names the team. Who sees what,
@@ -630,7 +635,7 @@ results as well, and ± on a phone too. Each row names its organisation and team
 "DKL U14 A" on a phone or in a narrow column) with its crest — the division page's tables named only
 the team before. **The leaderboard is the one exception:** it shows **Teams** in place of For,
 Against, ± and form, which added up across sports would add rugby points to netball goals. The
-viewer's own organisation's rows are tinted (`bg-info-soft`); the full Mine / All is `FIX-24`'s. The
+viewer's own organisation's rows are tinted (`bg-info-soft`); narrowing the tables to Mine / My organisation is `FIX-24`'s. The
 adjustment dot and withdrawn rows are as before.
 
 **A tournament scored on wins / draws / losses has no points column** (`SCORE-18`, built 2026-10-17).
