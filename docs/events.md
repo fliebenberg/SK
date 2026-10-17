@@ -10,9 +10,9 @@ and Sites ([sites.md](file:///c:/Fred/Coding/SK/docs/sites.md)). It is done in s
 3. **One game page** in place of `games/[gameId]/view` and `edit` (`FIX-21`). **Built 2026-10-15**, below (§9).
 4. **Schedule and Standings** — the tournament page's other two tabs (agreed 2026-10-13 as the next
    step for the proof of concept). The Schedule was rebuilt in tournament Phase 7 and made the place
-   to change and add fixtures on 2026-10-16 (design rule 32), so this stage is mostly **Standings**:
-   what the tab shows and how it reads on a phone. Mockup first, as for the other stages. The
-   divisions, entrants and setup steps this line once named were done as `FIX-26` to `FIX-31`.
+   to change and add fixtures on 2026-10-16 (design rule 32), and is treated as done, so this stage
+   was **Standings**. **Built 2026-10-17**, below (§10). The divisions, entrants and setup steps this
+   line once named were done as `FIX-26` to `FIX-31`.
 
 **A Head to Head** (`H2H-1`, 2026-10-13) is the second entry in *New event*, between Match and
 Tournament: a tournament between two organisations, on the tournament page with its own cards. Its
@@ -148,7 +148,7 @@ page's card layout (`FIX-27`) and the page was redone on
 **Three tabs: Overview, Schedule, Standings.** The first tab is the **Overview** in every phase and
 for everyone — there is no separate *Setting up* tab: while the tournament is being set up, the same
 cards carry their status. Its key is still `setup`, so `?tab=setup` from a division or entrants screen
-lands on it. Schedule and Standings are unchanged (division work, stage 4).
+lands on it. The Schedule tab is tournament Phase 7's; the Standings tab is stage 4's (§10).
 
 **One page of cards, read first**, as the division page is: a **banner** (name, dates, venue,
 sports; Edit), **one strip** for what the tournament needs next, then the cards — two columns on a
@@ -592,3 +592,54 @@ gone).
 **Later:** a player who turns up on the day, added by the scorer and linked by the coach afterwards,
 is `SCORE-20`; its "say who" line will sit beside that team's sheet on this page.
 
+## 10. The Standings tab (stage 4)
+
+[StandingsTab.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/StandingsTab.tsx), with every
+table drawn by [StandingsTable.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/StandingsTable.tsx).
+Agreed 2026-10-17 on `mockups/standings-read-first.html`: **option A** (B, one table with a division
+picker and a points-per-division grid, and C, a headline and podium above the table, were not chosen).
+
+**The highest level first.** The tab opens on the **leaderboard by organisation** — who is winning the
+day — with "9 of 18 fixtures played" beside its title. Beside it on a wide screen, under it on a phone,
+**Divisions**: every division by sport, each with who leads it ("Led by DKL U16 A", "Won by…" once it
+is finished) and the state line its tile shows. A division played in pools or with a knockout names
+no leader there — its stage tables decide it — and says how it is played instead. The division scope
+tabs are gone.
+
+**Every row is a door, and each opens a page:**
+
+- **An organisation** → its results page,
+  [standings/organisations/[participantOrgId]](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/standings/organisations/%5BparticipantOrgId%5D.tsx):
+  where it stands ("1st of 4 · 15 points · 3 teams") and one row per team, by sport, each with its
+  division and place under its name. A page of its own rather than a card on the organisation's
+  tournament page, which manages its invitation and entries and is the organisers' and the
+  organisation's only; results are for anyone who can see the tournament.
+- **A team** → its page,
+  [standings/teams/[entrantId]](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/standings/teams/%5BentrantId%5D.tsx):
+  where it stands, its fixtures and results (the division page's own rows, `FixtureList`), and its
+  division's table with it picked out. *Full table* opens the division page; *Team page* the team's own
+  page, for its organisation's members. A page, not a sheet, so every row opens the same way.
+- **A division** → the division page, whose Standings card has its tables. There is no second
+  division table page: "we do not want too many views of the same data" (the user, 2026-10-17).
+
+**Every table has the same columns:** P W D L Pts; on a wide screen For, Against, ± and the last five
+results as well, and ± on a phone too. Each row names its organisation and team ("Doringkloof U14 A",
+"DKL U14 A" on a phone or in a narrow column) with its crest — the division page's tables named only
+the team before. **The leaderboard is the one exception:** it shows **Teams** in place of For,
+Against, ± and form, which added up across sports would add rugby points to netball goals. The
+viewer's own organisation's rows are tinted (`bg-info-soft`); the full Mine / All is `FIX-24`'s. The
+adjustment dot and withdrawn rows are as before.
+
+**Points and scores can each be switched off** (`showPoints`, `showScores`): the interviews call for
+tournaments with **No Points** and with **No Scores** (won / drawn / lost only). The setting itself is
+`SCORE-18`.
+
+**The data.** `event:{id}:standings` now carries `EventStandings`: the leaderboard and each division's
+**whole** table (`tournament_divisions.cached_standings`, written by `recalculateEventStandings` — the
+same rows it adds up, so an organisation's teams sum to its line). A stage's own table stays on
+`division:{id}:standings`, the division page's. The last five results are worked out from the fixtures
+the page already holds (`formByEntrant`), never a ranking.
+
+**Test data:** *Test Autumn Festival* (`fx-tour-autumn`) is under way — Netball U14 finished, Rugby U16
+half played, Netball U16 not started — and the reset rebuilds its tables after loading
+(`rebuildFixtureStandings`). Checked by `e2e/12-standings.spec.ts`.

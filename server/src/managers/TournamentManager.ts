@@ -26,6 +26,7 @@ import {
   TournamentOrganizer,
   TournamentStage,
   TournamentStandingRow,
+  EventStandings,
   NO_ORGANIZER_SCOPE,
   organizerScopeOf,
   stagePlanForFormat,
@@ -2925,9 +2926,48 @@ export class TournamentManager extends BaseManager {
       weighted.push({ divisionId: division.id, weighting: division.weighting ?? 1, rows });
     }
 
+    // Each division's whole table is kept beside the roll-up it fed, so an organisation's page can
+    // list the points its teams earned and they add up to the leaderboard's (stage 4).
+    const tables = new Map(weighted.map(w => [w.divisionId, w.rows]));
+    for (const division of divisions) {
+      await this.query(`UPDATE tournament_divisions SET cached_standings = $1 WHERE id = $2`,
+        [JSON.stringify(tables.get(division.id) || []), division.id]);
+    }
+
     const rollUp = rollUpByOrganisation(weighted, orgRes.rows);
     await this.query(`UPDATE events SET cached_standings = $1 WHERE id = $2`, [JSON.stringify(rollUp), eventId]);
     return rollUp;
+  }
+
+  /**
+   * What the Standings tab shows (stage 4): the organisation leaderboard, and each division's whole
+   * table — every stage at once, the same rows the leaderboard added up. A stage's own table, the
+   * one a division page shows, stays on `division:{id}:standings`.
+   *
+   * A tournament whose divisions have no table yet (created before 2026-10-17) is recalculated
+   * here once, rather than by a migration that would have to repeat the standings engine.
+   */
+  async getEventStandings(eventId: string): Promise<EventStandings> {
+    const read = () => this.query(
+      `SELECT ev.cached_standings as "rows",
+              COALESCE((SELECT json_agg(json_build_object('divisionId', d.id, 'rows', d.cached_standings)
+                                 ORDER BY d.sort_order, d.created_at)
+                          FROM tournament_divisions d WHERE d.event_id = ev.id), '[]'::json) as "divisions",
+              EXISTS (SELECT 1 FROM tournament_divisions d WHERE d.event_id = ev.id AND d.cached_standings IS NULL) as "stale"
+         FROM events ev WHERE ev.id = $1`,
+      [eventId]
+    );
+    let res = await read();
+    if (!res.rows[0]) return { rows: [], divisions: [] };
+    if (res.rows[0].stale) {
+      await this.recalculateEventStandings(eventId);
+      res = await read();
+    }
+    const { rows, divisions } = res.rows[0];
+    return {
+      rows: rows || [],
+      divisions: (divisions || []).map((d: any) => ({ divisionId: d.divisionId, rows: d.rows || [] })),
+    };
   }
 
   /**

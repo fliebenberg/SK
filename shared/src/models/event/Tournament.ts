@@ -391,6 +391,19 @@ export interface TournamentStandingRow extends LeagueStandingRow {
 }
 
 /**
+ * The Standings tab's data, from `event:{id}:standings` (events stage 4, 2026-10-17).
+ *
+ * `rows` is the organisation leaderboard (D6). `divisions` holds each division's **whole** table —
+ * all its fixtures, every stage at once — which is what the leaderboard added up, so an
+ * organisation's page can list its teams' points and have them sum to its line. A stage's own
+ * table (pools, a knockout) is the division page's, on `division:{id}:standings`.
+ */
+export interface EventStandings {
+  rows: TournamentStandingRow[];
+  divisions: Array<{ divisionId: string; rows: TournamentStandingRow[] }>;
+}
+
+/**
  * A person granted edit rights over a tournament, one of its sports, or one of its divisions (D33).
  *
  * Three scopes, three tables — `event_organizers`, `event_sport_organizers` and

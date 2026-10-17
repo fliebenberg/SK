@@ -1,14 +1,16 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Text, View } from 'react-native';
-import { TournamentAdjustment, TournamentStandingRow } from '@sk/shared';
+import { EventOrgBadge, GameSummary, TournamentAdjustment, TournamentStandingRow } from '@sk/shared';
 import { StandingsTable } from './StandingsTable';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
+import { formByEntrant } from './standingsBits';
 
 /**
  * One division's table, or one per stage where the division has more than one.
  *
- * Mounted by both the standings tab (when its scope selector names a division) and the division's
- * own screen, so there is one rendering of "this division's table" rather than two.
+ * The division page's Standings card. The Standings tab no longer scopes to a division (stage 4,
+ * docs/events.md §10): its Divisions card opens the division page, so a stage's table is shown in
+ * one place.
  *
  * **The scope decides the row, not just the filter** (U29). At division scope the table ranks that
  * division's *entrants*, so a school that entered u14A and u14B is two rows — at this altitude the
@@ -32,9 +34,17 @@ export interface DivisionStandingsProps {
   divisionId: string;
   canEdit?: boolean;
   showPoints?: boolean;
+  /** The tournament's organisations, so each row names its own. */
+  orgs?: EventOrgBadge[];
+  /** The division's fixtures, for the last results on a wide screen. */
+  games?: GameSummary[];
+  isWide?: boolean;
+  /** Our own organisation's rows are tinted. */
+  viewerOrgIds?: string[];
 }
 
-export function DivisionStandings({ divisionId, canEdit = false, showPoints = true }: DivisionStandingsProps) {
+export function DivisionStandings({ divisionId, canEdit = false, showPoints = true, orgs, games, isWide = false, viewerOrgIds }: DivisionStandingsProps) {
+  const form = useMemo(() => (games ? formByEntrant(games) : undefined), [games]);
   const { items: stages, isLoading } = useLiveRoom<StageStandings>(
     divisionId ? `division:${divisionId}:standings` : null,
     {
@@ -80,7 +90,12 @@ export function DivisionStandings({ divisionId, canEdit = false, showPoints = tr
           )}
           <StandingsTable
             rows={stage.rows}
-            subjectLabel="Entrant"
+            subjectLabel="Team"
+            orgs={orgs}
+            isWide={isWide}
+            form={form}
+            framed={false}
+            highlight={row => !!row.orgId && !!viewerOrgIds?.includes(row.orgId)}
             showPoints={showPoints}
             adjustments={canEdit ? adjustments : undefined}
             emptyMessage="Nothing to rank yet. Once a fixture is finished this table fills in."
@@ -91,7 +106,8 @@ export function DivisionStandings({ divisionId, canEdit = false, showPoints = tr
       {stages.length === 0 && (
         <StandingsTable
           rows={[]}
-          subjectLabel="Entrant"
+          subjectLabel="Team"
+          framed={false}
           showPoints={showPoints}
           emptyMessage="Nothing to rank yet. Once a fixture is finished this table fills in."
         />

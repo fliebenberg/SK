@@ -2044,10 +2044,9 @@ io.on('connection', (socket) => {
             });
 
         } else if (kind === 'event' && sub === 'standings') {
-            const standingsEvent = await dataManager.getEvent(id);
             pushToSocket(socket, room, 'EVENT_STANDINGS_UPDATED', {
                 eventId: id,
-                rows: (standingsEvent as any)?.cachedStandings || [],
+                ...await tournamentManager.getEventStandings(id),
             });
 
         } else if (kind === 'event') {
@@ -2985,7 +2984,7 @@ io.on('connection', (socket) => {
                         [action.payload.orgProfileId]
                     );
                     if (isAdminAccount.rows.length > 0) {
-                        throw new Error('System Admin accounts cannot be added to standard user organizations. Please use a standard user account.');
+                        throw new Error('System Admin accounts cannot be added to standard user organisations. Please use a standard user account.');
                     }
                 }
                 console.log(`DataManager: Adding org member ${action.payload.orgProfileId} to ${action.payload.orgId}`);
@@ -3005,7 +3004,7 @@ io.on('connection', (socket) => {
                             if (org && role) {
                                 const notification = await dataManager.createNotification(
                                     richMember.userId,
-                                    'New Organization Added',
+                                    'New Organisation Added',
                                     `You have been added to ${org.name} as a ${role.name}.`,
                                     'org_added',
                                     `/admin/organizations/${org.id}`
@@ -3210,7 +3209,7 @@ io.on('connection', (socket) => {
                     const role = await dataManager.getOrganizationRole('role-org-admin');
                     const notification = await dataManager.createNotification(
                         action.payload.userId,
-                        'Organization Claimed',
+                        'Organisation Claimed',
                         `You have successfully claimed ${result.name} and are now an ${role?.name || 'Administrator'}.`,
                         'org_added',
                         `/admin/organizations/${result.id}`

@@ -69,7 +69,6 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
   /** *＋ Add a fixture*: the Schedule's add sheet, opened by the page (`FIX-36`). */
   onAddFixture: () => void;
 }) {
-  const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
   const ordered = useMemo(() => [...stages].sort((a, b) => (a.sequence || 0) - (b.sequence || 0)), [stages]);
   const [stageId, setStageId] = useState<string | null>(null);
@@ -120,67 +119,17 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
     }
   };
 
-  /* -- one fixture ------------------------------------------------------------------------- */
-  const fixtureRow = (g: GameSummary, i: number) => {
-    const [home, away] = g.participants || [];
-    const homeNames = fixtureSideNames(home, ownOrgId);
-    const awayNames = fixtureSideNames(away, ownOrgId);
-    // On a wide screen the names start from the full ones; a phone starts at the short codes.
-    const wide = (n: typeof homeNames) => (isWide ? { ...n, shortSteps: n.steps } : n);
-    const scores = sideScores(g);
-    const live = g.status === 'Live';
-    const court = facilities.find(f => f.id === g.facilityId)?.name;
-    return (
-      <TouchableOpacity
-        key={g.id}
-        onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}`)}
-        accessibilityRole="link"
-        className={`py-2 ${i ? 'border-t border-line-soft' : ''} ${live ? 'bg-danger-soft rounded-lg px-2 -mx-2' : ''}`}
-      >
-        <View className="flex-row items-center gap-2">
-          <FixtureSideFitted names={wide(homeNames)} participant={home} align="left" struck={!!home?.entrantId && withdrawnIds.has(home.entrantId)} />
-          <View className="items-center" style={{ minWidth: 52 }}>
-            {scores ? (
-              <Text className={`font-orbitron-bold text-[15px] ${live ? 'text-danger-ink' : 'text-ink'}`}>{scores[0]} – {scores[1]}</Text>
-            ) : (
-              <Text className="font-inter text-[13px] text-ink-muted">vs</Text>
-            )}
-          </View>
-          <FixtureSideFitted names={wide(awayNames)} participant={away} align="right" struck={!!away?.entrantId && withdrawnIds.has(away.entrantId)} />
-        </View>
-        {live || court || g.periodLabel ? (
-          <View className="flex-row items-center gap-2 mt-1">
-            {live ? <RowTag tone="live" label="Live" /> : null}
-            <Text className="font-inter text-xs text-ink-muted flex-1" numberOfLines={1}>
-              {[g.periodLabel, court].filter(Boolean).join(' · ')}
-            </Text>
-          </View>
-        ) : null}
-      </TouchableOpacity>
-    );
-  };
-
-  /* -- the list, by kick-off once there are times ------------------------------------------- */
-  const list = () => {
-    const visible = showAll ? shown : shown.slice(0, SHOWN);
-    const timed = visible.some(g => !g.timeTbd && (g.scheduledStartTime || g.startTime));
-    if (!timed) return <View>{visible.map(fixtureRow)}</View>;
-    const groups = new Map<string, GameSummary[]>();
-    for (const g of visible) {
-      const key = g.timeTbd || !(g.scheduledStartTime || g.startTime) ? 'Time to be set' : formatFixtureWhen(g.scheduledStartTime || g.startTime);
-      groups.set(key, [...(groups.get(key) || []), g]);
-    }
-    return (
-      <View className="gap-2">
-        {[...groups.entries()].map(([when, items]) => (
-          <View key={when}>
-            <Text className="font-inter-bold text-xs text-ink-muted pb-1">{when}</Text>
-            {items.map(fixtureRow)}
-          </View>
-        ))}
-      </View>
-    );
-  };
+  const list = () => (
+    <FixtureList
+      games={showAll ? shown : shown.slice(0, SHOWN)}
+      orgId={orgId}
+      eventId={eventId}
+      facilities={facilities}
+      isWide={isWide}
+      ownOrgId={ownOrgId}
+      withdrawnIds={withdrawnIds}
+    />
+  );
 
   /* -- before the draw -------------------------------------------------------------------- */
   const beforeDraw = () => {
@@ -320,6 +269,83 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
         <Warning>Times and courts set by hand are lost with them. Once a game has started, the draw can no longer be redone.</Warning>
       </EditDialog>
     </TournamentCard>
+  );
+}
+
+/**
+ * A list of fixtures, grouped by kick-off once they have times: the division page's fixtures card,
+ * and a team's page under Standings (stage 4). Each row opens the game.
+ */
+export function FixtureList({ games, orgId, eventId, facilities, isWide, ownOrgId, withdrawnIds }: {
+  games: GameSummary[];
+  orgId: string;
+  eventId: string;
+  facilities: Facility[];
+  isWide: boolean;
+  /** Our own organisation, whose teams are named without it. */
+  ownOrgId?: string;
+  /** Entrants out of play, struck through where they still have fixtures. */
+  withdrawnIds?: Set<string>;
+}) {
+  const router = useRouter();
+  const struck = (entrantId?: string) => !!entrantId && !!withdrawnIds?.has(entrantId);
+
+  const fixtureRow = (g: GameSummary, i: number) => {
+    const [home, away] = g.participants || [];
+    const homeNames = fixtureSideNames(home, ownOrgId);
+    const awayNames = fixtureSideNames(away, ownOrgId);
+    // On a wide screen the names start from the full ones; a phone starts at the short codes.
+    const wide = (n: typeof homeNames) => (isWide ? { ...n, shortSteps: n.steps } : n);
+    const scores = sideScores(g);
+    const live = g.status === 'Live';
+    const court = facilities.find(f => f.id === g.facilityId)?.name;
+    return (
+      <TouchableOpacity
+        key={g.id}
+        onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}`)}
+        accessibilityRole="link"
+        className={`py-2 ${i ? 'border-t border-line-soft' : ''} ${live ? 'bg-danger-soft rounded-lg px-2 -mx-2' : ''}`}
+      >
+        <View className="flex-row items-center gap-2">
+          <FixtureSideFitted names={wide(homeNames)} participant={home} align="left" struck={struck(home?.entrantId)} />
+          <View className="items-center" style={{ minWidth: 52 }}>
+            {scores ? (
+              <Text className={`font-orbitron-bold text-[15px] ${live ? 'text-danger-ink' : 'text-ink'}`}>{scores[0]} – {scores[1]}</Text>
+            ) : (
+              <Text className="font-inter text-[13px] text-ink-muted">vs</Text>
+            )}
+          </View>
+          <FixtureSideFitted names={wide(awayNames)} participant={away} align="right" struck={struck(away?.entrantId)} />
+        </View>
+        {live || court || g.periodLabel ? (
+          <View className="flex-row items-center gap-2 mt-1">
+            {live ? <RowTag tone="live" label="Live" /> : null}
+            <Text className="font-inter text-xs text-ink-muted flex-1" numberOfLines={1}>
+              {[g.periodLabel, court].filter(Boolean).join(' · ')}
+            </Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    );
+  };
+
+  const visible = games;
+  const timed = visible.some(g => !g.timeTbd && (g.scheduledStartTime || g.startTime));
+  if (!timed) return <View>{visible.map(fixtureRow)}</View>;
+  const groups = new Map<string, GameSummary[]>();
+  for (const g of visible) {
+    const key = g.timeTbd || !(g.scheduledStartTime || g.startTime) ? 'Time to be set' : formatFixtureWhen(g.scheduledStartTime || g.startTime);
+    groups.set(key, [...(groups.get(key) || []), g]);
+  }
+  return (
+    <View className="gap-2">
+      {[...groups.entries()].map(([when, items]) => (
+        <View key={when}>
+          <Text className="font-inter-bold text-xs text-ink-muted pb-1">{when}</Text>
+          {items.map(fixtureRow)}
+        </View>
+      ))}
+    </View>
   );
 }
 

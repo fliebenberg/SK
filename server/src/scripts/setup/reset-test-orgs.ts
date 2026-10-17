@@ -1,5 +1,5 @@
 import pool from '../../db';
-import { deleteFixtureData, loadTestOrgs, printCounts } from './fixtures/loadTestOrgs';
+import { deleteFixtureData, loadTestOrgs, printCounts, rebuildFixtureStandings } from './fixtures/loadTestOrgs';
 
 /**
  * `npm run db:test-orgs` — puts the test organisations back exactly as `fixtures/testOrgs.ts`
@@ -17,6 +17,7 @@ const resetTestOrgs = async () => {
         printCounts('Removed', await deleteFixtureData(client));
         printCounts('Loaded', await loadTestOrgs(client));
         await client.query('COMMIT');
+        await rebuildFixtureStandings();
         console.log('Test organisations reset.');
         console.log('If the server is running, restart it so its caches reload.');
     } catch (error) {

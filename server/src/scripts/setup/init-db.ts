@@ -383,6 +383,8 @@ const createTables = async () => {
                 -- Phase 7: the division's own scheduling gaps; NULL follows the event.
                 gap_between_games_min SMALLINT,
                 min_team_break_min SMALLINT,
+                -- Stage 4: the division's whole table, kept by the organisation roll-up.
+                cached_standings JSONB,
                 CONSTRAINT tournament_divisions_age_group_fk FOREIGN KEY (sport_id, age_group_id)
                     REFERENCES sport_age_groups (sport_id, id)
             );

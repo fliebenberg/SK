@@ -1,7 +1,6 @@
 import { GameSummary } from '@sk/shared';
 import { tournamentManager } from '../managers/TournamentManager';
 import { accessManager } from '../managers/AccessManager';
-import { eventManager } from '../managers/EventManager';
 import { dataManager } from '../DataManager';
 import { broadcast } from './broadcast';
 import { publishGameSummary } from './fixtures';
@@ -128,8 +127,7 @@ export async function publishStandings(divisionId: string | null, eventId: strin
     });
   }
   if (eventId) {
-    const res = await eventManager.getEvent(eventId);
-    if (res) broadcast(eventStandingsRoom(eventId), 'EVENT_STANDINGS_UPDATED', { eventId, rows: (res as any).cachedStandings || [] });
+    broadcast(eventStandingsRoom(eventId), 'EVENT_STANDINGS_UPDATED', { eventId, ...await tournamentManager.getEventStandings(eventId) });
   }
 }
 

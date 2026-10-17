@@ -420,13 +420,17 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
             fixtures: draw.filter(g => !leave.has(g.id)).map(g => ({ id: g.id, competitors: [g.home.teamId, g.away.teamId] })),
             days: dayWindows(tour.days || []), facilityIds, minutes, gap, teamBreak, booked, sharedGround: sharedGroundMap(pairs),
         });
-        for (const g of draw) {
+        for (const [index, g] of draw.entries()) {
             const at = plan.placed.find(p => p.id === g.id);
             const start = at ? zonedInputsToInstant(at.day, timeOfDay(at.start), SITE_TIMEZONE) : null;
+            // A result keyed by participant, as the app records one (stage 4).
+            const result = division.results?.[index];
+            if (result && !at) throw new Error(`${where}: fixture ${index} has a result but no time.`);
             await insert('games',
-                ['id', 'event_id', 'sport_id', 'stage_id', 'scheduled_start_time', 'start_time', 'status', 'site_id', 'facility_id', 'placed_by', 'custom_settings'],
-                [g.id, fixtureIds.tournament(tour.key), division.sportId, stageId, start, start, 'Scheduled', at ? fixtureIds.site(tour.host) : null, at?.facilityId ?? null,
-                 at ? 'scheduler' : null, { timeTbd: !at, tournament: { round: g.round, roundName: `Round ${g.round}`, matchIndex: g.matchIndex } }]);
+                ['id', 'event_id', 'sport_id', 'stage_id', 'scheduled_start_time', 'start_time', 'status', 'site_id', 'facility_id', 'placed_by', 'final_score_data', 'custom_settings'],
+                [g.id, fixtureIds.tournament(tour.key), division.sportId, stageId, start, start, result ? 'Finished' : 'Scheduled', at ? fixtureIds.site(tour.host) : null, at?.facilityId ?? null,
+                 at ? 'scheduler' : null, result ? { scores: { [`${g.id}-home`]: result[0], [`${g.id}-away`]: result[1] } } : null,
+                 { timeTbd: !at, tournament: { round: g.round, roundName: `Round ${g.round}`, matchIndex: g.matchIndex } }]);
             for (const [sortOrder, side] of [g.home, g.away].entries()) {
                 await insert('game_participants', ['id', 'game_id', 'team_id', 'entrant_id', 'sort_order'],
                     [`${g.id}-${sortOrder ? 'away' : 'home'}`, g.id, side.teamId, side.entrantId, sortOrder]);
@@ -533,4 +537,19 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
     }
 
     return counts;
+}
+
+/**
+ * Rebuild the tables of every fixture tournament that has results (stage 4), **after** the load has
+ * committed: the standings engine reads through the managers' own pool, which cannot see rows still
+ * inside the loading transaction. Each division is rebuilt as `recalculateDivision` would after a
+ * roster change — its stages' statuses and tables, then the tournament's leaderboard.
+ */
+export async function rebuildFixtureStandings(): Promise<void> {
+    const { tournamentManager } = await import('../../../managers/TournamentManager');
+    for (const tour of TEST_TOURNAMENTS) {
+        for (const division of tour.divisions) {
+            if (division.results?.length) await tournamentManager.recalculateDivision(fixtureIds.division(tour.key, division.key));
+        }
+    }
 }

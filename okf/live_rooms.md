@@ -148,7 +148,7 @@ room alone. Until 2026-09-11 its join push was five messages writing five unrela
 | `GAME_SUMMARIES_SYNC` | `GameSummary[]` | the fixture list |
 | `DIVISIONS_SYNC` | `TournamentDivision[]` | the divisions |
 | `EVENT_FACILITIES_SYNC` | `{eventId, facilityIds}` | which venues are in play |
-| `EVENT_STANDINGS_UPDATED` | `{eventId, rows}` | the event-level table |
+| `EVENT_STANDINGS_UPDATED` | `{eventId, rows, divisions}` | the organisation leaderboard (`rows`) and each division's whole table (`divisions: [{divisionId, rows}]`, stage 4) — `EventStandings` |
 
 The event screen called `useLiveRoom` five times on the same room string, each reducer claiming its
 own types and ignoring the rest — and the entrants screen, which wants the event and its divisions,

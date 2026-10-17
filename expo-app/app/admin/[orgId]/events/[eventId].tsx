@@ -13,7 +13,6 @@ import { useAuthStore } from '../../../../store/authStore';
 import {
   SocketAction,
   TournamentOrganizer,
-  LeagueStandingRow,
   dualUnpaired,
   isDualEvent,
 } from '@sk/shared';
@@ -25,8 +24,7 @@ import { formatDateRange, dateCountdown } from '../../../../utils/dates';
 import { TournamentHome, useTournamentSteps } from '../../../../components/tournament/TournamentHome';
 import { OrganizersDialog } from '../../../../components/tournament/TournamentDialogs';
 import { useTournamentData } from '../../../../hooks/useTournamentData';
-import { StandingsTable } from '../../../../components/tournament/StandingsTable';
-import { DivisionStandings } from '../../../../components/tournament/DivisionStandings';
+import { StandingsTab } from '../../../../components/tournament/StandingsTab';
 import { ScheduleTab } from '../../../../components/tournament/ScheduleTab';
 import { DualResults } from '../../../../components/tournament/DualResults';
 import { EventRoleChips } from '../../../../components/EventRoleChips';
@@ -60,15 +58,6 @@ import { PageBody } from '../../../../components/PageBody';
  * a fixture's team and org names travel on its summary; and choosing an org to *invite* — a set no
  * room owns — is still a search.
  */
-/**
- * The standings scope, remembered per event for the life of the session (U28).
- *
- * Module state rather than a store: it is a view preference with no consequence outside this
- * screen, it must not survive a reload, and putting it in the global store would make every screen
- * reading that store re-render when a tab changes.
- */
-const rememberedScope = new Map<string, string>();
-
 export default function EventDetails() {
   const router = useRouter();
   const safeBack = useSafeBack();
@@ -105,22 +94,14 @@ export default function EventDetails() {
   // The rooms, and how each message is read, live in `useTournamentData` (2026-10-09), shared with
   // the Overview's full pages so the two can never read an update differently. The facilities in
   // play (U47) are a **set**, and the base site beside them is not a filter on it: a tournament
-  // based at the school may still play half its fixtures on the fields next door. Only the
-  // standings table is this screen's alone.
+  // based at the school may still play half its fixtures on the fields next door. The standings
+  // are the Standings tab's own (`StandingsTab`).
   // ------------------------------------------------------------------------------------------
 
   const {
     event, eventLoading, accessDenied, games, divisions, facilityIds: savedFacilityIds, sites, facilities, sports,
     capabilities, canEdit, entrants, entrantsByDivision, hostOrg,
   } = useTournamentData(orgId, eventId);
-
-  const { items: serverStandings } = useLiveRoom<LeagueStandingRow>(eventId ? `event:${eventId}:standings` : null, {
-    reduce: (message) =>
-      message.type === 'EVENT_STANDINGS_UPDATED'
-        ? { kind: 'replace', items: message.data?.rows || [] }
-        : { kind: 'ignore' },
-    getId: (row: any) => row?.teamId,
-  });
 
   // ------------------------------------------------------------------------------------------
   // Permissions
@@ -167,20 +148,6 @@ export default function EventDetails() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
 
-  /**
-   * Which subject the table ranks (U28) — `all`, or a division id.
-   *
-   * Seeded from {@link rememberedScope} so the choice survives leaving the screen and coming back,
-   * which is what "remembered for the session" means: an organiser checking the u14 table between
-   * fixtures should not have to re-select it every time.
-   */
-  const [standingsScope, setStandingsScopeState] = useState<string>(
-    () => rememberedScope.get(eventId) || 'all'
-  );
-  const setStandingsScope = (scope: string) => {
-    rememberedScope.set(eventId, scope);
-    setStandingsScopeState(scope);
-  };
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -233,19 +200,6 @@ export default function EventDetails() {
   /** A division with no sport can only happen with several to choose from; the row says so. */
   const divisionsWithoutSport = orderedDivisions.filter(d => !d.sportId).length;
   const sportName = (sportId?: string) => sports.find(s => s.id === sportId)?.name;
-
-  /**
-   * The event-level table — **the server's, and only the server's** (D30).
-   *
-   * Phase 5 kept a client-side `calculateStandings` fallback here, because the choke point only
-   * writes a table for a fixture that sits in a stage and a tournament whose fixtures were added
-   * by hand had none. Phase 6 closes both halves of that: generated fixtures land in a stage by
-   * construction, `FIX-12` makes a hand-added one name its stage, and the Phase 6 migration
-   * attaches the rows that already existed. So the fallback goes, and with it the possibility of
-   * this screen and the standings tab disagreeing about who won — which is what a second
-   * implementation of a ranking always eventually does.
-   */
-  const standingsRows: LeagueStandingRow[] = serverStandings;
 
   /** Where each setup step stands, and the tournament's host for the Schools list. */
   const { steps: setupSteps, complete: setupComplete } = useTournamentSteps({
@@ -356,7 +310,7 @@ export default function EventDetails() {
                       // Most tournaments have no organiser besides the host's admins, so there is
                       // no empty card for them (read-first rule 13): appointing one starts here.
                       label: 'Organisers',
-                      description: 'Others who run this tournament — from your organisation or a school taking part.',
+                      description: 'Others who run this tournament — from your organisation or another taking part.',
                       icon: 'people-outline' as const,
                       onPress: () => setOrganizersOpen(true),
                     }]
@@ -552,43 +506,16 @@ export default function EventDetails() {
           </PageBody>
         )}
         {activeTab === 'standings' && !dual && (
-          <PageBody className="gap-4">
-            {/*
-              One table with a division scope selector (U28), rather than a `By division / By
-              organisation` toggle. **The scope decides the row, not just the filter** (U29): all
-              divisions ranks the tournament's scoring subject — for a Festival that is the
-              organisation, so the default view is the day's leaderboard by school — while one
-              division ranks its entrants, so a school that entered u14A and u14B is two rows.
-              The two still sum into one school line above, which is right for the day's total.
-            */}
-            {orderedDivisions.length > 1 && (
-              <View className="mb-1">
-                <Tabs
-                  items={[
-                    { key: 'all', label: 'All divisions' },
-                    ...orderedDivisions.map(division => ({ key: division.id, label: division.name })),
-                  ]}
-                  activeKey={standingsScope}
-                  onChange={setStandingsScope}
-                  scrollable={orderedDivisions.length > 2}
-                />
-              </View>
-            )}
-
-            {standingsScope === 'all' ? (
-              <View className="gap-2">
-                <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-widest pl-1">
-                  Event Leaderboard
-                </Text>
-                <StandingsTable
-                  rows={standingsRows as any}
-                  subjectLabel="Organisation"
-                  emptyMessage="Nothing to rank yet. Add fixtures and record results."
-                />
-              </View>
-            ) : (
-              <DivisionStandings divisionId={standingsScope} canEdit={canEdit} />
-            )}
+          <PageBody>
+            <StandingsTab
+              event={event}
+              orgId={orgId}
+              isWide={isWide}
+              divisions={orderedDivisions}
+              games={games}
+              sports={sports}
+              viewerOrgIds={(orgMemberships || []).map((m: any) => m.orgId)}
+            />
           </PageBody>
         )}
 

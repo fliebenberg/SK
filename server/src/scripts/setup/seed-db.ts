@@ -1,6 +1,6 @@
 import pool from '../../db';
 import { seedCore } from './seedCore';
-import { deleteFixtureData, loadTestOrgs, printCounts } from './fixtures/loadTestOrgs';
+import { deleteFixtureData, loadTestOrgs, printCounts, rebuildFixtureStandings } from './fixtures/loadTestOrgs';
 
 /**
  * `npm run db:seed` — the core tier, then the test organisations.
@@ -32,6 +32,7 @@ const seedDb = async () => {
         }
 
         await client.query('COMMIT');
+        if (!coreOnly && !isProduction) await rebuildFixtureStandings();
         console.log('Database seeded successfully.');
         console.log('If the server is running, restart it so its caches reload.');
     } catch (error) {

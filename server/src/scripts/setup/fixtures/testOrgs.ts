@@ -580,6 +580,11 @@ export interface FixtureTournamentDivision {
     drawn?: boolean;
     /** Fixtures (by index in the draw) left without a time — for the Schedule tab's tray. */
     leaveUnscheduled?: number[];
+    /**
+     * Results of a drawn division, by index in the draw — the first side's score first; `null` or
+     * past the end is still to play. The reset then rebuilds the tournament's tables (stage 4).
+     */
+    results?: Array<[number, number] | null>;
     teams: FixtureTournamentTeam[];
     /**
      * A Head to Head's games (`H2H-1`), paired by hand: the host's team key against the other
@@ -721,6 +726,57 @@ export const TEST_TOURNAMENTS: FixtureTournament[] = [
                     { org: 'dkl', team: 'rugby-1stxv', status: 'accepted' },
                     { org: 'sac', team: 'rugby-1stxv', status: 'accepted' },
                     { org: 'rbh', team: 'rugby-1stxv', status: 'accepted' },
+                ],
+            },
+        ],
+    },
+    /**
+     * *Test Autumn Festival* (events stage 4): a tournament already under way, for the Standings tab.
+     * Every organisation accepted, every division locked and drawn, on a Saturday already played:
+     *
+     * - **Netball U14**: every result in — the division is finished.
+     * - **Rugby U16**: three of its six results in, one a draw — still being played.
+     * - **Netball U16**: drawn, nothing played.
+     */
+    {
+        key: 'autumn', name: 'Test Autumn Festival', host: 'dkl', startDate: '2026-10-03', endDate: '2026-10-03',
+        days: [{ day: '2026-10-03', dayStarts: '08:00', dayEnds: '15:00' }],
+        facilities: ['a-field-1', 'a-field-2', 'court-1', 'court-2', 'court-3'],
+        gapBetweenGamesMin: 5, minTeamBreakMin: 10,
+        sportIds: ['netball', 'rugby'], orgsMayAddTeams: false,
+        orgs: [
+            { org: 'sac', invitation: 'accepted', by: 'Catherine Whitfield' },
+            { org: 'rbh', invitation: 'accepted' },
+            { org: 'ksc', invitation: 'accepted' },
+        ],
+        divisions: [
+            {
+                key: 'netball-u14', name: 'U14', sportId: 'netball', ageGroup: 'U14', locked: true, drawn: true, facilities: ['court-1', 'court-2'],
+                results: [[12, 8], [10, 10], [15, 9], [7, 11], [14, 6], [9, 13]],
+                teams: [
+                    { org: 'dkl', team: 'netball-u14a', status: 'accepted' },
+                    { org: 'sac', team: 'netball-u14a', status: 'accepted' },
+                    { org: 'rbh', team: 'netball-u14a', status: 'accepted' },
+                    { org: 'ksc', team: 'netball-u14', status: 'accepted' },
+                ],
+            },
+            {
+                key: 'netball-u16', name: 'U16', sportId: 'netball', ageGroup: 'U16', locked: true, drawn: true, facilities: ['court-3'],
+                teams: [
+                    { org: 'dkl', team: 'netball-u16a', status: 'accepted' },
+                    { org: 'sac', team: 'netball-u16a', status: 'accepted' },
+                    { org: 'rbh', team: 'netball-u16a', status: 'accepted' },
+                    { org: 'ksc', team: 'netball-u16', status: 'accepted' },
+                ],
+            },
+            {
+                key: 'rugby-u16', name: 'U16', sportId: 'rugby', ageGroup: 'U16', locked: true, drawn: true, facilities: ['a-field-1', 'a-field-2'],
+                results: [[24, 10], [17, 17], [31, 7]],
+                teams: [
+                    { org: 'dkl', team: 'rugby-u16a', status: 'accepted' },
+                    { org: 'sac', team: 'rugby-u16a', status: 'accepted' },
+                    { org: 'rbh', team: 'rugby-u16a', status: 'accepted' },
+                    { org: 'ksc', team: 'rugby-u16', status: 'accepted' },
                 ],
             },
         ],

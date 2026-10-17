@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Event, GameSummary, Sport, TournamentDivision } from '@sk/shared';
+import { Event, EventStandings, GameSummary, Sport, TournamentDivision } from '@sk/shared';
 import { useLiveRoom } from './useLiveRoom';
 import { useWsStore } from '../store/wsStore';
 import { wsService } from '../services/websocket';
@@ -74,6 +74,23 @@ export function useEventFacilityIds(eventId?: string | null) {
   });
   return useMemo(() => items.map(row => row.id), [items]);
 }
+
+/**
+ * The Standings tab's data (stage 4), from `event:{id}:standings`: the organisation leaderboard and
+ * each division's whole table. Held as one item, since the room always sends the pair together.
+ */
+export function useEventStandings(eventId?: string | null) {
+  const { items, isLoading } = useLiveRoom<EventStandings & { id: string }>(eventId ? `event:${eventId}:standings` : null, {
+    reduce: message =>
+      message.type === 'EVENT_STANDINGS_UPDATED'
+        ? { kind: 'replace', items: [{ id: 'standings', rows: message.data?.rows || [], divisions: message.data?.divisions || [] }] }
+        : { kind: 'ignore' },
+  });
+  const standings = items[0];
+  return { rows: standings?.rows || NO_ROWS, divisions: standings?.divisions || NO_DIVISIONS, isLoading };
+}
+const NO_ROWS: EventStandings['rows'] = [];
+const NO_DIVISIONS: EventStandings['divisions'] = [];
 
 /** Every sport: global reference data that no room owns, so a one-shot read. */
 export function useSports() {

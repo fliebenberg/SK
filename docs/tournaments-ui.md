@@ -1576,6 +1576,11 @@ drawn / lost; the points column is what configuration *adds*, not what makes the
 > **Decided — one table, with a division scope selector.** Rather than a `By division / By
 > organisation` toggle, the standings screen ranks one subject and scopes it: **all divisions by
 > default**, or one division chosen from a selector, with the choice remembered for the session.
+>
+> **Superseded 2026-10-17 (events stage 4,** [events.md](file:///c:/Fred/Coding/SK/docs/events.md) **§10):** the
+> tab opens on the organisation leaderboard with a Divisions card beside it, and a division opens its
+> own page, whose Standings card has its tables — there is no selector. The rule below, that the scope
+> decides the row, still holds: the leaderboard ranks organisations, a division's table its entrants.
 
 > **Decided — the scope decides the row, not just the filter.** The two scopes rank different
 > subjects, and that is the point of the control rather than a wrinkle in it:

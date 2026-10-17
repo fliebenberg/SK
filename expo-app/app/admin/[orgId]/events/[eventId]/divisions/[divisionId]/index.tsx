@@ -50,6 +50,7 @@ import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { wsService } from '../../../../../../../services/websocket';
 import { sendAction } from '../../../../../../../services/actions';
 import { useWsStore } from '../../../../../../../store/wsStore';
+import { useAuthStore } from '../../../../../../../store/authStore';
 import { PageBody } from '../../../../../../../components/PageBody';
 
 /**
@@ -75,6 +76,8 @@ export default function DivisionScreen() {
   const { orgId, eventId, divisionId } = useLocalSearchParams<{ orgId: string; eventId: string; divisionId: string }>();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const memberships = useAuthStore((state: any) => state.orgMemberships);
+  const viewerOrgIds = useMemo(() => (memberships || []).map((m: any) => m.orgId) as string[], [memberships]);
   const isConnected = useWsStore((state: any) => state.isConnected);
   const backToTournament = () => safeBack(`/admin/${orgId}/events/${eventId}`);
 
@@ -493,7 +496,7 @@ export default function DivisionScreen() {
   const detailsCard = <React.Fragment key="details">{whereCard}{whenCard}{organisersCard}</React.Fragment>;
   const standingsCard = drawn && !dual ? (
     <TournamentCard key="standings" title="Standings">
-      <DivisionStandings divisionId={divisionId} canEdit={canEdit} />
+      <DivisionStandings divisionId={divisionId} canEdit={canEdit} orgs={event.participatingOrgs} games={games} isWide={isWide} viewerOrgIds={viewerOrgIds} />
     </TournamentCard>
   ) : null;
 
