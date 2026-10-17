@@ -14,11 +14,9 @@ import { AccessDenied } from '../../../../../../components/AccessDenied';
 import { OverflowMenu } from '../../../../../../components/OverflowMenu';
 import { SegmentedControl } from '../../../../../../components/SegmentedControl';
 import { FloatingSaveBar } from '../../../../../../components/FloatingSaveBar';
-import { FixtureCrest } from '../../../../../../components/events/EventBits';
-import { InvitationBadge } from '../../../../../../components/tournament/TournamentBits';
 import { NominateFor, RemoveOrganisationDialog, useCanWriteInto } from '../../../../../../components/tournament/OrganisationDialogs';
 import { OrgTeamsByDivision, useOrgTeamPicks } from '../../../../../../components/tournament/OrganisationTeams';
-import { OrganisationResponse, isLongReason } from '../../../../../../components/tournament/OrganisationResponse';
+import { OrganisationBanner, OrganisationResponse, isLongReason } from '../../../../../../components/tournament/OrganisationResponse';
 import { OrganisationTeamCards } from '../../../../../../components/tournament/OrganisationTeamCards';
 import { useOrgTeams } from '../../../../../../hooks/useOrgTeams';
 import { useMineAll } from '../../../../../../hooks/useMineAll';
@@ -187,19 +185,7 @@ export default function OrganisationInTournamentScreen() {
   const sideBySide = isWide && !isLongReason(history);
 
   const banner = (
-    <View className="flex-1 rounded-2xl border border-line bg-card p-4 flex-row items-center gap-3.5">
-      <FixtureCrest participant={{ id: org.id, orgId: org.id, orgLogo: org.logo, orgLogoConfig: org.logoConfig, orgPrimaryColor: org.primaryColor }} size={isWide ? 60 : 50} />
-      <View className="flex-1 min-w-0 gap-1">
-        <View className="flex-row flex-wrap items-center gap-2">
-          <Text className="font-inter-bold text-ink" style={{ fontSize: isWide ? 22 : 19 }}>{org.name}</Text>
-          {isHost ? null : <InvitationBadge invitation={org.invitation} large />}
-        </View>
-        <Text className="font-inter text-sm text-ink-muted">
-          <Text className="font-inter-semibold text-ink">{event.name}</Text>
-          {'   '}{entered.length ? `${entered.length} ${entered.length === 1 ? 'entry' : 'entries'} in ${enteredDivisions} ${enteredDivisions === 1 ? 'division' : 'divisions'}` : 'Nothing entered yet'}
-        </Text>
-      </View>
-    </View>
+    <OrganisationBanner org={org} isHost={isHost} eventName={event.name} entries={entered.length} divisions={enteredDivisions} isWide={isWide} />
   );
 
   const menuItems = canEdit && org.isClaimed === false

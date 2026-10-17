@@ -8,6 +8,8 @@ import { themeColor } from '../../constants/Colors';
 import { TEXT_INPUT } from '../formStyles';
 import { sendAction } from '../../services/actions';
 import { formatInstantDate } from '../../utils/dates';
+import { FixtureCrest } from '../events/EventBits';
+import { InvitationBadge } from './TournamentBits';
 
 /**
  * An organisation's response to its invitation, on its page (`FIX-26`, `FIX-30`; agreed on
@@ -26,6 +28,33 @@ import { formatInstantDate } from '../../utils/dates';
  */
 
 type Viewer = 'organiser' | 'organisation';
+
+/** The top of an organisation's page in a tournament: its crest, name and status, and what it has entered. */
+export function OrganisationBanner({ org, isHost, eventName, entries, divisions, isWide }: {
+  org: EventOrgBadge;
+  isHost: boolean;
+  eventName: string;
+  /** Its entries, and the divisions they are in. */
+  entries: number;
+  divisions: number;
+  isWide: boolean;
+}) {
+  return (
+    <View className="flex-1 rounded-2xl border border-line bg-card p-4 flex-row items-center gap-3.5">
+      <FixtureCrest participant={{ id: org.id, orgId: org.id, orgLogo: org.logo, orgLogoConfig: org.logoConfig, orgPrimaryColor: org.primaryColor }} size={isWide ? 60 : 50} />
+      <View className="flex-1 min-w-0 gap-1">
+        <View className="flex-row flex-wrap items-center gap-2">
+          <Text className="font-inter-bold text-ink" style={{ fontSize: isWide ? 22 : 19 }}>{org.name}</Text>
+          {isHost ? null : <InvitationBadge invitation={org.invitation} large />}
+        </View>
+        <Text className="font-inter text-sm text-ink-muted">
+          <Text className="font-inter-semibold text-ink">{eventName}</Text>
+          {'   '}{entries ? `${entries} ${entries === 1 ? 'entry' : 'entries'} in ${divisions} ${divisions === 1 ? 'division' : 'divisions'}` : 'Nothing entered yet'}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 /** The reason is long: the card moves under the banner, full width, as it is on a phone. */
 export const isLongReason = (history: EventOrgHistory | null) => (history?.withdrawal?.reason?.length || 0) > 120;
@@ -141,6 +170,7 @@ export function OrganisationResponse({ event, orgId, org, isHost, viewer, canAns
       );
     }
   } else if (status === 'accepted') {
+    if (!organiser) title = 'Taking part';
     body = (
       <>
         {line(answeredLine())}

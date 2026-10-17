@@ -157,7 +157,7 @@ export default function DivisionScreen() {
     return () => { live = false; };
   }, [isConnected, divisionId, canEdit]);
 
-  const { sites, facilities } = useOrgSites(orgId);
+  const { sites, facilities } = useOrgSites(event?.orgId);
 
   /* -- where it has got to ------------------------------------------------------------------ */
   const ordered = useMemo(() => [...stages].sort((a, b) => (a.sequence || 0) - (b.sequence || 0)), [stages]);

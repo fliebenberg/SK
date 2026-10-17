@@ -339,7 +339,10 @@ Say *organisations*, never *schools*: clubs take part too.
     *Answer needed* tag in the events list, from the members' room `org:{id}:invitations`, and a box at the top of that list — "1 invitation to answer" — naming each and opening it) and on
     the tournament page ("Valley Prep has invited you", *Accept* / *Decline*, the same card as on its
     page); an admin answers — not staff (`FIX-31`). *Decline* asks first. After that only the organisers
-    change it: "To change this, contact Valley Prep."
+    change it: "To change this, contact Valley Prep." The card sits beside the tournament's banner
+    and stays once answered: *Taking part* with *Withdraw from the tournament* after accepting
+    (2026-10-17). In *Taking part* the organisation's own row opens its page; the other
+    organisations' pages are the organisers' only.
   - **Declining**, or a confirmed withdrawal, takes its teams out; it stays listed — at the bottom,
     badged — as the record, and is not a warning. The organisers' only action then is *Change
     response*.

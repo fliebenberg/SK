@@ -8,7 +8,7 @@ import { useAuthStore } from '../store/authStore';
 /**
  * What a tournament's pages need of it — the tournament page and its full pages
  * (`events/[eventId]/sports`, `events/[eventId]/organisations`; 2026-10-09): the event, its fixtures,
- * divisions and facilities from their rooms, the roster for an organiser, the org's sites and
+ * divisions and facilities from their rooms, the roster for an organiser, the host's sites and
  * facilities, the sports, the viewer's capabilities and the host. Built from the one-room hooks in
  * `useEventRooms`, so every screen reads each room's messages the same way.
  */
@@ -17,7 +17,8 @@ export function useTournamentData(orgId?: string, eventId?: string) {
   const games = useEventFixtures(eventId);
   const divisions = useEventDivisions(eventId);
   const facilityIds = useEventFacilityIds(eventId);
-  const { sites, facilities } = useOrgSites(orgId);
+  // The host's venues: the tournament is played at its sites, whoever is looking (a guest's own are not it).
+  const { sites, facilities } = useOrgSites(event?.orgId);
   const sports = useSports();
 
   const { capabilities } = useEventCapabilities(eventId);

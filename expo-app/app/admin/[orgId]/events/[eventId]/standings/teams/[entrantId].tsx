@@ -40,7 +40,7 @@ export default function TeamResultsScreen() {
   const divisions = useEventDivisions(eventId);
   const games = useEventFixtures(eventId);
   const sports = useSports();
-  const { facilities } = useOrgSites(orgId);
+  const { facilities } = useOrgSites(event?.orgId);
   const { divisions: tables, isLoading } = useEventStandings(eventId);
 
   if (accessDenied) {

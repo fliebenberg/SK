@@ -122,7 +122,8 @@ function OrganisationsPage({ orgId, event, data, onBack }: {
                 rows={shown}
                 isWide={isWide}
                 showInvitations={canEdit}
-                onOpen={canEdit ? orgs.openOrg : undefined}
+                onOpen={canEdit || orgs.highlightOrgId ? orgs.openOrg : undefined}
+                openOnly={canEdit ? undefined : orgs.highlightOrgId}
                 highlightOrgId={orgs.highlightOrgId}
                 beforeDivisions={setupMode && !divisions.some(d => d.sportId)}
                 fullEntries

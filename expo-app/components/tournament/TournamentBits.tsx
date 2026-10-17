@@ -671,11 +671,13 @@ function enteredVersions(row: OrgRow): LinePart[][] {
  * given. `isWide` puts the team count at the right; on a phone the shortest version of the line
  * carries it, so the name keeps the first line's width.
  */
-export function OrgsList({ rows, isWide, showInvitations, onOpen, highlightOrgId, beforeDivisions, fullEntries }: {
+export function OrgsList({ rows, isWide, showInvitations, onOpen, openOnly, highlightOrgId, beforeDivisions, fullEntries }: {
   rows: OrgRow[];
   isWide: boolean;
   showInvitations: boolean;
   onOpen?: (orgId: string) => void;
+  /** Only this row opens: a guest may open its own organisation's page, not the others'. */
+  openOnly?: string;
   highlightOrgId?: string;
   /** Nothing can be entered yet, so the second line says so rather than counting nothing. */
   beforeDivisions?: boolean;
@@ -687,6 +689,7 @@ export function OrgsList({ rows, isWide, showInvitations, onOpen, highlightOrgId
     <View>
       {rows.map((row, i) => {
         const entered = row.teams + row.players + row.toBeNamed;
+        const opens = !!onOpen && (!openOnly || row.org.id === openOnly);
         const noContact = row.org.isClaimed === false && !row.isHost;
         const tags = (
           <>
@@ -736,12 +739,12 @@ export function OrgsList({ rows, isWide, showInvitations, onOpen, highlightOrgId
             {isWide && !beforeDivisions && entered ? (
               <Text className="font-inter text-xs text-ink-muted">{plural(row.teams + row.players, row.players && !row.teams ? 'player' : 'team')}</Text>
             ) : null}
-            {onOpen ? <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-muted')} /> : null}
+            {opens ? <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-muted')} /> : null}
           </>
         );
         const rowClass = `flex-row items-center gap-2.5 py-2 ${i ? 'border-t border-line-soft' : ''}`;
-        return onOpen ? (
-          <TouchableOpacity key={row.org.id} onPress={() => onOpen(row.org.id)} accessibilityRole="button" accessibilityLabel={`${row.org.name}, open its teams`} className={rowClass}>
+        return opens ? (
+          <TouchableOpacity key={row.org.id} onPress={() => onOpen!(row.org.id)} accessibilityRole="button" accessibilityLabel={`${row.org.name}, open its teams`} className={rowClass}>
             {content}
           </TouchableOpacity>
         ) : (

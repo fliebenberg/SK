@@ -158,9 +158,11 @@ export function WhoPlayedDialog({ visible, side, summary, orgId, eventId, divisi
  * Saves the game and then the match's event (its name, day, venue, sport and both organisations), as
  * the old edit screen did: a match *is* its event.
  */
-export function EditMatchDialog({ visible, orgId, eventId, game, summary, sportName, onClose }: {
+export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summary, sportName, onClose }: {
   visible: boolean;
   orgId: string;
+  /** The event's host: its venues and time zone — not the acting workspace's, for a co-organiser. */
+  hostOrgId: string;
   eventId: string;
   game: Game;
   summary: GameSummary;
@@ -168,8 +170,8 @@ export function EditMatchDialog({ visible, orgId, eventId, game, summary, sportN
   onClose: () => void;
 }) {
   const isDark = useActiveTheme() === 'dark';
-  const { sites, facilities } = useOrgSites(orgId);
-  const { org: hostOrg } = useOrgSummary(orgId);
+  const { sites, facilities } = useOrgSites(hostOrgId);
+  const { org: hostOrg } = useOrgSummary(hostOrgId);
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [teamsByOrg, setTeamsByOrg] = useState<Record<string, Team[]>>({});
   const [form, setForm] = useState<{ orgIds: [string, string]; teamIds: [string, string]; date: string; time: string; tbd: boolean; siteId: string; facilityId: string } | null>(null);
@@ -185,7 +187,7 @@ export function EditMatchDialog({ visible, orgId, eventId, game, summary, sportN
     const [a, b] = summary.participants || [];
     const when = instantToVenueInputs(summary.scheduledStartTime || summary.startTime, venueTimeZone(sites.find(s => s.id === summary.siteId) as any, hostOrg as any));
     setForm({
-      orgIds: [a?.orgId || orgId, b?.orgId || ''],
+      orgIds: [a?.orgId || hostOrgId, b?.orgId || ''],
       teamIds: [a?.teamId || '', b?.teamId || ''],
       date: when?.date || '',
       time: summary.timeTbd ? '' : when?.time || '',

@@ -299,7 +299,7 @@ export default function GamePage() {
       </ScrollView>
 
       {game && isMatch ? (
-        <EditMatchDialog visible={dialog === 'edit'} orgId={orgId!} eventId={eventId!} game={game} summary={summary} sportName={sportName} onClose={() => setDialog(null)} />
+        <EditMatchDialog visible={dialog === 'edit'} orgId={orgId!} hostOrgId={event?.orgId || orgId!} eventId={eventId!} game={game} summary={summary} sportName={sportName} onClose={() => setDialog(null)} />
       ) : null}
       {dialog === 'move' && isFixture ? (
         <FixtureMove event={event} orgId={orgId!} summary={summary} canEdit={canEdit} onClose={() => setDialog(null)} />

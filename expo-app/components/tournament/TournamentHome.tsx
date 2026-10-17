@@ -628,7 +628,7 @@ export function TournamentHome({
         <WarningsList warnings={orgs.warnings} limit={3} onMore={openOrgsPage} />
         {canEdit ? <NotInvitedBox count={orgs.notInvited.length} nobodyYet={orgs.nobodyInvited} onInviteAll={orgs.inviteAll} subject={dual ? 'Head to Head' : 'tournament'} orgName={dual ? guestOrg?.name : undefined} /> : null}
         <View>
-          <OrgsList rows={orgRowsShown} isWide={isWide} showInvitations={canEdit} onOpen={canEdit ? orgs.openOrg : undefined} highlightOrgId={orgs.highlightOrgId} beforeDivisions={setupMode && beforeDivisions} />
+          <OrgsList rows={orgRowsShown} isWide={isWide} showInvitations={canEdit} onOpen={canEdit || orgs.highlightOrgId ? orgs.openOrg : undefined} openOnly={canEdit ? undefined : orgs.highlightOrgId} highlightOrgId={orgs.highlightOrgId} beforeDivisions={setupMode && beforeDivisions} />
           <UnnamedList entrants={orgs.unnamed} divisionName={orgs.divisionName} onOpen={canEdit ? orgs.openUnnamed : undefined} />
         </View>
         {setupMode && !beforeDivisions ? (
@@ -932,37 +932,41 @@ export function TournamentHome({
   ) : null;
 
   /*
-   * The viewer's own organisation, invited and not simply taking part (`FIX-30`): "Valley Prep has
-   * invited you", with Accept and Decline — or where its request to withdraw, or its answer, stands.
-   * The same card as on its page, which this links to for its teams.
+   * The viewer's own organisation, once invited (`FIX-30`): "Valley Prep has invited you", with
+   * Accept and Decline — or, after that, where it stands: taking part (with *Withdraw*), asking to
+   * withdraw, declined or withdrawn. The same card as on its page; its row in *Taking part* opens that.
    */
   const myUserId = useAuthStore((state: any) => state.user?.id);
   const myMemberships = useAuthStore((state: any) => state.orgMemberships) || [];
   /** An admin of that organisation — who may answer for it; staff may not (`FIX-31`). */
   const adminsOrg = (id: string) => myMemberships.some((m: any) => m.orgId === id && m.roleId === 'role-org-admin' && (!m.endDate || new Date(m.endDate) > new Date()));
-  const myInvitations = canEdit ? [] : (event.participatingOrgs || []).filter(o => o.id !== event.orgId && viewerOrgIds.includes(o.id) && o.invitation !== 'accepted' && o.invitation !== 'not_invited');
-  const invitationBanners = myInvitations.map(o => (
-    <View key={o.id} className="gap-1.5">
-      <OrganisationResponse
-        event={event}
-        orgId={orgId}
-        org={o}
-        isHost={false}
-        viewer="organisation"
-        canAnswer={adminsOrg(o.id)}
-        hostName={hostOrg?.name || 'the organisers'}
-        history={null}
-        myUserId={myUserId}
-        wide={false}
-        onRemove={() => {}}
-        // Its teams, so *Accept for all invited teams* has them to accept, as on its own page.
-        teams={Array.from(allEntrantsByDivision.values()).flat().filter(e => e.orgId === o.id)}
-        divisions={allDivisions}
-        sportName={sportName}
-      />
-      {link(`${o.name}'s page in this tournament ›`, () => orgs.openOrg(o.id))}
-    </View>
+  const myInvitations = canEdit ? [] : (event.participatingOrgs || []).filter(o => o.id !== event.orgId && viewerOrgIds.includes(o.id) && o.invitation !== 'not_invited');
+  const invitationCards = myInvitations.map(o => (
+    <OrganisationResponse
+      key={o.id}
+      event={event}
+      orgId={orgId}
+      org={o}
+      isHost={false}
+      viewer="organisation"
+      canAnswer={adminsOrg(o.id)}
+      hostName={hostOrg?.name || 'the organisers'}
+      history={null}
+      myUserId={myUserId}
+      wide={isWide}
+      onRemove={() => {}}
+      // Its teams, so *Accept for all invited teams* has them to accept, as on its own page.
+      teams={Array.from(allEntrantsByDivision.values()).flat().filter(e => e.orgId === o.id)}
+      divisions={allDivisions}
+      sportName={sportName}
+    />
   ));
+  // Beside the tournament's banner, as the response card sits beside the organisation's on its page.
+  const top = invitationCards.length
+    ? isWide
+      ? <View className="flex-row gap-4 items-stretch"><View className="flex-1">{banner}</View>{invitationCards}</View>
+      : <>{banner}{invitationCards}</>
+    : banner;
 
   /* ---------------------------------------------------------------------------- layout --- */
   /*
@@ -1018,8 +1022,7 @@ export function TournamentHome({
 
   return (
     <View ref={rootRef} collapsable={false} className="gap-4" onLayout={e => setRootWidth(e.nativeEvent.layout.width)}>
-      {invitationBanners}
-      {banner}
+      {top}
       <TeamInvitationRows
         entrants={myTeamInvitations}
         orgId={orgId}
