@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Event, EventOrgBadge, GameSummary, Sport, TournamentDivision } from '@sk/shared';
+import { Event, EventOrgBadge, GameSummary, Sport, TournamentDivision, TournamentEntrant } from '@sk/shared';
 import { StandingsTable } from './StandingsTable';
 import { FixtureCrest } from '../events/EventBits';
 import { DivisionStateLine, TournamentCard, divisionFormatLabel, divisionStateOf } from './TournamentBits';
@@ -20,8 +20,12 @@ import { themeColor } from '../../constants/Colors';
  * got. Each row is a door: an organisation opens its results page, a division its own page, whose
  * Standings card has the division's tables. So there is no division scope selector any more, and a
  * stage's table is shown in one place (2026-10-17: "we do not want too many views of the same data").
+ *
+ * **Mine / My organisation / All** (2026-10-17): the tournament's one remembered choice, on the line
+ * above. It narrows the divisions to those the viewer's teams, or their organisation's, are in; the
+ * leaderboard stays whole — it is a comparison — with the viewer's organisation tinted.
  */
-export function StandingsTab({ event, orgId, isWide, divisions, games, sports, viewerOrgIds }: {
+export function StandingsTab({ event, orgId, isWide, divisions: allDivisions, games, sports, viewerOrgIds, narrowTo, scopeLine }: {
   event: Event;
   orgId: string;
   isWide: boolean;
@@ -30,7 +34,11 @@ export function StandingsTab({ event, orgId, isWide, divisions, games, sports, v
   games: GameSummary[];
   sports: Sport[];
   viewerOrgIds: string[];
+  /** Mine / My organisation: the entrants whose divisions are shown, or null for every division. */
+  narrowTo?: TournamentEntrant[] | null;
+  scopeLine?: React.ReactNode;
 }) {
+  const divisions = narrowTo ? allDivisions.filter(d => narrowTo.some(e => e.divisionId === d.id)) : allDivisions;
   const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
   const { rows, divisions: tables } = useEventStandings(event.id);
@@ -130,11 +138,14 @@ export function StandingsTab({ event, orgId, isWide, divisions, games, sports, v
     </TournamentCard>
   );
 
-  if (!isWide) return <View className="gap-3">{leaderboard}{divisionsCard}</View>;
+  if (!isWide) return <View className="gap-3">{scopeLine}{leaderboard}{divisionsCard}</View>;
   return (
-    <View className="flex-row items-start gap-5">
-      <View style={{ flex: 1.55, minWidth: 0 }}>{leaderboard}</View>
-      <View style={{ flex: 1, minWidth: 0 }}>{divisionsCard}</View>
+    <View className="gap-3">
+      {scopeLine}
+      <View className="flex-row items-start gap-5">
+        <View style={{ flex: 1.55, minWidth: 0 }}>{leaderboard}</View>
+        <View style={{ flex: 1, minWidth: 0 }}>{divisionsCard}</View>
+      </View>
     </View>
   );
 }

@@ -106,12 +106,13 @@ export default function EventDetails() {
   } = useTournamentData(orgId, eventId);
 
   /*
-   * Mine / My organisation / All on the Schedule (2026-10-17): the Overview's one remembered choice.
-   * It narrows the fixtures on the day; days, facilities and hours stay whole. Organisers, who
-   * place fixtures against every other, are not offered it.
+   * Mine / My organisation / All on the Schedule and Standings (2026-10-17): the Overview's one
+   * remembered choice. It narrows the Schedule's fixtures (days, facilities and hours stay whole) and
+   * the Standings' divisions (the leaderboard stays whole). Organisers, who place fixtures against
+   * every other, are not offered it.
    */
   const scheduleCanEdit = canEdit || !!capabilities?.convenesDivisionIds?.length || !!capabilities?.convenesSportIds?.length;
-  const scheduleScope = useTournamentScope({
+  const viewScope = useTournamentScope({
     orgId, canEdit: scheduleCanEdit, entrants: entrants.filter(e => isEntrantEntered(e.status)),
     orgName: id => event?.participatingOrgs?.find(o => o.id === id)?.name,
   });
@@ -487,8 +488,8 @@ export default function EventDetails() {
               canEdit={scheduleCanEdit}
               isWide={isWide}
               divisions={divisions}
-              games={scheduleScope.narrowTo ? games.filter(scheduleScope.keepsGame) : games}
-              scopeLine={<TournamentScopeLine {...scheduleScope} isWide={isWide} allLabel="the whole schedule" />}
+              games={viewScope.narrowTo ? games.filter(viewScope.keepsGame) : games}
+              scopeLine={<TournamentScopeLine {...viewScope} isWide={isWide} allLabel="the whole schedule" />}
               sports={sports}
               sites={sites}
               facilities={facilities}
@@ -529,6 +530,8 @@ export default function EventDetails() {
               games={games}
               sports={sports}
               viewerOrgIds={(orgMemberships || []).map((m: any) => m.orgId)}
+              narrowTo={viewScope.narrowTo}
+              scopeLine={<TournamentScopeLine {...viewScope} isWide={isWide} allLabel="every division" />}
             />
           </PageBody>
         )}

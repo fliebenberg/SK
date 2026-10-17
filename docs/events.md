@@ -411,7 +411,9 @@ each division's stages.
   organisation to their organisation's; Where, When and Rules stay whole. Only the choices that
   differ are offered — an admin with no team of their own gets *My organisation / All*. The same
   choice, from `TournamentScope.tsx`, sits above the **Schedule** tab's toolbar (narrowing its
-  fixtures) and under a **division page**'s banner (narrowing its fixtures; the table stays whole). Their team's invitation sits
+  fixtures), above the **Standings** tab (narrowing its Divisions list; the leaderboard is a
+  comparison and stays whole) and under a **division page**'s banner (narrowing its fixtures; the
+  table stays whole). Their team's invitation sits
   under the banner with ✓ Accept / ✕ Decline (`TeamInvitationRows`). A team's own page has an
   **Events** card — every tournament it is in, an invitation as a tinted row to answer — and a strip
   under its banner while one waits; the events list's invitations box names the team. Who sees what,
@@ -637,7 +639,7 @@ results as well, and ± on a phone too. Each row names its organisation and team
 "DKL U14 A" on a phone or in a narrow column) with its crest — the division page's tables named only
 the team before. **The leaderboard is the one exception:** it shows **Teams** in place of For,
 Against, ± and form, which added up across sports would add rugby points to netball goals. The
-viewer's own organisation's rows are tinted (`bg-info-soft`); narrowing the tables to Mine / My organisation is `FIX-24`'s. The
+viewer's own organisation's rows are tinted (`bg-info-soft`). Mine / My organisation narrows the Divisions list to the viewer's (2026-10-17); a table's rows are never narrowed. The
 adjustment dot and withdrawn rows are as before.
 
 **A tournament scored on wins / draws / losses has no points column** (`SCORE-18`, built 2026-10-17).
