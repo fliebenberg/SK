@@ -27,7 +27,7 @@ import { EditDialog } from '../EditDialog';
 import { lockGapsLine } from './DivisionEntries';
 import { TeamInvitationRows } from './TeamInvitations';
 import { SegmentedControl } from '../SegmentedControl';
-import { useViewScope, ViewScope } from '../../hooks/useMineAll';
+import { TournamentScopeLine, useTournamentScope } from './TournamentScope';
 import { AddressMap } from '../address/AddressMap';
 import { facilityMarkers } from '../address/facilityMarker';
 import { FacilityIcon, addressText } from '../sites/SiteBits';
@@ -239,26 +239,12 @@ export function TournamentHome({
    * something different are offered, and a saved one not offered here falls to the next wider.
    */
   const teamMemberships = useAuthStore((state: any) => state.teamMemberships) || [];
-  const myTeamIds = useMemo(() => new Set<string>(teamMemberships.map((m: any) => m.teamId)), [teamMemberships]);
   const everyEntrant = useMemo(() => Array.from(allEntrantsByDivision.values()).flat(), [allEntrantsByDivision]);
-  const myEntrants = useMemo(() => everyEntrant.filter(e => !!e.teamId && myTeamIds.has(e.teamId)), [everyEntrant, myTeamIds]);
-  const orgEntrants = useMemo(() => everyEntrant.filter(e => !!e.orgId && viewerOrgIds.includes(e.orgId)), [everyEntrant, viewerOrgIds]);
-  const offersMine = !canEdit && myEntrants.length > 0;
-  // Different from Mine and from All: the organisation has teams that are not the viewer's, and not every team is its.
-  const offersOrg = !canEdit && orgEntrants.length > myEntrants.length && orgEntrants.length < everyEntrant.length;
-  const [savedScope, setScope] = useViewScope(orgId);
-  const scope: ViewScope = canEdit ? 'all'
-    : savedScope === 'mine' ? (offersMine ? 'mine' : offersOrg ? 'org' : 'all')
-    : savedScope === 'org' ? (offersOrg ? 'org' : offersMine ? 'mine' : 'all')
-    : 'all';
-  const narrowTo = scope === 'mine' ? myEntrants : scope === 'org' ? orgEntrants : null;
+  const scoped = useTournamentScope({ orgId, canEdit, entrants: everyEntrant, orgName: id => event.participatingOrgs?.find(o => o.id === id)?.name });
+  const { narrowTo } = scoped;
   const mine = !!narrowTo;
-  const narrowIds = new Set((narrowTo || []).map(e => e.id));
-  const narrowTeamIds = scope === 'mine' ? myTeamIds : new Set((narrowTo || []).map(e => e.teamId).filter(Boolean) as string[]);
   const divisions = narrowTo ? allDivisions.filter(d => narrowTo.some(e => e.divisionId === d.id)) : allDivisions;
-  const games = narrowTo
-    ? allGames.filter(g => (g.participants || []).some(p => (!!p.entrantId && narrowIds.has(p.entrantId)) || (!!p.teamId && narrowTeamIds.has(p.teamId))))
-    : allGames;
+  const games = narrowTo ? allGames.filter(scoped.keepsGame) : allGames;
   const entrantsByDivision = useMemo(() => {
     if (!narrowTo) return allEntrantsByDivision;
     const narrowed = new Map<string, TournamentEntrant[]>();
@@ -1014,28 +1000,7 @@ export function TournamentHome({
     e.status === 'invited' && !allDivisions.find(d => d.id === e.divisionId)?.entriesLockedAt &&
     ((!!e.teamId && coachTeamIds.has(e.teamId)) || (!!e.orgId && adminsOrg(e.orgId))) &&
     !hasLeft(invitationOf(e.orgId) || 'accepted'));
-  const scopeOptions = [
-    ...(offersMine ? [{ key: 'mine' as const, label: 'Mine' }] : []),
-    ...(offersOrg ? [{ key: 'org' as const, label: 'My organisation' }] : []),
-    { key: 'all' as const, label: 'All' },
-  ];
-  const myOrgNames = [...new Set(orgEntrants.map(e => event.participatingOrgs?.find(o => o.id === e.orgId)?.name).filter(Boolean))].join(', ');
-  const mineLine = scopeOptions.length > 1 ? (
-    <View className={isWide ? 'flex-row items-center gap-3' : 'gap-1'}>
-      <SegmentedControl<ViewScope>
-        fit
-        isCompact
-        value={scope}
-        onChange={setScope}
-        options={scopeOptions}
-      />
-      <Text className="font-inter text-xs text-ink-muted">
-        {scope === 'mine' ? `Showing ${[...new Set(myEntrants.map(e => e.name).filter(Boolean))].join(', ')}`
-          : scope === 'org' ? `Showing ${myOrgNames || 'your organisation'}'s teams`
-          : 'Showing the whole tournament'}
-      </Text>
-    </View>
-  ) : null;
+  const mineLine = <TournamentScopeLine {...scoped} isWide={isWide} allLabel="the whole tournament" />;
 
   return (
     <View ref={rootRef} collapsable={false} className="gap-4" onLayout={e => setRootWidth(e.nativeEvent.layout.width)}>

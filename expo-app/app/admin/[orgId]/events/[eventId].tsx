@@ -14,6 +14,7 @@ import {
   SocketAction,
   TournamentOrganizer,
   dualUnpaired,
+  isEntrantEntered,
   isDualEvent,
 } from '@sk/shared';
 
@@ -24,6 +25,7 @@ import { formatDateRange, dateCountdown } from '../../../../utils/dates';
 import { TournamentHome, useTournamentSteps } from '../../../../components/tournament/TournamentHome';
 import { OrganizersDialog } from '../../../../components/tournament/TournamentDialogs';
 import { useTournamentData } from '../../../../hooks/useTournamentData';
+import { TournamentScopeLine, useTournamentScope } from '../../../../components/tournament/TournamentScope';
 import { StandingsTab } from '../../../../components/tournament/StandingsTab';
 import { ScheduleTab } from '../../../../components/tournament/ScheduleTab';
 import { DualResults } from '../../../../components/tournament/DualResults';
@@ -102,6 +104,17 @@ export default function EventDetails() {
     event, eventLoading, accessDenied, games, divisions, facilityIds: savedFacilityIds, sites, facilities, sports,
     capabilities, canEdit, entrants, entrantsByDivision, hostOrg,
   } = useTournamentData(orgId, eventId);
+
+  /*
+   * Mine / My organisation / All on the Schedule (2026-10-17): the Overview's one remembered choice.
+   * It narrows the fixtures on the day; days, facilities and hours stay whole. Organisers, who
+   * place fixtures against every other, are not offered it.
+   */
+  const scheduleCanEdit = canEdit || !!capabilities?.convenesDivisionIds?.length || !!capabilities?.convenesSportIds?.length;
+  const scheduleScope = useTournamentScope({
+    orgId, canEdit: scheduleCanEdit, entrants: entrants.filter(e => isEntrantEntered(e.status)),
+    orgName: id => event?.participatingOrgs?.find(o => o.id === id)?.name,
+  });
 
   // ------------------------------------------------------------------------------------------
   // Permissions
@@ -471,10 +484,11 @@ export default function EventDetails() {
             <ScheduleTab
               event={event}
               orgId={orgId}
-              canEdit={canEdit || !!capabilities?.convenesDivisionIds?.length || !!capabilities?.convenesSportIds?.length}
+              canEdit={scheduleCanEdit}
               isWide={isWide}
               divisions={divisions}
-              games={games}
+              games={scheduleScope.narrowTo ? games.filter(scheduleScope.keepsGame) : games}
+              scopeLine={<TournamentScopeLine {...scheduleScope} isWide={isWide} allLabel="the whole schedule" />}
               sports={sports}
               sites={sites}
               facilities={facilities}

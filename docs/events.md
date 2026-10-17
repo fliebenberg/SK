@@ -409,7 +409,9 @@ each division's stages.
   events list's one remembered choice, `useViewScope`; My organisation added 2026-10-17) on the line
   above the cards: Mine narrows Sports & divisions, Taking part and Fixtures to their teams, My
   organisation to their organisation's; Where, When and Rules stay whole. Only the choices that
-  differ are offered — an admin with no team of their own gets *My organisation / All*. Their team's invitation sits
+  differ are offered — an admin with no team of their own gets *My organisation / All*. The same
+  choice, from `TournamentScope.tsx`, sits above the **Schedule** tab's toolbar (narrowing its
+  fixtures) and under a **division page**'s banner (narrowing its fixtures; the table stays whole). Their team's invitation sits
   under the banner with ✓ Accept / ✕ Decline (`TeamInvitationRows`). A team's own page has an
   **Events** card — every tournament it is in, an invitation as a tinted row to answer — and a strip
   under its banner while one waits; the events list's invitations box names the team. Who sees what,

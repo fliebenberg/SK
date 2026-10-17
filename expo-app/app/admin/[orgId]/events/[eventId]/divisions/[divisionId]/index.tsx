@@ -41,6 +41,7 @@ import { AddFixtureDialog } from '../../../../../../../components/tournament/Add
 import { DivisionStandings } from '../../../../../../../components/tournament/DivisionStandings';
 import { awardsPoints } from '../../../../../../../components/tournament/standingsBits';
 import { DualPairingCard } from '../../../../../../../components/tournament/DualPairing';
+import { TournamentScopeLine, useTournamentScope } from '../../../../../../../components/tournament/TournamentScope';
 import { useLiveRoom } from '../../../../../../../hooks/useLiveRoom';
 import { useEventDivisions, useEventRecord, useSports } from '../../../../../../../hooks/useEventRooms';
 import { useOrgSites } from '../../../../../../../hooks/useOrgSites';
@@ -132,7 +133,10 @@ export default function DivisionScreen() {
 
   // The roster is the organisers' tier; the whole tournament's, the tournament organisers'.
   const { entrants } = useDivisionEntrants(divisionId, canEdit);
-  const { entrants: eventEntrantsAll } = useEventEntrants(eventId, canEditEvent);
+  // A guest organisation's members read the tournament's roster too (the server's room allows it), for Mine / My organisation.
+  const takesPart = !!event?.participatingOrgs?.some(o =>
+    viewerOrgIds.includes(o.id) && (o.invitation === 'invited' || o.invitation === 'accepted' || o.invitation === 'withdrawal_pending'));
+  const { entrants: eventEntrantsAll } = useEventEntrants(eventId, canEditEvent || takesPart);
   const eventEntrants = canEditEvent ? eventEntrantsAll : null;
 
   const sports = useSports();
@@ -182,6 +186,17 @@ export default function DivisionScreen() {
     await sendAction(SocketAction.SET_DIVISION_LOCK, { divisionId, orgId, locked: true });
     setLocking(false);
   };
+
+  /*
+   * Mine / My organisation / All (2026-10-17): the tournament page's one remembered choice, over this
+   * division's teams. It narrows the fixtures; the table stays whole, the viewer's rows tinted.
+   */
+  const divisionEntrants = useMemo(
+    () => (canEdit ? entrants : eventEntrantsAll.filter(e => e.divisionId === divisionId)).filter(e => isEntrantEntered(e.status)),
+    [canEdit, entrants, eventEntrantsAll, divisionId]
+  );
+  const scoped = useTournamentScope({ orgId, canEdit, entrants: divisionEntrants, orgName: id => event?.participatingOrgs?.find(o => o.id === id)?.name });
+  const shownGames = scoped.narrowTo ? games.filter(scoped.keepsGame) : games;
 
   const [dialog, setDialog] = useState<null | 'details' | 'format' | 'delete' | 'where' | 'when' | 'gaps' | 'organisers' | 'schedule' | 'reschedule'>(null);
   const [addingFixture, setAddingFixture] = useState(false);
@@ -406,7 +421,7 @@ export default function DivisionScreen() {
     </View>
   );
   const fixturesCard = dual ? (
-    <DualPairingCard key="fixtures" event={event} division={division} orgId={orgId} entrants={entrants} games={games} canEdit={canEdit} footer={schedulingFooter} />
+    <DualPairingCard key="fixtures" event={event} division={division} orgId={orgId} entrants={entrants} games={shownGames} canEdit={canEdit} footer={schedulingFooter} />
   ) : (
     <DivisionFixturesCard
       key="fixtures"
@@ -414,7 +429,7 @@ export default function DivisionScreen() {
       eventId={eventId}
       divisionId={divisionId}
       stages={ordered}
-      games={games}
+      games={shownGames}
       entrants={entrants}
       format={format}
       facilities={facilities}
@@ -524,6 +539,7 @@ export default function DivisionScreen() {
         <PageBody className="gap-3.5">
           {banner}
           {nextStrip}
+          <TournamentScopeLine {...scoped} isWide={isWide} allLabel="the whole division" />
           {isWide ? (
             <View className="flex-row gap-4 items-start">
               <View className="gap-3.5 min-w-0" style={{ flex: 1.1 }}>{columns[0]}</View>

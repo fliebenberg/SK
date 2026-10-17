@@ -47,6 +47,8 @@ import { formatPlayingDay, venueInputsToInstant, type CalendarDate } from '../..
  * - **Opened on a division** (2026-10-16): `?tab=schedule&division=…`, from the division page's
  *   *Edit in the Schedule* — that division chosen, on the first day it has fixtures.
  * - **Offline** (U20): the schedule reads; moving and adding need a connection.
+ * - **Mine / My organisation / All** (2026-10-17): for someone outside the organisers, the
+ *   tournament's one remembered choice on its own line above the toolbar; it narrows the fixtures.
  */
 
 const PX = 1.4; // pixels a minute
@@ -70,6 +72,8 @@ interface Props {
   canSetHours: (divisionId: string | null) => boolean;
   /** The division to open on, from a link (`?division=`). */
   initialDivisionId?: string;
+  /** Mine / My organisation / All, above the toolbar; `games` comes already narrowed by it. */
+  scopeLine?: React.ReactNode;
 }
 
 /** How far each overlapping fixture is set in from the one beneath it, so that one stays reachable. */
@@ -103,7 +107,7 @@ const plural = (n: number, word: string, many?: string) => `${n} ${n === 1 ? wor
 /** Each division's colour on the grid — theme tokens, in turn. */
 const DIVISION_TONES = ['info', 'special', 'success', 'primary', 'accent', 'warning', 'danger'] as const;
 
-export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: savedGames, sports, sites, facilities, facilityIds, hostOrg, canSetHours, initialDivisionId }: Props) {
+export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: savedGames, sports, sites, facilities, facilityIds, hostOrg, canSetHours, initialDivisionId, scopeLine }: Props) {
   const router = useRouter();
 
   /**
@@ -845,6 +849,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
   return (
     <View className="gap-3">
       {offline}
+      {scopeLine}
       {toolbar}
       {isWide ? (
         <View className="flex-row gap-4 items-start">
