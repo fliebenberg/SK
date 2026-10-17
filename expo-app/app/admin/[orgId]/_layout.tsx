@@ -16,6 +16,7 @@ import { UnclaimedOrgBanner } from '../../../components/UnclaimedOrgBanner';
 
 import { inkOnBrand } from '../../../utils/colorUtils';
 import { themeColor } from '../../../constants/Colors';
+import { getWorkspaceNavItems, currentWorkspacePage } from '../../../constants/workspaceNav';
 
 /**
  * Every screen in the org workspace — including the scoring control room — is
@@ -42,6 +43,7 @@ function OrgAdminWorkspace() {
 
   const { orgId } = useGlobalSearchParams<{ orgId?: string }>();
   const { org: orgData } = useOrgSummary(orgId);
+  const currentPage = currentWorkspacePage(segments);
   const [workspaceMenuVisible, setWorkspaceMenuVisible] = useState(false);
   const isConnected = useWsStore(state => state.isConnected);
   const { isDirty, onDiscard, clear, triggerDiscardPrompt } = useUnsavedChangesStore();
@@ -176,46 +178,49 @@ function OrgAdminWorkspace() {
             )}
 
             {/* List of administration modules */}
+            {/* The same list as the sidebar, the current page marked the same way (UI-27). */}
             <View className="gap-0.5">
-              {/* While the org has no administrator: a temporary task, so set apart above the rest
-                  and gone once it is done (docs/org-profile.md §6). */}
-              {orgData?.isClaimed === false && (
-                <>
+              {getWorkspaceNavItems(orgId, orgData?.isClaimed).map((item) => {
+                const isCurrent = item.name === currentPage;
+                // Tapping the page already on screen just closes the menu.
+                const onPress = isCurrent
+                  ? () => setWorkspaceMenuVisible(false)
+                  : () => confirmThenNavigate(() => router.push(item.route as any));
+                if (item.attention) {
+                  return (
+                    <React.Fragment key={item.name}>
+                      <TouchableOpacity
+                        onPress={onPress}
+                        activeOpacity={0.7}
+                        className={`flex-row items-center gap-3 px-3 py-2 rounded-lg bg-warning-soft border border-warning-line ${isCurrent ? 'border-l-4' : ''}`}
+                        style={isCurrent ? { borderLeftColor: themeColor(isDark, 'warning-ink') } : undefined}
+                      >
+                        <Ionicons name={isCurrent ? item.icon : (`${item.icon}-outline` as any)} size={16} color={themeColor(isDark, 'warning-ink')} />
+                        <Text className="font-inter-bold text-sm text-warning-ink">{item.label}</Text>
+                      </TouchableOpacity>
+                      <View className="h-[1px] bg-sunken mb-1" />
+                    </React.Fragment>
+                  );
+                }
+                return (
                   <TouchableOpacity
-                    onPress={() => confirmThenNavigate(() => router.push(`/admin/${orgId}/nominate` as any))}
+                    key={item.name}
+                    onPress={onPress}
                     activeOpacity={0.7}
-                    className="flex-row items-center gap-3 px-3 py-2 rounded-lg bg-warning-soft border border-warning-line"
+                    className={`flex-row items-center gap-3 px-3 py-2 rounded-lg border-l-4 ${isCurrent ? 'bg-sunken' : 'border-transparent'}`}
+                    style={isCurrent ? { borderLeftColor: orgColors(orgData).primary } : undefined}
                   >
-                    <Ionicons name="person-add-outline" size={16} color={themeColor(isDark, 'warning-ink')} />
-                    <Text className="font-inter-bold text-sm text-warning-ink">Nominate admin</Text>
+                    <Ionicons
+                      name={isCurrent ? item.icon : (`${item.icon}-outline` as any)}
+                      size={16}
+                      color={themeColor(isDark, isCurrent ? 'ink' : 'ink-muted')}
+                    />
+                    <Text className={`font-inter-bold text-sm ${isCurrent ? 'text-ink' : 'text-ink-soft'}`}>
+                      {item.label}
+                    </Text>
                   </TouchableOpacity>
-                  <View className="h-[1px] bg-sunken mb-1" />
-                </>
-              )}
-              {[
-                { label: 'Control Panel', icon: 'grid', route: `/admin/${orgId}` },
-                { label: 'Profile', icon: 'business', route: `/admin/${orgId}/profile` },
-                { label: 'Settings', icon: 'settings', route: `/admin/${orgId}/settings` },
-                { label: 'People & Roles', icon: 'people', route: `/admin/${orgId}/people` },
-                { label: 'Teams & Divisions', icon: 'trophy', route: `/admin/${orgId}/teams` },
-                { label: 'Sites and Facilities', icon: 'location', route: `/admin/${orgId}/sites` },
-                { label: 'Fixtures & Events', icon: 'calendar', route: `/admin/${orgId}/events` },
-                { label: 'Leagues & Seasons', icon: 'list', route: `/admin/${orgId}/leagues` },
-              ].map((item) => (
-                <TouchableOpacity
-                  key={item.route}
-                  onPress={() => {
-                    confirmThenNavigate(() => router.push(item.route as any));
-                  }}
-                  activeOpacity={0.7}
-                  className="flex-row items-center gap-3 px-3 py-2 rounded-lg"
-                >
-                  <Ionicons name={`${item.icon}-outline` as any} size={16} color={themeColor(isDark, 'ink-muted')} />
-                  <Text className="font-inter-bold text-sm text-ink-soft">
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                );
+              })}
             </View>
           </View>
         </>

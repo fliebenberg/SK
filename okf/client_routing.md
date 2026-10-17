@@ -58,6 +58,11 @@ real boundary ([auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md))
 Every screen below is behind [AuthGuard](file:///c:/Fred/Coding/SK/expo-app/components/AuthGuard.tsx),
 applied at the layout so an unauthorized visitor never mounts the workspace or its subscriptions.
 
+The workspace menu's pages are listed once, in
+[constants/workspaceNav.ts](file:///c:/Fred/Coding/SK/expo-app/constants/workspaceNav.ts), which both
+the sidebar and the phone's workspace menu map over (`UI-27`): a new workspace page goes there, and
+`currentWorkspacePage` names the one on screen.
+
 *   `/admin/[orgId]`: Organization console.
 *   `/admin/[orgId]/teams`, `/admin/[orgId]/teams/[teamId]`: The Teams list and one read-first team page — read-only for anyone but Admin and Staff (there is no separate view route; Add team is a dialog). [teams.md](file:///c:/Fred/Coding/SK/docs/teams.md).
 *   `/admin/[orgId]/people`, `/admin/[orgId]/people/[membershipId]`: The People list and one read-first person page — read-only for anyone but Admin and Staff (there is no separate view route). [people.md](file:///c:/Fred/Coding/SK/docs/people.md).

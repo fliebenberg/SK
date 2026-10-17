@@ -14,6 +14,7 @@ import { AnimatedBox } from './AnimatedBox';
 
 import { readableTextOn } from '../utils/colorUtils';
 import { themeColor } from '../constants/Colors';
+import { getWorkspaceNavItems, currentWorkspacePage } from '../constants/workspaceNav';
 
 // Rail geometry. These are the `w-16` / `w-64` classes as numbers, because the
 // hover animation interpolates between them and a class cannot be interpolated.
@@ -93,7 +94,7 @@ export function LeftNavigationRail() {
 
   // Check if we are in the org admin panel
   const isOrgAdmin = segments[0] === 'admin';
-  const orgSubTab = isOrgAdmin ? (segments[2] || 'dashboard') : '';
+  const orgSubTab = isOrgAdmin ? currentWorkspacePage(segments) : '';
   const { org: orgData } = useOrgSummary(isOrgAdmin ? orgId : null);
 
   const showAdminPortal = isAuthenticated && user?.globalRole === 'admin';
@@ -126,24 +127,7 @@ export function LeftNavigationRail() {
   // Nav Items list construction
   const getNavItemsList = () => {
     if (isOrgAdmin && orgId) {
-      return {
-        isOrg: true,
-        items: [
-          // While the org has no administrator: a temporary task, set apart above the rest and gone
-          // once it is done (docs/org-profile.md §6).
-          ...(orgData?.isClaimed === false
-            ? [{ name: 'nominate', label: 'Nominate admin', icon: 'person-add' as const, route: `/admin/${orgId}/nominate` as const, attention: true }]
-            : []),
-          { name: 'dashboard', label: 'Control Panel', icon: 'grid' as const, route: `/admin/${orgId}` as const },
-          { name: 'profile', label: 'Profile', icon: 'business' as const, route: `/admin/${orgId}/profile` as const },
-          { name: 'settings', label: 'Settings', icon: 'settings' as const, route: `/admin/${orgId}/settings` as const },
-          { name: 'people', label: 'People & Roles', icon: 'people' as const, route: `/admin/${orgId}/people` as const },
-          { name: 'teams', label: 'Teams & Divisions', icon: 'trophy' as const, route: `/admin/${orgId}/teams` as const },
-          { name: 'sites', label: 'Sites and Facilities', icon: 'location' as const, route: `/admin/${orgId}/sites` as const },
-          { name: 'events', label: 'Fixtures & Events', icon: 'calendar' as const, route: `/admin/${orgId}/events` as const },
-          { name: 'leagues', label: 'Leagues & Seasons', icon: 'list' as const, route: `/admin/${orgId}/leagues` as const },
-        ]
-      };
+      return { isOrg: true, items: getWorkspaceNavItems(orgId, orgData?.isClaimed) };
     }
 
     const items = [];
@@ -283,10 +267,11 @@ export function LeftNavigationRail() {
                     }`}
                     style={isActive ? { borderLeftColor: activeColor } : undefined}
                   >
-                    <Ionicons 
-                      name={isActive ? item.icon : (`${item.icon}-outline` as any)} 
-                      size={20} 
-                      color={isActive ? activeColor : (themeColor(isDark, 'ink-muted'))} 
+                    {/* The bar carries the org's colour; the icon is ink like the label (UI-27). */}
+                    <Ionicons
+                      name={isActive ? item.icon : (`${item.icon}-outline` as any)}
+                      size={20}
+                      color={themeColor(isDark, isActive ? 'ink' : 'ink-muted')}
                     />
                     <Text 
                       className={`font-inter-bold text-sm tracking-wide ${
