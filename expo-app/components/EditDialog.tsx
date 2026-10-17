@@ -3,6 +3,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, Sc
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
 import { themeColor, type ThemeToken } from '../constants/Colors';
+import { useWarnOnTabClose } from '../hooks/useWarnOnTabClose';
 
 
 /**
@@ -15,7 +16,8 @@ import { themeColor, type ThemeToken } from '../constants/Colors';
  * **Closing with unsaved edits asks first, inside the dialog.** The footer turns into "Discard your
  * changes?" rather than a second modal on top, which React Native Web stacks unreliably. Pass
  * `isDirty` and the dialog does the rest; the caller's `onClose` runs only once the edits are
- * really to go.
+ * really to go. On web, closing or reloading the tab while the dialog holds unsaved edits asks
+ * too (`useWarnOnTabClose`).
  *
  * **Save failing keeps the dialog open.** The caller's `onSave` sends through `sendAction`, which
  * has already said what went wrong; the dialog closes only when the caller sets `visible` false.
@@ -47,6 +49,7 @@ export function EditDialog({
   const { width } = useWindowDimensions();
   const isSheet = width < 768;
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  useWarnOnTabClose(visible && !!isDirty);
 
   useEffect(() => {
     if (!visible) setConfirmingDiscard(false);

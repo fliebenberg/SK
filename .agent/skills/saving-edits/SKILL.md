@@ -1,36 +1,54 @@
 ---
-name: Unsaved Changes Warning
-description: Enforces the `useUnsavedChanges` hook on every editing page, and the save rules that go with it — send writes with `sendAction`, never let a failed save look like a successful one, and keep the dirty flag clearable by the save it triggers.
+name: Saving Edits
+description: How an editing screen saves and guards unsaved work — which of the app's three save patterns to use and the guard each one gets (EditDialog's isDirty, nothing, or the useUnsavedChanges hook), plus the rules every save follows: send writes with `sendAction`, never let a failed save look like a successful one, keep the dirty flag clearable by the save it triggers, and measure dirtiness against a baseline.
 ---
 
-# Unsaved Changes Warning
+# Saving Edits
 
-To prevent accidental data loss, all pages and components that allow users to edit data must implement the standard unsaved changes warning system.
+Nobody should lose work they typed by leaving a screen, closing a dialog or closing the tab — and
+nobody should be told work is saved when it is not. How a screen guards its edits depends on how it
+saves them, and the app saves in three ways.
 
-## Core Requirement
+## Pick the save pattern first
 
-Any component that manages form state or data modification should use the `useUnsavedChanges` hook.
+The design rules decide which one a screen uses — [design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md),
+*Read-first record pages* (rules 1 and 10) and *Saving an edited record*. The guard follows from it:
 
-## Implementation Steps
+| The screen | How it saves | Guarding unsaved edits |
+|---|---|---|
+| **A read-first page** — values as text, one card per group | Each card's Edit opens an [`<EditDialog>`](file:///c:/Fred/Coding/SK/expo-app/components/EditDialog.tsx) that saves only that card's fields | Pass `isDirty` to the dialog. Closing asks *Discard your changes?* inside it, and on web so does closing the tab. **Do not** call `useUnsavedChanges` — the page itself is never dirty. |
+| **A switch or chip that saves when pressed** (a settings row) | One write per press | None: there is nothing unsaved to lose. Ask first if the change is far-reaching. |
+| **A whole-page form** — lineup selection, a tournament organisation's teams, league and season settings, people import | [`<FloatingSaveBar>`](file:///c:/Fred/Coding/SK/expo-app/components/FloatingSaveBar.tsx) with Cancel and Save | [`useUnsavedChanges`](file:///c:/Fred/Coding/SK/expo-app/hooks/useUnsavedChanges.ts), as below. |
 
-1.  **Calculate Dirty State**: Determine if the current form data differs from the original data.
-    ```tsx
-    const isDirty = useMemo(() => {
-        // ... compare formData with initialData
-    }, [formData, initialData]);
-    ```
+Most new editing belongs in the first row. A whole-page form is for work that has to be edited as
+one piece — a lineup — not a default.
 
-2.  **Use the Hook**: Import and call `useUnsavedChanges(isDirty)` from `@/hooks/useUnsavedChanges`.
-    ```tsx
-    import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+## A whole-page form: `useUnsavedChanges`
 
-    // Inside component
-    useUnsavedChanges(isDirty);
-    ```
+```tsx
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
+import { useUnsavedChangesStore } from '@/store/unsavedChangesStore';
 
-3.  **Handle Resets**: Ensure that "Cancel", "Discard", or "Save" actions correctly update or reset the dirty state.
-    *   **Save**: On successful save, `isDirty` becomes false because `initialData` is updated or the component re-renders with new data. **Check that this is actually true of the save you are writing** — see the two rules below, which exist because it silently was not.
-    *   **Cancel/Discard**: Explicitly reset the form data to the original state to clear the dirty flag.
+const { confirmThenNavigate } = useUnsavedChanges(isDirty && !isSaving, handleCancel);
+```
+
+-   **`(isDirty, onDiscard)`.** `onDiscard` is the same reset Cancel runs: choosing *Discard* in the
+    leave dialog runs it, so a screen that warns can also let go. Pass a stable callback.
+-   **`&& !isSaving`.** While a save is in flight the screen is not dirty, so a save that ends in a
+    navigation does not raise the dialog over itself.
+-   **`confirmThenNavigate(() => router.push(…))`** for any navigation the page starts itself (a
+    button, a link). Back, swipe-back and the header back are caught by the hook's `beforeRemove`
+    listener; the side rail and the mobile workspace menu read the shared store. On web the hook
+    also asks before the tab is closed or reloaded.
+-   **On a successful save, call `useUnsavedChangesStore.getState().clear()`.** The store follows
+    `isDirty` only when `isDirty` changes, and the form usually stays dirty until the saved record
+    comes back through its room — a render or more later. Without `clear()` the next navigation
+    raises a discard dialog over changes already written. Removing the record (and leaving) clears
+    it too.
+-   The dialog itself is rendered once, in [app/_layout.tsx](file:///c:/Fred/Coding/SK/expo-app/app/_layout.tsx),
+    backed by [unsavedChangesStore](file:///c:/Fred/Coding/SK/expo-app/store/unsavedChangesStore.ts).
+    Do not render another.
+-   **Cancel** resets the drafts to the baseline, which clears the dirty flag.
 
 ## A save that failed must never look like one that worked
 
@@ -83,6 +101,3 @@ Two details worth copying rather than rediscovering. **Compare the fields the us
 
 **Prefer a state that cannot go wrong over one that recovers.** The multi-day case was fixed by making the bad state unreachable — an end date is required and seeded — not by detecting it afterwards.
 
-## Technical Details
-
--   It intercepts tab/window closure, internal links, and browser back/forward buttons.

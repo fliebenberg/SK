@@ -1,11 +1,14 @@
 import { useEffect, useCallback } from 'react';
 import { useNavigation } from 'expo-router';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
+import { useWarnOnTabClose } from './useWarnOnTabClose';
 
 /**
  * Hook to warn users about unsaved changes when navigating away.
  *
  * - Intercepts the hardware/gesture back button via Expo Router's `beforeRemove` event.
+ * - On web, asks before the tab is closed or reloaded. It reads the store rather than `isDirty`,
+ *   so a save that calls `clear()` stops the warning straight away, as it does for `beforeRemove`.
  * - Writes dirty state to the global store so the LeftNavigationRail and mobile
  *   workspace menu can also check before performing programmatic navigation.
  *
@@ -20,6 +23,8 @@ export function useUnsavedChanges(
 ) {
   const navigation = useNavigation();
   const { setDirty, clear, setShowDialog, setPendingAction, triggerDiscardPrompt } = useUnsavedChangesStore();
+
+  useWarnOnTabClose(useUnsavedChangesStore((s) => s.isDirty));
 
   // Keep global store in sync
   useEffect(() => {

@@ -140,10 +140,11 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
 
 ## Critical UI Rule: Navigation Guards
 
-To prevent accidental data loss when editing rosters or logging game scores, all administrative editing forms must implement navigation guards to warn users before they navigate away with unsaved changes.
-
-Splitting one form across several screens multiplies the guards rather than removing them: each of
-the tournament setup step screens (U48) computes its own dirty state and calls `useUnsavedChanges`
-itself, and each **clears the store on a successful save** — without that the screen stays dirty
-and the next navigation raises a discard dialog over changes already written.
-- Refer to [.agent/skills/unsaved-changes-warning/SKILL.md](file:///c:/Fred/Coding/SK/.agent/skills/unsaved-changes-warning/SKILL.md) for enforcement.
+Nobody loses typed work by leaving a screen, closing a dialog or closing the browser tab. How a
+screen guards its edits follows from how it saves: a read-first page's `EditDialog` asks inside the
+dialog, a switch that saves when pressed needs no guard, and a whole-page form with the floating
+save bar calls `useUnsavedChanges`, which catches back navigation (`beforeRemove`), the side rail
+and the workspace menu (the shared store), and on web the tab closing (`beforeunload`). Each such
+form **clears the store on a successful save** — without that the next navigation raises a discard
+dialog over changes already written.
+- Refer to [.agent/skills/saving-edits/SKILL.md](file:///c:/Fred/Coding/SK/.agent/skills/saving-edits/SKILL.md) for enforcement.
