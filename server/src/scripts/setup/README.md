@@ -2,6 +2,15 @@
 
 Scripts for building, resetting and seeding the ScoreKeeper database. Run them from `server/`.
 
+## Editing these does not restart the API
+
+`npm run dev` (nodemon) ignores the scripts under `src/scripts/` (2026-10-17): the API never loads
+them, and a restart while the e2e tests run drops every test mid-step ("No connection"). The ignore
+list in [nodemon.json](../../../nodemon.json) names them, folder by folder and file by file,
+because the API **does** load one of them — [ageGroupSeed.ts](ageGroupSeed.ts), through
+`AgeGroupManager` — which is left watched. If the API comes to import another script, take it out of
+that list; a new file nobody listed is watched, which only costs a restart.
+
 ## The two seed tiers
 
 - **Core** ([seedCore.ts](seedCore.ts)): what the app needs to work. Sports and their event
