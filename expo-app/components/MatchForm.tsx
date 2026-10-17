@@ -535,7 +535,7 @@ export default function MatchForm({
                 {/* Home Org Selection */}
                 <View className="gap-1.5" style={{ zIndex: 30 }}>
                   <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
-                    Organization
+                    Organisation
                   </Text>
 
                   {selectedHomeOrg ? (
@@ -596,7 +596,7 @@ export default function MatchForm({
                             >
                               <View className="bg-sunken px-3 py-1 border-b border-line-soft">
                                 <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-wider">
-                                  Existing Organizations
+                                  Existing Organisations
                                 </Text>
                               </View>
                               {searchedOrgs.map(orgItem => (
@@ -621,7 +621,7 @@ export default function MatchForm({
                             <View className="border-t border-line bg-card" style={{ backgroundColor: themeColor(isDark, 'card') }}>
                               <View className="bg-sunken px-3 py-1 border-b border-line-soft">
                                 <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-wider">
-                                  Register New Organization
+                                  Register New Organisation
                                 </Text>
                               </View>
                               <TouchableOpacity
@@ -691,7 +691,7 @@ export default function MatchForm({
                 {/* Away Org Selection */}
                 <View className="gap-1.5" style={{ zIndex: 20 }}>
                   <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
-                    Organization
+                    Organisation
                   </Text>
 
                   {selectedAwayOrg ? (
@@ -752,7 +752,7 @@ export default function MatchForm({
                             >
                               <View className="bg-sunken px-3 py-1 border-b border-line-soft">
                                 <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-wider">
-                                  Existing Organizations
+                                  Existing Organisations
                                 </Text>
                               </View>
                               {searchedOrgs.map(orgItem => (
@@ -777,7 +777,7 @@ export default function MatchForm({
                             <View className="border-t border-line bg-card" style={{ backgroundColor: themeColor(isDark, 'card') }}>
                               <View className="bg-sunken px-3 py-1 border-b border-line-soft">
                                 <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-wider">
-                                  Register New Organization
+                                  Register New Organisation
                                 </Text>
                               </View>
                               <TouchableOpacity

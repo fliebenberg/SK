@@ -387,7 +387,7 @@ export class UserManager extends BaseManager {
 
   async addOrganizationMember(orgProfileId: string, orgId: string, roleId: string, id?: string): Promise<OrgMembership> {
     if (!orgProfileId) {
-        throw new Error("Cannot add organization member: orgProfileId is required");
+        throw new Error("Cannot add organisation member: orgProfileId is required");
     }
     const existing = await this.query(
        `SELECT ${this.ORG_MEMBERSHIP_COLUMNS} FROM org_memberships WHERE org_profile_id = $1 AND org_id = $2 AND (end_date IS NULL OR end_date > NOW())`,

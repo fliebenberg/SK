@@ -158,7 +158,7 @@ export function LeftNavigationRail() {
       items.push({ name: 'family', label: 'My Family', icon: 'heart' as const, route: '/family' });
     }
     items.push(
-      { name: 'organizations', label: 'Organizations', icon: 'business' as const, route: '/organizations' },
+      { name: 'organizations', label: 'Organisations', icon: 'business' as const, route: '/organizations' },
       { name: 'teams', label: 'Teams', icon: 'people' as const, route: '/teams' },
       { name: 'sites', label: 'Sites', icon: 'map' as const, route: '/sites' },
       { name: 'settings', label: 'Settings', icon: 'settings' as const, route: '/settings' },
@@ -399,7 +399,7 @@ export function LeftNavigationRail() {
             <TouchableOpacity
               onPress={() => confirmThenNavigate(() => router.push(`/admin/${orgId}` as any))}
               className="items-center justify-center active:opacity-85"
-              {...(Platform.OS === 'web' ? { title: orgData?.name || 'Organization Workspace' } : {})}
+              {...(Platform.OS === 'web' ? { title: orgData?.name || 'Organisation Workspace' } : {})}
             >
               <View 
                 className="rounded-xl border flex items-center justify-center p-0.5"

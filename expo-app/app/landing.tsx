@@ -61,7 +61,7 @@ export default function LandingPage() {
         {/* Double CTAs */}
         <View className="w-full max-w-sm gap-4">
           <Button 
-            title="Create Organization" 
+            title="Create Organisation" 
             variant="primary" 
             onPress={() => router.push('/(auth)/signup')} 
             className="shadow-md shadow-primary/20"
@@ -259,7 +259,7 @@ export default function LandingPage() {
             MANAGE A CLUB OR TOURNAMENT?
           </Text>
           <Text className="font-inter text-sm text-ink-muted text-center max-w-sm mb-6 leading-5">
-            Set up organizations, schedule fixtures, register players, and assign certified scorekeepers in minutes.
+            Set up organisations, schedule fixtures, register players, and assign certified scorekeepers in minutes.
           </Text>
           <Button 
             title="Get Started as Admin" 

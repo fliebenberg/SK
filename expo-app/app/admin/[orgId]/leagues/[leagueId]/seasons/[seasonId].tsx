@@ -792,7 +792,7 @@ export default function SeasonDetails() {
               ))}
 
               {availableTeams.length === 0 && (
-                <Text className="font-inter text-xs text-ink-muted text-center py-6">All organization teams are already registered in this season.</Text>
+                <Text className="font-inter text-xs text-ink-muted text-center py-6">All organisation teams are already registered in this season.</Text>
               )}
             </ScrollView>
 
@@ -832,7 +832,7 @@ export default function SeasonDetails() {
               ))}
 
               {availableGames.length === 0 && (
-                <Text className="font-inter text-xs text-ink-muted text-center py-6">No unlinked games found in the organization.</Text>
+                <Text className="font-inter text-xs text-ink-muted text-center py-6">No unlinked games found in the organisation.</Text>
               )}
             </ScrollView>
 

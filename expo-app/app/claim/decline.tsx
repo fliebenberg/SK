@@ -113,7 +113,7 @@ export default function DeclineScreen() {
             INVITATION DECLINED
           </Text>
           <Text className="font-inter-medium text-ink-muted text-center max-w-sm mb-8 leading-6">
-            You have successfully declined the invitation. Your email address has been removed from our list for this organization.
+            You have successfully declined the invitation. Your email address has been removed from our list for this organisation.
           </Text>
           <Button 
             title="Back to Home" 
@@ -149,7 +149,7 @@ export default function DeclineScreen() {
           <View className="bg-danger-soft border border-danger-line p-4 rounded-xl items-center mb-4">
             <Ionicons name="trash-outline" size={20} color={themeColor(isDark, 'danger')} className="mb-1" />
             <Text className="font-inter-medium text-xs text-danger-ink text-center leading-4">
-              If you decline, we will remove your email from our list for this organization. You won't be contacted again about this claim.
+              If you decline, we will remove your email from our list for this organisation. You won't be contacted again about this claim.
             </Text>
           </View>
 

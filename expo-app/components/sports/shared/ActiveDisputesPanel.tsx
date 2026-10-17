@@ -128,7 +128,7 @@ export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
     const officialId = orgMemberships[0]?.orgProfileId;
 
     if (!officialId) {
-      setErrorMessage('Registered Profile Required: You must be logged in with a valid organization profile to vote.');
+      setErrorMessage('Registered Profile Required: You must be logged in with a valid organisation profile to vote.');
       return;
     }
 

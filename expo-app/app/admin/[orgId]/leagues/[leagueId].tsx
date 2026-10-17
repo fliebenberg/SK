@@ -429,7 +429,7 @@ export default function LeagueDetails() {
                   <Text className="font-inter text-xs text-ink-muted leading-relaxed">
                     {joinPolicy === 'CLOSED' && "CLOSED: Only administrators can manually assign teams to this league."}
                     {joinPolicy === 'INVITE' && "INVITE: Teams can apply, but administrators must approve their entry."}
-                    {joinPolicy === 'OPEN' && "OPEN: Any team that meets the qualifying criteria can join, even from outside the organization."}
+                    {joinPolicy === 'OPEN' && "OPEN: Any team that meets the qualifying criteria can join, even from outside the organisation."}
                   </Text>
                 </View>
               </View>

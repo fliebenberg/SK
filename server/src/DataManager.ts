@@ -231,7 +231,7 @@ export class DataManager {
         console.log(`DataManager: Creating claim invitation for ${ref.organizationName}`);
         await notificationManager.createNotification(
           userId,
-          'Organization Claim Invitation',
+          'Organisation Claim Invitation',
           `You have been invited to manage ${ref.organizationName}.`,
           'claim_invitation',
           link

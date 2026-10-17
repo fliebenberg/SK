@@ -559,7 +559,7 @@ export class OrganizationManager extends BaseManager {
       if (events > 0) parts.push(`${events} events`);
       if (active_people > 0) parts.push(`${active_people} linked people`);
       
-      throw new Error(`Cannot delete organization: ${reason}${parts.join(', ')}.`);
+      throw new Error(`Cannot delete organisation: ${reason}${parts.join(', ')}.`);
     }
 
     const logo = (await this.query('SELECT logo FROM organizations WHERE id = $1', [id])).rows[0]?.logo;

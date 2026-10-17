@@ -255,6 +255,17 @@ in the banner — and the same cards, without the statuses, once it is (2026-10-
     division), and the grid adds a fixture where an empty space is clicked. A form for one fixture
     (the game page's *When & where*, *＋ Add a fixture*) stays, as the second way in.
 
+## Wording
+
+*   **British spelling in anything a person reads**: *organisation*, *colour* — screen
+    text, notifications, error messages and emails alike. **Code keeps its American names**: the
+    `/organizations` route, the `organizations` table and `get_data` type, the `Organization` type
+    and fields such as `organizationName` are part of the client–server contract and stay as they
+    are. Swept 2026-10-17 (`UI-28`); grep `Organi[z]ation` in a string or JSX text to catch a new one.
+*   **"Organisations", not "schools"**, for the bodies that own teams and take part in events —
+    clubs take part too. "Schools and clubs" is fine only when naming the kinds of organisation
+    (a search placeholder, the Register dialog's intro).
+
 ## NativeWind v4 & React Native Styling Constraints
 
 To avoid styles that silently do nothing on a phone, component upgrades that remount, and navigation context serialization crashes:

@@ -134,7 +134,7 @@ export default function ClaimIndexScreen() {
             ALREADY CLAIMED
           </Text>
           <Text className="font-inter-medium text-ink-muted text-center max-w-sm mb-8 leading-6">
-            The organization <Text className="font-inter-bold text-ink">{claimInfo.organizationName}</Text> has already been claimed by its administrator.
+            The organisation <Text className="font-inter-bold text-ink">{claimInfo.organizationName}</Text> has already been claimed by its administrator.
           </Text>
           <Button 
             title="Back to Home" 
@@ -198,7 +198,7 @@ export default function ClaimIndexScreen() {
         {!isAuthenticated ? (
           <GlassCard className="w-full max-w-sm p-6 items-center border border-line-soft bg-sunken">
             <Text className="font-inter-medium text-ink-muted text-sm text-center mb-6 leading-5">
-              Please log in or create an account to claim this organization and become its official administrator.
+              Please log in or create an account to claim this organisation and become its official administrator.
             </Text>
             <Button 
               title="Log In to Proceed" 

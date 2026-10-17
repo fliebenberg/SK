@@ -68,7 +68,7 @@ export default function TabLayout() {
       <Tabs.Screen 
         name="organizations" 
         options={{ 
-          headerTitle: 'ORGANIZATIONS',
+          headerTitle: 'ORGANISATIONS',
           tabBarLabel: 'Orgs',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "business" : "business-outline"} size={22} color={color} />

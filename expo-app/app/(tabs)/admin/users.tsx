@@ -120,7 +120,7 @@ export default function UserManagement() {
         {/* HEADER EXPLANATION */}
         <View className="mb-6">
           <Text className="font-inter text-sm text-ink-muted">
-            Search across registered application users and organization members. Enter one or more search criteria below.
+            Search across registered application users and organisation members. Enter one or more search criteria below.
           </Text>
         </View>
 
@@ -398,7 +398,7 @@ export default function UserManagement() {
                         {/* Organization Profiles */}
                         <View>
                           <Text className="font-inter-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
-                            Organization Membership Profiles
+                            Organisation Membership Profiles
                           </Text>
                           {item.profiles && item.profiles.length > 0 ? (
                             <View className="gap-2.5">
@@ -441,7 +441,7 @@ export default function UserManagement() {
                             </View>
                           ) : (
                             <Text className="font-inter text-xs italic text-ink-muted pl-1">
-                              No organization profiles linked yet.
+                              No organisation profiles linked yet.
                             </Text>
                           )}
                         </View>

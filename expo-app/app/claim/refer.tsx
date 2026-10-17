@@ -178,7 +178,7 @@ export default function ReferScreen() {
               Privacy Policy Guarantee
             </Text>
             <Text className="font-inter-medium text-xs text-ink-muted text-center leading-4">
-              We will only use this email address to send a one-time invitation to claim this organization. We will never sell their data or send them marketing spam.
+              We will only use this email address to send a one-time invitation to claim this organisation. We will never sell their data or send them marketing spam.
             </Text>
           </View>
 

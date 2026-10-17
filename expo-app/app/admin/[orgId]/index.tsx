@@ -50,7 +50,7 @@ export default function OrgControlDashboard() {
   const primarySport = sports[0];
 
   const org = {
-    name: orgData.name || 'Unknown Organization',
+    name: orgData.name || 'Unknown Organisation',
     sport: primarySport,
     sports: sports,
     primaryColor: primaryColor,

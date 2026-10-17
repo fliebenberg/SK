@@ -40,7 +40,7 @@ class MailManager {
             from: '"ScoreKeeper" <noreply@scorekeeper.com>',
             to,
             subject: `Action Required: Claim Ownership of ${orgName} on ScoreKeeper`,
-            text: `Hi,\n\nYou have been invited to claim ownership of the organization "${orgName}" on ScoreKeeper.\n\nScoreKeeper is an online app that alows organisations to effortlessly manage sports teams, players and events. For more information you can explore our website: https://www.scorekeeper.live\n\nClaim your organization here: ${claimUrl}\n\nNot the right person? Refer someone else: ${process.env.APP_URL}/claim/refer?token=${claimUrl.split('token=')[1]}\nOr decline this invitation: ${process.env.APP_URL}/claim/decline?token=${claimUrl.split('token=')[1]}\n\nThanks,\nScoreKeeper Team`,
+            text: `Hi,\n\nYou have been invited to claim ownership of the organisation "${orgName}" on ScoreKeeper.\n\nScoreKeeper is an online app that allows organisations to effortlessly manage sports teams, players and events. For more information you can explore our website: https://www.scorekeeper.live\n\nClaim your organisation here: ${claimUrl}\n\nNot the right person? Refer someone else: ${process.env.APP_URL}/claim/refer?token=${claimUrl.split('token=')[1]}\nOr decline this invitation: ${process.env.APP_URL}/claim/decline?token=${claimUrl.split('token=')[1]}\n\nThanks,\nScoreKeeper Team`,
             html: `
                 <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
                     
@@ -51,13 +51,13 @@ class MailManager {
 
                     <div style="padding: 40px 30px;">
                         <p style="font-size: 16px; color: #334155; line-height: 1.6; margin-top: 0;">Hi,</p>
-                        <p style="font-size: 16px; color: #334155; line-height: 1.6;">You have been invited to take ownership of the organization <strong>${orgName}</strong> on <strong style="color: #f97316;">ScoreKeeper</strong>.</p>
+                        <p style="font-size: 16px; color: #334155; line-height: 1.6;">You have been invited to take ownership of the organisation <strong>${orgName}</strong> on <strong style="color: #f97316;">ScoreKeeper</strong>.</p>
 
                         <!-- What is ScoreKeeper? -->
                         <div style="margin-top: 30px;">
                             <h2 style="font-size: 18px; color: #0f172a; margin: 0 0 10px 0;">What is ScoreKeeper?</h2>
                             <p style="font-size: 14px; color: #475569; line-height: 1.6; margin: 0;">
-                                ScoreKeeper is an online app that alows organisations to effortlessly manage sports teams, players and events. For more information you can explore our website: <a href="https://www.scorekeeper.live" style="color: #f97316; text-decoration: none; font-weight: 600;">www.scorekeeper.live</a>
+                                ScoreKeeper is an online app that allows organisations to effortlessly manage sports teams, players and events. For more information you can explore our website: <a href="https://www.scorekeeper.live" style="color: #f97316; text-decoration: none; font-weight: 600;">www.scorekeeper.live</a>
                             </p>
                         </div>
 
@@ -68,7 +68,7 @@ class MailManager {
                                 By claiming <strong>${orgName}</strong>, you gain full administrative control. This allows you to:
                             </p>
                             <ul style="font-size: 14px; color: #475569; line-height: 1.6; padding-left: 20px; margin-top: 10px;">
-                                <li>Manage organization details and branding.</li>
+                                <li>Manage organisation details and branding.</li>
                                 <li>Add more people and assign roles</li>
                                 <li>Manage teams</li>
                                 <li>Schedule games and events.</li>
@@ -79,7 +79,7 @@ class MailManager {
                         <!-- Primary CTA -->
                         <div style="margin-top: 40px; text-align: center;">
                             <a href="${claimUrl}" style="display: inline-block; background-color: #f97316; color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(249, 115, 22, 0.3);">
-                                Claim Organization
+                                Claim Organisation
                             </a>
                         </div>
 
@@ -102,7 +102,7 @@ class MailManager {
                                 </tr>
                             </table>
                             <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 15px;">
-                                If you decline, we will remove your email from our list for this organization.
+                                If you decline, we will remove your email from our list for this organisation.
                             </p>
                         </div>
                     </div>

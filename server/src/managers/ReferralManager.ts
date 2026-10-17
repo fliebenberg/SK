@@ -225,7 +225,7 @@ export class ReferralManager {
     const client = await this.pool.connect();
     const results: OrgClaimReferral[] = [];
     const toSend: Array<{ email: string; token: string }> = [];
-    let orgName = 'Organization';
+    let orgName = 'Organisation';
 
     const COLUMNS = `id, org_id as "orgId", referred_email as "referredEmail",
                      referred_by_user_id as "referredByUserId", status,
@@ -352,7 +352,7 @@ export class ReferralManager {
             [
               `notif-${randomBytes(8).toString('hex')}`,
               userRes.rows[0].id,
-              'Organization Claim Invitation',
+              'Organisation Claim Invitation',
               `You have been invited to manage ${orgName}.`,
               'claim_invitation',
               `/claim?token=${token}`,

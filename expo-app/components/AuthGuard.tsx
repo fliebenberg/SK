@@ -103,9 +103,9 @@ export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage }
               ? 'This organisation does not give members under its minor age access to its workspace.'
               : 'Your guardian has not allowed access to this organisation’s workspace yet.'
             : deniedMessage ||
-              'You do not have a role in this organization, so its admin workspace is not available to you.'
+              'You do not have a role in this organisation, so its admin workspace is not available to you.'
         }
-        actionLabel="Back to Organizations"
+        actionLabel="Back to Organisations"
         onAction={() => router.replace('/(tabs)/organizations' as any)}
       />
     );

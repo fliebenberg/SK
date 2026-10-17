@@ -990,7 +990,7 @@ export default function SettingsScreen() {
 
                     <View className="p-4 rounded-xl bg-primary-soft border border-primary-line">
                       <Text className="font-inter text-xs text-ink-muted leading-relaxed italic text-center">
-                        Link separate organization, school, or personal emails
+                        Link separate organisation, school, or personal emails
                         to easily consolidate statistics across multiple teams
                         and host matches seamlessly.
                       </Text>

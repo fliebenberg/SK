@@ -203,7 +203,7 @@ export default function OrganizationsPage() {
         {isLargeScreen && (
           <View className="mb-6">
             <Text className="font-orbitron-bold text-2xl tracking-widest text-ink uppercase mb-2">
-              Organizations
+              Organisations
             </Text>
             <Text className="font-inter text-sm text-ink-muted">
               Browse and search active sports clubs, schools, and leagues on ScoreKeeper.
@@ -215,7 +215,7 @@ export default function OrganizationsPage() {
         <View className="flex-row items-center bg-card border border-line rounded-xl px-4 py-3 mb-6 shadow-sm">
           <Ionicons name="search-outline" size={18} color={themeColor(isDark, 'ink-muted')} />
           <TextInput
-            placeholder="Search organizations..."
+            placeholder="Search organisations..."
             placeholderTextColor={themeColor(isDark, 'ink-muted')}
             className="flex-1 font-inter text-ink text-sm ml-2.5 outline-none"
             value={searchQuery}
@@ -235,7 +235,7 @@ export default function OrganizationsPage() {
               <Text className={`font-orbitron-bold text-xs uppercase tracking-wider ${
                 activeTab === 'my' ? 'text-ink font-orbitron-bold' : 'text-ink-muted'
               }`}>
-                My Organizations
+                My Organisations
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -247,7 +247,7 @@ export default function OrganizationsPage() {
               <Text className={`font-orbitron-bold text-xs uppercase tracking-wider ${
                 activeTab === 'all' ? 'text-ink font-orbitron-bold' : 'text-ink-muted'
               }`}>
-                All Organizations
+                All Organisations
               </Text>
             </TouchableOpacity>
           </View>
@@ -256,7 +256,7 @@ export default function OrganizationsPage() {
         {/* TAB CONTENTS */}
         {isLoading ? (
           <View className="py-20 items-center justify-center">
-            <Text className="font-inter text-ink-muted">Loading organizations...</Text>
+            <Text className="font-inter text-ink-muted">Loading organisations...</Text>
           </View>
         ) : showTabs && activeTab === 'my' ? (
           <View className="mb-8">
@@ -265,12 +265,12 @@ export default function OrganizationsPage() {
                 <GlassCard className="border border-line p-6 items-center">
                   <Ionicons name="business-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="mb-3" />
                   <Text className="font-orbitron-bold text-sm text-ink-soft text-center mb-1 uppercase tracking-wide">
-                    {searchQuery.trim() ? "No Matching Organizations" : "No Managed Organizations"}
+                    {searchQuery.trim() ? "No Matching Organisations" : "No Managed Organisations"}
                   </Text>
                   <Text className="font-inter text-xs text-ink-muted text-center mb-5 leading-4">
                     {searchQuery.trim()
-                      ? `No managed organizations found matching "${searchQuery}".`
-                      : "You don't manage any organizations yet. Create one to get started."
+                      ? `No managed organisations found matching "${searchQuery}".`
+                      : "You don't manage any organisations yet. Create one to get started."
                     }
                   </Text>
                 </GlassCard>
@@ -364,7 +364,7 @@ export default function OrganizationsPage() {
               )}
 
               <Button
-                title="+ Add Organization"
+                title="+ Add Organisation"
                 variant="primary"
                 onPress={() => setModalVisible(true)}
                 className="w-full shadow-sm py-2.5"
@@ -377,12 +377,12 @@ export default function OrganizationsPage() {
               <GlassCard className="border border-line p-6 items-center">
                 <Ionicons name="business-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="mb-3" />
                 <Text className="font-orbitron-bold text-sm text-ink-soft text-center mb-1 uppercase tracking-wide">
-                  {searchQuery.trim() ? "No Matching Organizations" : "No Organizations"}
+                  {searchQuery.trim() ? "No Matching Organisations" : "No Organisations"}
                 </Text>
                 <Text className="font-inter text-xs text-ink-muted text-center mb-2 leading-4">
                   {searchQuery.trim()
-                    ? `No organizations found matching "${searchQuery}".`
-                    : "There are no active organizations on ScoreKeeper yet."
+                    ? `No organisations found matching "${searchQuery}".`
+                    : "There are no active organisations on ScoreKeeper yet."
                   }
                 </Text>
               </GlassCard>
@@ -523,7 +523,7 @@ export default function OrganizationsPage() {
           <View className="w-full max-w-md bg-card border border-line p-6 rounded-2xl shadow-2xl" style={{ maxHeight: '90%' }}>
             <View className="flex-row justify-between items-center mb-6">
               <Text className="font-orbitron-bold text-lg text-ink uppercase tracking-wide">
-                Add Organization
+                Add Organisation
               </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)} className="p-1 active:opacity-70">
                 <Ionicons name="close" size={22} color={themeColor(isDark, 'ink-muted')} />
@@ -533,7 +533,7 @@ export default function OrganizationsPage() {
             <ScrollView style={{ flexGrow: 0 }} keyboardShouldPersistTaps="handled">
             <View className="mb-4">
               <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
-                Organization Name
+                Organisation Name
               </Text>
               <TextInput
                 value={newOrgName}
@@ -608,7 +608,7 @@ export default function OrganizationsPage() {
             {/* Organization Type Selector */}
             <View className="mb-4">
               <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
-                Organization Type (Required)
+                Organisation Type (Required)
               </Text>
               <View className="flex-row flex-wrap gap-2 mb-2">
                 {orgTypes.map((t) => (

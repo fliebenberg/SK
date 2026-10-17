@@ -61,7 +61,7 @@ export async function publishPeopleImport(effects: PeopleImportEffects): Promise
       for (const account of targets.accounts.filter(a => a.profileId === membership.profileId)) {
         const notification = await notificationManager.createNotification(
           account.userId,
-          'New Organization Added',
+          'New Organisation Added',
           `You have been added to ${org.name} as a ${role?.name || 'Member'}.`,
           'org_added',
           `/admin/organizations/${org.id}`

@@ -225,7 +225,7 @@ export default function PublicOrgDetail() {
   }));
 
   const org: OrgDetails = {
-    name: orgData.name || 'Unknown Organization',
+    name: orgData.name || 'Unknown Organisation',
     sports: mappedSports,
     membersCount: String(orgData.memberCount || 0),
     teamsCount: orgData.teamCount || 0,
@@ -233,7 +233,7 @@ export default function PublicOrgDetail() {
     facilitiesCount: orgData.siteCount || 0,
     primaryColor: primaryColor,
     secondaryColor: secondaryColor,
-    description: orgData.description || 'No description available for this organization.',
+    description: orgData.description || 'No description available for this organisation.',
     membershipStatus: membershipStatus || '',
     registrationStatus: 'Registrations Open',
     teams: mappedTeams,
@@ -255,7 +255,7 @@ export default function PublicOrgDetail() {
           </Text>
         </TouchableOpacity>
         <Text className="font-orbitron-bold text-xs tracking-widest text-ink uppercase">
-          Organization Profile
+          Organisation Profile
         </Text>
         <View className="w-10 h-2" />
       </View>
@@ -376,7 +376,7 @@ export default function PublicOrgDetail() {
             <View className="gap-4">
               <GlassCard className="border border-line p-5">
                 <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-3">
-                  About Organization
+                  About Organisation
                 </Text>
                 <Text className="font-inter text-sm text-ink-soft leading-6">
                   {org.description}
@@ -543,7 +543,7 @@ export default function PublicOrgDetail() {
             INTERESTED IN JOINING?
           </Text>
           <Text className="font-inter text-xs text-ink-muted text-center mb-4 leading-4">
-            Contact the organization administration team to enquire about league placements or roster registrations.
+            Contact the organisation administration team to enquire about league placements or roster registrations.
           </Text>
           <Button
             title="Inquire / Register as Athlete"
