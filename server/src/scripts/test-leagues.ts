@@ -19,7 +19,7 @@ async function runTest() {
     const teamBId = `tteam-b-${Date.now()}`;
     const leagueId = `tleague-${Date.now()}`;
     const seasonId = `tseason-${Date.now()}`;
-    const eventId = `tevent-${Date.now()}`;
+    let eventId: string | undefined;
     const game1Id = `tgame-1-${Date.now()}`;
     const game2Id = `tgame-2-${Date.now()}`;
 
@@ -86,12 +86,13 @@ async function runTest() {
 
         // 6. Create Test Event
         console.log("Creating test event...");
-        await dataManager.addEvent({
-            id: eventId,
+        eventId = (await dataManager.addEvent({
             name: "Derby Day Cup",
+            type: 'Tournament',
+            format: 'RoundRobin',
             orgId: orgId,
             startDate: '2026-10-01'
-        } as any);
+        })).id;
 
         // 7. Create Test Games
         console.log("Creating test games...");
@@ -184,7 +185,7 @@ async function runTest() {
             await query('DELETE FROM game_participants WHERE game_id IN ($1, $2)', [game1Id, game2Id]);
             await dataManager.deleteGame(game1Id);
             await dataManager.deleteGame(game2Id);
-            await dataManager.deleteEvent(eventId);
+            if (eventId) await dataManager.deleteEvent(eventId);
             await dataManager.deleteSeason(seasonId);
             await dataManager.deleteLeague(leagueId);
             await dataManager.deleteTeam(teamAId);
