@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { holdRunLock } from './runLock';
 
 /**
  * End-to-end tests: the app on the web (Metro, :8081) against the dev API (:3001) and its database.
@@ -6,7 +7,9 @@ import { defineConfig, devices } from '@playwright/test';
  * include the tournament *Test Spring Festival* (`fixtures/testOrgs.ts`). Run from the repo root:
  * `npm run e2e`. Both servers must be running (`npm run web` in expo-app, `npm run dev` in server).
  */
-export default defineConfig({
+// One run at a time: a second one waits here, before anything starts, for the one running
+// (runLock.ts). Playwright awaits a config given as a promise.
+export default holdRunLock().then(() => defineConfig({
   testDir: '.',
   testMatch: '**/*.spec.ts',
   // `explore/` takes screenshots to look at, rather than testing: run it with E2E_EXPLORE=1.
@@ -31,4 +34,4 @@ export default defineConfig({
     // data is not changed twice.
     { name: 'phone', grep: /@phone/, use: { ...devices['Pixel 7'], browserName: 'chromium' } },
   ],
-});
+}));

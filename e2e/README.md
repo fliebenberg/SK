@@ -11,6 +11,11 @@ npm run e2e            # every test, phone first, then desktop
 npm run e2e:report     # the last run's report, with traces of any failure
 ```
 
+- **One run at a time.** Two runs at once reset the same database and share `test-results/`, and break
+  each other. So a run takes `e2e/.run.lock` as it starts ([runLock.ts](runLock.ts)) — `npx playwright
+  test` as much as `npm run e2e` — and a second run **waits** for it, saying whose run it is, for up to
+  30 minutes (`E2E_LOCK_WAIT=<minutes>`; `0` fails at once). A lock left by a run that was killed is
+  taken over by itself; it never needs deleting by hand.
 - **Every run resets the data.** `global-setup.ts` runs `npm run db:test-orgs` in `server/` — the test
   organisations, and the tournament *Test Spring Festival* (`fx-tour-spring`, `TEST_TOURNAMENTS` in
   `server/src/scripts/setup/fixtures/testOrgs.ts`), which holds every kind of team answer, and *Test

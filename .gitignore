@@ -31,5 +31,6 @@ docs/interviews/records/
 
 # End-to-end test output
 e2e/test-results/
+e2e/.run.lock
 e2e/report/
 e2e/shots/
