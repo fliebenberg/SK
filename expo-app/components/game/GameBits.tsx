@@ -305,12 +305,16 @@ export function WhereCard({ moment, whenText, siteName, facilityName, facilityWo
 /* The division                                                                                     */
 /* ------------------------------------------------------------------------------------------------ */
 
-/** A tournament fixture's division: where both teams stand in it, and the way to it. */
-export function DivisionCard({ divisionId, title, subtitle, summary, onOpen }: {
+/**
+ * A tournament fixture's division: where both teams stand in it, and the way to it. Without points
+ * (`SCORE-18`) a team's standing is its record.
+ */
+export function DivisionCard({ divisionId, title, subtitle, summary, showPoints = true, onOpen }: {
   divisionId: string;
   title: string;
   subtitle?: string;
   summary: GameSummary;
+  showPoints?: boolean;
   onOpen: () => void;
 }) {
   const { items: stages } = useLiveRoom<{ stageId: string; rows: TournamentStandingRow[] }>(
@@ -340,7 +344,7 @@ export function DivisionCard({ divisionId, title, subtitle, summary, onOpen }: {
             <View key={p.id} className={`flex-row items-center gap-2.5 py-2 ${i ? 'border-t border-line-soft' : ''}`}>
               <FixtureCrest participant={p} size={20} />
               <Text className="flex-1 font-inter-semibold text-sm text-ink" numberOfLines={1}>{sideLabel(p)}</Text>
-              {r ? <Text className="font-inter text-xs text-ink-muted">{r.rank ? `${ordinal(r.rank)} · ` : ''}{r.points} pts</Text> : null}
+              {r ? <Text className="font-inter text-xs text-ink-muted">{r.rank ? `${ordinal(r.rank)} · ` : ''}{showPoints ? `${r.points} pts` : `W${r.wins} D${r.draws} L${r.losses}`}</Text> : null}
             </View>
           );
         })}

@@ -176,6 +176,7 @@ export function useTournamentSteps({ event, divisions, games, entrants, entrants
         state: (scoring ? 'done' : 'part') as StepState,
         summary: scoring?.mode === 'byResult'
           ? `${scoring.pointsPerWin} / ${scoring.pointsPerDraw} / ${scoring.pointsPerLoss} for a win, draw, loss`
+          : scoring?.mode === 'winsDrawsLosses' ? 'No points, ranked by wins, then draws'
           : scoring?.mode === 'byPlacing' ? 'Points by finishing position' : 'Default 3 / 1 / 0, not confirmed',
       }]),
       dual ? {
@@ -340,6 +341,8 @@ export function TournamentHome({
     sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { settings: { ...(event.settings || {}), scoring: DEFAULT_SCORING_SYSTEM } } });
   const pointsTiles = scoring?.mode === 'byPlacing' ? (
     <Text className="font-inter text-sm text-ink-soft">Points are awarded by finishing position.</Text>
+  ) : scoring?.mode === 'winsDrawsLosses' ? (
+    <Text className="font-inter text-sm text-ink-soft">No points. The tables rank by wins, then draws.</Text>
   ) : points ? (
     <View className="flex-row gap-1.5">
       {[['Win', points.pointsPerWin], ['Draw', points.pointsPerDraw], ['Loss', points.pointsPerLoss]].map(([k, v]) => (

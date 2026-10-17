@@ -10,7 +10,7 @@ import { StandingsTable } from '../../../../../../../components/tournament/Stand
 import { ResultsHead } from '../../../../../../../components/tournament/StandingsTab';
 import { TournamentCard } from '../../../../../../../components/tournament/TournamentBits';
 import { FixtureList } from '../../../../../../../components/tournament/DivisionFixtures';
-import { entrantName, hasOneTable } from '../../../../../../../components/tournament/standingsBits';
+import { awardsPoints, entrantName, hasOneTable, standingSummary } from '../../../../../../../components/tournament/standingsBits';
 import { useEventDivisions, useEventFixtures, useEventRecord, useEventStandings, useSports } from '../../../../../../../hooks/useEventRooms';
 import { useOrgSites } from '../../../../../../../hooks/useOrgSites';
 import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
@@ -99,7 +99,7 @@ export default function TeamResultsScreen() {
       meta={(
         <>
           {row.withdrawn ? 'Withdrawn' : placed ? <Text className="font-inter-bold text-primary-ink">{ordinal(row.rank!)}</Text> : null}
-          {`${row.withdrawn || placed ? ' in ' : ''}${divisionName} · ${row.points} point${row.points === 1 ? '' : 's'}`}
+          {`${row.withdrawn || placed ? ' in ' : ''}${divisionName} · ${standingSummary(row, awardsPoints(event))}`}
         </>
       )}
       right={isWide ? teamLink : null}
@@ -128,6 +128,7 @@ export default function TeamResultsScreen() {
         orgs={orgs}
         isWide={isWide}
         compact
+        showPoints={awardsPoints(event)}
         framed={false}
         highlight={r => (r.entrantId || r.teamId) === entrantId}
         onPressRow={r => (r.entrantId || r.teamId) !== entrantId && router.push(`/admin/${orgId}/events/${eventId}/standings/teams/${r.entrantId || r.teamId}`)}

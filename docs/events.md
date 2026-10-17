@@ -161,7 +161,7 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
 | Where | The base site and the facilities it uses, as chips; the map once set up | *Where* dialog (site + `FacilityPicker`) | — |
 | Sports & divisions | One sport at a time (below) | *Sports* dialog; a division's own page | `…/sports` |
 | Organisations & teams | Warnings, who is not invited yet, then each organisation with its invitation and teams (below) | *Add organisations*; each organisation's page | `…/organisations` |
-| Rules & scoring | The points; *Confirm* while the default is unconfirmed | *Rules & scoring* dialog | — |
+| Rules & scoring | The scoring system — the points, or *No points* for wins / draws / losses; *Confirm* while the default is unconfirmed | *Rules & scoring* dialog | — |
 | Fixtures | While setting up, the divisions still to draw first, then the drawn; once set up, each division; on the day, what is next up | Each division's page | The Schedule tab |
 
 - **While setting up** (an organiser, until every section is finished) each card's heading carries
@@ -630,9 +630,16 @@ Against, ± and form, which added up across sports would add rugby points to net
 viewer's own organisation's rows are tinted (`bg-info-soft`); the full Mine / All is `FIX-24`'s. The
 adjustment dot and withdrawn rows are as before.
 
-**Points and scores can each be switched off** (`showPoints`, `showScores`): the interviews call for
-tournaments with **No Points** and with **No Scores** (won / drawn / lost only). The setting itself is
-`SCORE-18`.
+**A tournament scored on wins / draws / losses has no points column** (`SCORE-18`, built 2026-10-17).
+The *Rules & scoring* dialog offers two systems: **Wins / draws / losses** (`winsDrawsLosses`: no
+points; a table ranks by wins, then draws, then the tiebreakers) and **Simple points** (`byResult`:
+points for a win, a draw and a loss, 3 / 1 / 0 by default). Every division follows the tournament's
+system — none sets its own on screen. Under wins / draws / losses the leaderboard adds up each
+organisation's wins and draws and ranks on them the same way, and the results pages, the team page and
+the game page's division card give a record ("5 wins, 0 draws, 0 losses", "W3 D1 L1") where they gave
+points. Scores are still kept, so For, Against and ± stay, and a game always shows its score.
+`showScores` is there for **No Scores** (won / drawn / lost only), which is parked in `SCORE-18`
+with *Custom points*.
 
 **The data.** `event:{id}:standings` now carries `EventStandings`: the leaderboard and each division's
 **whole** table (`tournament_divisions.cached_standings`, written by `recalculateEventStandings` — the

@@ -1,4 +1,4 @@
-import { EventOrgBadge, GameSummary, TournamentDivision, TournamentStandingRow } from '@sk/shared';
+import { Event, EventOrgBadge, GameSummary, TournamentDivision, TournamentStandingRow } from '@sk/shared';
 import { whenMs } from '../../utils/dates';
 
 /**
@@ -8,6 +8,21 @@ import { whenMs } from '../../utils/dates';
  */
 
 export type FormResult = 'W' | 'D' | 'L';
+
+/**
+ * Whether the tournament's tables have a points column. *Wins / draws / losses* awards none
+ * (`SCORE-18`): its tables rank by wins, then draws, and every division follows the tournament.
+ */
+export function awardsPoints(event: Pick<Event, 'settings'> | undefined): boolean {
+  return event?.settings?.scoring?.mode !== 'winsDrawsLosses';
+}
+
+/** Where a row stands, for the line under a results page's name: its points, or its record. */
+export function standingSummary(row: Pick<TournamentStandingRow, 'points' | 'wins' | 'draws' | 'losses'>, points: boolean): string {
+  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  if (points) return count(row.points, 'point', 'points');
+  return [count(row.wins, 'win', 'wins'), count(row.draws, 'draw', 'draws'), count(row.losses, 'loss', 'losses')].join(', ');
+}
 
 /**
  * Each entrant's results, oldest first, from the finished fixtures that recorded a score. A fixture

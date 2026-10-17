@@ -6,7 +6,7 @@ import { Event, EventOrgBadge, GameSummary, Sport, TournamentDivision } from '@s
 import { StandingsTable } from './StandingsTable';
 import { FixtureCrest } from '../events/EventBits';
 import { DivisionStateLine, TournamentCard, divisionFormatLabel, divisionStateOf } from './TournamentBits';
-import { crestOf, entrantName, hasOneTable } from './standingsBits';
+import { awardsPoints, crestOf, entrantName, hasOneTable } from './standingsBits';
 import { useEventStandings } from '../../hooks/useEventRooms';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
@@ -61,6 +61,7 @@ export function StandingsTab({ event, orgId, isWide, divisions, games, sports, v
         isWide={isWide}
         framed={false}
         teamCounts={teamCounts}
+        showPoints={awardsPoints(event)}
         highlight={row => viewerOrgIds.includes(row.orgId || row.teamId)}
         onPressRow={row => router.push(`/admin/${orgId}/events/${event.id}/standings/organisations/${row.orgId || row.teamId}`)}
         emptyMessage="Nothing to rank yet. The leaderboard fills in as results come in."

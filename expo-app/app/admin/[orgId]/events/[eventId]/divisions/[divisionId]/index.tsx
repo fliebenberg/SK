@@ -39,6 +39,7 @@ import { DivisionTeamsCard } from '../../../../../../../components/tournament/Di
 import { DivisionFixturesCard } from '../../../../../../../components/tournament/DivisionFixtures';
 import { AddFixtureDialog } from '../../../../../../../components/tournament/AddFixtureDialog';
 import { DivisionStandings } from '../../../../../../../components/tournament/DivisionStandings';
+import { awardsPoints } from '../../../../../../../components/tournament/standingsBits';
 import { DualPairingCard } from '../../../../../../../components/tournament/DualPairing';
 import { useLiveRoom } from '../../../../../../../hooks/useLiveRoom';
 import { useEventDivisions, useEventRecord, useSports } from '../../../../../../../hooks/useEventRooms';
@@ -496,7 +497,7 @@ export default function DivisionScreen() {
   const detailsCard = <React.Fragment key="details">{whereCard}{whenCard}{organisersCard}</React.Fragment>;
   const standingsCard = drawn && !dual ? (
     <TournamentCard key="standings" title="Standings">
-      <DivisionStandings divisionId={divisionId} canEdit={canEdit} orgs={event.participatingOrgs} games={games} isWide={isWide} viewerOrgIds={viewerOrgIds} />
+      <DivisionStandings divisionId={divisionId} canEdit={canEdit} showPoints={awardsPoints(event)} orgs={event.participatingOrgs} games={games} isWide={isWide} viewerOrgIds={viewerOrgIds} />
     </TournamentCard>
   ) : null;
 

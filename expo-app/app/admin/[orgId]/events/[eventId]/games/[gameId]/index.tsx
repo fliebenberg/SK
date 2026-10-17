@@ -21,6 +21,7 @@ import { useGameSummary } from '../../../../../../../hooks/useGameSummary';
 import { useGameLineups } from '../../../../../../../hooks/useGameLineups';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { useEventDivisions, useEventFacilityIds, useEventFixtures, useEventRecord, useSports } from '../../../../../../../hooks/useEventRooms';
+import { awardsPoints } from '../../../../../../../components/tournament/standingsBits';
 import { useOrgSites } from '../../../../../../../hooks/useOrgSites';
 import { useOrgSummary } from '../../../../../../../hooks/useOrgSummary';
 import { useResultSent } from '../../../../../../../services/resultQueue';
@@ -220,7 +221,7 @@ export default function GamePage() {
     />
   );
   const divisionCard = isFixture && summary.divisionId && division ? (
-    <DivisionCard divisionId={summary.divisionId} title={divisionName} summary={summary} onOpen={openDivision} />
+    <DivisionCard divisionId={summary.divisionId} title={divisionName} summary={summary} showPoints={awardsPoints(event)} onOpen={openDivision} />
   ) : null;
   const cancelledStrip = moment === 'cancelled' && canEdit ? (
     <View className="rounded-xl border border-warning-line bg-warning-soft px-3.5 py-2.5 flex-row flex-wrap items-center gap-3">

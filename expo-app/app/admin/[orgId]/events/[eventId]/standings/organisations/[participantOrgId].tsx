@@ -8,7 +8,7 @@ import { AccessDenied } from '../../../../../../../components/AccessDenied';
 import { PageBody } from '../../../../../../../components/PageBody';
 import { StandingsTable } from '../../../../../../../components/tournament/StandingsTable';
 import { ResultsHead } from '../../../../../../../components/tournament/StandingsTab';
-import { formByEntrant, hasOneTable } from '../../../../../../../components/tournament/standingsBits';
+import { awardsPoints, formByEntrant, hasOneTable, standingSummary } from '../../../../../../../components/tournament/standingsBits';
 import { useEventDivisions, useEventFixtures, useEventRecord, useEventStandings, useSports } from '../../../../../../../hooks/useEventRooms';
 import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 
@@ -95,7 +95,7 @@ export default function OrganisationResultsScreen() {
             meta={line ? (
               <>
                 <Text className="font-inter-bold text-primary-ink">{joint ? 'Joint ' : ''}{line.rank ? ordinal(line.rank) : '–'}</Text>
-                {` of ${leaderboard.length} · ${line.points} point${line.points === 1 ? '' : 's'} · ${rows.length} team${rows.length === 1 ? '' : 's'}`}
+                {` of ${leaderboard.length} · ${standingSummary(line, awardsPoints(event))} · ${rows.length} team${rows.length === 1 ? '' : 's'}`}
               </>
             ) : 'Not on the leaderboard yet'}
           />
@@ -106,6 +106,7 @@ export default function OrganisationResultsScreen() {
               orgs={event.participatingOrgs}
               isWide={isWide}
               form={form}
+              showPoints={awardsPoints(event)}
               plain
               framed={false}
               nameOf={row => row.teamName}
@@ -116,7 +117,9 @@ export default function OrganisationResultsScreen() {
             />
             {rows.length ? (
               <Text className="font-inter text-xs text-ink-muted">
-                The leaderboard adds up the points these teams earn in their divisions{line?.adjustment ? ', after an adjustment by the organisers' : ''}.
+                {awardsPoints(event)
+                  ? `The leaderboard adds up the points these teams earn in their divisions${line?.adjustment ? ', after an adjustment by the organisers' : ''}.`
+                  : 'The leaderboard adds up the wins and draws these teams earn in their divisions.'}
               </Text>
             ) : null}
           </View>

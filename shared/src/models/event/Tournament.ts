@@ -36,12 +36,17 @@ export type TiebreakFactor =
 /**
  * Shared by tournaments and league seasons (D19).
  *
- * Two modes, because awarding points by finishing position is a scoring system in its own right
- * and not a special case: a head-to-head division scores `byResult`, a ranked meet scores
- * `byPlacing`. Both feed the same standings engine, so an athletics division and a rugby division
- * can sit in one sports day and roll up into one organisation table.
+ * Awarding points by finishing position is a scoring system in its own right and not a special
+ * case: a head-to-head division scores `byResult`, a ranked meet scores `byPlacing`. Both feed the
+ * same standings engine, so an athletics division and a rugby division can sit in one sports day
+ * and roll up into one organisation table.
+ *
+ * `winsDrawsLosses` awards no points at all (`SCORE-18`): a table ranks by wins, then draws, then
+ * the tiebreakers, and shows no points column. Scores are still kept, so for / against and the
+ * score tiebreakers still count. The organiser screens call `byResult` *Simple points*.
  */
 export type ScoringSystem =
+  | { mode: 'winsDrawsLosses' }
   | {
       mode: 'byResult';
       pointsPerWin: number;

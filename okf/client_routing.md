@@ -131,12 +131,14 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
 > pickers too: the entry screen shows no division picker when there is one division, and the
 > *Add a fixture* sheet shows no stage picker in that case either.
 
-> **The standings tab is one table with a division scope selector (U28), and the scope decides the
-> row rather than the filter (U29).** *All divisions* ranks the tournament's `scoringSubject` — for
-> a `Festival` that is the organisation, so the default is the day's leaderboard by school. *One
-> division* ranks its **entrants**, so a school entering u14A and u14B is two rows there and one
-> line in the roll-up. The client reads what the server computed and never calculates a table of
-> its own (D30).
+> **The Standings tab leads with the leaderboard by organisation, and every row opens a page**
+> (stage 4, 2026-10-17; it replaced U28's one table with a division scope selector). An
+> organisation opens `/admin/[orgId]/events/[eventId]/standings/organisations/[participantOrgId]`,
+> a team `/admin/[orgId]/events/[eventId]/standings/teams/[entrantId]`, and a division its own page,
+> whose Standings card holds its tables — there is no second division table page, so each table is
+> shown in one place. A school entering U14 A and U14 B is two rows in the division's table and one
+> line on the leaderboard. The client reads what the server computed and never calculates a table
+> of its own (D30). Full description: [docs/events.md](file:///c:/Fred/Coding/SK/docs/events.md) §10.
 
 ## Critical UI Rule: Navigation Guards
 

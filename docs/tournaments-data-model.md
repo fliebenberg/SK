@@ -660,12 +660,13 @@ export type TiebreakFactor =
 /**
  * Shared by tournaments and league seasons (D19).
  *
- * Two modes, because awarding points by finishing position is a scoring system in its own right
- * and not a special case: a head-to-head division scores `byResult`, a ranked meet scores
- * `byPlacing`. Both feed the same standings engine, so an athletics division and a rugby division
- * can sit in one sports day and roll up into one organisation table.
+ * Awarding points by finishing position is a scoring system in its own right and not a special
+ * case: a head-to-head division scores `byResult`, a ranked meet scores `byPlacing`. Both feed the
+ * same standings engine, so an athletics division and a rugby division can sit in one sports day
+ * and roll up into one organisation table. `winsDrawsLosses` awards no points (SCORE-18).
  */
 export type ScoringSystem =
+  | { mode: 'winsDrawsLosses' }
   | {
       mode: 'byResult';
       pointsPerWin: number;
@@ -791,6 +792,16 @@ Resolution order, most specific wins: **division `settings.scoring`** → **even
 Only two levels can override, deliberately. A per-stage scoring system is expressible in the JSON
 but is not read: a division whose pool stage and knockout scored differently would produce a table
 nobody could interpret.
+
+**On screen, only the event's is set** (2026-10-17, `SCORE-18`): the *Rules & scoring* dialog writes
+`events.settings.scoring`, and no screen writes a division's, so every division follows its
+tournament. The resolution order above still stands for a division given one by a script.
+
+**`winsDrawsLosses` — no points.** The tally counts wins, draws and losses and awards nothing; the
+table ranks on wins, then draws, before the tiebreakers, and the head-to-head mini-league compares
+the same way. Adjustments are points, so none applies. The organisation roll-up is ordered by the
+**event's** system, read in `recalculateEventStandings`: under `winsDrawsLosses` organisations rank on
+the wins, then draws, they add up to, and weighting — which only scales points — plays no part.
 
 ---
 

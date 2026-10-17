@@ -13,6 +13,7 @@ import {
 } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { FieldLabel } from '../FieldLabel';
+import { SegmentedControl } from '../SegmentedControl';
 import CustomSelect from '../CustomSelect';
 import DatePicker from '../DatePicker';
 import { OrganizerPicker } from '../OrganizerPicker';
@@ -188,10 +189,11 @@ export function WhereDialog({ visible, event, orgId, sites, facilities, facility
 }
 
 /**
- * Rules & scoring: points for a win, a draw and a loss. `settings` is written whole, because
- * `UPDATE_EVENT` replaces that column — writing the bare key would drop the dismissed steps.
- * Points by finishing position are shown on the card but not edited here, as on the step screen
- * this replaces.
+ * Rules & scoring: the tournament's scoring system, which every division follows (`SCORE-18`).
+ * *Wins / draws / losses* awards no points and ranks by wins, then draws; *Simple points* sets the
+ * points for a win, a draw and a loss. `settings` is written whole, because `UPDATE_EVENT` replaces
+ * that column — writing the bare key would drop the dismissed steps. Points by finishing position
+ * are shown on the card but not edited here, as on the step screen this replaces.
  */
 export function ScoringDialog({ visible, event, orgId, onClose }: {
   visible: boolean;
@@ -200,8 +202,10 @@ export function ScoringDialog({ visible, event, orgId, onClose }: {
   onClose: () => void;
 }) {
   const isDark = useActiveTheme() === 'dark';
+  const confirmed = !!event.settings?.scoring;
   const saved = event.settings?.scoring?.mode === 'byResult' ? event.settings.scoring : null;
   const fallback = DEFAULT_SCORING_SYSTEM.mode === 'byResult' ? DEFAULT_SCORING_SYSTEM : { pointsPerWin: 3, pointsPerDraw: 1, pointsPerLoss: 0 };
+  const [mode, setMode] = useState<'winsDrawsLosses' | 'byResult'>('byResult');
   const [win, setWin] = useState('');
   const [draw, setDraw] = useState('');
   const [loss, setLoss] = useState('');
@@ -210,6 +214,7 @@ export function ScoringDialog({ visible, event, orgId, onClose }: {
   useEffect(() => {
     if (!visible) return;
     const from = saved || fallback;
+    setMode(event.settings?.scoring?.mode === 'winsDrawsLosses' ? 'winsDrawsLosses' : 'byResult');
     setWin(String(from.pointsPerWin));
     setDraw(String(from.pointsPerDraw));
     setLoss(String(from.pointsPerLoss));
@@ -217,7 +222,7 @@ export function ScoringDialog({ visible, event, orgId, onClose }: {
   }, [visible]);
 
   const save = async () => {
-    const scoring: ScoringSystem = {
+    const scoring: ScoringSystem = mode === 'winsDrawsLosses' ? { mode } : {
       mode: 'byResult',
       pointsPerWin: parseInt(win, 10) || 0,
       pointsPerDraw: parseInt(draw, 10) || 0,
@@ -243,21 +248,35 @@ export function ScoringDialog({ visible, event, orgId, onClose }: {
       onClose={onClose}
       onSave={save}
       isSaving={saving}
-      saveLabel={saved ? 'Save' : 'Save and confirm'}
-      footerLeft={
+      saveLabel={confirmed ? 'Save' : 'Save and confirm'}
+      footerLeft={mode === 'winsDrawsLosses' ? undefined :
         <TouchableOpacity onPress={() => { setWin(String(fallback.pointsPerWin)); setDraw(String(fallback.pointsPerDraw)); setLoss(String(fallback.pointsPerLoss)); }} className="py-2">
           <Text className="font-inter-bold text-sm text-ink-muted">Reset to {fallback.pointsPerWin} / {fallback.pointsPerDraw} / {fallback.pointsPerLoss}</Text>
         </TouchableOpacity>
       }
     >
-      <Text className="font-inter text-sm text-ink-soft">How many points each result is worth. These apply to every division unless a division sets its own.</Text>
-      <View className="flex-row gap-3">
-        {field('Win', win, setWin)}
-        {field('Draw', draw, setDraw)}
-        {field('Loss', loss, setLoss)}
-      </View>
+      <SegmentedControl
+        options={[
+          { key: 'winsDrawsLosses', label: 'Wins / draws / losses' },
+          { key: 'byResult', label: 'Simple points' },
+        ]}
+        value={mode}
+        onChange={setMode}
+      />
+      {mode === 'winsDrawsLosses' ? (
+        <Text className="font-inter text-sm text-ink-soft">No points. Every table in this tournament ranks by wins, then draws, then the tiebreakers.</Text>
+      ) : (
+        <>
+          <Text className="font-inter text-sm text-ink-soft">How many points each result is worth, in every division of this tournament.</Text>
+          <View className="flex-row gap-3">
+            {field('Win', win, setWin)}
+            {field('Draw', draw, setDraw)}
+            {field('Loss', loss, setLoss)}
+          </View>
+        </>
+      )}
       <View className="rounded-xl bg-warning-soft px-3 py-2">
-        <Text className="font-inter text-[13px] text-warning-ink">Changing points rebuilds every table in this tournament straight away.</Text>
+        <Text className="font-inter text-[13px] text-warning-ink">Changing this rebuilds every table in this tournament straight away.</Text>
       </View>
     </EditDialog>
   );

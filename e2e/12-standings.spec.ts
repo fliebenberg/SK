@@ -62,4 +62,33 @@ test.describe('the Standings tab', () => {
     await visible(page, 'Led by DKL U16 A').click();
     await expect(page).toHaveURL(/\/divisions\/fx-div-autumn-rugby-u16$/);
   });
+
+  // Last, because it changes the tournament's scoring; it puts back the 3 / 1 / 0 it started from.
+  test('a tournament scored on wins, draws and losses shows no points (SCORE-18)', async ({ page }) => {
+    await signIn(page, USERS.hostAdmin);
+    const openScoring = async () => {
+      await page.goto('/admin/fx-org-dkl/events/fx-tour-autumn');
+      await page.getByText('Rules & scoring', { exact: true }).last().locator('xpath=ancestor::div[.//*[text()="Edit"]][1]').getByText('Edit').first().click();
+    };
+
+    await openScoring();
+    await page.getByText('Wins / draws / losses', { exact: true }).first().click();
+    await expect(visible(page, 'No points. Every table in this tournament ranks by wins, then draws, then the tiebreakers.')).toBeVisible();
+    await page.getByRole('button', { name: 'Save and confirm' }).click();
+    await expect(visible(page, 'No points. The tables rank by wins, then draws.')).toBeVisible();
+
+    await page.goto(STANDINGS);
+    await expect(visible(page, 'Leaderboard')).toBeVisible();
+    await expect(page.getByText('Pts', { exact: true }).filter({ visible: true })).toHaveCount(0);
+    await visible(page, 'Test Hoërskool Doringkloof').click();
+    await expect(visible(page, /of 4 · 5 wins, 0 draws, 0 losses · 3 teams/)).toBeVisible();
+    await expect(visible(page, 'The leaderboard adds up the wins and draws these teams earn in their divisions.')).toBeVisible();
+    await visible(page, 'U14 · 1st of 4').click();
+    await expect(visible(page, /in Netball U14 · 3 wins, 0 draws, 0 losses/)).toBeVisible();
+
+    await openScoring();
+    await page.getByText('Simple points', { exact: true }).first().click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByText('No points. The tables rank by wins, then draws.', { exact: true })).toHaveCount(0);
+  });
 });

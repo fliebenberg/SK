@@ -77,6 +77,16 @@ const ZERO_ROW = {
   points: 0,
 };
 
+/**
+ * What a table is ordered on before the tiebreakers: points, or — when the system awards none
+ * (`SCORE-18`) — wins, then draws. One number either way, so the ranking and the head-to-head
+ * mini-league compare the same thing; a win is worth more than any number of draws a table can hold.
+ */
+const WIN_OVER_DRAWS = 1_000_000;
+function standingValue(row: TournamentStandingRow, scoring: ScoringSystem): number {
+  return scoring.mode === 'winsDrawsLosses' ? row.wins * WIN_OVER_DRAWS + row.draws : row.points;
+}
+
 /** Float arithmetic on weightings and split placing points should not leak 0.30000000000000004. */
 function round(n: number, dp = 3): number {
   const f = Math.pow(10, dp);
@@ -253,7 +263,7 @@ function placingPoints(
 }
 
 /**
- * Count the fixtures. One pass, N sides, both scoring modes.
+ * Count the fixtures. One pass, N sides, every scoring mode.
  *
  * Returns rows by subject id with no adjustments folded in and no ranking applied — the two things
  * that need the whole table rather than one fixture at a time.
@@ -335,16 +345,18 @@ function tally(
         return;
       }
 
+      // `winsDrawsLosses` counts the results and awards nothing for them.
+      const award = scoring.mode === 'byResult' ? scoring : { pointsPerWin: 0, pointsPerDraw: 0, pointsPerLoss: 0 };
       const isWinner = side.score === best;
       if (isWinner && winners === 1) {
         row.wins++;
-        row.points += scoring.pointsPerWin;
+        row.points += award.pointsPerWin;
       } else if (isWinner) {
         row.draws++;
-        row.points += scoring.pointsPerDraw;
+        row.points += award.pointsPerDraw;
       } else {
         row.losses++;
-        row.points += scoring.pointsPerLoss;
+        row.points += award.pointsPerLoss;
       }
     });
   });
@@ -397,7 +409,7 @@ function separate(
       .map(r => subjectsById.get(r.teamId))
       .filter((s): s is StandingsSubject => !!s);
     tally(games, groupSubjects, { ...options, adjustments: undefined, requireAllSidesRanked: true })
-      .forEach((row, id) => headToHead.set(id, row.points));
+      .forEach((row, id) => headToHead.set(id, standingValue(row, options.scoring ?? DEFAULT_SCORING_SYSTEM)));
   }
 
   const ctx = { headToHead, disciplinaryPoints: options.disciplinaryPoints };
@@ -430,7 +442,8 @@ function separate(
 /**
  * Order the table and stamp a definite `rank` on every row.
  *
- * Points first, then the configured factors. Entrants no factor could separate **share** a rank
+ * Points first — or wins, then draws, under `winsDrawsLosses` — then the configured factors.
+ * Entrants no factor could separate **share** a rank
  * (1, 2, 2, 4) and are listed in a stable order by name — a shared rank is the honest answer, and
  * D29's manual override is how a person breaks it when progression needs one.
  */
@@ -441,12 +454,14 @@ function rankRows(
   options: StandingsOptions
 ): TournamentStandingRow[] {
   const factors = options.tiebreakers ?? DEFAULT_TIEBREAKERS;
+  const scoring = options.scoring ?? DEFAULT_SCORING_SYSTEM;
 
   const byPoints = new Map<number, TournamentStandingRow[]>();
   rows.forEach(row => {
-    const bucket = byPoints.get(row.points);
+    const value = standingValue(row, scoring);
+    const bucket = byPoints.get(value);
     if (bucket) bucket.push(row);
-    else byPoints.set(row.points, [row]);
+    else byPoints.set(value, [row]);
   });
 
   const groups: TournamentStandingRow[][] = [];
@@ -471,7 +486,7 @@ function rankRows(
 /**
  * The one standings answer, for tournaments and for league seasons alike (D19).
  *
- * N sides rather than two, both scoring modes, ordered tiebreakers producing a definite rank, and
+ * N sides rather than two, every scoring mode, ordered tiebreakers producing a definite rank, and
  * manual adjustments folded in. There is deliberately no second implementation for the two-sided
  * case: a division's table, a pool's table and a season's table are the same computation, and two
  * of them disagreeing is exactly what progression cannot survive.
@@ -488,7 +503,9 @@ export function calculateStandings(
   const subjectsById = new Map(subjects.map(s => [s.id, s]));
   const rows = tally(games, subjects, options);
 
-  if (options.adjustments?.length) {
+  // An adjustment is a points deduction or award, so a system without points has nothing to apply
+  // it to.
+  if (options.adjustments?.length && options.scoring?.mode !== 'winsDrawsLosses') {
     const byEntrant = new Map<string, number>();
     options.adjustments.forEach(a => {
       byEntrant.set(a.entrantId, (byEntrant.get(a.entrantId) ?? 0) + a.pointsDelta);
@@ -527,11 +544,15 @@ export interface WeightedDivisionStandings {
  *
  * Played, won, drawn and lost are counts of fixtures, so they sum unweighted — weighting an
  * appearance makes no sense. Only points, and the adjustments already inside them, are scaled.
+ *
+ * `options.scoring` is the tournament's system, which decides how the leaderboard is ordered: under
+ * `winsDrawsLosses` the divisions award no points, and organisations rank on the wins, then draws,
+ * they add up to.
  */
 export function rollUpByOrganisation(
   divisions: WeightedDivisionStandings[],
   organisations: Array<{ id: string; name: string }>,
-  options: Pick<StandingsOptions, 'tiebreakers' | 'disciplinaryPoints'> = {}
+  options: Pick<StandingsOptions, 'scoring' | 'tiebreakers' | 'disciplinaryPoints'> = {}
 ): TournamentStandingRow[] {
   const subjects: StandingsSubject[] = organisations.map(o => ({
     id: o.id,

@@ -2934,7 +2934,12 @@ export class TournamentManager extends BaseManager {
         [JSON.stringify(tables.get(division.id) || []), division.id]);
     }
 
-    const rollUp = rollUpByOrganisation(weighted, orgRes.rows);
+    // The tournament's own system orders the leaderboard: under `winsDrawsLosses` no division
+    // awards points, so organisations rank on the wins, then draws, they add up to (`SCORE-18`).
+    const eventRes = await this.query(`SELECT settings FROM events WHERE id = $1`, [eventId]);
+    const rollUp = rollUpByOrganisation(weighted, orgRes.rows, {
+      scoring: eventRes.rows[0]?.settings?.scoring || DEFAULT_SCORING_SYSTEM,
+    });
     await this.query(`UPDATE events SET cached_standings = $1 WHERE id = $2`, [JSON.stringify(rollUp), eventId]);
     return rollUp;
   }

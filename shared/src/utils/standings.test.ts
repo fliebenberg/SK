@@ -539,6 +539,100 @@ describe('a weighted two-division roll-up', () => {
   });
 });
 
+describe('a tournament that awards no points (SCORE-18)', () => {
+  const NO_POINTS: ScoringSystem = { mode: 'winsDrawsLosses' };
+
+  // x, y and z are opponents outside this table; their games still count for the teams in it.
+  const subjects = [team('a'), team('b'), team('c')];
+  const games = [
+    h2h('g1', 'a', 1, 'x', 0), h2h('g2', 'a', 0, 'y', 5), h2h('g3', 'a', 0, 'z', 5), // won 1, lost 2
+    h2h('g4', 'b', 0, 'x', 0), h2h('g5', 'b', 0, 'y', 0), h2h('g6', 'b', 0, 'z', 0), // drawn 3
+    h2h('g7', 'c', 1, 'x', 0), h2h('g8', 'c', 0, 'y', 0),                            // won 1, drawn 1
+  ];
+
+  it('counts the results and awards no points', () => {
+    const rows = calculateStandings(games, subjects, { scoring: NO_POINTS });
+    expect(byId(rows, 'a')).toMatchObject({ played: 3, wins: 1, draws: 0, losses: 2, pointsDifference: -9, points: 0 });
+    expect(rows.every(r => r.points === 0)).toBe(true);
+  });
+
+  it('ranks by wins, then draws, so a win outweighs any number of draws', () => {
+    const rows = calculateStandings(games, subjects, { scoring: NO_POINTS });
+    expect(rows.map(r => [r.teamId, r.rank])).toEqual([['c', 1], ['a', 2], ['b', 3]]);
+
+    // Under 3 / 1 / 0 the same results put B's three draws level with A's win, and ahead of it on
+    // points difference.
+    const pointed = calculateStandings(games, subjects, { scoring: THREE_ONE_ZERO });
+    expect(pointed.map(r => r.teamId)).toEqual(['c', 'b', 'a']);
+  });
+
+  it('still breaks a tie on the tiebreakers, head-to-head counting results', () => {
+    const level = [h2h('g1', 'r', 1, 's', 0), h2h('g2', 's', 9, 'x', 0), h2h('g3', 'r', 0, 'y', 1)];
+    const rs = [team('r'), team('s')];
+
+    // One win and one loss each; S is +8 to R's 0.
+    expect(calculateStandings(level, rs, { scoring: NO_POINTS }).map(r => r.teamId)).toEqual(['s', 'r']);
+    // R won their meeting.
+    expect(calculateStandings(level, rs, { scoring: NO_POINTS, tiebreakers: ['headToHead'] }).map(r => r.teamId))
+      .toEqual(['r', 's']);
+  });
+
+  it('applies no adjustment, because there are no points to adjust', () => {
+    const rows = calculateStandings(games, subjects.map(s => ({ ...s, entrantId: `ent-${s.id}` })), {
+      scoring: NO_POINTS,
+      adjustments: [
+        { id: 'adj-1', divisionId: 'div-1', entrantId: 'ent-c', pointsDelta: -10, reason: 'Late arrival', createdAt: '2026-09-01T08:00:00Z' },
+      ],
+    });
+    expect(byId(rows, 'c')).toMatchObject({ points: 0, rank: 1 });
+    expect(byId(rows, 'c').adjustment).toBeUndefined();
+  });
+
+  it('ranks the organisation leaderboard on the wins, then draws, its divisions add up to', () => {
+    const orgs = [
+      { id: 'org-north', name: 'Northcliff' },
+      { id: 'org-park', name: 'Parktown' },
+      { id: 'org-camps', name: 'Camps Bay' },
+    ];
+    const divisions = (scoring: ScoringSystem) => [
+      {
+        rows: calculateStandings(
+          [h2h('r1', 'north-1st', 20, 'park-1st', 12), h2h('r2', 'north-1st', 10, 'camps-1st', 10)],
+          [
+            { id: 'north-1st', name: 'Northcliff 1st XV', orgId: 'org-north' },
+            { id: 'park-1st', name: 'Parktown 1st XV', orgId: 'org-park' },
+            { id: 'camps-1st', name: 'Camps Bay 1st XV', orgId: 'org-camps' },
+          ],
+          { scoring }
+        ),
+      },
+      {
+        weighting: 2,
+        rows: calculateStandings(
+          [h2h('n1', 'park-a', 30, 'north-a', 2)],
+          [
+            { id: 'north-a', name: 'Northcliff A', orgId: 'org-north' },
+            { id: 'park-a', name: 'Parktown A', orgId: 'org-park' },
+          ],
+          { scoring }
+        ),
+      },
+    ];
+
+    // Northcliff: won 1, drawn 1, lost 1, -20. Parktown: won 1, lost 1, +20. The draw decides it,
+    // and the weighting, which only scales points, plays no part.
+    const rows = rollUpByOrganisation(divisions(NO_POINTS), orgs, { scoring: NO_POINTS });
+    expect(rows.map(r => [r.teamId, r.rank])).toEqual([['org-north', 1], ['org-park', 2], ['org-camps', 3]]);
+    expect(byId(rows, 'org-north')).toMatchObject({ wins: 1, draws: 1, losses: 1, points: 0 });
+
+    // Under 3 / 1 / 0, Parktown's netball win at double weight puts it first.
+    const pointed = rollUpByOrganisation(divisions(THREE_ONE_ZERO), orgs, { scoring: THREE_ONE_ZERO });
+    expect(pointed[0].teamId).toBe('org-park');
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+
 describe('a result recorded as not provided', () => {
   const subjects = [team('a', 'Alpha'), team('b', 'Bravo')];
 

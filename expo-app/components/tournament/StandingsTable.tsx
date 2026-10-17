@@ -19,8 +19,9 @@ import { FormResult, crestOf, entrantName, orgName } from './standingsBits';
  *
  * **No points system is still a scoreboard** (UI doc §11): played / won / drawn / lost appears as
  * soon as any fixture is finished, and the points column is what configuration *adds*. A
- * tournament may also keep no scores at all (`SCORE-18`), so `showPoints` and `showScores` each
- * take their columns away.
+ * tournament scored on wins / draws / losses awards no points, so `showPoints` takes that column
+ * away; `showScores` does the same for For, Against and ±, for the *No Scores* system still parked
+ * in `SCORE-18`.
  *
  * Rows come from the server, never from a client-side calculation (D30). The choke point is the one
  * thing that writes a table, and a screen that recomputed it would be a second answer to a question
