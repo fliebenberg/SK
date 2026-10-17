@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { holdRunLock } from './runLock';
+import { holdRunLock } from './runLock.js';
 
 /**
  * End-to-end tests: the app on the web (Metro, :8081) against the dev API (:3001) and its database.
@@ -7,8 +7,8 @@ import { holdRunLock } from './runLock';
  * include the tournament *Test Spring Festival* (`fixtures/testOrgs.ts`). Run from the repo root:
  * `npm run e2e`. Both servers must be running (`npm run web` in expo-app, `npm run dev` in server).
  */
-// One run at a time: a second one waits here, before anything starts, for the one running
-// (runLock.ts). Playwright awaits a config given as a promise.
+// One session at a time: a run waits here, before anything starts, while another session has the
+// tests — running, or held between its runs (runLock.js). Playwright awaits a config given as a promise.
 export default holdRunLock().then(() => defineConfig({
   testDir: '.',
   testMatch: '**/*.spec.ts',

@@ -10,7 +10,9 @@
     "review:rugby": "node scripts/rugby-review.js",
     "interviews:pdf": "node scripts/interview-pdf.js",
     "e2e": "playwright test --config e2e/playwright.config.ts",
-    "e2e:report": "playwright show-report e2e/report"
+    "e2e:report": "playwright show-report e2e/report",
+    "e2e:release": "node e2e/runLock.js release",
+    "e2e:lock": "node e2e/runLock.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",

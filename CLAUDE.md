@@ -69,6 +69,13 @@ cannot reach. Never a palette shade, `brand-*`, hex or `rgba`: `npm run check:co
 `expo-app/` rejects them, and the pre-commit hook runs it. Restart Metro after changing the tokens.
 Tokens and rules: [okf/design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md).
 
+## End-to-end tests: release them when you are done
+
+`npm run e2e` holds the tests for your session for 15 minutes after each run, so you can fix and
+rerun without another session's run resetting the database under you; other sessions wait. **When you
+have finished with the e2e tests, run `npm run e2e:release`** so nobody waits out the hold.
+`npm run e2e:lock` says who has them. Details: [e2e/README.md](file:///c:/Fred/Coding/SK/e2e/README.md).
+
 ## Keep the docs in step
 
 Feature, schema, API and workflow changes must be reflected in `okf/` and `docs/` as part of the same
