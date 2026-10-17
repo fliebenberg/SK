@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { AddFixtureDialog } from './AddFixtureDialog';
 import { Ionicons } from '@expo/vector-icons';
 import {
   DEFAULT_SCORING_SYSTEM,
@@ -255,7 +256,7 @@ export function TournamentHome({
     return narrowed;
   }, [mine, allEntrantsByDivision, myEntrants]);
 
-  const [dialog, setDialog] = useState<null | 'details' | 'where' | 'when' | 'gaps' | 'scoring' | 'scheduleAll'>(null);
+  const [dialog, setDialog] = useState<null | 'details' | 'where' | 'when' | 'gaps' | 'scoring' | 'scheduleAll' | 'addFixture'>(null);
   const close = () => setDialog(null);
   const eventId = event.id;
   const setupMode = canEdit && !complete;
@@ -778,7 +779,7 @@ export function TournamentHome({
             </View>
           ) : null}
           {drawn.length ? <View>{groupLabel(`Drawn · ${drawn.length}`)}{drawnSorted.map(divisionRow)}</View> : null}
-          {link('＋ Add a fixture by hand', () => router.push(`/admin/${orgId}/events/${eventId}/games/new`))}
+          {canEdit && !dual ? link('＋ Add a fixture by hand', () => setDialog('addFixture')) : null}
         </View>
       );
     }
@@ -1045,6 +1046,7 @@ export function TournamentHome({
           <WhenDialog visible={dialog === 'when'} event={event} orgId={orgId} games={allGames} timeZone={timeZone} onClose={close} />
           <GapsDialog visible={dialog === 'gaps'} event={event} orgId={orgId} onClose={close} />
           <ScheduleAllDialog visible={dialog === 'scheduleAll'} event={event} divisions={allDivisions} games={allGames} sports={sports} orgId={orgId} onClose={close} />
+          {dialog === 'addFixture' ? <AddFixtureDialog event={event} orgId={orgId} onClose={close} /> : null}
         </>
       ) : null}
     </View>

@@ -55,7 +55,7 @@ type PhoneTab = 'overview' | 'teams' | 'events';
 export default function GamePage() {
   const router = useRouter();
   const safeBack = useSafeBack();
-  const { orgId, eventId, gameId, place } = useLocalSearchParams<{ orgId: string; eventId: string; gameId: string; place?: string }>();
+  const { orgId, eventId, gameId } = useLocalSearchParams<{ orgId: string; eventId: string; gameId: string }>();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const isDark = useActiveTheme() === 'dark';
@@ -104,12 +104,6 @@ export default function GamePage() {
   const permissions = getMatchPermissions({ game: summary || null, event, currentOrgId: orgId, user, orgMemberships, teamMemberships, capabilities });
   const canEdit = permissions.canEdit;
 
-  // Added by hand from a division (Add fixture → teams → here): its When & where opens straight away.
-  const [placedOnce, setPlacedOnce] = useState(false);
-  useEffect(() => {
-    if (place && !placedOnce && summary && isFixture && canEdit) { setPlacedOnce(true); setDialog('move'); }
-  }, [place, placedOnce, summary, isFixture, canEdit]);
-
   const backHref = isMatch ? `/admin/${orgId}/events` : `/admin/${orgId}/events/${eventId}`;
   const goBack = () => safeBack(backHref);
 
@@ -149,10 +143,11 @@ export default function GamePage() {
     if (mySides.length && moment !== 'done') actions.push({ label: picked ? 'Change team' : 'Pick team', onPress: pickTeam, primary: next === 'pick' });
     if (permissions.canScore) {
       if (moment === 'live') actions.push({ label: 'Score', onPress: score, primary: true });
-      else if (moment === 'done') actions.push({ label: 'Correct result', onPress: () => setDialog('result'), primary: true });
+      // The result dialog needs the full record: offered once it has arrived, so it never does nothing.
+      else if (moment === 'done') { if (game) actions.push({ label: 'Correct result', onPress: () => setDialog('result'), primary: true }); }
       else {
         actions.push({ label: 'Start scoring', onPress: score, primary: next === 'start' });
-        actions.push({ label: 'Record result', onPress: () => setDialog('result') });
+        if (game) actions.push({ label: 'Record result', onPress: () => setDialog('result') });
       }
     }
   }

@@ -113,14 +113,11 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     withdraw, and see their teams read-only.
 *   `/admin/[orgId]/events/[eventId]/games/[gameId]`: **One game's page** (stage 3, 2026-10-15) —
     the scoreboard, the teams' sheets, match events and when & where, read first; edited through its
-    dialogs (docs/events.md §9). Replaced the `view` and `edit` screens. `?place=1` opens a tournament
-    fixture's *When & where* straight away (from Add fixture).
-*   `/admin/[orgId]/events/[eventId]/games/new`, `/admin/[orgId]/events/[eventId]/games/[gameId]/selection`,
-    `/admin/[orgId]/events/[eventId]/games/[gameId]/score`: `score` is the **Scorekeeper Console** for
-    real-time event entry, and `selection` is Pick team; both come back to the game's page. `new`
-    (*Add fixture*) asks for the teams and picks the division and stage a tournament fixture belongs
-    to — silently where the collapse rule means there is only one of each (`FIX-12`) — then opens the
-    new game to place it.
+    dialogs (docs/events.md §9). Replaced the `view` and `edit` screens.
+*   `/admin/[orgId]/events/[eventId]/games/[gameId]/selection`, `/admin/[orgId]/events/[eventId]/games/[gameId]/score`:
+    `score` is the **Scorekeeper Console** for real-time event entry, and `selection` is Pick team;
+    both come back to the game's page. There is no `games/new` route since 2026-10-17 (`FIX-36`): a
+    tournament fixture is added with the Schedule's *Add a fixture* sheet, wherever it is opened.
 
 > **The collapse rule (U15) decides whether a route is ever reached.** A level with exactly one child
 > renders that child inline and shows no picker — so a tournament with one division shows that
@@ -131,8 +128,8 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
 > the shared rendering was `DivisionPanel`, so the inline case and the routed case could not drift
 > apart. **Revised 2026-10-12 (Phase 7):** the Schedule tab is now the tournament's schedule — a grid by facility on a wide screen, a list by start time on a phone — for any number of divisions, so it no longer collapses to one division's panel, and `DivisionPanel` is deleted. A division's fixtures live on its page (`DivisionFixturesCard`). The collapse rule still governs the pickers. Adding a second child restructures the screen,
 > which is **announced before it happens** rather than sprung on the organiser. It applies to the
-> pickers too: the entry screen shows no division picker when there is one division, and
-> `games/new` shows no division or stage picker in that case either.
+> pickers too: the entry screen shows no division picker when there is one division, and the
+> *Add a fixture* sheet shows no stage picker in that case either.
 
 > **The standings tab is one table with a division scope selector (U28), and the scope decides the
 > row rather than the filter (U29).** *All divisions* ranks the tournament's `scoringSubject` — for

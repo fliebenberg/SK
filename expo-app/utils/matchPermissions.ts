@@ -1,4 +1,4 @@
-import { Event, EventCapabilities, OrgMembership, TeamMembership } from '@sk/shared';
+import { Event, EventCapabilities, OrgMembership, TeamMembership, resolveEventType } from '@sk/shared';
 import { User } from '../store/authStore';
 
 /**
@@ -115,8 +115,17 @@ export function getMatchPermissions(params: {
   const canEdit = (isEventOrgWorkspace && isAdminOfEventOrg) || hasTournamentGrant;
   let canScore = isEventOwner || hasTournamentGrant;
 
-  let canEditTeam1Lineup = isEventOwner || hasTournamentGrant;
-  let canEditTeam2Lineup = isEventOwner || hasTournamentGrant;
+  /*
+   * Who picks a team (agreed 2026-10-14, stage 3): **each organisation picks its own.** In a single
+   * match the host's admins pick their side only, and the other organisation's admins and the
+   * team's coach pick theirs (below). A tournament's organisers still pick for every team, since
+   * nobody else can until organisations get their own grant there (`FIX-32`). The server's own
+   * per-side check is `SCORE-19`.
+   */
+  const isSingleMatch = resolveEventType(event).kind === 'SingleMatch';
+  const picksEveryTeam = !isSingleMatch && (isEventOwner || hasTournamentGrant);
+  let canEditTeam1Lineup = picksEveryTeam;
+  let canEditTeam2Lineup = picksEveryTeam;
 
   if (game) {
     const homeTeamId = game.participants?.[0]?.teamId;

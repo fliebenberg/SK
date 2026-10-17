@@ -8,7 +8,11 @@ and Sites ([sites.md](file:///c:/Fred/Coding/SK/docs/sites.md)). It is done in s
 1. **The list** — `/admin/[orgId]/events`. **Built 2026-10-04**, below.
 2. **The tournament page** — `/admin/[orgId]/events/[eventId]`. **Built 2026-10-04**: its first tab, below (§7).
 3. **One game page** in place of `games/[gameId]/view` and `edit` (`FIX-21`). **Built 2026-10-15**, below (§9).
-4. Later, if wanted: divisions, entrants and the other setup steps.
+4. **Schedule and Standings** — the tournament page's other two tabs (agreed 2026-10-13 as the next
+   step for the proof of concept). The Schedule was rebuilt in tournament Phase 7 and made the place
+   to change and add fixtures on 2026-10-16 (design rule 32), so this stage is mostly **Standings**:
+   what the tab shows and how it reads on a phone. Mockup first, as for the other stages. The
+   divisions, entrants and setup steps this line once named were done as `FIX-26` to `FIX-31`.
 
 **A Head to Head** (`H2H-1`, 2026-10-13) is the second entry in *New event*, between Match and
 Tournament: a tournament between two organisations, on the tournament page with its own cards. Its
@@ -453,7 +457,8 @@ first, at `events/[eventId]/divisions/[divisionId]`.
   Fixtures card — and of a Head to Head's pairing card — **Edit in the Schedule ›** opens the
   Schedule tab on this division, once it has fixtures; a division set by hand offers **Add fixtures
   in the Schedule ›** before it has any. Tapping a fixture still opens its game page, where *When &
-  where* moves it; the card's *＋ Add a fixture* is still the form.
+  where* moves it; the card's *＋ Add a fixture* opens the Schedule's own *Add a fixture* sheet in
+  place (`FIX-36`, 2026-10-17), for this division.
 - **The draw** is made from locked entries (`FIX-31`); an unlocked division's *Make the draw* lists,
   as warnings, what still waits — or, when nothing does, offers **Lock and make the draw** in one
   press (rule 3). The strip says the same: what is left, then *🔒 Lock entries*, then *Make the
@@ -569,9 +574,12 @@ with the Schedule's clash check over the whole tournament ([useScheduleCheck.ts]
 shared with the Schedule tab). Its link **Remove time and court** (was *Take its time away*) sends
 the fixture back to *Without a time*.
 
-**Add fixture** asks for the teams only (and the division and stage), then opens the new game with
-*When & where* showing — one way to place a tournament game everywhere. Closing it leaves the fixture
-*Without a time*.
+**Adding a fixture** outside the Schedule — the division page's *＋ Add a fixture* and the tournament
+page's *＋ Add a fixture by hand* — opens the Schedule's own *Add a fixture* sheet in place
+([AddFixtureDialog.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/AddFixtureDialog.tsx),
+`FIX-36`, 2026-10-17): the sides are the division's teams in play, so a hand-added fixture counts for
+them as a drawn one does, and its time and court have the Schedule's clash check. Left without a time,
+it waits under *Without a time*. The old `games/new` form, which added sides by team alone, is gone.
 
 **Clashes (`FIX-23`)** are the Schedule's check everywhere: a field booked over the same time (or
 ground it shares), a team in two games at once. A tournament fixture uses the tournament's own check;

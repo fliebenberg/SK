@@ -37,6 +37,7 @@ import { afterDayEndByDivision, isUnscheduled, scheduleModel } from '../../../..
 import { formatPlayingDay, instantToVenueInputs, venueTimeZone } from '../../../../../../../utils/dates';
 import { DivisionTeamsCard } from '../../../../../../../components/tournament/DivisionTeams';
 import { DivisionFixturesCard } from '../../../../../../../components/tournament/DivisionFixtures';
+import { AddFixtureDialog } from '../../../../../../../components/tournament/AddFixtureDialog';
 import { DivisionStandings } from '../../../../../../../components/tournament/DivisionStandings';
 import { DualPairingCard } from '../../../../../../../components/tournament/DualPairing';
 import { useLiveRoom } from '../../../../../../../hooks/useLiveRoom';
@@ -179,6 +180,7 @@ export default function DivisionScreen() {
   };
 
   const [dialog, setDialog] = useState<null | 'details' | 'format' | 'delete' | 'where' | 'when' | 'gaps' | 'organisers' | 'schedule' | 'reschedule'>(null);
+  const [addingFixture, setAddingFixture] = useState(false);
   const [adding, setAdding] = useState(false);
   const [replacing, setReplacing] = useState<TournamentEntrant | null>(null);
   const [drawDialog, setDrawDialog] = useState<null | 'make' | 'redo'>(null);
@@ -211,7 +213,8 @@ export default function DivisionScreen() {
   // Deleting the last division of a sport takes the sport out of the tournament, which is the
   // tournament's decision; once a game has started, nobody deletes it.
   const canDelete = canEditRecord && (canEditEvent || !lastOfSport);
-  const addFixture = () => router.push(`/admin/${orgId}/events/${eventId}/games/new`);
+  // The Schedule's add sheet, in place (`FIX-36`): the sides are this division's teams in play.
+  const addFixture = () => setAddingFixture(true);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -421,6 +424,7 @@ export default function DivisionScreen() {
       onDialog={setDrawDialog}
       scheduleOffer={scheduleReadiness({ event, division, sport })}
       footer={schedulingFooter}
+      onAddFixture={addFixture}
     />
   );
   const formatCard = (
@@ -586,6 +590,7 @@ export default function DivisionScreen() {
         onConfirm={handleDelete}
         onClose={() => setDialog(null)}
       />
+      {addingFixture ? <AddFixtureDialog event={event} orgId={orgId!} divisionId={division.id} onClose={() => setAddingFixture(false)} /> : null}
     </SafeAreaView>
   );
 }

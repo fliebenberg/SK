@@ -38,7 +38,7 @@ import { useActiveTheme } from '../../store/settingsStore';
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const SHOWN = 8;
 
-export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games, entrants, format, facilities, canEdit, started, entriesLocked, lockGaps, isWide, ownOrgId, dialog: dialogProp, onDialog, footer, scheduleOffer }: {
+export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games, entrants, format, facilities, canEdit, started, entriesLocked, lockGaps, isWide, ownOrgId, dialog: dialogProp, onDialog, footer, scheduleOffer, onAddFixture }: {
   orgId: string;
   eventId: string;
   divisionId: string;
@@ -66,6 +66,8 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
   footer?: React.ReactNode;
   /** Whether the draw can be scheduled straight away, or why not (Phase 7). */
   scheduleOffer?: { ok: true; minutes: number } | { ok: false; reason: string };
+  /** *＋ Add a fixture*: the Schedule's add sheet, opened by the page (`FIX-36`). */
+  onAddFixture: () => void;
 }) {
   const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
@@ -89,7 +91,7 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
   const byHand = format?.format === 'Festival';
   const isFirstStage = stage?.id === ordered[0]?.id;
   const stageStarted = stageGames.some(isPlayedFixture);
-  const addFixture = () => router.push(`/admin/${orgId}/events/${eventId}/games/new`);
+  const addFixture = onAddFixture;
 
   // When an organiser goes to make the draw of an open division with nothing waiting, it is locked
   // first, in the same press (`FIX-31` rule 3).

@@ -87,7 +87,7 @@ neither.
 
 Deactivating a team used to do nothing outside the Teams screens: it could still be picked for a new
 game or league, while the edit screen said it was "hidden from schedules". An inactive team is now
-**left out of the team pickers** — the game form (`MatchForm`, `games/new`) and a league season's
+**left out of the team pickers** — the game form (`MatchForm`) and a league season's
 registration — through `pickableTeams`, which keeps one that is **already chosen**, so editing an
 old game never quietly drops the team it was played by. The tournament entrant list already left
 them out (`getEventCandidateTeams`). Its games, results and roster are kept.

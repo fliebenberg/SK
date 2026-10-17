@@ -20,8 +20,7 @@ The current app can do the *first* and *last* few percent of this. You can creat
 sports and participating orgs, and once games exist it will keep live scores and a standings
 table. Everything in between — turning "four schools, three sports, five age groups" into
 sixty scheduled fixtures across eight fields — is manual, one fixture at a time, through
-[games/new.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/[orgId]/events/[eventId]/games/new.tsx).
-That is the gap this feature closes.
+`games/new.tsx` (since deleted). That is the gap this feature closes.
 
 ### The two shapes we are designing for
 
@@ -1013,7 +1012,7 @@ So that implementation starts from an accurate picture rather than this document
 | Event persistence, sports + orgs | [EventManager.ts:105](file:///c:/Fred/Coding/SK/server/src/managers/EventManager.ts#L105) — join tables, works |
 | Create screen | [create.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/[orgId]/events/create.tsx) — one 945-line screen for all three types |
 | Event detail | [[eventId].tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/[orgId]/events/[eventId].tsx) — Schedule / Standings / Settings tabs |
-| Adding a fixture | [games/new.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/[orgId]/events/[eventId]/games/new.tsx) — one at a time |
+| Adding a fixture | `games/new.tsx` — one at a time (deleted 2026-10-17, `FIX-36`: replaced by the Schedule's *Add a fixture* sheet) |
 | Standings | [standings.ts](file:///c:/Fred/Coding/SK/shared/src/utils/standings.ts) — pure, works, supports the org roll-up; **assumes exactly two participants** |
 | Game ↔ season link | `game_seasons` join table + `ADD_GAME_TO_SEASON` + season-screen UI — **the many-to-many D21 needs already exists**, but is only reachable from the league side |
 | `Game.participants` | already an array of `GameParticipant`; N competitors is representable |
