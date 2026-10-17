@@ -4,6 +4,7 @@ import { setIo } from '../wss/sockets';
 import { eventManager } from '../managers/EventManager';
 import { tournamentManager } from '../managers/TournamentManager';
 import { schedulingManager } from '../managers/SchedulingManager';
+import { lockForDraw } from './testHelpers/drawLock';
 
 /**
  * Tournaments Phase 7 — scheduling, against a real database.
@@ -136,9 +137,7 @@ async function main() {
         created.teamIds.push(id); teamIds.push(id);
       }
       await tournamentManager.setDivisionEntrants(division.id, teamIds.map((teamId, i) => ({ teamId, seed: i + 1 })));
-      await query(`UPDATE division_entrants SET status = 'accepted' WHERE division_id = $1`, [division.id]);
-      await (tournamentManager as any).syncOpenStageEntrants(division.id);
-      await tournamentManager.setDivisionLock(division.id, true, {});
+      await lockForDraw(division.id);
       await tournamentManager.generateStageFixtures(stage.id, 'create');
       divisions.push({ id: division.id, stageId: stage.id, sportId, age });
     }

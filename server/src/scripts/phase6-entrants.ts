@@ -10,6 +10,7 @@ import { canJoinRoom } from '../wss/roomAccess';
 import { canReadData } from '../wss/dataAccess';
 import { publishStageFixtures } from '../wss/tournaments';
 import { up as backfillStages } from './migrations/20260903_backfill_stages';
+import { acceptAll, lockForDraw } from './testHelpers/drawLock';
 
 /**
  * Tournaments Phase 6 — entrants, generation and standings, against a real database.
@@ -72,20 +73,6 @@ function expect(actual: unknown, expected: unknown, what: string): void {
   if (a !== b) failures.push(`${what}: expected ${b}, got ${a}`);
 }
 
-
-/**
- * The draw is made from locked entries (`FIX-31`): every team answered, then the lock. These tests are
- * about the draw, not the answers, so the teams are accepted as their organisations would.
- */
-async function acceptAll(divisionId: string) {
-  await pool.query(`UPDATE division_entrants SET status = 'accepted' WHERE division_id = $1 AND status = 'invited'`, [divisionId]);
-  await (tournamentManager as any).syncOpenStageEntrants(divisionId); // what an answer action does after it
-}
-async function lockForDraw(divisionId: string) {
-  await pool.query(`UPDATE division_entrants SET status = 'accepted' WHERE division_id = $1 AND status = 'invited'`, [divisionId]);
-  await (tournamentManager as any).syncOpenStageEntrants(divisionId); // what an answer action does after it
-  await tournamentManager.setDivisionLock(divisionId, true, {});
-}
 
 async function expectThrows(fn: () => Promise<unknown>, matching: RegExp, what: string): Promise<void> {
   checks++;

@@ -4,6 +4,7 @@ import pool from '../db';
 import { eventManager } from '../managers/EventManager';
 import { tournamentManager } from '../managers/TournamentManager';
 import { starterAgeGroupId } from './setup/ageGroupSeed';
+import { lockForDraw } from './testHelpers/drawLock';
 
 /**
  * Tournaments Phase 3 — the exit criterion, as a runnable check.
@@ -158,6 +159,9 @@ async function main() {
     'Ready',
     'a stage with entrants and no fixtures is Ready, which is what generation acts on'
   );
+
+  // The draw is made from locked entries (`FIX-31`); one lock covers both stages' draws.
+  await lockForDraw(division.id);
 
   // ---------------------------------------------------------------------------------------
   // 3. Generate both stages. The knockout is generated **first-round-placeholders and all**,

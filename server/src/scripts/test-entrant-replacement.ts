@@ -4,6 +4,7 @@ import pool from '../db';
 import { setIo } from '../wss/sockets';
 import { eventManager } from '../managers/EventManager';
 import { tournamentManager } from '../managers/TournamentManager';
+import { lockForDraw } from './testHelpers/drawLock';
 
 /**
  * Replacing and withdrawing entrants once a draw exists (2026-09-24), against a real database.
@@ -48,16 +49,6 @@ async function expectThrows(fn: () => Promise<unknown>, matching: RegExp, what: 
 const created = { eventIds: [] as string[], orgIds: [] as string[], teamIds: [] as string[] };
 
 /** Participant rows of a stage's fixtures, as `{ gameId, status, entrantId, teamId }`. */
-/**
- * The draw is made from locked entries (`FIX-31`): every team answered, then the lock. These tests are
- * about the draw, not the answers, so the teams are accepted as their organisations would.
- */
-async function lockForDraw(divisionId: string) {
-  await pool.query(`UPDATE division_entrants SET status = 'accepted' WHERE division_id = $1 AND status = 'invited'`, [divisionId]);
-  await (tournamentManager as any).syncOpenStageEntrants(divisionId); // what an answer action does after it
-  await tournamentManager.setDivisionLock(divisionId, true, {});
-}
-
 async function sides(stageId: string) {
   const res = await query(
     `SELECT g.id AS "gameId", g.status, gp.id AS "participantId", gp.entrant_id AS "entrantId",
