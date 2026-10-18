@@ -12,9 +12,11 @@ import { useViewScope, ViewScope } from '../../hooks/useMineAll';
  * organisation their organisation's. Only the choices that show something different are offered —
  * none to an organiser — and a saved one not offered here falls to the next one that is.
  */
-export function useTournamentScope({ orgId, canEdit, entrants, orgName }: {
+export function useTournamentScope({ orgId, hostOrgId, canEdit, entrants, orgName }: {
   /** The acting workspace: its role sets the first choice. */
   orgId?: string;
+  /** The tournament's host: from any other workspace, Admin and Staff start on My organisation. */
+  hostOrgId?: string;
   canEdit: boolean;
   entrants: TournamentEntrant[];
   orgName: (orgId?: string) => string | undefined;
@@ -29,7 +31,7 @@ export function useTournamentScope({ orgId, canEdit, entrants, orgName }: {
   const offersMine = !canEdit && myEntrants.length > 0;
   // Different from Mine and from All: the organisation has teams that are not the viewer's, and not every team is its.
   const offersOrg = !canEdit && orgEntrants.length > myEntrants.length && orgEntrants.length < entrants.length;
-  const [saved, setScope] = useViewScope(orgId);
+  const [saved, setScope] = useViewScope(orgId, !!hostOrgId && hostOrgId !== orgId);
   const scope: ViewScope = canEdit ? 'all'
     : saved === 'mine' ? (offersMine ? 'mine' : offersOrg ? 'org' : 'all')
     : saved === 'org' ? (offersOrg ? 'org' : offersMine ? 'mine' : 'all')

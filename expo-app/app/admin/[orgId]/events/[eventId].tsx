@@ -113,7 +113,7 @@ export default function EventDetails() {
    */
   const scheduleCanEdit = canEdit || !!capabilities?.convenesDivisionIds?.length || !!capabilities?.convenesSportIds?.length;
   const viewScope = useTournamentScope({
-    orgId, canEdit: scheduleCanEdit, entrants: entrants.filter(e => isEntrantEntered(e.status)),
+    orgId, hostOrgId: event?.orgId, canEdit: scheduleCanEdit, entrants: entrants.filter(e => isEntrantEntered(e.status)),
     orgName: id => event?.participatingOrgs?.find(o => o.id === id)?.name,
   });
 

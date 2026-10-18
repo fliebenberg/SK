@@ -195,7 +195,7 @@ export default function DivisionScreen() {
     () => (canEdit ? entrants : eventEntrantsAll.filter(e => e.divisionId === divisionId)).filter(e => isEntrantEntered(e.status)),
     [canEdit, entrants, eventEntrantsAll, divisionId]
   );
-  const scoped = useTournamentScope({ orgId, canEdit, entrants: divisionEntrants, orgName: id => event?.participatingOrgs?.find(o => o.id === id)?.name });
+  const scoped = useTournamentScope({ orgId, hostOrgId: event?.orgId, canEdit, entrants: divisionEntrants, orgName: id => event?.participatingOrgs?.find(o => o.id === id)?.name });
   const shownGames = scoped.narrowTo ? games.filter(scoped.keepsGame) : games;
 
   const [dialog, setDialog] = useState<null | 'details' | 'format' | 'delete' | 'where' | 'when' | 'gaps' | 'organisers' | 'schedule' | 'reschedule'>(null);

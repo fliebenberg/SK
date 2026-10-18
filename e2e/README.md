@@ -46,7 +46,10 @@ npm run e2e:report     # the last run's report, with traces of any failure
   events list against St Aldric's, its divisions from Doringkloof's age groups, *Pair all*, a division's games changed in its two
   columns, and St Aldric's accepting it and its teams; then *Test Head to Head*'s results, the same from both sides), then the game page (`11-game-page.spec.ts`), then the
   Standings tab (`12-standings.spec.ts`: the leaderboard and divisions on *Test Autumn Festival*, an organisation's
-  and a team's results pages, and the division page from both). A single file run on its own may therefore fail where the suite
+  and a team's results pages, and the division page from both), then the view choice across a tournament
+  (`13-view-scope.spec.ts`: Kwaggafontein's admin starting on My organisation, Taking part left whole, and the
+  choice following them to a division, the Schedule and the Standings), then To do (`14-todo.spec.ts`: Riverbend's
+  teams to answer on the Overview's card and on the To do page, with its sport filter). A single file run on its own may therefore fail where the suite
   passes.
 - **The phone runs first and only tests tagged `@phone`** — ones that read and change nothing — so it sees
   the data before the desktop tests change it.

@@ -24,13 +24,15 @@ function useEverythingFirst(orgId?: string | null) {
  * the tournament page, an organisation's page in a tournament (agreed 2026-10-10, `FIX-31`; *My
  * organisation* added 2026-10-17): pick one on a page and the others follow. Remembered on this
  * device. Until someone chooses, Admin and Staff of the workspace start on All and everyone else on
- * Mine. The tournament page offers all three; read it with this.
+ * Mine — except in a tournament another organisation hosts (`guest`), where the workspace's Admin
+ * and Staff start on My organisation: they are there for their own teams (agreed 2026-10-18,
+ * `FIX-24`). The tournament page offers all three; read it with this.
  */
-export function useViewScope(orgId?: string | null): [ViewScope, (next: ViewScope) => void] {
+export function useViewScope(orgId?: string | null, guest = false): [ViewScope, (next: ViewScope) => void] {
   const everythingFirst = useEverythingFirst(orgId);
   const saved = useSettingsStore(state => state.localOverrides[SCOPE_KEY]) as ViewScope | undefined;
   const setLocalOverride = useSettingsStore(state => state.setLocalOverride);
-  return [saved ?? (everythingFirst ? 'all' : 'mine'), next => setLocalOverride(SCOPE_KEY, next)];
+  return [saved ?? (everythingFirst ? (guest ? 'org' : 'all') : 'mine'), next => setLocalOverride(SCOPE_KEY, next)];
 }
 
 /**

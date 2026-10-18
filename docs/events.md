@@ -407,8 +407,8 @@ each division's stages.
 - **Someone outside the organisers with a team in it, or whose organisation has one** — a coach,
   an admin of a guest organisation — sees the whole page, with **Mine / My organisation / All** (the
   events list's one remembered choice, `useViewScope`; My organisation added 2026-10-17) on the line
-  above the cards: Mine narrows Sports & divisions, Taking part and Fixtures to their teams, My
-  organisation to their organisation's; Where, When and Rules stay whole. Only the choices that
+  above the cards: Mine narrows Sports & divisions and Fixtures to their teams, My organisation to
+  their organisation's; Where, When, Rules and — since 2026-10-18 — Taking part stay whole. Only the choices that
   differ are offered — an admin with no team of their own gets *My organisation / All*. The same
   choice, from `TournamentScope.tsx`, sits above the **Schedule** tab's toolbar (narrowing its
   fixtures), above the **Standings** tab (narrowing its Divisions list; the leaderboard is a
@@ -418,6 +418,42 @@ each division's stages.
   **Events** card — every tournament it is in, an invitation as a tinted row to answer — and a strip
   under its banner while one waits; the events list's invitations box names the team. Who sees what,
   and when, is still `FIX-25`'s to settle.
+
+**Decided 2026-10-18 (`FIX-24`, `FIX-32`, `FIX-25`).** Mockup: `mockups/tournament-participant.html`,
+the page as built with what is new tagged. **Built 2026-10-18 (phase 1):** the start on My
+organisation, Taking part left whole, and To do — its card and its page — with teams to answer as
+its one task so far ([TournamentTodo.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentTodo.tsx),
+`events/[eventId]/todo`). Naming a TBC place and picking a team per game (`FIX-32`) are not built yet.
+- **A taking-part organisation's admin starts on My organisation.** The host's Admin and Staff still
+  start on All (design_spec's role default); a guest organisation is there for its own teams.
+- **To do** replaces the amber *Your teams are invited* card, in the same place, once there is more
+  than invitations in it: teams to answer, TBC places to name, teams to pick, proposed teams to
+  confirm. It lists what the viewer answers for — a coach's own team, an admin's whole organisation —
+  whatever the switch shows, keeps today's title while invitations are all it holds, and goes when
+  empty. **An admin's card holds only their own tasks**: what only an admin can do (teams to answer,
+  TBC places), then team tasks with no coach, at most five, each group soonest first, and a line such
+  as *6 more for coaches · See all 11 ›*. More than three teams to answer are one row (*Accept all /
+  Answer each*). **See all** opens the tournament's **To do page** (`events/[eventId]/todo`):
+  everything, the admin's first, then each coach's with the coach named, with *All / Yours /
+  Coaches'*, sport and team filters. A coach's card holds only their own team's.
+- **Naming a TBC place**: the organisation's admin picks which of its teams fills it; its games keep
+  their times and fields. *We can't send a team* asks the organisers to take the place out, like a
+  withdrawal.
+- **A team is picked per game**, on the game page. A game nobody has picked for takes the team of the
+  latest earlier game in the tournament, shown as **Proposed** until confirmed or changed: one pick
+  fills a tournament, and nothing the coach has not looked at shows as picked. An unconfirmed
+  proposal follows the game it came from; the other side and the public see it as not yet picked;
+  the game's next step stays *Pick team*; once the game starts it stands. A *copy from a previous
+  game* button was rejected: a tap per game on the busiest day.
+- **The public** reach a tournament from public listings, or by following a team or organisation in
+  it, and get a read-only view of the same page. From when, whether it needs an account, and player
+  names (`PEOPLE-4`) are open.
+- **Who to contact** is left to the communication work (`COM-1`).
+- **The Overview adds To do and nothing more** (option A): a team's next game and its place stay on
+  Schedule and Standings, which the switch already narrows. A *Your teams* card and a *Your games*
+  list were set aside.
+- **Taking part always lists every organisation**, whatever the switch shows — it is who you are
+  playing. (Built today, Mine and My organisation narrow it.)
 
 ## 8. The division page (`FIX-27`)
 

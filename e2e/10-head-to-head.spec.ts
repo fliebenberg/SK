@@ -117,7 +117,9 @@ test.describe('a Head to Head, as the host', () => {
     await signIn(guest, USERS.sacAdmin);
     await guest.goto(`/admin/fx-org-sac/events/${made}`);
     await expect(guest.getByText('Test Hoërskool Doringkloof has invited you')).toBeVisible();
-    // Its four teams wait for an answer too, each with its own Accept; the first is the invitation's.
+    // Its four teams wait for an answer too — more than three, so one line with Accept all (FIX-24);
+    // the first Accept is the invitation's.
+    await expect(guest.getByTestId(/^todo-answers-/)).toBeVisible();
     await expect(guest.getByTestId(/^team-invite-/)).toHaveCount(4);
     await guest.getByRole('button', { name: '✓ Accept' }).first().click();
     await guest.getByText('✓ Accept', { exact: true }).last().click();

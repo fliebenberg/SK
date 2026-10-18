@@ -25,7 +25,7 @@ import {
 } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { lockGapsLine } from './DivisionEntries';
-import { TeamInvitationRows } from './TeamInvitations';
+import { TodoCard, useTournamentTodo } from './TournamentTodo';
 import { SegmentedControl } from '../SegmentedControl';
 import { TournamentScopeLine, useTournamentScope } from './TournamentScope';
 import { AddressMap } from '../address/AddressMap';
@@ -235,12 +235,12 @@ export function TournamentHome({
    * anyone outside the organisers with a team in the tournament, or whose organisation has one — the
    * events list's one choice (`useViewScope`), on the line above the cards. It narrows what every
    * card is given — the divisions, the rosters and the fixtures — to their teams or their
-   * organisation's, so the sections narrow without each one knowing why. Only the choices that show
+   * organisation's, so the sections narrow without each one knowing why. Taking part is the one card
+   * left whole (2026-10-18): it is who you are playing. Only the choices that show
    * something different are offered, and a saved one not offered here falls to the next wider.
    */
-  const teamMemberships = useAuthStore((state: any) => state.teamMemberships) || [];
   const everyEntrant = useMemo(() => Array.from(allEntrantsByDivision.values()).flat(), [allEntrantsByDivision]);
-  const scoped = useTournamentScope({ orgId, canEdit, entrants: everyEntrant, orgName: id => event.participatingOrgs?.find(o => o.id === id)?.name });
+  const scoped = useTournamentScope({ orgId, hostOrgId: event.orgId, canEdit, entrants: everyEntrant, orgName: id => event.participatingOrgs?.find(o => o.id === id)?.name });
   const { narrowTo } = scoped;
   const mine = !!narrowTo;
   const divisions = narrowTo ? allDivisions.filter(d => narrowTo.some(e => e.divisionId === d.id)) : allDivisions;
@@ -284,7 +284,8 @@ export function TournamentHome({
     setPairing(false);
   };
   const sportsSection = useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode, complete, mySportIds, timeZone: venueTimeZone(site as any, hostOrg as any) });
-  const orgs = useOrganisationsSection({ event, orgId, sports, divisions, entrantsByDivision, hostOrg, viewerOrgIds, canEdit, setupMode });
+  // Taking part is who you are playing: every organisation, whatever the switch shows (2026-10-18, `FIX-24`).
+  const orgs = useOrganisationsSection({ event, orgId, sports, divisions: allDivisions, entrantsByDivision: allEntrantsByDivision, hostOrg, viewerOrgIds, canEdit, setupMode });
   const openSportsPage = () => router.push(`/admin/${orgId}/events/${eventId}/sports` as any);
   const openOrgsPage = () => router.push(`/admin/${orgId}/events/${eventId}/organisations` as any);
 
@@ -600,8 +601,7 @@ export function TournamentHome({
   ) : null;
 
   const beforeDivisions = !playing.length;
-  // Mine: only the organisations with a team of the viewer's in it.
-  const orgRowsShown = mine ? orgs.visibleRows.filter(r => r.teams + r.players + r.toBeNamed > 0) : orgs.visibleRows;
+  const orgRowsShown = orgs.visibleRows;
   const orgsCard = orgRowsShown.length || canEdit ? (
     <TournamentCard
       title={dual && canEdit ? 'Playing against' : canEdit ? 'Organisations & teams' : 'Taking part'}
@@ -993,24 +993,21 @@ export function TournamentHome({
   const resultsA = anchor('results', resultsCard);
   if (resultsA) columns[0].unshift(resultsA);
 
-  // The teams this viewer answers for, still invited: theirs as coach, or any of an organisation they admin.
-  const coachTeamIds = new Set<string>(teamMemberships.filter((m: any) => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach').map((m: any) => m.teamId));
-  const invitationOf = (id?: string) => event.participatingOrgs?.find(o => o.id === id)?.invitation;
-  const myTeamInvitations = canEdit ? [] : Array.from(allEntrantsByDivision.values()).flat().filter(e =>
-    e.status === 'invited' && !allDivisions.find(d => d.id === e.divisionId)?.entriesLockedAt &&
-    ((!!e.teamId && coachTeamIds.has(e.teamId)) || (!!e.orgId && adminsOrg(e.orgId))) &&
-    !hasLeft(invitationOf(e.orgId) || 'accepted'));
+  // What the viewer still owes the tournament — teams to answer, for now (`FIX-24`): under the banner.
+  const todo = useTournamentTodo({ event, divisions: allDivisions, entrants: everyEntrant, canEdit, sports });
   const mineLine = <TournamentScopeLine {...scoped} isWide={isWide} allLabel="the whole tournament" />;
 
   return (
     <View ref={rootRef} collapsable={false} className="gap-4" onLayout={e => setRootWidth(e.nativeEvent.layout.width)}>
       {top}
-      <TeamInvitationRows
-        entrants={myTeamInvitations}
+      <TodoCard
+        tasks={todo.tasks}
+        rows={todo.rows}
         orgId={orgId}
         eventName={event.name}
-        divisionName={id => { const d = allDivisions.find(x => x.id === id); return d ? divisionFullName(d.name, sportName(d.sportId)) : ''; }}
         orgName={id => event.participatingOrgs?.find(o => o.id === id)?.name || 'Your organisation'}
+        onAnswerEach={pid => router.push(`/admin/${orgId}/events/${eventId}/organisations/${pid}` as any)}
+        onSeeAll={() => router.push(`/admin/${orgId}/events/${eventId}/todo` as any)}
       />
       {nextStrip}
       {mineLine}

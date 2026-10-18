@@ -111,6 +111,9 @@ the sidebar and the phone's workspace menu map over (`UI-27`): a new workspace p
     sport's ⋯ (*Sport organisers*, a dialog) and, while setting up, ＋ Add a … division.
     The U48 step screens (`setup/playing`, `setup/fixtures`, `entrants`) and their step chain were
     retired with `FIX-28` (2026-10-09).
+*   `/admin/[orgId]/events/[eventId]/todo`: **To do** (`FIX-24`, 2026-10-18) — everything a taking-part
+    organisation still owes the tournament, the viewer's own first, then its coaches'; the Overview
+    card's *See all ›*. [TournamentTodo.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentTodo.tsx).
 *   `/admin/[orgId]/events/[eventId]/organisations/[participantOrgId]`: One organisation in a
     tournament (`FIX-26`, 2026-10-08) — its invitation and response, and its teams in every division,
     saved through a save bar. Reached from the Organisations & teams card and its full page. Two readers (`FIX-30`):
