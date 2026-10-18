@@ -79,6 +79,11 @@ type Rule =
   | { kind: 'entrant-own-org' }
   /** Asking to enter a team (`FIX-33`): its organisation's admins, or its coach. */
   | { kind: 'request-entry' }
+  /**
+   * Naming a place kept for an organisation (`FIX-32`): its admins, with a team of its own. The
+   * place must be a placeholder of that organisation's; the rest is the manager's.
+   */
+  | { kind: 'own-placeholder' }
   | { kind: 'app-admin' }
   | { kind: 'signed-in' }
   /** A payload that names a user must name the caller. */
@@ -184,6 +189,9 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   [SocketAction.REQUEST_ENTRANT_WITHDRAWAL]: { kind: 'entrant-own-org' },
   [SocketAction.CANCEL_ENTRANT_REQUEST]: { kind: 'entrant-own-org' },
   [SocketAction.REQUEST_ENTRY]: { kind: 'request-entry' },
+  // A placeholder its organisation names itself (`FIX-32`): the organisation's own place, so the
+  // org gate's, not the organisers' — they replace through `REPLACE_ENTRANT`.
+  [SocketAction.NAME_OWN_PLACEHOLDER]: { kind: 'own-placeholder' },
   // Planning only since 2026-09-21 — the result is `RECORD_GAME_RESULT`'s, under the scoring gate.
   [SocketAction.UPDATE_GAME]: { kind: 'edit-fixture' },
   [SocketAction.DELETE_GAME]: { kind: 'edit-fixture' },
@@ -371,6 +379,21 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
           ? "Unauthorized: Only the team's organisation admins, its coach, or the division's organisers may answer for it."
           : "Unauthorized: Only the team's organisation admins or its coach may do that."
       );
+    }
+
+    case 'own-placeholder': {
+      const res = await pool.query(
+        `SELECT e.org_id, e.team_id, e.org_profile_id, t.org_id AS team_org_id
+           FROM division_entrants e LEFT JOIN teams t ON t.id = $3
+          WHERE e.id = $1 AND e.division_id = $2`,
+        [payload?.entrantId, payload?.divisionId, payload?.teamId]
+      );
+      const place = res.rows[0];
+      if (!place) throw refuse('Bad request: that place is not in this division.');
+      if (place.team_id || place.org_profile_id || !place.org_id) throw refuse('Bad request: that place already has a team.');
+      if (!place.team_org_id || place.team_org_id !== place.org_id) throw refuse("Bad request: name one of the organisation's own teams.");
+      if (await accessManager.isOrganizationAdmin(userId, place.org_id)) return;
+      throw refuse("Unauthorized: Only the organisation's admins may name its team.");
     }
 
     case 'request-entry': {

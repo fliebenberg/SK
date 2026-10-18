@@ -255,6 +255,12 @@ answer, mirroring its organisation's: `invited`, `accepted`, `declined`, `withdr
   the division is locked. The answer actions change it, each side to its rules
   (`TournamentManager.setEntrantAnswer` and the rest): the organisation's admins and a team's coach
   (org gate `answer-entrant`), the organisers (decline any time, accept once the organisation has).
+- **A placeholder kept for an organisation is its own to name** (`FIX-32`, 2026-10-18): an entrant
+  with `org_id` and no team or person. Its admins put one of its teams in the place
+  (`NAME_OWN_PLACEHOLDER`, org gate `own-placeholder`) — the same row, so the fixtures follow, as
+  `REPLACE_ENTRANT` does for the organisers — and that is the organisation's answer: it goes in
+  `accepted`. Giving the place up is the answers that exist: declined before the lock, a withdrawal
+  request after it.
 - **Who answered** is kept (`answered_*`), and a reason and who asked (`reason`, `requested_*`).
 - **The lock.** `tournament_divisions.entries_locked_at` is set by hand (`SET_DIVISION_LOCK`,
   `LOCK_EVENT_DIVISIONS`) and refused while a team is invited, a request waits, or a team's

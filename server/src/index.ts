@@ -3516,6 +3516,25 @@ io.on('connection', (socket) => {
                 break;
             }
 
+            // An organisation names its own placeholder (`FIX-32`): authorised by the org gate
+            // (`own-placeholder`), published as a replacement is.
+            case SocketAction.NAME_OWN_PLACEHOLDER: {
+                const p = action.payload;
+                const named = await runIdempotent(p.idempotencyKey, () =>
+                    tournamentManager.nameOwnPlaceholder(p.divisionId, p.entrantId, p.teamId, { userId: authUserId || null, orgId: p.orgId || null })
+                );
+                const namedEventId = await dataManager.getDivisionEventId(p.divisionId);
+                await publishEntrants(p.divisionId, await dataManager.getDivisionEntrants(p.divisionId), namedEventId || undefined);
+                for (const stage of await dataManager.getStages(p.divisionId)) {
+                    publishStageEntrants(p.divisionId, stage.id, await dataManager.getStageEntrants(stage.id));
+                }
+                publishStages(p.divisionId, await dataManager.getStages(p.divisionId));
+                await publishStandings(p.divisionId, namedEventId);
+                for (const gameId of named.changedGameIds) await publishGameSummary(gameId);
+                result = named.entrant;
+                break;
+            }
+
             case SocketAction.SET_STAGE_ENTRANTS: {
                 const entrantStage = await dataManager.getStage(action.payload.stageId);
                 if (!entrantStage) throw new Error('Stage not found.');

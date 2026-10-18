@@ -1005,6 +1005,18 @@ export interface SetEntrantAnswerPayload {
     reason?: string;
 }
 
+/** An organisation names its own team for a place kept for it (`FIX-32`). */
+export interface NameOwnPlaceholderPayload {
+    divisionId: string;
+    /** The placeholder: an entrant of the organisation's with no team yet. */
+    entrantId: string;
+    /** The acting workspace — the organisation whose place it is. */
+    orgId: string;
+    /** One of the organisation's teams, not already entered in the tournament. */
+    teamId: string;
+    idempotencyKey?: string;
+}
+
 /** After the lock, an organisation asks to withdraw one of its teams (`FIX-31`). */
 export interface RequestEntrantWithdrawalPayload {
     divisionId: string;
@@ -1318,6 +1330,7 @@ export interface ProtocolMap {
     [SocketAction.REQUEST_ENTRANT_WITHDRAWAL]: { payload: RequestEntrantWithdrawalPayload; response: TournamentEntrant };
     [SocketAction.CANCEL_ENTRANT_REQUEST]: { payload: CancelEntrantRequestPayload; response: { id: string } };
     [SocketAction.REQUEST_ENTRY]: { payload: RequestEntryPayload; response: TournamentEntrant };
+    [SocketAction.NAME_OWN_PLACEHOLDER]: { payload: NameOwnPlaceholderPayload; response: TournamentEntrant };
     [SocketAction.RESPOND_ENTRANT_REQUEST]: { payload: RespondEntrantRequestPayload; response: TournamentEntrant };
     [SocketAction.SET_DIVISION_LOCK]: { payload: SetDivisionLockPayload; response: TournamentDivision };
     [SocketAction.LOCK_EVENT_DIVISIONS]: { payload: LockEventDivisionsPayload; response: LockEventDivisionsResult };

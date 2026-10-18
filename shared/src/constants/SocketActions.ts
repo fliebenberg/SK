@@ -703,6 +703,15 @@ export enum SocketAction {
      */
     REQUEST_ENTRY = 'REQUEST_ENTRY',
     /**
+     * An organisation names one of its own teams for a place the organisers kept for it — a
+     * placeholder, "Riverbend second team, TBC" (`FIX-32`). Its admins only. The team takes the place
+     * and every fixture drawn against it, as `REPLACE_ENTRANT` does for the organisers, and naming it
+     * is the organisation's answer: it goes in accepted. "We can't send a team" is the existing
+     * answers — a decline while entries are open, a withdrawal request after the lock.
+     * Expects payload: `{ divisionId, entrantId, orgId, teamId }`
+     */
+    NAME_OWN_PLACEHOLDER = 'NAME_OWN_PLACEHOLDER',
+    /**
      * The organisers answer a request: a team asked to be added or entered late (`accepted` /
      * `rejected`), or a withdrawal (`withdrawn`, or kept in as `accepted`).
      * Expects payload: `{ divisionId, entrantId, orgId, accept }`

@@ -1431,6 +1431,36 @@ export class TournamentManager extends BaseManager {
   }
 
   /**
+   * An organisation names its own team for a place the organisers kept for it (`FIX-32`, agreed
+   * 2026-10-18). Who may — its admins, with a team of its own, for its own placeholder — is the
+   * gate's. The team takes the place as `replaceEntrant` hands it on: the same row, so every fixture
+   * drawn against the place now names the team. Naming it is the organisation's answer, so a team that
+   * would come in invited goes in accepted, answered by the organisation.
+   */
+  async nameOwnPlaceholder(
+    divisionId: string,
+    entrantId: string,
+    teamId: string,
+    actor: { userId?: string | null; orgId?: string | null }
+  ): Promise<{ entrant: TournamentEntrant; changedGameIds: string[] }> {
+    const place = await this.entrantContext(divisionId, entrantId);
+    if (place.teamId) throw new Error('That place already has a team.');
+    if (place.status !== 'accepted') throw new Error('That place is no longer in the division.');
+    if (place.invitation === 'declined' || place.invitation === 'withdrawn') {
+      throw new Error("Your organisation is no longer taking part, so it can't name a team. Contact the organisers.");
+    }
+    const outcome = await this.replaceEntrant({ divisionId, entrantId, teamId });
+    await this.query(
+      `UPDATE division_entrants
+          SET status = 'accepted', answered_at = NOW(), answered_by_user_id = $2, answered_by_org_id = $3, updated_at = NOW()
+        WHERE id = $1 AND status = 'invited'`,
+      [outcome.entrantId, actor.userId || null, place.orgId]
+    );
+    await this.syncDivisions([divisionId]);
+    return { entrant: (await this.getEntrant(outcome.entrantId))!, changedGameIds: outcome.changedGameIds };
+  }
+
+  /**
    * The organisation takes back a request the organisers have not answered: a withdrawal (the team
    * stays accepted, as if never asked) or a team it asked to add (the request goes — it was never in).
    */

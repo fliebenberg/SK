@@ -557,7 +557,13 @@ export const TEST_ORGS: FixtureOrg[] = [
  */
 export interface FixtureTournamentTeam {
     org: string;
+    /** The organisation's team key — or, with `placeholder`, the key of its place ("tbc"). */
     team: string;
+    /**
+     * A place kept for the organisation, its team still to be named ("Riverbend second team, TBC"):
+     * no team, this label — the organisation names it itself (`FIX-32`). Never in a drawn division.
+     */
+    placeholder?: string;
     status: 'invited' | 'accepted' | 'declined' | 'withdrawal_pending' | 'withdrawn' | 'requested' | 'rejected';
     /** Who answered, or asked — someone listed with an account. */
     by?: string;
@@ -620,8 +626,9 @@ export interface FixtureTournament {
  * added but not invited yet. Between them its divisions hold every answer:
  *
  * - **Rugby U16**, open: the host's team accepted, St Aldric's accepted by its coach, Riverbend's
- *   still invited, Kwaggafontein's *Not invited yet*, and St Aldric's 1st XV added by the organisation
- *   and waiting for approval (the tournament lets organisations add teams).
+ *   still invited, Kwaggafontein's *Not invited yet*, St Aldric's 1st XV added by the organisation
+ *   and waiting for approval (the tournament lets organisations add teams), and a place the organisers
+ *   kept for Riverbend's second team, still to be named (`FIX-32`).
  * - **Netball U14**, locked: St Aldric's asks to withdraw its team, with a reason, and asks to enter
  *   its U16 netball team late.
  * - **Netball U16**, open, with adding turned off for this division: St Aldric's declined, with a
@@ -649,6 +656,7 @@ export const TEST_TOURNAMENTS: FixtureTournament[] = [
                     { org: 'rbh', team: 'rugby-u16a', status: 'invited' },
                     { org: 'ksc', team: 'rugby-u16', status: 'invited' },
                     { org: 'sac', team: 'rugby-1stxv', status: 'requested', by: 'Catherine Whitfield', reason: 'Our 1st XV would like a run before the season.' },
+                    { org: 'rbh', team: 'tbc', placeholder: 'Riverbend second team, TBC', status: 'accepted' },
                 ],
             },
             {

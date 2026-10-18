@@ -423,7 +423,9 @@ each division's stages.
 the page as built with what is new tagged. **Built 2026-10-18 (phase 1):** the start on My
 organisation, Taking part left whole, and To do — its card and its page — with teams to answer as
 its one task so far ([TournamentTodo.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentTodo.tsx),
-`events/[eventId]/todo`). Naming a TBC place and picking a team per game (`FIX-32`) are not built yet.
+`events/[eventId]/todo`). **Phase 2, built 2026-10-18:** naming a TBC place — a To do task for the
+organisation's admins, *Name the team*, and its dialog (`NAME_OWN_PLACEHOLDER`). Picking a team per game
+(`FIX-32`, phase 3) is not built yet.
 - **A taking-part organisation's admin starts on My organisation.** The host's Admin and Staff still
   start on All (design_spec's role default); a guest organisation is there for its own teams.
 - **To do** replaces the amber *Your teams are invited* card, in the same place, once there is more
@@ -436,9 +438,11 @@ its one task so far ([TournamentTodo.tsx](file:///c:/Fred/Coding/SK/expo-app/com
   Answer each*). **See all** opens the tournament's **To do page** (`events/[eventId]/todo`):
   everything, the admin's first, then each coach's with the coach named, with *All / Yours /
   Coaches'*, sport and team filters. A coach's card holds only their own team's.
-- **Naming a TBC place**: the organisation's admin picks which of its teams fills it; its games keep
-  their times and fields. *We can't send a team* asks the organisers to take the place out, like a
-  withdrawal.
+- **Naming a TBC place**: the organisation's admin picks which of its teams fills it — of the
+  division's sport, its age group first, none already in the tournament — and its games keep their
+  times and fields; the team goes in accepted. *We can't send a team* uses the answers that exist:
+  while entries are open the place is declined, as a team is; once they are locked it is a
+  withdrawal request, with a reason, for the organisers to confirm.
 - **A team is picked per game**, on the game page. A game nobody has picked for takes the team of the
   latest earlier game in the tournament, shown as **Proposed** until confirmed or changed: one pick
   fills a tournament, and nothing the coach has not looked at shows as picked. An unconfirmed

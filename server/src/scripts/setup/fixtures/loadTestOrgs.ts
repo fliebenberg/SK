@@ -492,13 +492,17 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
                 tour.format === 'Dual' ? [stageId, divisionId, 'Games', 'Festival', 1] : [stageId, divisionId, 'Fixtures', 'RoundRobin', 1]);
             for (const [seed, entry] of division.teams.entries()) {
                 const org = TEST_ORGS.find(o => o.key === entry.org);
-                if (!org?.teams.some(t => t.key === entry.team)) throw new Error(`Tournament ${tour.key}: there is no team ${entry.team} in ${entry.org}.`);
+                if (entry.placeholder ? division.drawn : !org?.teams.some(t => t.key === entry.team)) {
+                    throw new Error(entry.placeholder
+                        ? `Tournament ${tour.key}, ${division.key}: a drawn division has no placeholders.`
+                        : `Tournament ${tour.key}: there is no team ${entry.team} in ${entry.org}.`);
+                }
                 const entrantId = fixtureIds.entrant(tour.key, division.key, entry.org, entry.team);
                 const asked = entry.status === 'requested' || entry.status === 'withdrawal_pending';
                 const answered = !asked && entry.status !== 'invited' && !!entry.by;
                 await insert('division_entrants',
-                    ['id', 'division_id', 'team_id', 'org_id', 'seed', 'status', 'answered_at', 'answered_by_user_id', 'answered_by_org_id', 'reason', 'requested_at', 'requested_by_user_id'],
-                    [entrantId, divisionId, fixtureIds.team(entry.org, entry.team), fixtureIds.org(entry.org), seed + 1, entry.status,
+                    ['id', 'division_id', 'team_id', 'label', 'org_id', 'seed', 'status', 'answered_at', 'answered_by_user_id', 'answered_by_org_id', 'reason', 'requested_at', 'requested_by_user_id'],
+                    [entrantId, divisionId, entry.placeholder ? null : fixtureIds.team(entry.org, entry.team), entry.placeholder ?? null, fixtureIds.org(entry.org), seed + 1, entry.status,
                      answered ? FIXTURE_MEMBERSHIP_START : null, answered ? userOf(entry.by) : null, answered ? fixtureIds.org(entry.org) : null,
                      entry.reason ?? null, asked ? FIXTURE_MEMBERSHIP_START : null, asked ? userOf(entry.by) : null]);
                 // The stage takes the teams in play, as `syncOpenStageEntrants` would.

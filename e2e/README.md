@@ -49,7 +49,8 @@ npm run e2e:report     # the last run's report, with traces of any failure
   and a team's results pages, and the division page from both), then the view choice across a tournament
   (`13-view-scope.spec.ts`: Kwaggafontein's admin starting on My organisation, Taking part left whole, and the
   choice following them to a division, the Schedule and the Standings), then To do (`14-todo.spec.ts`: Riverbend's
-  teams to answer on the Overview's card and on the To do page, with its sport filter). A single file run on its own may therefore fail where the suite
+  teams to answer and its place to name on the Overview's card and on the To do page, with its sport filter; on the
+  desktop, last, Riverbend naming the place with its 1st XV). A single file run on its own may therefore fail where the suite
   passes.
 - **The phone runs first and only tests tagged `@phone`** — ones that read and change nothing — so it sees
   the data before the desktop tests change it.
