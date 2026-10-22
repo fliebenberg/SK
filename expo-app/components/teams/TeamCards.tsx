@@ -209,7 +209,7 @@ function SectionLabel({ text }: { text: string }) {
   return <Text className="font-inter-bold text-xs uppercase tracking-wider text-ink-muted mt-1 mb-0.5">{text}</Text>;
 }
 
-function RecordStrip({ record }: { record: ReturnType<typeof recordOf> }) {
+export function RecordStrip({ record }: { record: ReturnType<typeof recordOf> }) {
   const [width, setWidth] = useState(0);
   const cells: { label: string; value: string; tone?: string }[] = [
     { label: 'Played', value: String(record.played) },
@@ -236,6 +236,42 @@ function RecordStrip({ record }: { record: ReturnType<typeof recordOf> }) {
   );
 }
 
+/**
+ * A list of the team's games, each opening its page — the Games tab's (still to play) and the
+ * Results tab's (played), and the Overview's few (team page tabs, 2026-10-22).
+ */
+export function GameList({ games, teamId, eventNames, canEdit, onOpen, onPickTeam, empty }: {
+  games: GameSummary[];
+  teamId: string;
+  eventNames: Map<string, string>;
+  canEdit: boolean;
+  onOpen: (game: GameSummary) => void;
+  onPickTeam: (game: GameSummary) => void;
+  empty?: string;
+}) {
+  if (!games.length) return empty ? <CardNote text={empty} /> : null;
+  return (
+    <View>
+      {games.map((g, i) => (
+        <GameRow key={g.id} game={g} teamId={teamId} eventName={eventNames.get(g.eventId)} first={i === 0} canEdit={canEdit} onOpen={onOpen} onPickTeam={onPickTeam} />
+      ))}
+    </View>
+  );
+}
+
+/** The last results as chips, newest first. */
+export function FormChips({ form }: { form: Outcome[] }) {
+  return (
+    <View className="flex-row gap-1" accessibilityLabel={`Form: ${form.map(o => OUTCOME[o].label).join(', ')}`}>
+      {form.map((o, i) => (
+        <View key={i} className="w-5 h-5 rounded-md items-center justify-center" style={{ backgroundColor: OUTCOME[o].bg }}>
+          <Text className="font-inter-bold text-[11px] text-on-fill">{OUTCOME[o].letter}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 // colour-data: dark fills under a white letter, the same in both themes, so not theme tokens.
 const OUTCOME: Record<Outcome, { letter: string; bg: string; label: string }> = {
   w: { letter: 'W', bg: '#065F46', label: 'Won' }, // colour-data: see above
@@ -243,7 +279,7 @@ const OUTCOME: Record<Outcome, { letter: string; bg: string; label: string }> = 
   l: { letter: 'L', bg: '#991B1B', label: 'Lost' }, // colour-data: see above
 };
 
-function GameRow({ game, teamId, eventName, first, canEdit, onOpen, onPickTeam }: {
+export function GameRow({ game, teamId, eventName, first, canEdit, onOpen, onPickTeam }: {
   game: GameSummary;
   teamId: string;
   eventName?: string;

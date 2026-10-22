@@ -383,6 +383,35 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
                  facility ? fixtureIds.facility(host.key, facility.key) : null, result, game.timeTbd ? { timeTbd: true } : {}]);
             await insert('game_participants', ['id', 'game_id', 'team_id', 'sort_order'], [homeId, fixtureIds.game(org.key, game.key), homeTeam, 0]);
             await insert('game_participants', ['id', 'game_id', 'team_id', 'sort_order'], [awayId, fixtureIds.game(org.key, game.key), awayTeam, 1]);
+
+            // The team's sheet and its match events, as the scoring screens record them.
+            const oursId = game.home ? homeId : awayId;
+            const playerName = (p: (typeof team.players)[number]) => typeof p === 'string' ? p : p.name;
+            if (game.sheet) {
+                for (const [n, player] of team.players.slice(0, 15).entries()) {
+                    await insert('game_rosters', ['id', 'game_participant_id', 'org_profile_id', 'position', 'jersey_number', 'is_reserve'],
+                        [`fx-roster-${oursId}-${n + 1}`, oursId, fixtureIds.profile(org.key, playerName(player)), String(n + 1), n + 1, false]);
+                }
+            }
+            const KINDS = {
+                try: { type: 'SCORE', subType: 'try', templateName: 'Try', points: 5 },
+                conversion: { type: 'SCORE', subType: 'conversion', templateName: 'Conversion', points: 2, outcome: 'successful', outcomeName: 'Successful' },
+                missed_conversion: { type: 'SCORE', subType: 'conversion', templateName: 'Conversion', points: 0, outcome: 'missed', outcomeName: 'Missed' },
+                penalty_kick: { type: 'SCORE', subType: 'penalty_kick', templateName: 'Penalty Kick', points: 3, outcome: 'successful', outcomeName: 'Successful' },
+                yellow_card: { type: 'GAME_EVENT', subType: 'yellow_card', templateName: 'Yellow Card' },
+            } as const;
+            const total = (game.events || []).reduce((sum, e) => sum + ((KINDS[e.kind] as any).points || 0), 0);
+            if (game.events?.length && game.score && total !== game.score[0]) {
+                throw new Error(`Game ${game.key}: its events add up to ${total}, not the ${game.score[0]} scored.`);
+            }
+            for (const [n, e] of (game.events || []).entries()) {
+                if (!team.players.some(p => playerName(p) === e.player)) throw new Error(`Game ${game.key}: ${e.player} does not play for ${team.name}.`);
+                const { type, subType, ...labels } = KINDS[e.kind] as any;
+                const points = labels.points;
+                await insert('game_events', ['id', 'game_id', 'sequence', 'game_participant_id', 'actor_org_profile_id', 'type', 'sub_type', 'event_data'],
+                    [`fx-event-${oursId}-${n + 1}`, fixtureIds.game(org.key, game.key), n + 1, oursId, fixtureIds.profile(org.key, e.player), type, subType,
+                     { ...labels, ...(points != null ? { templateId: subType, pointsDelta: points } : {}), period: n < (game.events!.length / 2) ? '1st Half' : '2nd Half', elapsedMS: (n + 1) * 6 * 60 * 1000 }]);
+            }
         }
     }
 

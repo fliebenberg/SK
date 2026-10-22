@@ -1613,6 +1613,9 @@ io.on('connection', (socket) => {
             case 'games':
                 callback(await dataManager.getGames(orgId));
                 break;
+            case 'team_season_stats':
+                callback(await dataManager.getTeamSeasonStats(request.teamId, Number(request.season)));
+                break;
             case 'team_games':
                 callback(await dataManager.getGamesByTeam(request.teamId || id));
                 break;

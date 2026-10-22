@@ -171,7 +171,8 @@ export function Tabs<T extends string = string>({
                 color={isActive ? themeColor(isDark, 'ink') : themeColor(isDark, 'ink-muted')}
               />
             )}
-            <View className="min-w-0 flex-shrink">
+            {/* In a strip that scrolls, a label keeps its width — the strip moves, the word does not wrap. */}
+            <View className={scrollable ? '' : 'min-w-0 flex-shrink'}>
               <Text
                 className={`font-inter-bold text-xs text-center ${
                   isActive ? 'text-ink' : 'text-ink-muted'
@@ -215,6 +216,8 @@ export function Tabs<T extends string = string>({
         ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
+        // Fills the width when the tabs fit, as a strip that does not scroll does.
+        contentContainerStyle={{ flexGrow: 1 }}
         onLayout={e => {
           viewportWidth.current = e.nativeEvent.layout.width;
         }}

@@ -141,6 +141,13 @@ export interface FixtureGame {
     score?: [number, number];
     /** Finished, with the result recorded as not provided. */
     scoreNotProvided?: boolean;
+    /** A team sheet: the team's first fifteen players, numbered and in position 1 to 15. */
+    sheet?: boolean;
+    /**
+     * Match events for this team, in order — what the team page's player statistics count. They
+     * must add up to the team's score; a missed conversion is an attempt worth nothing.
+     */
+    events?: Array<{ player: string; kind: 'try' | 'conversion' | 'missed_conversion' | 'penalty_kick' | 'yellow_card' }>;
 }
 
 export interface FixtureFacility {
@@ -318,11 +325,30 @@ export const TEST_ORGS: FixtureOrg[] = [
         // U16 A's season, for the team page's Games card: wins, a draw, a loss, a result recorded
         // as not provided, a cancelled game, and three to come — one with its time not set.
         games: [
-            { key: 'u16a-r1', event: 'Winter league round 1', team: 'rugby-u16a', opponent: { org: 'sac', team: 'rugby-u16a' }, home: true, kickoff: '2026-08-15T08:00:00Z', status: 'Finished', score: [21, 10] },
-            { key: 'u16a-r2', event: 'Winter league round 2', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: false, kickoff: '2026-08-22T08:30:00Z', status: 'Finished', score: [14, 14] },
-            { key: 'u16a-r3', event: 'Winter league round 3', team: 'rugby-u16a', opponent: { org: 'ksc', team: 'rugby-u16' }, home: true, kickoff: '2026-08-29T08:00:00Z', status: 'Finished', score: [7, 19] },
+            // Team sheets for the first four league rounds, and match events for three of them: the
+            // team page's player statistics (2026-10-22) — Dian Ferreira tops the tries.
+            { key: 'u16a-r1', event: 'Winter league round 1', team: 'rugby-u16a', opponent: { org: 'sac', team: 'rugby-u16a' }, home: true, kickoff: '2026-08-15T08:00:00Z', status: 'Finished', score: [21, 10],
+              sheet: true, events: [
+                { player: 'Dian Ferreira', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
+                { player: 'Lwazi Ndlovu', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
+                { player: 'Bernard Visser', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
+              ] },
+            { key: 'u16a-r2', event: 'Winter league round 2', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: false, kickoff: '2026-08-22T08:30:00Z', status: 'Finished', score: [14, 14],
+              sheet: true, events: [
+                { player: 'Dian Ferreira', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
+                { player: 'Neo Mahlangu', kind: 'yellow_card' },
+                { player: 'Marco du Plessis', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
+              ] },
+            { key: 'u16a-r3', event: 'Winter league round 3', team: 'rugby-u16a', opponent: { org: 'ksc', team: 'rugby-u16' }, home: true, kickoff: '2026-08-29T08:00:00Z', status: 'Finished', score: [7, 19], sheet: true },
             { key: 'u16a-friendly', event: 'Friendly', team: 'rugby-u16a', opponent: { org: 'sac', team: 'rugby-u16a' }, home: false, kickoff: '2026-09-05T08:00:00Z', status: 'Finished', scoreNotProvided: true },
-            { key: 'u16a-r4', event: 'Winter league round 4', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: true, kickoff: '2026-09-12T08:00:00Z', status: 'Finished', score: [31, 5] },
+            { key: 'u16a-r4', event: 'Winter league round 4', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: true, kickoff: '2026-09-12T08:00:00Z', status: 'Finished', score: [31, 5],
+              sheet: true, events: [
+                { player: 'Dian Ferreira', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
+                { player: 'Lwazi Ndlovu', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'missed_conversion' },
+                { player: 'Dian Ferreira', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
+                { player: 'Hanro Smit', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'missed_conversion' },
+                { player: 'Stefan Engelbrecht', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
+              ] },
             { key: 'u16a-r5', event: 'Winter league round 5', team: 'rugby-u16a', opponent: { org: 'ksc', team: 'rugby-u16' }, home: false, kickoff: '2026-09-19T08:00:00Z', status: 'Cancelled' },
             { key: 'u16a-r6', event: 'Winter league round 6', team: 'rugby-u16a', opponent: { org: 'sac', team: 'rugby-u16a' }, home: true, kickoff: '2026-10-10T07:00:00Z', status: 'Scheduled' },
             { key: 'u16a-r7', event: 'Winter league round 7', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: false, kickoff: '2026-10-17T08:30:00Z', status: 'Scheduled' },

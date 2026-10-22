@@ -110,6 +110,7 @@ export class DataManager {
 
   // Memberships
   getTeamMembers = (teamId: string) => teamManager.getTeamMembers(teamId);
+  getTeamSeasonStats = (teamId: string, season: number) => teamManager.getTeamSeasonStats(teamId, season);
   getTeamMembership = (id: string) => teamManager.getTeamMembership(id);
   addTeamMember = (membership: TeamMembership) => teamManager.addTeamMember(membership);
   updateTeamMember = (id: string, data: Partial<TeamMembership>) => teamManager.updateTeamMember(id, data);

@@ -10,13 +10,17 @@ import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { EditLink } from '../../../../components/ReadCard';
 import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
-import { JumpBar, useJumpSections } from '../../../../components/JumpBar';
 import { InviteModal, isOnScoreKeeper, useInviteCooldownHours } from '../../../../components/InviteToScoreKeeper';
 import { AddPersonDialog } from '../../../../components/people/AddPersonDialog';
 import { OrgRole } from '../../../../components/people/PersonDialogs';
 import { guardianshipOf } from '../../../../components/people/PersonBits';
-import { PLAYER_ROLE, TeamCrest, opponentOf, staffRank } from '../../../../components/teams/TeamBits';
-import { CardNote, GamesCard, RosterRow, SectionCard, ShowMore } from '../../../../components/teams/TeamCards';
+import { PLAYER_ROLE, TeamCrest, isUpcoming, staffRank, teamStatistics } from '../../../../components/teams/TeamBits';
+import { CardNote, FormChips, GameList, RecordStrip, RosterRow, SectionCard, ShowMore } from '../../../../components/teams/TeamCards';
+import { Tabs } from '../../../../components/Tabs';
+import CustomSelect from '../../../../components/CustomSelect';
+import { useOrgSites } from '../../../../hooks/useOrgSites';
+import { useTeamSeasonStats } from '../../../../hooks/useTeamSeasonStats';
+import { currentSeason, seasonOf, whenMs } from '../../../../utils/dates';
 import { AddPlayersDialog, AddStaffDialog, ChangeRoleDialog, TeamDetailsDialog, TeamRole } from '../../../../components/teams/TeamDialogs';
 import { useOrgTeams } from '../../../../hooks/useOrgTeams';
 import { useTeamRoster } from '../../../../hooks/useTeamRoster';
@@ -34,13 +38,26 @@ import { themeColor } from '../../../../constants/Colors';
 import { PageBody } from '../../../../components/PageBody';
 
 type Dialog = 'edit' | 'players' | 'staff' | 'deactivate' | 'delete' | null;
-type Section = 'players' | 'staff' | 'events' | 'games';
+type Tab = 'overview' | 'games' | 'results' | 'players' | 'competitions';
+const TABS: Array<{ key: Tab; label: string }> = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'games', label: 'Games' },
+  { key: 'results', label: 'Results' },
+  { key: 'players', label: 'Players' },
+  { key: 'competitions', label: 'Competitions' },
+];
 
 /** Players shown before "Show all", while no search is on. */
 const PLAYERS_SHOWN = 15;
 
 /**
- * One team (docs/teams.md).
+ * One team (docs/teams.md), in tabs since 2026-10-22 (`mockups/team-tabs.html`; the tournament and
+ * division pages have them too): **Overview** (live now and next, the last result, the season's
+ * record and form, the squad in short, its competitions), **Games** (still to play, every
+ * competition), **Results** (the season's statistics and results — on a phone a Statistics |
+ * Results switch, statistics first), **Players** (the squad with each player's season, then the
+ * staff) and **Competitions**. A **season** — for now the calendar year — is chosen in the banner
+ * and the page follows it; Games is always what is still to play.
  *
  * Read-first (design_system.md, *Read-first record pages*): it replaced a read-only view screen and
  * a five-tab edit screen with a save bar on 2026-10-03. The banner carries the team's identity and
@@ -57,7 +74,10 @@ export default function TeamPage() {
   const isDark = useActiveTheme() === 'dark';
   const router = useRouter();
   const safeBack = useSafeBack();
-  const { orgId, teamId } = useLocalSearchParams<{ orgId: string; teamId: string }>();
+  const { orgId, teamId, tab: tabParam } = useLocalSearchParams<{ orgId: string; teamId: string; tab?: string }>();
+  const [tab, setTab] = useState<Tab>(() => (TABS.some(t => t.key === tabParam) ? (tabParam as Tab) : 'overview'));
+  const [season, setSeason] = useState<number>(currentSeason());
+  const [resultsView, setResultsView] = useState<'stats' | 'list'>('stats');
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
   const isNarrow = width < 640;
@@ -74,8 +94,6 @@ export default function TeamPage() {
   const teamMemberships = useAuthStore((state: any) => state.teamMemberships) || [];
   const coachesThis = teamMemberships.some((m: any) => m.teamId === teamId && (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach'));
   const canAnswer = user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || coachesThis;
-  /** Where the wide layout's right column starts, for the strip's jump to Events. */
-  const [wideEventsY, setWideEventsY] = useState(0);
   const { org } = useOrgSummary(orgId);
   const { members } = useOrgMembers(orgId);
   const { byPlayer: guardiansByPlayer } = useOrgGuardians(orgId);
@@ -97,8 +115,8 @@ export default function TeamPage() {
   const [isBusy, setIsBusy] = useState(false);
   const [busyError, setBusyError] = useState<string | null>(null);
 
-  // The phone's jump buttons: where each card starts, and which one is in view.
-  const jump = useJumpSections<Section>(['players', 'staff', 'events', 'games'], isWide ? 24 : 12);
+  const { sites } = useOrgSites(orgId);
+  const seasonStats = useTeamSeasonStats(teamId, season);
 
   const team = teams.find(t => t.id === teamId) || null;
   const back = () => safeBack(`/admin/${orgId}/teams`);
@@ -122,9 +140,6 @@ export default function TeamPage() {
   );
   const matchingPlayers = q ? players.filter(m => nameOf(m).toLowerCase().includes(q) || (memberOf.get(m.id)?.personOrgId || '').toLowerCase().includes(q)) : players;
   const matchingStaff = q ? staff.filter(m => nameOf(m).toLowerCase().includes(q) || roleName(m.roleId).toLowerCase().includes(q)) : staff;
-  const matchingGames = q
-    ? games.filter(g => `${opponentOf(g, teamId!)} ${eventNames.get(g.eventId) || ''}`.toLowerCase().includes(q))
-    : games;
 
   if (isTeamsLoading || !team) {
     return (
@@ -215,8 +230,9 @@ export default function TeamPage() {
 
   /* ---------------- cards ---------------- */
 
-  const banner = (
-    <View className="flex-row items-center gap-4 rounded-2xl border p-4 bg-card border-line">
+  const banner = (seasonChoice: React.ReactNode) => (
+    <View className="rounded-2xl border p-4 bg-card border-line gap-3">
+    <View className="flex-row items-center gap-4">
       <TeamCrest team={team} org={org} size={isNarrow ? 54 : 68} />
       <View className="flex-1 min-w-0">
         <View className="flex-row items-center flex-wrap gap-2">
@@ -229,7 +245,10 @@ export default function TeamPage() {
         </View>
         <Text className="font-inter text-sm text-ink-soft mt-1">{[sportName, team.ageGroup].filter(Boolean).join(' · ')}</Text>
       </View>
+      {isNarrow ? null : <View>{seasonChoice}</View>}
       {canEdit ? <View className="self-start"><EditLink onPress={() => setDialog('edit')} /></View> : null}
+    </View>
+    {isNarrow ? <View className="self-start">{seasonChoice}</View> : null}
     </View>
   );
 
@@ -247,6 +266,16 @@ export default function TeamPage() {
   ) : null;
 
   const shownPlayers = q || showAllPlayers ? matchingPlayers : matchingPlayers.slice(0, PLAYERS_SHOWN);
+  /** A player's season under their name: games played, then what they scored and their cards. */
+  /** "try" → "tries", "conversion" → "conversions". */
+  const plural = (w: string) => /[^aeiou]y$/.test(w) ? `${w.slice(0, -1)}ies` : `${w}s`;
+  const seasonLine = (profileId: string) => {
+    const p = seasonStats.players.find(x => x.orgProfileId === profileId);
+    if (!p) return undefined;
+    const scored = Object.entries(p.scores).filter(([, n]) => n).map(([k, n]) => `${n} ${n === 1 ? k.toLowerCase() : plural(k.toLowerCase())}`);
+    // Number and position from their latest team sheet, then the season.
+    return [p.jerseyNumber != null ? `#${p.jerseyNumber}` : '', p.position || '', p.played ? `${p.played} ${p.played === 1 ? 'game' : 'games'}` : '', ...scored, p.cards ? `${p.cards} ${p.cards === 1 ? 'card' : 'cards'}` : ''].filter(Boolean).join(' · ') || undefined;
+  };
   const playersCard = (
     <SectionCard
       label="Players"
@@ -270,6 +299,7 @@ export default function TeamPage() {
                 imageConfig={person ? person.imageConfig : m.imageConfig}
                 guardianship={guardianshipOf(person?.birthdate ?? m.birthdate, minorsSettings, !!guardiansByPlayer.get(m.id)?.length)}
                 orgPersonId={person?.personOrgId}
+                role={seasonLine(m.id)}
                 first={i === 0}
                 onPress={openPerson(m)}
                 menu={rowMenu(m)}
@@ -332,27 +362,14 @@ export default function TeamPage() {
   // While anything waits: one strip under the banner that takes the reader to the Events card.
   const invitationStrip = toAnswer ? (
     <TouchableOpacity
-      onPress={() => (isWide ? jump.scrollRef.current?.scrollTo({ y: Math.max(0, wideEventsY - 8), animated: true }) : jump.jumpTo('events'))}
+      onPress={() => setTab('competitions')}
       accessibilityRole="button"
       className="rounded-xl border border-warning-line bg-warning-soft px-3.5 py-2.5 flex-row items-center gap-3"
     >
       <Text className="flex-1 font-inter-bold text-sm text-warning-ink">{toAnswer} {toAnswer === 1 ? 'invitation' : 'invitations'} to answer</Text>
-      <Text className="font-inter-bold text-[13px] text-warning-ink">Events ›</Text>
+      <Text className="font-inter-bold text-[13px] text-warning-ink">Competitions ›</Text>
     </TouchableOpacity>
   ) : null;
-
-  const gamesCard = (
-    <GamesCard
-      games={matchingGames}
-      total={games.length}
-      teamId={team.id}
-      eventNames={eventNames}
-      query={query}
-      canEdit={canEdit}
-      onOpenGame={openGame}
-      onPickTeam={pickTeam}
-    />
-  );
 
   const searchBox = (
     <View className="flex-row items-center gap-2 bg-card border border-line rounded-xl px-3">
@@ -360,9 +377,9 @@ export default function TeamPage() {
       <TextInput
         value={query}
         onChangeText={setQuery}
-        placeholder="Search players, staff and games"
+        placeholder="Search players and staff"
         placeholderTextColor={themeColor(isDark, 'ink-muted')}
-        accessibilityLabel="Search players, staff and games"
+        accessibilityLabel="Search players and staff"
         className={`flex-1 font-inter text-base text-ink outline-none ${isWide ? 'py-2.5' : 'py-2'}`}
       />
       {query ? (
@@ -373,22 +390,144 @@ export default function TeamPage() {
     </View>
   );
 
-  /* ---------------- phone: pinned search and jump buttons ---------------- */
+  /* ---------------- the season ---------------- */
+  const seasonsOn = [...new Set([currentSeason(), ...games.map(g => seasonOf(g.scheduledStartTime || g.startTime)).filter((y): y is number => !!y)])].sort((a, b) => b - a);
+  const inSeason = (g: GameSummary) => seasonOf(g.scheduledStartTime || g.startTime) === season;
+  const isCurrent = season === currentSeason();
+  const byTime = (a: GameSummary, b: GameSummary) => whenMs(a.scheduledStartTime || a.startTime) - whenMs(b.scheduledStartTime || b.startTime);
+  const upcoming = games.filter(isUpcoming).sort(byTime);
+  const results = games.filter(g => inSeason(g) && g.status === 'Finished').sort((a, b) => byTime(b, a));
+  const live = upcoming.filter(g => g.status === 'Live');
+  const homeSiteIds = new Set(sites.map(s => s.id));
+  const competitionOf = (g: GameSummary) => (g.divisionId ? eventNames.get(g.eventId) || 'Tournament' : 'Matches');
+  const stats = teamStatistics(results, team.id, g => !!g.siteId && homeSiteIds.has(g.siteId), competitionOf);
+  const statsOf = new Map(seasonStats.players.map(p => [p.orgProfileId, p]));
+  const mainScore = seasonStats.mainScore;
+  const top = mainScore ? [...seasonStats.players].filter(p => p.scores[mainScore]).sort((a, b) => (b.scores[mainScore] || 0) - (a.scores[mainScore] || 0))[0] : undefined;
+  const coach = staff.find(m => m.roleId === 'role-coach');
+  const seasonEntries = teamEntries.filter(e => seasonOf(e.eventStartDate) === season || e.status === 'invited');
 
-  const pinned = (
-    <View className="gap-2 px-3 py-2 bg-card border-b border-line">
-      {searchBox}
-      <JumpBar
-        sections={[
-          { key: 'players', label: 'Players', count: q ? matchingPlayers.length : players.length },
-          { key: 'staff', label: 'Staff', count: q ? matchingStaff.length : staff.length },
-          ...(teamEntries.length ? [{ key: 'events' as const, label: 'Events', count: teamEntries.length }] : []),
-          { key: 'games', label: 'Games', count: q ? matchingGames.length : games.length },
-        ]}
-        inView={jump.inView}
-        onJump={jump.jumpTo}
-      />
+  const seasonSelect = (
+    <CustomSelect
+      compact
+      accessibilityLabel="Season"
+      placeholder="Season"
+      value={String(season)}
+      onChange={v => setSeason(Number(v))}
+      options={seasonsOn.map(y => ({ value: String(y), label: `${y} season` }))}
+    />
+  );
+  const see = (label: string, to: Tab) => <EditLink label={label} icon={null} onPress={() => setTab(to)} />;
+  const pick = { teamId: team.id, eventNames, canEdit, onOpen: openGame, onPickTeam: pickTeam };
+
+  /* ---------------- Overview ---------------- */
+  const nowNext = isCurrent && upcoming.length ? (
+    <TournamentCardLike title={live.length ? 'Live now' : 'Next'} right={see('Games ›', 'games')}>
+      <GameList games={[...live, ...upcoming.filter(g => g.status !== 'Live').slice(0, 1)]} {...pick} />
+    </TournamentCardLike>
+  ) : null;
+  const lastResult = results[0] ? (
+    <TournamentCardLike title="Last result" right={see('Results ›', 'results')}><GameList games={[results[0]]} {...pick} /></TournamentCardLike>
+  ) : null;
+  const seasonCard = (
+    <TournamentCardLike title={`${season} season`} right={results.length ? see('Results ›', 'results') : undefined}>
+      {results.length ? (
+        <>
+          <RecordStrip record={stats.record} />
+          {stats.form.length ? <View className="flex-row items-center justify-between pt-1"><Text className="font-inter text-sm text-ink-muted">Form</Text><FormChips form={stats.form} /></View> : null}
+        </>
+      ) : <CardNote text={`No results in ${season} yet.`} />}
+    </TournamentCardLike>
+  );
+  const squadCard = (
+    <TournamentCardLike title="Squad" right={see('Players ›', 'players')}>
+      <Line label="Players" value={String(players.length)} />
+      {top && mainScore ? <Line label={`Top ${mainScore.toLowerCase()} scorer`} value={`${top.name} · ${top.scores[mainScore]}`} /> : null}
+      <Line label="Coach" value={coach ? nameOf(coach) : 'None yet'} />
+    </TournamentCardLike>
+  );
+  const competitionsCard = seasonEntries.length ? (
+    <TournamentCardLike title="Competitions" right={see('All ›', 'competitions')}>
+      {seasonEntries.slice(0, 3).map((e, i) => (
+        <TouchableOpacity key={e.id} onPress={() => router.push(`/admin/${orgId}/events/${e.eventId}` as any)} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`}>
+          <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{e.eventName}</Text>
+          <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{e.divisionName}</Text>
+        </TouchableOpacity>
+      ))}
+    </TournamentCardLike>
+  ) : null;
+  const overview = isWide ? (
+    <View className="flex-row gap-4 items-start">
+      <View className="gap-4 min-w-0" style={{ flex: 1.2 }}>{nowNext}{lastResult}{seasonCard}</View>
+      <View className="gap-4 min-w-0" style={{ flex: 1 }}>{squadCard}{competitionsCard}</View>
     </View>
+  ) : <View className="gap-3">{nowNext}{lastResult}{seasonCard}{squadCard}{competitionsCard}</View>;
+
+  /* ---------------- Games: still to play, every competition ---------------- */
+  const gamesTab = (
+    <SectionCard label="Games" count={upcoming.length ? String(upcoming.length) : undefined}>
+      <GameList games={upcoming} {...pick} empty="Nothing still to play. A game shows here once this team is in one." />
+    </SectionCard>
+  );
+
+  /* ---------------- Results: the season's statistics, then its results ---------------- */
+  const pct = (r: { won: number; drawn: number; lost: number }) => `W${r.won} D${r.drawn} L${r.lost}`;
+  const statsCard = (
+    <TournamentCardLike title="Statistics">
+      {results.length ? (
+        <>
+          <RecordStrip record={stats.record} />
+          {stats.form.length ? <View className="flex-row items-center justify-between py-1"><Text className="font-inter text-sm text-ink">Form</Text><FormChips form={stats.form} /></View> : null}
+          <Line label="Points for · against" value={`${stats.record.pointsFor} · ${stats.record.pointsAgainst}`} />
+          <Line label="Home · Away" value={`${pct(stats.home)} · ${pct(stats.away)}`} />
+          {stats.biggestWin ? <Line label="Biggest win" value={`${stats.biggestWin.mine}–${stats.biggestWin.theirs}`} /> : null}
+          {top && mainScore ? <Line label={`Top ${mainScore.toLowerCase()} scorer`} value={`${top.name} · ${top.scores[mainScore]}`} /> : null}
+          {stats.byCompetition.length > 1 ? (
+            <View className="pt-2">
+              <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest pb-1">By competition</Text>
+              {stats.byCompetition.map(c => <Line key={c.name} label={c.name} value={`P${c.record.played} ${pct(c.record)}`} />)}
+            </View>
+          ) : null}
+          {seasonStats.gamesCounted ? (
+            <Text className="font-inter text-xs text-ink-muted">
+              {seasonStats.gamesWithEvents === seasonStats.gamesCounted
+                ? 'Scorers from every game, from its match events.'
+                : `Scorers from ${seasonStats.gamesWithEvents} of ${seasonStats.gamesCounted} games with match events; the rest have a final score only.`}
+            </Text>
+          ) : null}
+        </>
+      ) : <CardNote text={`No results in ${season} yet.`} />}
+    </TournamentCardLike>
+  );
+  const resultsList = (
+    <SectionCard label="Results" count={results.length ? String(results.length) : undefined}>
+      <GameList games={results} {...pick} empty={`No results in ${season} yet.`} />
+    </SectionCard>
+  );
+  const resultsTab = isWide ? (
+    <View className="flex-row gap-4 items-start">
+      <View className="min-w-0" style={{ flex: 1 }}>{statsCard}</View>
+      <View className="min-w-0" style={{ flex: 1 }}>{resultsList}</View>
+    </View>
+  ) : (
+    <View className="gap-3">
+      <View className="self-start">
+        <Tabs variant="pill" items={[{ key: 'stats', label: 'Statistics' }, { key: 'list', label: `Results ${results.length}` }]} activeKey={resultsView} onChange={k => setResultsView(k as 'stats' | 'list')} />
+      </View>
+      {resultsView === 'stats' ? statsCard : resultsList}
+    </View>
+  );
+
+  /* ---------------- Players and Competitions ---------------- */
+  const playersTab = (
+    <View className="gap-3">
+      {players.length || staff.length ? searchBox : null}
+      {playersCard}
+      {staffCard}
+    </View>
+  );
+  const competitionsTab = teamEntries.length ? eventsCard : (
+    <SectionCard label="Competitions"><CardNote text="Not in any tournament yet." /></SectionCard>
   );
 
   return (
@@ -399,36 +538,26 @@ export default function TeamPage() {
         onBack={back}
         right={canEdit ? <OverflowMenu items={menu} accessibilityLabel="Team actions" title={team.name} /> : undefined}
       />
-      {/* A team with nobody and no games has nothing to search or jump to. */}
-      {isWide || !(players.length || staff.length || games.length) ? null : pinned}
-      <ScrollView
-        ref={jump.scrollRef}
-        onScroll={isWide ? undefined : jump.onScroll}
-        scrollEventThrottle={32}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}
-      >
-        <PageBody className="gap-4">
-          {banner}
-          {invitationStrip}
-          {inactiveNote}
-          {isWide ? (
-            <>
-              {players.length || staff.length || games.length ? searchBox : null}
-              <View className="flex-row gap-4 items-start">
-                <View className="gap-4" style={{ flex: 1.35 }}>{playersCard}</View>
-                <View className="gap-4" style={{ flex: 1 }} onLayout={e => setWideEventsY(e.nativeEvent.layout.y)}>{eventsCard}{staffCard}{gamesCard}</View>
-              </View>
-            </>
-          ) : (
-            <View className="gap-3" onLayout={jump.onColumnLayout}>
-              <View onLayout={jump.track('players')}>{playersCard}</View>
-              <View onLayout={jump.track('staff')}>{staffCard}</View>
-              <View onLayout={jump.track('events')}>{eventsCard}</View>
-              <View onLayout={jump.track('games')}>{gamesCard}</View>
-            </View>
-          )}
-        </PageBody>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 60 }}>
+        <View style={{ padding: isWide ? 24 : 12, paddingBottom: 0 }}>
+          <PageBody className="gap-3">
+            {banner(seasonSelect)}
+            {invitationStrip}
+            {inactiveNote}
+          </PageBody>
+        </View>
+        <View className="bg-card mt-3 border-y border-line">
+          <PageBody><Tabs items={TABS} activeKey={tab} onChange={k => setTab(k as Tab)} scrollable={isNarrow} /></PageBody>
+        </View>
+        <View style={{ padding: isWide ? 24 : 12 }}>
+          <PageBody className="gap-4">
+            {tab === 'overview' ? overview : null}
+            {tab === 'games' ? gamesTab : null}
+            {tab === 'results' ? resultsTab : null}
+            {tab === 'players' ? playersTab : null}
+            {tab === 'competitions' ? competitionsTab : null}
+          </PageBody>
+        </View>
       </ScrollView>
 
       {canEdit ? (
@@ -507,5 +636,28 @@ export default function TeamPage() {
         </>
       ) : null}
     </SafeAreaView>
+  );
+}
+
+/** A card with a title, a count-less heading and a link on the right — as on the tournament page. */
+function TournamentCardLike({ title, right, children }: { title: string; right?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <View className="rounded-2xl border p-4 gap-2 bg-card border-line">
+      <View className="flex-row items-center justify-between gap-3">
+        <Text className="font-inter-bold text-[18px] text-ink">{title}</Text>
+        {right}
+      </View>
+      {children}
+    </View>
+  );
+}
+
+/** One fact on a line: its label, and its value at the end. */
+function Line({ label, value }: { label: string; value: string }) {
+  return (
+    <View className="flex-row items-center justify-between gap-3 py-1.5 border-t border-line-soft">
+      <Text className="font-inter text-sm text-ink flex-shrink" numberOfLines={1}>{label}</Text>
+      <Text className="font-inter text-sm text-ink-muted text-right flex-shrink" numberOfLines={1}>{value}</Text>
+    </View>
   );
 }

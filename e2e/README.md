@@ -62,7 +62,8 @@ npm run e2e:report     # the last run's report, with traces of any failure
   leaderboard, an organisation's results, the Schedule's scores and Organisation filter, a withdrawn team, a game
   with no players named — and the same read-only page for a signed-in organiser), then the public organisation page
   (`19-public-organisation.spec.ts`: Doringkloof logged out — its banner and On now & next, its teams with their
-  coaches, and Fixtures as the events list without Mine, a tournament opening its public page). A single file run on its own may therefore fail where the suite
+  coaches, and Fixtures as the events list without Mine, a tournament opening its public page), then the team page (`20-team-page.spec.ts`: its tabs, and DKL U16 A's
+  season statistics and player lines from the fixtures' team sheets and match events). A single file run on its own may therefore fail where the suite
   passes.
 - **The phone runs first and only tests tagged `@phone`** — ones that read and change nothing — so it sees
   the data before the desktop tests change it.

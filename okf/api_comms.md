@@ -179,10 +179,16 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     standalone `tournament-organiser` read, because the event itself travels to a public room.
 *   **`team_entries`** and **`org_team_invitations`** (`FIX-31`, 2026-10-10): a team's places in
     tournaments, with each tournament's name, dates and host, its division, whether entries are
-    locked and where its organisation's invitation stands (`TeamEntry`) — the team page's Events
-    card, deferring to `team:{id}`; and an organisation's teams still invited, for the events list's
+    locked and where its organisation's invitation stands (`TeamEntry`) — the team page's
+    Competitions tab, deferring to `team:{id}`; and an organisation's teams still invited, for the events list's
     invitations box, deferring to `org:{id}:invitations` (members). Neither lists a tournament the
     organisation has not been invited to. One-shot reads: no room owns "a team across tournaments".
+*   **`team_season_stats`** (2026-10-22): a team's players over one season (a calendar year) —
+    games played from team sheets, scores and cards from match events, number and position from
+    their latest team sheet — for the team page's Players and Results tabs
+    ([docs/teams.md](file:///c:/Fred/Coding/SK/docs/teams.md) §3). Defers to `org:{id}:teams`
+    (public): players' names, numbers and positions are public by decision until `PEOPLE-4`. A
+    one-shot read, worked out by `TeamManager.getTeamSeasonStats`.
 *   **Two reads that no room owns** (Phase 6): `event_entrants` defers to the room above, and
     `event_candidate_teams` — "teams that could be entered" — is a standalone
     `tournament-organiser` read scoped by **either** an `eventId` (the entry screen) or a

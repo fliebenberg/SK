@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GameSummary, Organization, Team, isScoreNotProvided, orgColors, participantLabel } from '@sk/shared';
 import { OrgLogo } from '../OrgLogo';
 import { readableTextOn } from '../../utils/colorUtils';
+import { whenMs } from '../../utils/dates';
 
 /**
  * Small pieces the teams list and the team page share, so a row and the page it opens show a team
@@ -136,6 +137,45 @@ export function recordOf(games: GameSummary[], teamId: string): TeamRecord {
     else record.drawn += 1;
   }
   return record;
+}
+
+/**
+ * A season's statistics for the team page's Results tab (`team-tabs` mockup, 2026-10-22): the
+ * record, the last five results (newest first), home and away, the biggest win, and the record by
+ * competition. Worked out from the games' own scores — the same counting as {@link recordOf}; a
+ * game whose score was not provided is not counted.
+ */
+export interface TeamStatistics {
+  record: TeamRecord;
+  form: Outcome[];
+  home: TeamRecord;
+  away: TeamRecord;
+  biggestWin: { game: GameSummary; mine: number; theirs: number } | null;
+  byCompetition: Array<{ name: string; record: TeamRecord }>;
+}
+
+export function teamStatistics(
+  results: GameSummary[],
+  teamId: string,
+  isHome: (game: GameSummary) => boolean,
+  competitionOf: (game: GameSummary) => string
+): TeamStatistics {
+  const counted = results.filter(g => outcomeOf(g, teamId));
+  const newestFirst = [...counted].sort((a, b) => whenMs(b.scheduledStartTime || b.startTime) - whenMs(a.scheduledStartTime || a.startTime));
+  let biggestWin: TeamStatistics['biggestWin'] = null;
+  for (const game of counted) {
+    const { mine, theirs } = scoresFor(game, teamId);
+    if (mine > theirs && (!biggestWin || mine - theirs > biggestWin.mine - biggestWin.theirs)) biggestWin = { game, mine, theirs };
+  }
+  const names = [...new Set(counted.map(competitionOf))];
+  return {
+    record: recordOf(counted, teamId),
+    form: newestFirst.slice(0, 5).map(g => outcomeOf(g, teamId)!),
+    home: recordOf(counted.filter(isHome), teamId),
+    away: recordOf(counted.filter(g => !isHome(g)), teamId),
+    biggestWin,
+    byCompetition: names.map(name => ({ name, record: recordOf(counted.filter(g => competitionOf(g) === name), teamId) })),
+  };
 }
 
 /** Still to come — scheduled or being played — rather than over. */

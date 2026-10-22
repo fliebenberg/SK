@@ -440,6 +440,20 @@ export function whenMs(value?: Instant | CalendarDate | null): number {
   return parseInstant(value)?.getTime() ?? NaN;
 }
 
+/**
+ * The season a date falls in: for now the calendar year, in the viewer's calendar (decided
+ * 2026-10-22 — a league's own season may come later). `null` when there is no date.
+ */
+export function seasonOf(value?: Instant | CalendarDate | null): number | null {
+  const ms = whenMs(value);
+  return Number.isNaN(ms) ? null : new Date(ms).getFullYear();
+}
+
+/** The season under way today. */
+export function currentSeason(): number {
+  return new Date().getFullYear();
+}
+
 /** Local midnight at the start of the viewer's today, for comparing against {@link whenMs}. */
 export function startOfTodayMs(): number {
   return parseCalendarDate(todayCalendarDate())!.getTime();

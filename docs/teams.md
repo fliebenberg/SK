@@ -42,36 +42,56 @@ a glance, and opens its page.
 
 [\[teamId\].tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/teams/%5BteamId%5D.tsx).
 
-- **Banner**: crest, name, an Inactive badge when it is, and "Sport · age group". Its Edit opens
-  **Edit team** — the same dialog as Add team. Changing the sport clears the age group (it belongs
+Since 2026-10-22 the page is in **tabs** (agreed on the local `mockups/team-tabs.html`, option A):
+the banner and any invitation strip above them, then **Overview, Games, Results, Players,
+Competitions** (`?tab=` opens one). On a phone the five fit on one line; the strip scrolls if a
+larger text size does not let them.
+
+- **Banner**: crest, name, an Inactive badge when it is, "Sport · age group", and the **season**
+  picker — beside the name wide, under it on a phone. A season is a **calendar year** for now
+  ([`seasonOf`](file:///c:/Fred/Coding/SK/expo-app/utils/dates.ts), in the viewer's calendar): the
+  current year first, then each year the team has games. It narrows every tab but Players' list of
+  people. Its Edit opens **Edit team** — the same dialog as Add team. Changing the sport clears the age group (it belongs
   to one sport) and says so beside the field at that moment.
-- **Players** and **Staff** cards. A row opens that person's page, where their name, contact
+- **Overview**: Live now or Next (with Pick team for editors), Last result, the season's record
+  and form, the Squad (players, top scorer, coach) and the season's competitions — each with a link
+  to its tab.
+- **Games**: what is still to come. **Results**: the season's results, beside **Statistics** wide;
+  on a phone a Statistics | Results switch, Statistics first. Statistics are the record, form (last
+  five, newest first), points for and against, home and away, the biggest win, the top scorer and
+  the record by competition, worked out from the games' scores (a game whose score was not provided
+  is not counted, as in the standings). The top scorer, and each player's season, come from team
+  sheets and match events (below), with a line saying how many games had match events.
+- **Players** tab: one search over players and staff, then the **Players** and **Staff** cards
+  (all staff, by role, coach first). A row opens that person's page, where their name, contact
   details and guardians are edited; the old screen edited them here, a third copy of the person
   fields. The row's **one ⋯ menu** holds only what belongs to the team: Change role (staff),
   Invite to ScoreKeeper (while they are not on it), Remove from team. A player shows the same Minor
-  or Dependant tag and org ID as the People list; staff show their role, coach first.
-- **Games** card: the record (played, won, drawn, lost and points — points is left out when the
-  strip has no room for it on one line, which on a phone it does not), the next games with **Pick
-  team** for editors (the existing selection screen), and the results, opponents by name. Each game
-  opens. Three of each until "Show all". A fuller stats view is a to-do.
+  or Dependant tag and org ID as the People list; staff show their role, coach first. Under a
+  player's name, their season: "#11 · Left Wing · 4 games · 4 tries · 1 card".
+- **Competitions**: the team's tournaments and invitations, answered here (`FIX-31`); the
+  invitation strip above the tabs opens it.
 - **⋯ menu**: Deactivate (confirmed) or Reactivate, and Delete — which while the team has games is
   shown disabled with the reason ("Deactivate it instead") rather than hidden. An inactive team says
   so under the banner, with Reactivate beside it.
 - **Empty cards** say what is missing and offer the one action that fills it; Games has no action,
   since games are added to an event.
 
-### One search, and jumping on a phone
+The tabs replaced the one long page of 2026-10-03, whose search covered players, staff and games
+and was pinned under the header on a phone with a jump bar: each tab is now short enough not to need
+either, and the search stays where the people are.
 
-One search covers the whole page: **players** (name, org ID), **staff** (name, role — "coach" finds
-the coaches) and **games** (opponent, competition). Each card counts what matches ("1 of 22"), and a
-card with nothing says so in one line rather than vanishing. While searching, the record counts only
-the matching games — a head-to-head when the search names an opponent.
+### A player's season
 
-Wide, the search sits above the two columns (Players left; Staff and Games right). On a phone the
-page is one long column, so the search is **pinned under the header** with Players / Staff / Games
-buttons that jump to each card and highlight the one in view ([`JumpBar`](file:///c:/Fred/Coding/SK/expo-app/components/JumpBar.tsx),
-shared with the site page since 2026-10-04, which drops the counts when a label would be cut). A team with nobody and no games has
-neither.
+[`useTeamSeasonStats`](file:///c:/Fred/Coding/SK/expo-app/hooks/useTeamSeasonStats.ts) asks the
+server (`get_data` `team_season_stats`, `TeamManager.getTeamSeasonStats`) for the season's finished
+games: **games played** from their team sheets (`game_rosters`), **scores** by the sport's own words
+("Try", "Conversion") and **cards** from their match events (`game_events`; a removed event, and a
+missed kick — a scoring event worth nothing — are not counted), and each player's **number and
+position from their latest team sheet**, since a squad keeps neither; the position's id is named
+from the sport ("10" → "Fly-half"). The kind of score worth the most points names the top scorer.
+A game scored without match events counts in the record but not in the scorers, which the line under
+Statistics says.
 
 ### Adding people
 
@@ -97,7 +117,10 @@ them out (`getEventCandidateTeams`). Its games, results and roster are kept.
 The list and the page read teams from `org:{id}:teams` ([useOrgTeams](file:///c:/Fred/Coding/SK/expo-app/hooks/useOrgTeams.ts)),
 the roster from `team:{id}:members` ([useTeamRoster](file:///c:/Fred/Coding/SK/expo-app/hooks/useTeamRoster.ts)),
 games from `org:{id}:fixtures` and competition names from `org:{id}:events`
-([useTeamGames](file:///c:/Fred/Coding/SK/expo-app/hooks/useTeamGames.ts)), and the sports the
+([useTeamGames](file:///c:/Fred/Coding/SK/expo-app/hooks/useTeamGames.ts)), the players' season
+from `team_season_stats` (read once per team and season, at the `org:{id}:teams` level: players'
+names, numbers and positions are public by decision until `PEOPLE-4` gives a way to hide them —
+never contact or identity details), and the sports the
 organisation plays from its summary room (`useOrgSummary`) — so nothing is fetched and a save shows
 everywhere at once. Roster names, photos and org IDs come from the org's members, which update the
 moment a person page saves. For the list's head coach to stay right, `UPDATE_TEAM_MEMBER` now

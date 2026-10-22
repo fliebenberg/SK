@@ -117,6 +117,13 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
                             const orgId = req.id ? await accessManager.getTeamOrgId(req.id) : null;
                             return orgId ? `org:${orgId}:teams` : null;
                           } },
+  // A team's season for its page's Players and Results tabs: players' games, scores and cards, and
+  // the numbers and positions of their latest team sheets — public with the team, by decision until
+  // `PEOPLE-4` gives a way to hide players (2026-10-22). No contact or identity details.
+  team_season_stats:    { room: async (req: any) => {
+                            const orgId = req.teamId ? await accessManager.getTeamOrgId(req.teamId) : null;
+                            return orgId ? `org:${orgId}:teams` : null;
+                          } },
   // Rosters are personal data, often a minor's — the `team:{id}` room's level.
   //
   // A scoring screen is the exception, and it is why `gameId` is honoured: it shows both

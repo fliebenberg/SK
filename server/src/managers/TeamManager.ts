@@ -32,6 +32,101 @@ export class TeamManager extends BaseManager {
   }
 
   /**
+   * A team's players over one season — a calendar year, for now (2026-10-22) — for the team page's
+   * Players and Results tabs: each player's games (from the game team sheets), what they scored, by
+   * the sport's own words ("Try", "Goal"), and their cards (from the match events), with the number
+   * and position of their latest team sheet, since a squad keeps neither. `mainScore` is the scoring
+   * kind worth the most points (a try, a goal), which names the top scorer; `gamesWithEvents` of
+   * `gamesCounted` says what the scorers come from. Players are public by decision until `PEOPLE-4`
+   * gives a way to hide them — names, numbers and positions only.
+   */
+  async getTeamSeasonStats(teamId: string, season: number) {
+    const games = await this.query(
+      `SELECT g.id AS "gameId", gp.id AS "participantId",
+              EXISTS (SELECT 1 FROM game_events e WHERE e.game_id = g.id AND e.game_participant_id = gp.id
+                        AND COALESCE(e.event_data->>'status', '') <> 'REMOVED') AS "hasEvents"
+         FROM games g JOIN game_participants gp ON gp.game_id = g.id AND gp.team_id = $1
+        WHERE g.status = 'Finished'
+          AND EXTRACT(YEAR FROM COALESCE(g.start_time, g.scheduled_start_time)) = $2`,
+      [teamId, season]
+    );
+    const participantIds = games.rows.map((r: any) => r.participantId);
+    if (!participantIds.length) return { players: [], mainScore: null, gamesCounted: 0, gamesWithEvents: 0 };
+
+    const sheets = await this.query(
+      `SELECT r.org_profile_id AS "orgProfileId", COUNT(DISTINCT r.game_participant_id)::int AS played
+         FROM game_rosters r WHERE r.game_participant_id = ANY($1::text[]) GROUP BY r.org_profile_id`,
+      [participantIds]
+    );
+    const scores = await this.query(
+      `SELECT e.actor_org_profile_id AS "orgProfileId", COALESCE(e.event_data->>'templateName', e.sub_type) AS kind,
+              MAX(COALESCE((e.event_data->>'points')::numeric, 0)) AS points, COUNT(*)::int AS n
+         FROM game_events e
+        WHERE e.game_participant_id = ANY($1::text[]) AND e.type = 'SCORE' AND e.actor_org_profile_id IS NOT NULL
+          AND COALESCE(e.event_data->>'status', '') <> 'REMOVED'
+          -- A missed kick is a scoring event worth nothing: an attempt, not a score.
+          AND COALESCE((e.event_data->>'points')::numeric, 0) > 0
+        GROUP BY 1, 2`,
+      [participantIds]
+    );
+    const cards = await this.query(
+      `SELECT e.actor_org_profile_id AS "orgProfileId", COUNT(*)::int AS n
+         FROM game_events e
+        WHERE e.game_participant_id = ANY($1::text[]) AND e.sub_type ILIKE '%card%' AND e.actor_org_profile_id IS NOT NULL
+          AND COALESCE(e.event_data->>'status', '') <> 'REMOVED'
+        GROUP BY 1`,
+      [participantIds]
+    );
+    const ids = [...new Set([...sheets.rows, ...scores.rows, ...cards.rows].map((r: any) => r.orgProfileId))];
+    const people = ids.length
+      ? await this.query(
+          `SELECT p.id, p.name,
+                  (SELECT r.jersey_number FROM game_rosters r JOIN game_participants gp ON gp.id = r.game_participant_id JOIN games g ON g.id = gp.game_id
+                    WHERE r.org_profile_id = p.id AND gp.team_id = $2 ORDER BY COALESCE(g.start_time, g.scheduled_start_time) DESC NULLS LAST LIMIT 1) AS "jerseyNumber",
+                  (SELECT r.position FROM game_rosters r JOIN game_participants gp ON gp.id = r.game_participant_id JOIN games g ON g.id = gp.game_id
+                    WHERE r.org_profile_id = p.id AND gp.team_id = $2 ORDER BY COALESCE(g.start_time, g.scheduled_start_time) DESC NULLS LAST LIMIT 1) AS position
+             FROM org_profiles p WHERE p.id = ANY($1::text[])`,
+          [ids, teamId]
+        )
+      : { rows: [] };
+
+    // A team sheet keeps a position's id ("10"); the sport names it ("Fly-half").
+    const sport = await this.query(
+      `SELECT s.default_settings->'positions' AS positions FROM teams t JOIN sports s ON s.id = t.sport_id WHERE t.id = $1`, [teamId]);
+    const positionName = (id: string | null) => {
+      if (!id) return null;
+      const list = Array.isArray(sport.rows[0]?.positions) ? sport.rows[0].positions : [];
+      return list.find((x: any) => String(x.id) === String(id))?.name || id;
+    };
+
+    let mainScore: string | null = null;
+    let mainPoints = -1;
+    for (const r of scores.rows) {
+      const pts = Number(r.points) || 0;
+      if (pts > mainPoints) { mainPoints = pts; mainScore = r.kind; }
+    }
+    const players = people.rows.map((p: any) => {
+      const scored: Record<string, number> = {};
+      for (const r of scores.rows) if (r.orgProfileId === p.id) scored[r.kind] = (scored[r.kind] || 0) + r.n;
+      return {
+        orgProfileId: p.id,
+        name: p.name,
+        jerseyNumber: p.jerseyNumber ?? null,
+        position: positionName(p.position ?? null),
+        played: sheets.rows.find((r: any) => r.orgProfileId === p.id)?.played || 0,
+        scores: scored,
+        cards: cards.rows.find((r: any) => r.orgProfileId === p.id)?.n || 0,
+      };
+    });
+    return {
+      players,
+      mainScore,
+      gamesCounted: games.rows.length,
+      gamesWithEvents: games.rows.filter((r: any) => r.hasEvents).length,
+    };
+  }
+
+  /**
    * Adds what a teams list row shows beyond the team itself: player and staff counts, and the head
    * coach — the longest-serving current Coach — by name (docs/teams.md). One query for all three.
    */

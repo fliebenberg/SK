@@ -41,10 +41,11 @@ test.describe.serial('a coach answers for their team', () => {
     await expect(page.getByText('Showing U16 A')).toBeVisible();
   });
 
-  test('the team page: the coach accepts from its Events card', async ({ page }) => {
+  test('the team page: the coach accepts from its Competitions tab', async ({ page }) => {
     await signIn(page, USERS.rbhCoach);
     await page.goto(`/admin/${ORG.rbh}/teams/fx-team-rbh-rugby-u16a`);
-    await expect(page.getByText('1 invitation to answer')).toBeVisible();
+    // The strip above the tabs opens the tab the invitation is answered on.
+    await page.getByText('1 invitation to answer').click();
     const row = page.getByTestId(`team-entry-${RBH_RUGBY}`);
     await row.getByRole('button', { name: '✓ Accept' }).click();
     await expect(row).toContainText('Accepted');

@@ -192,8 +192,9 @@ in the banner — and the same cards, without the statuses, once it is (2026-10-
     matches ("1 of 22") and saying so in one line when nothing does. On a phone, where the cards
     are one long column, pin the search under the header with buttons that jump to each card —
     [`<JumpBar>`](file:///c:/Fred/Coding/SK/expo-app/components/JumpBar.tsx) with `useJumpSections`,
-    which drops the buttons' counts, all of them, when any label would otherwise be cut. The team
-    page: players, staff and games; the site page: facilities, location and coming up.
+    which drops the buttons' counts, all of them, when any label would otherwise be cut. The site
+    page: facilities, location and coming up. A page in tabs needs neither: the team page's Players
+    tab searches its players and staff (2026-10-22).
 19. **An action that is not available stays in the menu, disabled, saying why** — Delete team
     "Not available: this team has 9 games. Deactivate it instead." — rather than vanishing.
 20. **Work done in steps shows each step's state in one consistent way** (the tournament's *Setting
