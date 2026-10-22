@@ -591,6 +591,11 @@ export interface FixtureTournamentDivision {
      * past the end is still to play. The reset then rebuilds the tournament's tables (stage 4).
      */
     results?: Array<[number, number] | null>;
+    /**
+     * Teams whose first game of the draw has its team sheet picked — the team's first fifteen
+     * players — so their later games show it as **proposed** (`FIX-32`). Needs `drawn`.
+     */
+    picked?: Array<{ org: string; team: string }>;
     teams: FixtureTournamentTeam[];
     /**
      * A Head to Head's games (`H2H-1`), paired by hand: the host's team key against the other
@@ -721,6 +726,9 @@ export const TEST_TOURNAMENTS: FixtureTournament[] = [
             },
             {
                 key: 'rugby-u16', name: 'U16', sportId: 'rugby', ageGroup: 'U16', locked: true, drawn: true, facilities: ['a-field-1', 'a-field-2'],
+                // Kwaggafontein's U16 Lions have their team picked for their first game, so the next two
+                // propose it (FIX-32) — for its coach, Dewald Nel, to confirm.
+                picked: [{ org: 'ksc', team: 'rugby-u16' }],
                 teams: [
                     { org: 'dkl', team: 'rugby-u16a', status: 'accepted' },
                     { org: 'sac', team: 'rugby-u16a', status: 'accepted' },

@@ -41,3 +41,39 @@ export function useGameLineups(participantIds: string[]) {
 
   return { lineups, reload: load };
 }
+
+/** A side's proposed team: the sheet of its team's latest earlier game in the tournament (`FIX-32`). */
+export interface LineupProposal {
+  fromGameId: string;
+  fromParticipantId: string;
+  /** That game's kick-off, an instant. */
+  fromStartTime: string | null;
+  /** Whom that game was against, as the server names it. */
+  opponent: string | null;
+  items: LineupPlayer[];
+}
+
+/**
+ * The proposed team for each of these sides — only the viewer's own, since another side's proposal
+ * is not theirs to see as picked — or `null` where there is none: a sheet of its own, or no earlier
+ * game to take one from. Read again when the page comes back into view, as the sheets are.
+ */
+export function useLineupProposals(participantIds: string[]) {
+  const isConnected = useWsStore((state: any) => state.isConnected);
+  const [proposals, setProposals] = useState<Record<string, LineupProposal | null>>({});
+  const key = participantIds.join('|');
+
+  const load = useCallback(() => {
+    if (!isConnected) return;
+    for (const id of participantIds) {
+      wsService.emit('get_data', { type: 'game_roster_proposal', id }, (data: any) => {
+        setProposals(prev => ({ ...prev, [id]: data && Array.isArray(data.items) && data.items.length ? data : null }));
+      });
+    }
+  }, [isConnected, key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  return { proposals, reload: load };
+}

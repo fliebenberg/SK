@@ -6,7 +6,7 @@ import { FixtureCrest, RowTag, sideScores } from '../events/EventBits';
 import { EditLink } from '../ReadCard';
 import { EventLogFeed } from '../sports/shared/EventLogFeed';
 import { DynamicScoringProvider } from '../sports/shared/DynamicScoringContext';
-import { LineupPlayer } from '../../hooks/useGameLineups';
+import { LineupPlayer, LineupProposal } from '../../hooks/useGameLineups';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
 import { formatInstantDate, formatKickoffTime } from '../../utils/dates';
 
@@ -164,8 +164,10 @@ export function Scoreboard({ summary, moment, isWide, kicker, statusRight, where
  * phone's Overview. *Who played* sits under a side from the draw, for whoever may edit; picking a
  * team is the scoreboard's button, so it is not offered here again (say it once).
  */
-export function TeamsCard({ summary, lineups, homeSides, sideBySide, compact, started, onOpen, onWhoPlayed }: {
+export function TeamsCard({ summary, lineups, proposals = {}, homeSides, sideBySide, compact, started, onOpen, onWhoPlayed }: {
   summary: GameSummary;
+  /** The viewer's own sides' proposed teams (`FIX-32`), shown as proposed — not picked — until confirmed. */
+  proposals?: Record<string, LineupProposal | null>;
   /** Live or finished: a side with no sheet had none, rather than is still to be picked. */
   started?: boolean;
   lineups: Record<string, LineupPlayer[] | null>;
@@ -191,7 +193,9 @@ export function TeamsCard({ summary, lineups, homeSides, sideBySide, compact, st
                 {homeSides.has(p.id) ? <QuietTag label="Home" /> : null}
                 {sheet === null || sheet === undefined ? null : sheet.length
                   ? <Text className="font-inter text-xs text-ink-muted">{plural(sheet.length, 'player')}</Text>
-                  : started ? <QuietTag label="No team sheet" /> : <RowTag tone="setup" label="Not picked" />}
+                  : started ? <QuietTag label="No team sheet" />
+                  : proposals[p.id] ? <RowTag tone="setup" label="Proposed" />
+                  : <RowTag tone="setup" label="Not picked" />}
               </View>
             );
           })}
@@ -221,6 +225,13 @@ export function TeamsCard({ summary, lineups, homeSides, sideBySide, compact, st
                       <Text className="flex-1 font-inter text-[13px] text-ink-soft" numberOfLines={1}>{pl.name || 'Player'}{pl.isReserve ? ' (reserve)' : ''}</Text>
                     </View>
                   ))}
+                </View>
+              ) : !started && proposals[p.id] ? (
+                <View testID={`proposed-${p.id}`} className="rounded-xl border border-dashed border-warning-line px-3 py-2 gap-1">
+                  <Text className="font-inter-semibold text-[13px] text-warning-ink">
+                    Proposed: the team from v {proposals[p.id]!.opponent || 'the last game'}{proposals[p.id]!.fromStartTime ? `, ${formatKickoffTime(proposals[p.id]!.fromStartTime!)}` : ''} — not confirmed
+                  </Text>
+                  <Text className="font-inter text-[13px] text-ink-muted" numberOfLines={3}>{proposals[p.id]!.items.map(pl => pl.name || 'Player').join(', ')}</Text>
                 </View>
               ) : (
                 <View className="rounded-xl border border-dashed border-line-strong px-3 py-2">

@@ -19,6 +19,8 @@ export const USERS = {
   rbhCoach: 'themba.zulu@riverbend.test',
   /** Kwaggafontein's admin — added, not invited yet. */
   kscAdmin: 'riaan.venter@kwaggafontein.test',
+  /** Kwaggafontein's U16 Lions rugby coach — in *Test Saturday Fixtures*. */
+  kscCoach: 'dewald.nel@kwaggafontein.test',
 };
 export const ORG = { dkl: 'fx-org-dkl', sac: 'fx-org-sac', rbh: 'fx-org-rbh', ksc: 'fx-org-ksc' };
 export const TOURNAMENT = 'fx-tour-spring';

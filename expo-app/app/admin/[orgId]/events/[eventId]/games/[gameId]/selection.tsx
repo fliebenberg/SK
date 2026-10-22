@@ -65,6 +65,8 @@ export default function GameSelectionScreen() {
   const [teamsMap, setTeamsMap] = useState<Record<string, any>>({});
 
   const [roster, setRoster] = useState<RosterItem[]>([]);
+  /** Whom the proposed team's game was against, while this side starts from a proposal (`FIX-32`). */
+  const [proposedFrom, setProposedFrom] = useState<string | null>(null);
   const [originalRoster, setOriginalRoster] = useState<RosterItem[]>([]);
 
   // Selection Interaction States (Bi-directional desktop + mobile)
@@ -260,15 +262,25 @@ export default function GameSelectionScreen() {
       'get_data',
       { type: 'game_roster', id: currentParticipant.id },
       (data: any[]) => {
-        if (isMounted) {
-          const mapped: RosterItem[] = (data || []).map((r) => ({
-            orgProfileId: r.orgProfileId,
-            position: r.position || undefined,
-            jerseyNumber: r.jerseyNumber || undefined,
-            isReserve: !!r.isReserve,
-          }));
-          setRoster(mapped);
-          setOriginalRoster(mapped);
+        if (!isMounted) return;
+        const toItems = (rows: any[]): RosterItem[] => (rows || []).map((r) => ({
+          orgProfileId: r.orgProfileId,
+          position: r.position || undefined,
+          jerseyNumber: r.jerseyNumber || undefined,
+          isReserve: !!r.isReserve,
+        }));
+        const mapped = toItems(data);
+        setRoster(mapped);
+        setOriginalRoster(mapped);
+        setProposedFrom(null);
+        // No team of its own yet: start from the proposed one — the team of this team's latest
+        // earlier game in the tournament (`FIX-32`). Unsaved, so Save confirms it as this game's.
+        if (!mapped.length && canEditCurrentTeam) {
+          wsService.emit('get_data', { type: 'game_roster_proposal', id: currentParticipant.id }, (proposal: any) => {
+            if (!isMounted || !proposal?.items?.length) return;
+            setRoster(toItems(proposal.items));
+            setProposedFrom(proposal.opponent || 'the last game');
+          });
         }
       }
     );
@@ -276,7 +288,7 @@ export default function GameSelectionScreen() {
     return () => {
       isMounted = false;
     };
-  }, [isConnected, currentParticipant?.id, currentTeamId]);
+  }, [isConnected, currentParticipant?.id, currentTeamId, canEditCurrentTeam]);
 
   // Real-Time Room Subscription & Delta Update Listener
   useEffect(() => {
@@ -380,6 +392,7 @@ export default function GameSelectionScreen() {
       setIsSaving(false);
       if (result.ok) {
         setOriginalRoster(roster);
+        setProposedFrom(null);
         useUnsavedChangesStore.getState().clear();
       }
     });
@@ -766,6 +779,14 @@ export default function GameSelectionScreen() {
 
       {/* MAIN CONTAINER: 2-COLUMN RESPONSIVE LAYOUT */}
       <ScrollView className="flex-1 px-3 py-3" contentContainerStyle={{ paddingBottom: 60 }}>
+        {proposedFrom && canEditCurrentTeam ? (
+          <View testID="proposed-note" className="bg-warning-soft border border-warning-line rounded-xl p-3 mb-3 flex-row items-center gap-2">
+            <Ionicons name="information-circle-outline" size={18} color={themeColor(isDark, 'warning-ink')} />
+            <Text className="font-inter text-xs text-warning-ink flex-1">
+              Proposed: the team from v {proposedFrom}. Change it, or save it as it is to confirm it for this game.
+            </Text>
+          </View>
+        ) : null}
         {/* Read-Only Notice Banner */}
         {!canEditCurrentTeam && (
           <View className="bg-warning-soft border border-warning-line rounded-xl p-3 mb-3 flex-row items-center gap-2">

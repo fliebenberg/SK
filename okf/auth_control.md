@@ -32,6 +32,11 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
     - **Manager**: Manage event schedules, add teams, and edit rosters.
     - **Scorekeeper / Official**: Authorized to open the scoring console and update game states in real-time.
     - **Coach**: Manage team lineups and view restricted rosters.
+    - **Who picks a side's team for a game** (`SCORE-19`, 2026-10-22; `AccessManager.canPickSide`, org
+      gate `pick-side`): each organisation its own — the side's coach, or its organisation's admins and
+      staff. In a tournament the people who run it — organisers, the division's convenors, the host's
+      admins and staff — may pick for any side as well; in a single match the host picks only its own.
+      Scoring a game does not include picking the other side's team.
     - **Player**: View personal schedules and access internal team details.
 4.  **Event-Scoped Grant (Tournament Organiser / Sport Organiser / Division Convenor)**:
     - **Not a membership, and not an org role.** A named person is granted edit rights over one

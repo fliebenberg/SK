@@ -994,7 +994,7 @@ export function TournamentHome({
   if (resultsA) columns[0].unshift(resultsA);
 
   // What the viewer still owes the tournament — teams to answer, for now (`FIX-24`): under the banner.
-  const todo = useTournamentTodo({ event, divisions: allDivisions, entrants: everyEntrant, canEdit, sports });
+  const todo = useTournamentTodo({ event, divisions: allDivisions, entrants: everyEntrant, canEdit, sports, games: allGames, orgId });
   const mineLine = <TournamentScopeLine {...scoped} isWide={isWide} allLabel="the whole tournament" />;
 
   return (
@@ -1007,6 +1007,8 @@ export function TournamentHome({
         eventName={event.name}
         orgName={id => event.participatingOrgs?.find(o => o.id === id)?.name || 'Your organisation'}
         onAnswerEach={pid => router.push(`/admin/${orgId}/events/${eventId}/organisations/${pid}` as any)}
+        onOpenGame={(gameId, pickFor) => router.push(`/admin/${orgId}/events/${eventId}/games/${gameId}${pickFor ? `/selection?teamId=${pickFor}` : ''}` as any)}
+        onChanged={todo.reload}
         onSeeAll={() => router.push(`/admin/${orgId}/events/${eventId}/todo` as any)}
       />
       {nextStrip}

@@ -413,6 +413,25 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
     *   **Event**: `GAME_UPDATED`
     *   **Data**: Result of update.
 
+#### `SAVE_GAME_ROSTER` — one side's team for one game
+*   **Payload**: `{ gameId, participantId, items: [{ orgProfileId, position?, jerseyNumber?, isReserve }] }`
+    — the whole sheet; saving replaces it.
+*   **Authorised** (`SCORE-19`, 2026-10-22): the org gate's `pick-side` — `AccessManager.canPickSide`.
+    **Each organisation picks its own**: the side's coach, or its organisation's admins and staff. In a
+    tournament the people who run it may pick for any side too — its organisers, the division's
+    convenors and the host's admins and staff. In a single match the host picks only its own side.
+    Until 2026-10-22 it was the scoring gate's, which let either side write the other's sheet.
+*   **Proposed teams** (`FIX-32`): a side with no sheet of its own is offered the sheet of its team's
+    latest earlier game in the same tournament — `get_data` `{ type: 'game_roster_proposal', id:
+    participantId }`, answered `{ fromGameId, fromParticipantId, fromStartTime, opponent, items }` or
+    null, under the `game:{id}` room's rule. Worked out when read, never stored: it follows the game
+    it comes from, and saving a sheet (Pick team, or *Confirm*) replaces it. `UPDATE_GAME_STATUS` to
+    `Live` and `RECORD_GAME_RESULT` save a side's proposal as its sheet first (`standProposedRosters`):
+    whoever played is what counts. `get_data` `{ type: 'event_lineups', eventId, userId }` (the caller's
+    own, `self`) lists the caller's teams' games still to play in a tournament, each picked, proposed
+    or neither, for To do.
+*   **Broadcasts**: `GAME_ROSTER_UPDATED` and `GAME_UPDATED` to `game:{id}`.
+
 #### `UPDATE_GAME_SCORE`
 *   **Payload**: `{ id, scores, homeScore, awayScore, reason }`
 *   **Logic**: Updates live/final game score map and score properties.

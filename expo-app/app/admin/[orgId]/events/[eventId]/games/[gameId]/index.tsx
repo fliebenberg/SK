@@ -18,7 +18,7 @@ import { MoveSheet } from '../../../../../../../components/tournament/MoveSheet'
 import { useScheduleCheck } from '../../../../../../../components/tournament/useScheduleCheck';
 import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { useGameSummary } from '../../../../../../../hooks/useGameSummary';
-import { useGameLineups } from '../../../../../../../hooks/useGameLineups';
+import { useGameLineups, useLineupProposals } from '../../../../../../../hooks/useGameLineups';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { useEventDivisions, useEventFacilityIds, useEventFixtures, useEventRecord, useSports } from '../../../../../../../hooks/useEventRooms';
 import { awardsPoints } from '../../../../../../../components/tournament/standingsBits';
@@ -91,7 +91,7 @@ export default function GamePage() {
   }, [isConnected, summary?.siteId, summary?.facilityId]);
 
   const sides = useMemo(() => (summary?.participants || []).slice(0, 2), [summary]);
-  const { lineups } = useGameLineups(sides.map(p => p.id));
+  const { lineups, reload: reloadLineups } = useGameLineups(sides.map(p => p.id));
   const homeSides = useMemo(() => new Set(sides.filter(p => site?.orgId && p.orgId === site.orgId).map(p => p.id)), [sides, site]);
 
   const divisions = useEventDivisions(isFixture ? eventId : null);
@@ -104,6 +104,9 @@ export default function GamePage() {
 
   const permissions = getMatchPermissions({ game: summary || null, event, currentOrgId: orgId, user, orgMemberships, teamMemberships, capabilities });
   const canEdit = permissions.canEdit;
+  // The viewer's own sides' proposed teams (`FIX-32`); another side's is not theirs to see as picked.
+  const mySideIds = sides.filter((p, i) => (i === 0 ? permissions.canEditTeam1Lineup : permissions.canEditTeam2Lineup)).map(p => p.id);
+  const { proposals, reload: reloadProposals } = useLineupProposals(isFixture ? mySideIds : []);
 
   const backHref = isMatch ? `/admin/${orgId}/events` : `/admin/${orgId}/events/${eventId}`;
   const goBack = () => safeBack(backHref);
@@ -139,9 +142,33 @@ export default function GamePage() {
     : mySides.length && !picked ? 'pick' : permissions.canScore ? 'start' : null;
   const pickTeam = () => router.push(`/admin/${orgId}/events/${eventId}/games/${gameId}/selection${mySides.length === 1 && mySides[0].teamId ? `?teamId=${mySides[0].teamId}` : ''}` as any);
   const score = () => router.push(`/admin/${orgId}/events/${eventId}/games/${gameId}/score` as any);
+  /*
+   * A side with no team of its own but a proposed one (`FIX-32`): *Confirm team* saves the proposal
+   * as this game's, and stays the next step until done — nothing the coach has not looked at shows
+   * as picked. *Change team* opens Pick team, starting from the proposal.
+   */
+  const proposedSides = mySides.filter(p => !(lineups[p.id] || []).length && !!proposals[p.id]);
+  const confirmProposals = async () => {
+    setBusy(true);
+    for (const p of proposedSides) {
+      const items = (proposals[p.id]?.items || []).map(r => ({ orgProfileId: r.orgProfileId, position: r.position || undefined, jerseyNumber: r.jerseyNumber || undefined, isReserve: !!r.isReserve }));
+      const res = await sendAction(SocketAction.SAVE_GAME_ROSTER, { gameId: gameId!, participantId: p.id, items });
+      if (!res.ok) break;
+    }
+    setBusy(false);
+    reloadLineups();
+    reloadProposals();
+  };
   const actions: ScoreboardAction[] = [];
   if (moment !== 'cancelled') {
-    if (mySides.length && moment !== 'done') actions.push({ label: picked ? 'Change team' : 'Pick team', onPress: pickTeam, primary: next === 'pick' });
+    if (mySides.length && moment !== 'done') {
+      if (proposedSides.length && !picked) {
+        actions.push({ label: 'Confirm team', onPress: confirmProposals, primary: next === 'pick' });
+        actions.push({ label: 'Change team', onPress: pickTeam });
+      } else {
+        actions.push({ label: picked ? 'Change team' : 'Pick team', onPress: pickTeam, primary: next === 'pick' });
+      }
+    }
     if (permissions.canScore) {
       if (moment === 'live') actions.push({ label: 'Score', onPress: score, primary: true });
       // The result dialog needs the full record: offered once it has arrived, so it never does nothing.
@@ -250,7 +277,7 @@ export default function GamePage() {
     body = (
       <View className="flex-row gap-4 items-start">
         <View className="flex-1 gap-3.5 min-w-0">
-          <TeamsCard summary={summary} lineups={lineups} homeSides={homeSides} started={started || moment === 'cancelled'} sideBySide onWhoPlayed={whoPlayed} />
+          <TeamsCard summary={summary} lineups={lineups} proposals={proposals} homeSides={homeSides} started={started || moment === 'cancelled'} sideBySide onWhoPlayed={whoPlayed} />
           {divisionCard}
         </View>
         <View className="gap-3.5" style={{ width: 340 }}>
@@ -266,11 +293,11 @@ export default function GamePage() {
     body = (
       <View className="gap-2.5">
         <View className="rounded-xl border border-line bg-card overflow-hidden"><Tabs items={tabs} activeKey={shown} onChange={setTab} /></View>
-        {shown === 'teams' ? <TeamsCard summary={summary} lineups={lineups} homeSides={homeSides} started={started || moment === 'cancelled'} onWhoPlayed={whoPlayed} /> : null}
+        {shown === 'teams' ? <TeamsCard summary={summary} lineups={lineups} proposals={proposals} homeSides={homeSides} started={started || moment === 'cancelled'} onWhoPlayed={whoPlayed} /> : null}
         {shown === 'events' && game ? <MatchEventsCard game={game} height={520} /> : null}
         {shown === 'overview' ? (
           <>
-            <TeamsCard summary={summary} lineups={lineups} homeSides={homeSides} started={started || moment === 'cancelled'} compact onOpen={() => setTab('teams')} />
+            <TeamsCard summary={summary} lineups={lineups} proposals={proposals} homeSides={homeSides} started={started || moment === 'cancelled'} compact onOpen={() => setTab('teams')} />
             {started && game ? <MatchEventsCard game={game} height={280} /> : null}
             {whereCard}
             {divisionCard}

@@ -169,6 +169,12 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
                             const gameId = req.id ? await dataManager.getGameIdForParticipant(req.id) : null;
                             return gameId ? `game:${gameId}` : null;
                           } },
+  game_roster_proposal: { room: async (req: any) => {
+                            const gameId = req.id ? await dataManager.getGameIdForParticipant(req.id) : null;
+                            return gameId ? `game:${gameId}` : null;
+                          } },
+  // Answered from the caller's own teams only, so it is theirs to ask for and nobody else's.
+  event_lineups:        { standalone: 'self', selfField: 'userId' },
   roster:               { room: async (req: any) => {
                             const gameId = req.id ? await dataManager.getGameIdForParticipant(req.id) : null;
                             return gameId ? `game:${gameId}` : null;

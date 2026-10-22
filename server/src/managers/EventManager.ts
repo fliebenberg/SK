@@ -954,6 +954,106 @@ export class EventManager extends BaseManager {
     }
   }
 
+  /*
+   * Proposed teams (`FIX-32` part 2, agreed 2026-10-18). A team is picked per game. A side with no
+   * team sheet of its own takes the sheet of the latest earlier game its team played in the same
+   * tournament — **a proposal**, worked out when read and never stored, so it follows that game if it
+   * changes. Saving a sheet (Pick team, or Confirm) makes it the game's own. When the game starts, or
+   * a result is recorded, a proposal still standing is saved as the game's sheet: whoever played is
+   * what counts.
+   */
+  private readonly PROPOSAL_SOURCE_SQL = `
+    SELECT src.id AS "participantId", sg.id AS "gameId",
+           COALESCE(sg.scheduled_start_time, sg.start_time) AS "startTime",
+           (SELECT TRIM(COALESCE(o.name || ' ', '') || COALESCE(t.name, e.label, ''))
+              FROM game_participants opp
+              LEFT JOIN teams t ON t.id = opp.team_id
+              LEFT JOIN organizations o ON o.id = t.org_id
+              LEFT JOIN division_entrants e ON e.id = opp.entrant_id
+             WHERE opp.game_id = sg.id AND opp.id <> src.id
+             ORDER BY opp.sort_order LIMIT 1) AS "opponent"
+      FROM game_participants me
+      JOIN games mg ON mg.id = me.game_id
+      JOIN game_participants src ON src.team_id = me.team_id AND src.id <> me.id
+      JOIN games sg ON sg.id = src.game_id AND sg.event_id = mg.event_id AND sg.status <> 'Cancelled'
+     WHERE me.id = $1 AND me.team_id IS NOT NULL
+       AND COALESCE(sg.scheduled_start_time, sg.start_time) < COALESCE(mg.scheduled_start_time, mg.start_time)
+       AND EXISTS (SELECT 1 FROM game_rosters r WHERE r.game_participant_id = src.id)
+       AND NOT EXISTS (SELECT 1 FROM game_rosters r WHERE r.game_participant_id = me.id)
+     ORDER BY COALESCE(sg.scheduled_start_time, sg.start_time) DESC
+     LIMIT 1`;
+
+  /** A side's proposed team, or null when it has a sheet of its own or nothing earlier to take. */
+  async getRosterProposal(participantId: string): Promise<{ fromGameId: string; fromParticipantId: string; fromStartTime: string | null; opponent: string | null; items: any[] } | null> {
+    if (!participantId) return null;
+    const source = (await this.query(this.PROPOSAL_SOURCE_SQL, [participantId])).rows[0];
+    if (!source) return null;
+    return {
+      fromGameId: source.gameId,
+      fromParticipantId: source.participantId,
+      fromStartTime: source.startTime ? new Date(source.startTime).toISOString() : null,
+      opponent: source.opponent || null,
+      items: await this.getGameRoster(source.participantId),
+    };
+  }
+
+  /** At kick-off or a result: each side still on a proposal keeps it as its own sheet. */
+  async standProposedRosters(gameId: string): Promise<string[]> {
+    const sides = await this.query('SELECT id FROM game_participants WHERE game_id = $1', [gameId]);
+    const stood: string[] = [];
+    for (const side of sides.rows) {
+      const proposal = await this.getRosterProposal(side.id);
+      if (!proposal?.items.length) continue;
+      await this.saveGameRoster(gameId, side.id, proposal.items.map((r: any) => ({
+        orgProfileId: r.orgProfileId, position: r.position || undefined, jerseyNumber: r.jerseyNumber || undefined, isReserve: !!r.isReserve,
+      })));
+      stood.push(side.id);
+    }
+    return stood;
+  }
+
+  /**
+   * Where each of this user's teams stands for every game still to play in a tournament — for To do
+   * (`FIX-24`): picked, proposed, or neither. "This user's teams" are the ones they pick for: a
+   * coach's own, and every team of an organisation they are an admin or staff of.
+   */
+  async getEventLineups(userId: string, eventId: string): Promise<Array<{
+    gameId: string; participantId: string; teamId: string; startTime: string | null; picked: boolean; proposedFromGameId: string | null; asCoach: boolean;
+  }>> {
+    if (!userId || !eventId) return [];
+    const { accessManager } = require('./AccessManager');
+    const res = await this.query(
+      `SELECT g.id AS "gameId", gp.id AS "participantId", gp.team_id AS "teamId",
+              COALESCE(g.scheduled_start_time, g.start_time) AS "startTime",
+              EXISTS (SELECT 1 FROM game_rosters r WHERE r.game_participant_id = gp.id) AS picked,
+              EXISTS (SELECT 1 FROM team_memberships tm
+                       WHERE tm.team_id = gp.team_id AND tm.role_id IN ('role-coach', 'role-assistant-coach')
+                         AND tm.org_profile_id IN (${accessManager.PROFILE_IDS_FOR_USER})
+                         AND (tm.end_date IS NULL OR tm.end_date > NOW())) AS "asCoach",
+              EXISTS (SELECT 1 FROM org_memberships om
+                       WHERE om.org_id = t.org_id AND om.role_id IN ('role-org-admin', 'role-org-staff')
+                         AND om.org_profile_id IN (${accessManager.PROFILE_IDS_FOR_USER})
+                         AND (om.end_date IS NULL OR om.end_date > NOW())) AS "asOrg"
+         FROM games g
+         JOIN game_participants gp ON gp.game_id = g.id
+         JOIN teams t ON t.id = gp.team_id
+        WHERE g.event_id = $2 AND g.status = 'Scheduled'
+        ORDER BY COALESCE(g.scheduled_start_time, g.start_time) NULLS LAST, g.id`,
+      [userId, eventId]
+    );
+    const mine = res.rows.filter((r: any) => r.asCoach || r.asOrg);
+    const out = [];
+    for (const r of mine) {
+      const proposal = r.picked ? null : (await this.query(this.PROPOSAL_SOURCE_SQL, [r.participantId])).rows[0];
+      out.push({
+        gameId: r.gameId, participantId: r.participantId, teamId: r.teamId,
+        startTime: r.startTime ? new Date(r.startTime).toISOString() : null,
+        picked: !!r.picked, proposedFromGameId: proposal?.gameId ?? null, asCoach: !!r.asCoach,
+      });
+    }
+    return out;
+  }
+
   /**
    * Route a changed result through the one function that rewrites a standings table (D30).
    *

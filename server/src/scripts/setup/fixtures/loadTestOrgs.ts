@@ -437,6 +437,22 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
             }
             if (at) booked.push({ id: g.id, day: at.day, facilityId: at.facilityId, start: at.start, minutes, competitors: [g.home.teamId, g.away.teamId], gap, teamBreak });
         }
+        // A team sheet picked for a team's first game (`FIX-32`): its first fifteen players.
+        for (const pick of division.picked || []) {
+            const teamId = fixtureIds.team(pick.org, pick.team);
+            const team = TEST_ORGS.find(o => o.key === pick.org)?.teams.find(t => t.key === pick.team);
+            if (!team) throw new Error(`${where}: there is no team ${pick.team} in ${pick.org} to pick.`);
+            const first = (await client.query(
+                `SELECT gp.id FROM game_participants gp JOIN games g ON g.id = gp.game_id
+                  WHERE g.stage_id = $1 AND gp.team_id = $2 AND g.scheduled_start_time IS NOT NULL
+                  ORDER BY g.scheduled_start_time LIMIT 1`, [stageId, teamId])).rows[0];
+            if (!first) throw new Error(`${where}: ${pick.team} has no scheduled game to pick for.`);
+            for (const [n, player] of team.players.slice(0, 15).entries()) {
+                const name = typeof player === 'string' ? player : player.name;
+                await insert('game_rosters', ['id', 'game_participant_id', 'org_profile_id', 'position', 'is_reserve'],
+                    [`fx-roster-${first.id}-${n + 1}`, first.id, fixtureIds.profile(pick.org, name), String(n + 1), false]);
+            }
+        }
     };
 
     // Tournaments after games: they reference teams of several organisations (`FIX-31`, `FIX-33`).

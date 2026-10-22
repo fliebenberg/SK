@@ -798,6 +798,42 @@ export class AccessManager extends BaseManager {
     return res.rows[0]?.org_id || null;
   }
 
+  /**
+   * May this user pick this side's team for this game (`SCORE-19`, 2026-10-22)? **Each organisation
+   * picks its own** (agreed 2026-10-14): the side's coach, or its organisation's admins and staff.
+   * In a tournament the people who run it may pick for any side as well — its organisers, the
+   * division's convenors and the host's admins and staff — so a side with no team of its own yet, or
+   * a placeholder, is never stuck. In a single match the host picks only its own side.
+   */
+  async canPickSide(userId: string, gameId: string, participantId: string): Promise<boolean> {
+    if (!userId || !gameId || !participantId) return false;
+    if (await this.isAppAdmin(userId)) return true;
+    const res = await this.query(
+      `SELECT gp.team_id AS "teamId", t.org_id AS "teamOrgId", g.event_id AS "eventId", e.type, e.org_id AS "hostOrgId"
+         FROM game_participants gp
+         JOIN games g ON g.id = gp.game_id
+         JOIN events e ON e.id = g.event_id
+         LEFT JOIN teams t ON t.id = gp.team_id
+        WHERE gp.id = $1 AND gp.game_id = $2`,
+      [participantId, gameId]
+    );
+    const side = res.rows[0];
+    if (!side) return false;
+    const managesOrg = async (orgId?: string | null) => {
+      if (!orgId) return false;
+      const role = await this.getOrganizationRole(userId, orgId);
+      return role === 'role-org-admin' || role === 'role-org-staff';
+    };
+    if (side.type !== 'SingleMatch') {
+      if ((await this.getEventGrants(userId, side.eventId)).isEventOrganizer) return true;
+      const divisionId = await this.getGameDivisionId(gameId);
+      if (divisionId && (await this.hasDivisionGrant(userId, divisionId))) return true;
+      if (await managesOrg(side.hostOrgId)) return true;
+    }
+    if (side.teamId && (await this.isTeamCoach(userId, side.teamId))) return true;
+    return managesOrg(side.teamOrgId);
+  }
+
   async canScoreGame(userId: string, gameId: string): Promise<boolean> {
     if (await this.isAppAdmin(userId)) return true;
 

@@ -424,8 +424,11 @@ the page as built with what is new tagged. **Built 2026-10-18 (phase 1):** the s
 organisation, Taking part left whole, and To do — its card and its page — with teams to answer as
 its one task so far ([TournamentTodo.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentTodo.tsx),
 `events/[eventId]/todo`). **Phase 2, built 2026-10-18:** naming a TBC place — a To do task for the
-organisation's admins, *Name the team*, and its dialog (`NAME_OWN_PLACEHOLDER`). Picking a team per game
-(`FIX-32`, phase 3) is not built yet.
+organisation's admins, *Name the team*, and its dialog (`NAME_OWN_PLACEHOLDER`). **Phase 3, built
+2026-10-22:** a team per game with proposed teams — the game page's *Confirm team*, Pick team starting
+from the proposal, and To do's *Pick team* and *N games with a proposed team* (*Confirm all*), a team
+task going to its coach or, with none, to the admin — and who may pick a side checked on the server
+(`SCORE-19`, `AccessManager.canPickSide`).
 - **A taking-part organisation's admin starts on My organisation.** The host's Admin and Staff still
   start on All (design_spec's role default); a guest organisation is there for its own teams.
 - **To do** replaces the amber *Your teams are invited* card, in the same place, once there is more

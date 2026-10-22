@@ -55,8 +55,8 @@ function TodoPage({ orgId, event, data, onBack }: {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
-  const { divisions, entrants, canEdit, sports } = data;
-  const { tasks } = useTournamentTodo({ event, divisions, entrants, canEdit, sports });
+  const { divisions, entrants, canEdit, sports, games } = data;
+  const { tasks, reload } = useTournamentTodo({ event, divisions, entrants, canEdit, sports, games, orgId });
   const [whose, setWhose] = useState<Whose>('all');
   const [sportId, setSportId] = useState<string>(ALL);
   const [team, setTeam] = useState<string>(ALL);
@@ -79,6 +79,8 @@ function TodoPage({ orgId, event, data, onBack }: {
         eventName={event.name}
         orgName={orgName}
         onAnswerEach={pid => router.push(`/admin/${orgId}/events/${event.id}/organisations/${pid}` as any)}
+        onOpenGame={(gameId, pickFor) => router.push(`/admin/${orgId}/events/${event.id}/games/${gameId}${pickFor ? `/selection?teamId=${pickFor}` : ''}` as any)}
+        onChanged={reload}
         showWhose
       />
     </View>

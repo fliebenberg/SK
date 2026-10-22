@@ -614,6 +614,10 @@ Explicit tracks of individuals playing in a specific game for a team.
 - `is_reserve` (BOOLEAN)
 - `jersey_number` (TEXT)
 
+A side with no rows has no team of its own for that game. In a tournament it may be **proposed** one —
+the rows of its team's latest earlier game there — which is worked out when read and never stored
+(`FIX-32`); it becomes rows when confirmed, when the game starts, or when its result is recorded.
+
 ### 18d. `game_officials`
 Assigns roles to officials for a game.
 - `id` (TEXT, PK)

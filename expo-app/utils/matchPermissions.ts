@@ -118,12 +118,13 @@ export function getMatchPermissions(params: {
   /*
    * Who picks a team (agreed 2026-10-14, stage 3): **each organisation picks its own.** In a single
    * match the host's admins pick their side only, and the other organisation's admins and the
-   * team's coach pick theirs (below). A tournament's organisers still pick for every team, since
-   * nobody else can until organisations get their own grant there (`FIX-32`). The server's own
-   * per-side check is `SCORE-19`.
+   * team's coach pick theirs (below). In a tournament the people who run it — its organisers, the
+   * division's convenors, the host's admins and staff — may pick for any team as well. The same
+   * rule as the server's `AccessManager.canPickSide` (`SCORE-19`, 2026-10-22): an admin of a guest
+   * organisation, acting from its own workspace, picks only its own teams.
    */
   const isSingleMatch = resolveEventType(event).kind === 'SingleMatch';
-  const picksEveryTeam = !isSingleMatch && (isEventOwner || hasTournamentGrant);
+  const picksEveryTeam = !isSingleMatch && (isAdminOfEventOrg || hasTournamentGrant);
   let canEditTeam1Lineup = picksEveryTeam;
   let canEditTeam2Lineup = picksEveryTeam;
 

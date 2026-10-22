@@ -84,6 +84,8 @@ type Rule =
    * place must be a placeholder of that organisation's; the rest is the manager's.
    */
   | { kind: 'own-placeholder' }
+  /** Picking a side's team for a game (`SCORE-19`): `AccessManager.canPickSide`. */
+  | { kind: 'pick-side' }
   | { kind: 'app-admin' }
   | { kind: 'signed-in' }
   /** A payload that names a user must name the caller. */
@@ -192,6 +194,9 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   // A placeholder its organisation names itself (`FIX-32`): the organisation's own place, so the
   // org gate's, not the organisers' — they replace through `REPLACE_ENTRANT`.
   [SocketAction.NAME_OWN_PLACEHOLDER]: { kind: 'own-placeholder' },
+  // A side's team sheet (`SCORE-19`, 2026-10-22): its own organisation's, or the tournament's people.
+  // Until then it was the scoring gate's, which let either side write the other's.
+  [SocketAction.SAVE_GAME_ROSTER]: { kind: 'pick-side' },
   // Planning only since 2026-09-21 — the result is `RECORD_GAME_RESULT`'s, under the scoring gate.
   [SocketAction.UPDATE_GAME]: { kind: 'edit-fixture' },
   [SocketAction.DELETE_GAME]: { kind: 'edit-fixture' },
@@ -379,6 +384,11 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
           ? "Unauthorized: Only the team's organisation admins, its coach, or the division's organisers may answer for it."
           : "Unauthorized: Only the team's organisation admins or its coach may do that."
       );
+    }
+
+    case 'pick-side': {
+      if (await accessManager.canPickSide(userId, payload?.gameId, payload?.participantId)) return;
+      throw refuse("Unauthorized: Only the team's own organisation, its coach, or the tournament's organisers may pick its team.");
     }
 
     case 'own-placeholder': {

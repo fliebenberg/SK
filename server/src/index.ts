@@ -1163,7 +1163,7 @@ const SCORING_ACTION_GAME_ID: Partial<Record<SocketAction, (payload: any) => str
   [SocketAction.RECORD_GAME_RESULT]: (p) => p?.id,
   [SocketAction.RESET_GAME]: (p) => p?.id,
   [SocketAction.REMOVE_SIN_BIN]: (p) => p?.gameId,
-  [SocketAction.SAVE_GAME_ROSTER]: (p) => p?.gameId,
+  // SAVE_GAME_ROSTER moved to the org gate's `pick-side` (`SCORE-19`): picking is per side.
 };
 
 /**
@@ -1630,6 +1630,14 @@ io.on('connection', (socket) => {
             case 'game_roster':
             case 'roster':
                 callback(await dataManager.getGameRoster(id));
+                break;
+            case 'game_roster_proposal':
+                // A side's proposed team (`FIX-32`): the sheet of its team's latest earlier game here.
+                callback(await dataManager.getRosterProposal(id));
+                break;
+            case 'event_lineups':
+                // The caller's teams' games still to play in a tournament, picked or proposed (`FIX-24`).
+                callback(await dataManager.getEventLineups(request.userId, request.eventId));
                 break;
             case 'events':
                 callback(await dataManager.getEvents(orgId));
@@ -2572,6 +2580,8 @@ io.on('connection', (socket) => {
                 break;
             case SocketAction.UPDATE_GAME_STATUS:
                 result = await dataManager.updateGameStatus(action.payload.id, action.payload.status);
+                // Kick-off: a side still on a proposed team keeps it (`FIX-32`).
+                if (result && action.payload.status === 'Live') await dataManager.standProposedRosters(result.id);
                 if (result) {
                     // Published now rather than queued: the log entry below can still fail, and
                     // the status change has happened whether or not it does.
@@ -2595,6 +2605,8 @@ io.on('connection', (socket) => {
                     throw new Error("This match's result was changed by someone else after you entered yours. Check it, and enter yours again if it is still right.");
                 }
                 const notProvided = !!action.payload.notProvided;
+                // A result without a kick-off: a side still on a proposed team keeps it (`FIX-32`).
+                await dataManager.standProposedRosters(action.payload.id);
                 result = await dataManager.recordGameResult(
                     action.payload.id,
                     notProvided ? { notProvided: true } : { scores: action.payload.scores }

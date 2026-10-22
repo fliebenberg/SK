@@ -169,6 +169,9 @@ export class DataManager {
   getGameRoster = (participantId: string) => eventManager.getGameRoster(participantId);
   getGameIdForParticipant = (participantId: string) => eventManager.getGameIdForParticipant(participantId);
   saveGameRoster = (gameId: string, participantId: string, items: Array<{ orgProfileId: string, position?: string, isReserve: boolean }>) => eventManager.saveGameRoster(gameId, participantId, items);
+  getRosterProposal = (participantId: string) => eventManager.getRosterProposal(participantId);
+  standProposedRosters = (gameId: string) => eventManager.standProposedRosters(gameId);
+  getEventLineups = (userId: string, eventId: string) => eventManager.getEventLineups(userId, eventId);
 
   // Search
   /**

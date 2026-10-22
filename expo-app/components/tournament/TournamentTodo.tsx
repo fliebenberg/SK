@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Event, SocketAction, Sport, Team, TournamentDivision, TournamentEntrant, divisionFullName, entrantTakesAPlace, hasLeft } from '@sk/shared';
+import { Event, GameSummary, SocketAction, Sport, Team, TournamentDivision, TournamentEntrant, divisionFullName, entrantTakesAPlace, hasLeft, isEntrantInPlay } from '@sk/shared';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { EditDialog } from '../EditDialog';
 import { TEXT_INPUT } from '../formStyles';
@@ -11,6 +12,9 @@ import { useAuthStore } from '../../store/authStore';
 import { useOrgTeams } from '../../hooks/useOrgTeams';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
+import { wsService } from '../../services/websocket';
+import { useWsStore } from '../../store/wsStore';
+import { formatInstantDate, formatKickoffTime } from '../../utils/dates';
 
 /**
  * **To do** — what a taking-part organisation still owes a tournament (`FIX-24`, agreed 2026-10-18 on
@@ -21,11 +25,13 @@ import { themeColor } from '../../constants/Colors';
  * Each task is the viewer's own or a coach's. **An admin's own** are what only an admin can do, then
  * team tasks for a team with no coach; the rest are its coaches'. The Overview's card holds only the
  * viewer's own, at most five, and says how many more there are; *See all* opens the tournament's
- * To do page, which holds everything. Its tasks: a team to answer, and a place kept for the
- * organisation to name (`FIX-32`, an admin's only); picking a team per game joins them next.
+ * To do page, which holds everything. Its tasks: a team to answer, a place kept for the
+ * organisation to name (`FIX-32`, an admin's only), a team to pick for its first game, and games
+ * whose team is only proposed — taken from the team's previous game — to confirm (`FIX-32`).
+ * A team task is its coach's when it has one, and the admin's own when it has none.
  */
 
-export type TodoKind = 'answer' | 'name';
+export type TodoKind = 'answer' | 'name' | 'pick' | 'confirm';
 
 export interface TodoTask {
   key: string;
@@ -41,6 +47,41 @@ export interface TodoTask {
   mine: boolean;
   /** For a place to name: the teams already in the tournament, which cannot take it. */
   takenTeamIds?: string[];
+  /** A team task's line under the name: the game it waits on, or how many games are proposed. */
+  detail?: string;
+  /** When it is needed by — the first game it holds up, an instant — for the order. */
+  due?: string | null;
+  /** The game to open: the first to pick, or the first proposed. */
+  gameId?: string;
+  teamId?: string;
+  /** The team's head coach, whose task it is when the viewer is not them. */
+  coachName?: string | null;
+  /** The proposed games to confirm, each by its side. */
+  proposed?: Array<{ gameId: string; participantId: string }>;
+}
+
+/** One of the viewer's teams in one game still to play (`get_data` `event_lineups`). */
+interface EventLineup {
+  gameId: string;
+  participantId: string;
+  teamId: string;
+  startTime: string | null;
+  picked: boolean;
+  proposedFromGameId: string | null;
+  asCoach: boolean;
+}
+
+/** The viewer's teams' games still to play in a tournament, read again when the page comes back. */
+function useEventLineups(eventId: string | null, userId?: string) {
+  const isConnected = useWsStore((state: any) => state.isConnected);
+  const [lineups, setLineups] = useState<EventLineup[]>([]);
+  const load = useCallback(() => {
+    if (!isConnected || !eventId || !userId) return;
+    wsService.emit('get_data', { type: 'event_lineups', eventId, userId }, (data: any) => setLineups(Array.isArray(data) ? data : []));
+  }, [isConnected, eventId, userId]);
+  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+  return { lineups, reload: load };
 }
 
 /** A line of the list: one task, or more than three teams to answer as one. */
@@ -55,21 +96,28 @@ export const TODO_CARD_LIMIT = 5;
 /** More teams than this to answer, for one organisation, are one line (*Accept all*). */
 const ANSWERS_ONE_LINE = 3;
 
-const KIND_ORDER: Record<TodoKind, number> = { answer: 0, name: 1 };
+const KIND_ORDER: Record<TodoKind, number> = { answer: 0, name: 1, pick: 2, confirm: 3 };
 const ACTIVE = (m: any) => !m.endDate || new Date(m.endDate) > new Date();
 
 /** Everything the viewer may still need to do in this tournament, in order. */
-export function useTournamentTodo({ event, divisions, entrants, canEdit, sports }: {
+export function useTournamentTodo({ event, divisions, entrants, canEdit, sports, games = [], orgId }: {
   event: Event;
   divisions: TournamentDivision[];
   entrants: TournamentEntrant[];
   /** An organiser: their work is the tournament's own, not this list. */
   canEdit: boolean;
   sports: Sport[];
-}): { tasks: TodoTask[]; rows: TodoRow[] } {
+  /** The tournament's fixtures, to say whom a team's game is against. */
+  games?: GameSummary[];
+  /** The acting workspace, whose teams' coaches the team tasks name. */
+  orgId?: string;
+}): { tasks: TodoTask[]; rows: TodoRow[]; reload: () => void } {
   const orgMemberships = useAuthStore((state: any) => state.orgMemberships) || [];
   const teamMemberships = useAuthStore((state: any) => state.teamMemberships) || [];
-  return useMemo(() => {
+  const userId = useAuthStore((state: any) => state.user?.id) as string | undefined;
+  const { lineups, reload } = useEventLineups(canEdit ? null : event.id, userId);
+  const { teams } = useOrgTeams(canEdit ? null : orgId);
+  const listed = useMemo(() => {
     if (canEdit) return { tasks: [], rows: [] };
     const adminsOrg = (id?: string) => !!id && orgMemberships.some((m: any) => m.orgId === id && m.roleId === 'role-org-admin' && ACTIVE(m));
     const coachTeamIds = new Set<string>(teamMemberships
@@ -107,7 +155,45 @@ export function useTournamentTodo({ event, divisions, entrants, canEdit, sports 
         mine: true,
       });
     }
+
+    /*
+     * A team per game (`FIX-32`): for each of the viewer's teams, its first game with no team and
+     * nothing to take one from — *Pick team* — and the games whose team is only proposed — *Confirm*.
+     * The coach's when the team has one; the admin's own when it has none.
+     */
+    const when = (at: string | null) => (at ? `${formatInstantDate(at)} ${formatKickoffTime(at)}` : 'time to come');
+    const against = (gameId: string, teamId: string) => {
+      const other = games.find(g => g.id === gameId)?.participants?.find(p => p.teamId !== teamId);
+      return other ? ` v ${[other.orgShortName, other.name].filter(Boolean).join(' ')}` : '';
+    };
+    const byTeam = new Map<string, EventLineup[]>();
+    for (const l of lineups) byTeam.set(l.teamId, [...(byTeam.get(l.teamId) || []), l]);
+    for (const [teamId, list] of byTeam) {
+      const e = entrants.find(x => x.teamId === teamId && isEntrantInPlay(x.status));
+      const division = e ? divisionOf(e.divisionId) : undefined;
+      if (!e || !division) continue;
+      const coachName = (teams as Team[]).find(t => t.id === teamId)?.coachName || null;
+      const mine = list.some(l => l.asCoach) || !coachName;
+      const base = {
+        entrant: e, division, teamId, coachName, mine,
+        sportId: division.sportId || undefined, sportName: sportName(division.sportId),
+        teamName: e.name || 'Your team', divisionName: divisionFullName(division.name, sportName(division.sportId)),
+      };
+      const first = list.find(l => !l.picked && !l.proposedFromGameId);
+      if (first) {
+        tasks.push({ ...base, key: `pick:${teamId}`, kind: 'pick', gameId: first.gameId, due: first.startTime,
+          detail: `no team picked · ${when(first.startTime)}${against(first.gameId, teamId)}` });
+      }
+      const proposed = list.filter(l => !l.picked && !!l.proposedFromGameId);
+      if (proposed.length) {
+        tasks.push({ ...base, key: `confirm:${teamId}`, kind: 'confirm', gameId: proposed[0].gameId, due: proposed[0].startTime,
+          proposed: proposed.map(l => ({ gameId: l.gameId, participantId: l.participantId })),
+          detail: `${proposed.length} ${proposed.length === 1 ? 'game' : 'games'} with a proposed team, not confirmed` });
+      }
+    }
+
     tasks.sort((a, b) => (Number(b.mine) - Number(a.mine)) || KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
+      || (a.due || '~').localeCompare(b.due || '~')
       || sportOrder(a.sportId) - sportOrder(b.sportId) || a.divisionName.localeCompare(b.divisionName) || a.teamName.localeCompare(b.teamName));
 
     // Many teams to answer for one organisation are one line, in the place of its first.
@@ -126,7 +212,25 @@ export function useTournamentTodo({ event, divisions, entrants, canEdit, sports 
       }
     }
     return { tasks, rows };
-  }, [canEdit, entrants, divisions, event, orgMemberships, teamMemberships, sports]);
+  }, [canEdit, entrants, divisions, event, orgMemberships, teamMemberships, sports, lineups, teams, games]);
+  return { ...listed, reload };
+}
+
+/** A `get_data` read as a promise. */
+const read = (request: any) => new Promise<any>(resolve => wsService.emit('get_data', request, resolve));
+
+/**
+ * Confirming a team's proposed games (`FIX-32`): each saves its proposal as the game's own team,
+ * through `sendAction`, stopping at the first that fails.
+ */
+async function confirmProposals(list: Array<{ gameId: string; participantId: string }>): Promise<void> {
+  for (const side of list) {
+    const proposal = await read({ type: 'game_roster_proposal', id: side.participantId });
+    if (!proposal?.items?.length) continue;
+    const items = proposal.items.map((r: any) => ({ orgProfileId: r.orgProfileId, position: r.position || undefined, jerseyNumber: r.jerseyNumber || undefined, isReserve: !!r.isReserve }));
+    const result = await sendAction(SocketAction.SAVE_GAME_ROSTER, { gameId: side.gameId, participantId: side.participantId, items });
+    if (!result.ok) return;
+  }
 }
 
 /**
@@ -162,7 +266,7 @@ function Button({ label, onPress, disabled, primary }: { label: string; onPress:
 }
 
 /** The rows themselves — the card's and the page's — with their buttons and the decline confirmation. */
-export function TodoRows({ rows, orgId, eventName, orgName, onAnswerEach, showWhose = false }: {
+export function TodoRows({ rows, orgId, eventName, orgName, onAnswerEach, onOpenGame, onChanged, showWhose = false }: {
   rows: TodoRow[];
   /** The acting workspace. */
   orgId: string;
@@ -170,10 +274,21 @@ export function TodoRows({ rows, orgId, eventName, orgName, onAnswerEach, showWh
   orgName: (orgId?: string) => string;
   /** *Answer each ›* on a line of many teams: the organisation's page in the tournament. */
   onAnswerEach: (participantOrgId: string) => void;
+  /** A team task's game: its page, or its Pick team screen for the team. */
+  onOpenGame: (gameId: string, pickFor?: string) => void;
+  /** After *Confirm all*, so the list reads its games again. */
+  onChanged?: () => void;
   /** On the page: say whose a task is when it is not the viewer's. */
   showWhose?: boolean;
 }) {
   const { busy, declining, setDeclining, answer } = useAnswers(orgId);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const confirmAll = async (t: TodoTask) => {
+    setConfirming(t.key);
+    await confirmProposals(t.proposed || []);
+    setConfirming(null);
+    onChanged?.();
+  };
   const [naming, setNaming] = useState<TodoTask | null>(null);
   return (
     <View>
@@ -183,7 +298,7 @@ export function TodoRows({ rows, orgId, eventName, orgName, onAnswerEach, showWh
         return (
           <View
             key={row.key}
-            testID={first.kind === 'name' ? `todo-name-${first.entrant.id}` : many ? `todo-answers-${first.entrant.orgId}` : `team-invite-${first.entrant.id}`}
+            testID={first.kind === 'name' ? `todo-name-${first.entrant.id}` : first.kind === 'pick' || first.kind === 'confirm' ? `todo-${first.kind}-${first.teamId}` : many ? `todo-answers-${first.entrant.orgId}` : `team-invite-${first.entrant.id}`}
             className={`flex-row flex-wrap items-center gap-x-3 gap-y-2 py-2 ${i ? 'border-t border-line-soft' : ''}`}
           >
             <View className="flex-1" style={{ minWidth: 180 }}>
@@ -200,12 +315,21 @@ export function TodoRows({ rows, orgId, eventName, orgName, onAnswerEach, showWh
                 <Text className="font-inter text-xs text-ink-muted">
                   {first.divisionName}
                   {first.kind === 'name' ? ' · the organisers kept you a place — which team is it?' : ''}
-                  {showWhose && !row.mine ? ' · its coach’s' : ''}
+                  {first.detail ? ` · ${first.detail}` : ''}
+                  {showWhose && !row.mine ? ` · ${first.coachName ? `${first.coachName}’s` : 'its coach’s'}` : ''}
+                  {showWhose && row.mine && (first.kind === 'pick' || first.kind === 'confirm') && !first.coachName ? ' · no coach' : ''}
                 </Text>
               )}
             </View>
             {first.kind === 'name' ? (
               <Button primary label="Name the team" onPress={() => setNaming(first)} />
+            ) : first.kind === 'pick' ? (
+              <Button primary label="Pick team" onPress={() => onOpenGame(first.gameId!, first.teamId)} />
+            ) : first.kind === 'confirm' ? (
+              <View className="flex-row gap-2">
+                <Button label="Review" onPress={() => onOpenGame(first.gameId!)} />
+                <Button primary label={confirming === first.key ? 'Confirming…' : 'Confirm all'} disabled={!!confirming} onPress={() => confirmAll(first)} />
+              </View>
             ) : many ? (
               <View className="flex-row gap-2">
                 <Button primary label="✓ Accept all" disabled={busy} onPress={() => answer(row.tasks.map(t => t.entrant), 'accepted')} />
@@ -353,13 +477,15 @@ export function todoTitle(tasks: TodoTask[]) {
  * The Overview's card: the viewer's own tasks, at most five, then what is left — *2 more for
  * coaches · See all 9 ›*. Nothing to do, no card.
  */
-export function TodoCard({ tasks, rows, orgId, eventName, orgName, onAnswerEach, onSeeAll }: {
+export function TodoCard({ tasks, rows, orgId, eventName, orgName, onAnswerEach, onOpenGame, onChanged, onSeeAll }: {
   tasks: TodoTask[];
   rows: TodoRow[];
   orgId: string;
   eventName: string;
   orgName: (orgId?: string) => string;
   onAnswerEach: (participantOrgId: string) => void;
+  onOpenGame: (gameId: string, pickFor?: string) => void;
+  onChanged?: () => void;
   onSeeAll: () => void;
 }) {
   if (!rows.length) return null;
@@ -372,7 +498,7 @@ export function TodoCard({ tasks, rows, orgId, eventName, orgName, onAnswerEach,
     <View testID="todo-card" className="rounded-2xl border border-warning-line bg-card p-4 gap-1">
       <Text className="font-inter-bold text-[18px] text-ink">{todoTitle(tasks)}</Text>
       {shown.length ? (
-        <TodoRows rows={shown} orgId={orgId} eventName={eventName} orgName={orgName} onAnswerEach={onAnswerEach} />
+        <TodoRows rows={shown} orgId={orgId} eventName={eventName} orgName={orgName} onAnswerEach={onAnswerEach} onOpenGame={onOpenGame} onChanged={onChanged} />
       ) : (
         <Text className="font-inter text-sm text-ink-muted py-1">Nothing for you — what is left is your coaches'.</Text>
       )}
