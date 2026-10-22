@@ -104,9 +104,13 @@ moment a person page saves. For the list's head coach to stay right, `UPDATE_TEA
 republishes the team to `org:{id}:teams`, as adding and removing already did, and
 `UPDATE_ORG_PROFILE` does too for the teams a renamed person coaches.
 
+**Everyone on a team is one of its organisation's people** (decided 2026-10-22, `MEMBER-4`).
+Adding someone to a team makes them a Member of the organisation if they are not one yet, coaches
+included — there are no outside coaches: one hired from elsewhere is added as a new person, and their
+account links up by email. `ADD_TEAM_MEMBER` refuses a profile from another organisation.
+
 ## 6. Not settled here
 
-- An outside coach who is not a member of the organisation (`MEMBER-4`).
 - Who may read a team's roster (`PEOPLE-8`) — today any member can open the page read-only.
 - Picking players for a match from the team page itself; Pick team opens the existing selection
   screen.

@@ -180,7 +180,13 @@ export class TeamManager extends BaseManager {
     }));
   }
 
+  /**
+   * Everyone on a team is one of its organisation's people, and a Member of it at least — coaches
+   * included: there are no outside coaches (decided 2026-10-22, `MEMBER-4`). Someone from another
+   * organisation is added as a new person here; their account links up by email.
+   */
   async addTeamMember(membership: TeamMembership): Promise<TeamMembership> {
+    await this.assertProfileInTeamOrg(membership.orgProfileId, membership.teamId);
     const finalId = membership.id || `tm-${Date.now()}`;
     await this.query(
         `INSERT INTO team_memberships (id, org_profile_id, team_id, role_id, start_date)
@@ -208,9 +214,22 @@ export class TeamManager extends BaseManager {
     return { ...membership, id: finalId };
   }
 
+  /** A profile from another organisation would otherwise be put on the team, with a membership here. */
+  private async assertProfileInTeamOrg(orgProfileId: string, teamId: string): Promise<void> {
+    const res = await this.query(
+      `SELECT 1 FROM org_profiles p JOIN teams t ON t.org_id = p.org_id WHERE p.id = $1 AND t.id = $2`,
+      [orgProfileId, teamId]
+    );
+    if (!res.rowCount) throw new Error("That person is not one of this organisation's people, so they cannot join its team.");
+  }
+
   async updateTeamMember(id: string, data: Partial<TeamMembership>): Promise<TeamMembership | null> {
       const keys = Object.keys(data).filter(k => k !== 'id');
-      if (keys.length === 0) return null; 
+      if (keys.length === 0) return null;
+      if (data.orgProfileId) {
+          const current = await this.query(`SELECT team_id FROM team_memberships WHERE id = $1`, [id]);
+          if (current.rows[0]) await this.assertProfileInTeamOrg(data.orgProfileId, current.rows[0].team_id);
+      }
       
       const map: Record<string, string> = { roleId: 'role_id', startDate: 'start_date', endDate: 'end_date', orgProfileId: 'org_profile_id' };
       const setClauses: string[] = [];

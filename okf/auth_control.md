@@ -99,8 +99,9 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
       id or verified email) — until 2026-09-26 `canScoreGame` matched `user_id` only, which missed
       everyone linked by email.
     - It changes nothing for an ordinary member, whose membership already opens the same rooms. It
-      exists for a **restricted minor** (below) appointed to coach or score, and is the foundation
-      for outside coaches (`MEMBER-4`).
+      exists for a **restricted minor** (below) appointed to coach or score. There are no outside
+      coaches: everyone on a team is a Member of its organisation at least (`MEMBER-4`, decided
+      2026-10-22), and `ADD_TEAM_MEMBER` refuses a profile from another organisation.
 
 6.  **Minors: a membership without a member's privileges** — added 2026-09-26 (`MEMBER-3`):
     - A minor (younger than the org's minor age, or anyone with an active guardian) has member
