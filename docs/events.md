@@ -381,8 +381,8 @@ Say *organisations*, never *schools*: clubs take part too.
 **Live now** while games are being played, Sports & divisions (each tile saying where the division
 has got to), Fixtures, Organisations, Where with the map, Rules & scoring, and Organisers for an
 organiser when there are any. Invitation badges are an organiser's; anyone else sees who is taking
-part, without declined organisations. A guest organisation sees its own first. These outside views are accepted for
-now and are to be designed properly (`FIX-24`, `FIX-25`).
+part, without declined organisations. A guest organisation sees its own first. The guest organisation's view was redone with `FIX-24`
+(below); the public's is designed in §11 (`FIX-25`).
 
 **The ⋯ menu**: Organisers (appointed in a dialog — most tournaments have none, so no empty card),
 Cancel, and Delete, which is disabled with the reason once results are recorded.
@@ -417,7 +417,7 @@ each division's stages.
   under the banner with ✓ Accept / ✕ Decline (`TeamInvitationRows`). A team's own page has an
   **Events** card — every tournament it is in, an invitation as a tinted row to answer — and a strip
   under its banner while one waits; the events list's invitations box names the team. Who sees what,
-  and when, is still `FIX-25`'s to settle.
+  and when: the public in §11; from when a tournament is public at all is `FIX-38`.
 
 **Decided 2026-10-18 (`FIX-24`, `FIX-32`, `FIX-25`).** Mockup: `mockups/tournament-participant.html`,
 the page as built with what is new tagged. **Built 2026-10-18 (phase 1):** the start on My
@@ -453,8 +453,8 @@ task going to its coach or, with none, to the admin — and who may pick a side 
   the game's next step stays *Pick team*; once the game starts it stands. A *copy from a previous
   game* button was rejected: a tap per game on the busiest day.
 - **The public** reach a tournament from public listings, or by following a team or organisation in
-  it, and get a read-only view of the same page. From when, whether it needs an account, and player
-  names (`PEOPLE-4`) are open.
+  it, and get a read-only view of the same page. Settled 2026-10-22 in §11: public when the
+  organisers make it so (`FIX-38`), no account needed, no players' names (`PEOPLE-4`).
 - **Who to contact** is left to the communication work (`COM-1`).
 - **The Overview adds To do and nothing more** (option A): a team's next game and its place stay on
   Schedule and Standings, which the switch already narrows. A *Your teams* card and a *Your games*
@@ -705,3 +705,68 @@ the page already holds (`formByEntrant`), never a ranking.
 **Test data:** *Test Autumn Festival* (`fx-tour-autumn`) is under way — Netball U14 finished, Rugby U16
 half played, Netball U16 not started — and the reset rebuilds its tables after loading
 (`rebuildFixtureStandings`). Checked by `e2e/12-standings.spec.ts`.
+
+**Decided 2026-10-22, not yet built (`SCORE-23`, `FIX-25`).**
+- **A division of paired games ranks organisations, not teams.** A *Set fixtures by hand* division is
+  usually paired by level across organisations — U16 A v U16 A, U16 B v U16 B — so each team plays
+  once or twice, and one table of teams would crown a team that played once. Such a division, and
+  every Head to Head division, gets a table like the leaderboard's but for the division:
+  organisation, teams, P W D L, and points where the scoring system has them (none under wins /
+  draws / losses, none for a Head to Head). It replaces the team table on the division page, and the
+  Divisions line says *Won by Doringkloof*. A round robin keeps its team table.
+- **The Standings tab gets the Schedule's sport filter** — the same choice on both tabs — for
+  everyone, beside *Mine / My organisation / All*. A sport narrows the Divisions list, whose rows then
+  drop the sport from their names (rule 26: "U14", not "Netball U14"), and makes the leaderboard that
+  sport's, adding up only its divisions. There is no organisation filter on Standings: a table is a
+  comparison.
+
+## 11. The public view (`FIX-25`)
+
+Designed 2026-10-22 on `mockups/tournament-public.html` (kept local), **option A**: the tournament
+page as built, read-only. B (*Watch a team*, the public's stand-in for Mine) and C (an Overview that
+changes with the moment) were not chosen. Not built yet.
+
+**Who it is for, and how they get there.** Anyone outside every organisation taking part — a parent,
+a supporter — **with or without an account**: logged out and logged in see the same page for now
+(what an account adds is `FIX-37`). They reach it from the public organisation page of any
+organisation taking part (`UI-34`, below), or from a shared link, which opens the page directly — not
+the landing page. Following a team or organisation is left out for now (`UI-33`). It assumes the
+tournament is public; making it public, and keeping it hidden until then, is `FIX-38` — events have no
+such state today, and the event's public rooms are open from creation.
+
+**The page.**
+- **Outside every workspace**, in the public tab bar (Orgs marked), at a route of its own. *Share* in
+  the header copies a link, or opens the phone's share sheet.
+- **The same tabs and cards, without what only those taking part do**: no response card, To do,
+  *Mine / My organisation / All*, Organisers or ⋯. The Schedule narrows by sport and organisation
+  instead.
+- **On the day, Live now leads.** **Once it is over, the Leaderboard leads** — the top three
+  organisations and *Standings ›* — and the divisions stay on the Standings tab, a tap away. Between
+  days the same card shows the standings so far.
+- **Scores are larger** for live and finished games, in Live now and on the Schedule, and a live
+  game's minute sits under its start time to make the room.
+- **A withdrawn team stays in the fixtures**, struck through and tagged *Withdrawn*, because it
+  withdrew after the fixtures were made and the public must not see unexplained gaps. Its results
+  stand; its games still to play read *Not played*. As the organisers' division page already shows it.
+- **No players' names** until `PEOPLE-4` gives a consent rule: match events name the team, not the
+  scorer, and the game page has no team sheets — said once, on its Teams card. Coaches are named
+  (on the organisation page).
+
+**The public organisation page (`UI-34`)**, designed the same day on `mockups/org-public-events.html`
+(option B) and `mockups/org-public-page.html` (option A). It is redone read-first: the workspace
+Profile's banner (logo, name and short code, type, town), then the tournament page's underlined tabs
+— **Overview** (*On now & next*, About, Address, Sports), **Teams** (by sport, each with its coach),
+**Fixtures**, **Sites** and **Leagues**.
+- **Fixtures is the organisation's Fixtures & Events list** (§1–4), read-only: the same rows,
+  sections, *Events / All games*, *Upcoming / Past*, search and Filters, without *Mine / All* and
+  *New event*. *Away* stays — it is about the organisation — and *Convening*, the viewer's role, goes.
+  **Only what is public shows**: a tournament not made public, or one the organisation is only invited
+  to or declined, is left out without a word.
+- **On now & next** on the Overview: at most three rows, what is on now first, so the rest of the
+  Overview stays easy to find; *All fixtures ›* opens the tab.
+- **Gone**: the old counts in the banner (members are not the public's business), *Registration
+  Alert* and *Inquire / Register as Athlete*, which did nothing. Applying to join comes back with
+  `MEMBER-1`, only for an organisation that allows it.
+- A member of the organisation sees the same page with *Manage workspace ›* or *Open workspace ›* in
+  the banner. Team and site rows open nothing until the public team and site pages are designed —
+  the next piece of work.
