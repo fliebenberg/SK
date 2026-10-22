@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Linking, Platform, Share, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,7 +9,7 @@ import { AddressLines } from '../../../components/address/AddressInput';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { useSafeBack } from '../../../hooks/useSafeBack';
 import { hasPin } from '../../../services/places';
-import { useToastStore } from '../../../store/toastStore';
+import { copyText, openDirections as openDirectionsTo } from '../../../utils/share';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
 
@@ -30,26 +30,8 @@ export default function OrgAddressMap() {
   const pin = hasPin(address) ? address : null;
   const oneLine = address?.fullAddress || '';
 
-  const openDirections = () => {
-    const destination = pin ? `${pin.latitude},${pin.longitude}` : oneLine;
-    const url = Platform.OS === 'ios'
-      ? `http://maps.apple.com/?daddr=${encodeURIComponent(destination)}`
-      : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
-    Linking.openURL(url).catch(() => useToastStore.getState().showError('No maps app could open the address.', 'Directions'));
-  };
-
-  const copyAddress = async () => {
-    if (Platform.OS === 'web') {
-      try {
-        await (navigator as any).clipboard.writeText(oneLine);
-        useToastStore.getState().showSuccess('The address is on your clipboard.', 'Copied');
-      } catch {
-        useToastStore.getState().showError('The browser would not allow copying. Select the address and copy it instead.', 'Not Copied');
-      }
-      return;
-    }
-    Share.share({ message: oneLine }).catch(() => {});
-  };
+  const openDirections = () => openDirectionsTo(pin, oneLine);
+  const copyAddress = () => copyText(oneLine, 'The address');
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>

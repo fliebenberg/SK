@@ -1,551 +1,260 @@
-import React, { useState, useEffect } from 'react';
-import { orgColors } from '@sk/shared';
-import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions, ActivityIndicator } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassCard } from '../../../components/GlassCard';
-import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { useActiveTheme } from '../../../store/settingsStore';
-import { wsService } from '../../../services/websocket';
-import { useWsStore } from '../../../store/wsStore';
-import { OrgBrandedCard } from '@/components/OrgBrandedCard';
-import { OrgLogo } from '@/components/OrgLogo';
-import { inkOnBrand } from '@/utils/colorUtils';
-import { useAuthStore } from '@/store/authStore';
-import { formatInstantDate, formatKickoffTime } from '../../../utils/dates';
+import { League, Team } from '@sk/shared';
+import { ScreenHeader } from '../../../components/ScreenHeader';
+import { Tabs } from '../../../components/Tabs';
+import { PageBody } from '../../../components/PageBody';
+import { OrgProfileBanner } from '../../../components/org/OrgProfileBanner';
+import { TournamentCard } from '../../../components/tournament/TournamentBits';
+import { AddressMap } from '../../../components/address/AddressMap';
+import { AddressLines } from '../../../components/address/AddressInput';
+import { OrgEventsListView } from '../../admin/[orgId]/events/index';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
+import { useOrgTeams } from '../../../hooks/useOrgTeams';
+import { useOrgSites } from '../../../hooks/useOrgSites';
+import { useSports } from '../../../hooks/useEventRooms';
+import { useLiveRoom } from '../../../hooks/useLiveRoom';
+import { useSafeBack } from '../../../hooks/useSafeBack';
+import { useAuthStore } from '../../../store/authStore';
+import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
+import { hasPin } from '../../../services/places';
 import { orgAccess } from '../../../utils/orgAccess';
+import { copyText, openDirections } from '../../../utils/share';
 
-interface Team {
-  id: string;
-  name: string;
-  sport: string;
-  players: number;
-  coach: string;
-}
+/**
+ * An organisation as anyone sees it, from the Orgs tab (`UI-34`, agreed 2026-10-22 on
+ * `mockups/org-public-page.html`, option A; docs/events.md §11).
+ *
+ * Read-first, like the workspace's Profile: its banner (logo, name and short code, type and town),
+ * then the tournament page's tabs —
+ * - **Overview**: *On now & next* (at most three, so the rest stays easy to find), About, Address
+ *   and Sports;
+ * - **Teams**, by sport, each with its head coach — named (decided 2026-10-22), players never;
+ * - **Fixtures**, the organisation's Fixtures & Events list, read-only (`OrgEventsListView`);
+ * - **Sites** and **Leagues**.
+ * Everything on it is public: the summary, teams, sites, events and leagues rooms. A member sees the
+ * same page with the way into the workspace at the end of the banner. Applying to join comes with
+ * `MEMBER-1`, for an organisation that allows it; team and site rows open nothing until the public
+ * team and site pages exist.
+ */
+type Tab = 'overview' | 'teams' | 'fixtures' | 'sites' | 'leagues';
+const TABS: Array<{ key: Tab; label: string }> = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'teams', label: 'Teams' },
+  { key: 'fixtures', label: 'Fixtures' },
+  { key: 'sites', label: 'Sites' },
+  { key: 'leagues', label: 'Leagues' },
+];
 
-interface Fixture {
-  id: string;
-  title: string;
-  sport: string;
-  home: string;
-  away: string;
-  date: string;
-  time: string;
-  venue: string;
-}
-
-interface Facility {
-  id: string;
-  name: string;
-  type: string;
-  location: string;
-}
-
-interface OrgDetails {
-  name: string;
-  sports: string[];
-  membersCount: string;
-  teamsCount: number;
-  eventsCount: number;
-  facilitiesCount: number;
-  primaryColor: string;
-  secondaryColor: string;
-  description: string;
-  membershipStatus: string;
-  registrationStatus: string;
-  teams: Team[];
-  fixtures: Fixture[];
-  facilities: Facility[];
-}
-
-export default function PublicOrgDetail() {
+export default function PublicOrgPage() {
   const router = useRouter();
-  const { orgId } = useLocalSearchParams<{ orgId: string }>();
+  const safeBack = useSafeBack();
+  const { orgId, tab: tabParam } = useLocalSearchParams<{ orgId: string; tab?: string }>();
   const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();
-  const isLargeScreen = width >= 768;
+  const isWide = width >= 768;
+  const [tab, setTab] = useState<Tab>(() => (TABS.some(t => t.key === tabParam) ? (tabParam as Tab) : 'overview'));
+  const [aboutOpen, setAboutOpen] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'teams' | 'fixtures' | 'facilities' | 'leagues'>('overview');
-  const isConnected = useWsStore(state => state.isConnected);
-  const { isAuthenticated, user, orgMemberships, teamMemberships } = useAuthStore();
-
-  // The organisation itself comes from its summary room, not a query (`LIVE-12`).
-  const { org: orgData, isLoading: isOrgLoading } = useOrgSummary(orgId);
-  const [teams, setTeams] = useState<any[]>([]);
-  const [games, setGames] = useState<any[]>([]);
-  const [sites, setSites] = useState<any[]>([]);
-  const [leagues, setLeagues] = useState<any[]>([]);
-  const [sportsMap, setSportsMap] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    if (!isConnected || !orgId) return;
-
-    let active = true;
-    setIsLoading(true);
-    let loadedCount = 0;
-    // Four queries: the leagues list is not read, it arrives on the `org:{id}:leagues` join push
-    // (`LIVE-14`), and the organisation comes from `useOrgSummary` (`LIVE-12`). The leagues are
-    // deliberately not counted here — a room push has no ack and no timeout, so gating the whole
-    // screen on one would hang it outright if the join were ever refused. The list fills in a
-    // moment later, as every room-backed list does.
-    const checkDone = () => {
-      if (!active) return;
-      loadedCount++;
-      if (loadedCount === 4) setIsLoading(false);
-    };
-
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-      if (!active) return;
-      const map: Record<string, string> = {};
-      if (Array.isArray(res)) res.forEach((s: any) => { map[s.id] = s.name; });
-      setSportsMap(map);
-      checkDone();
-    });
-
-    wsService.emit('get_data', { type: 'teams', orgId }, (res: any) => {
-      if (!active) return;
-      setTeams(Array.isArray(res) ? res : []);
-      checkDone();
-    });
-
-    wsService.emit('get_data', { type: 'games', orgId }, (res: any) => {
-      if (!active) return;
-      setGames(Array.isArray(res) ? res : []);
-      checkDone();
-    });
-
-    wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
-      if (!active) return;
-      setSites(Array.isArray(res) ? res : []);
-      checkDone();
-    });
-
-
-    const leagueRoom = `org:${orgId}:leagues`;
-
-    const handleUpdate = (event: any) => {
-      if (!active) return;
-      if (event) {
-        if (event.type === 'LEAGUES_SYNC') {
-          if (Array.isArray(event.data)) setLeagues(event.data);
-        } else if (event.type === 'LEAGUE_ADDED') {
-          setLeagues(prev => {
-            if (prev.some(l => l.id === event.data.id)) {
-              return prev.map(l => l.id === event.data.id ? event.data : l);
-            }
-            return [event.data, ...prev];
-          });
-        } else if (event.type === 'LEAGUE_UPDATED') {
-          setLeagues(prev => prev.map(l => l.id === event.data.id ? event.data : l));
-        } else if (event.type === 'LEAGUE_DELETED') {
-          setLeagues(prev => prev.filter(l => l.id !== event.data.id));
-        }
+  const { org, isLoading } = useOrgSummary(orgId);
+  const { teams } = useOrgTeams(orgId);
+  const { sites, facilities } = useOrgSites(orgId);
+  const sports = useSports();
+  const { items: leagues } = useLiveRoom<League>(orgId ? `org:${orgId}:leagues` : null, {
+    reduce: message => {
+      switch (message.type) {
+        case 'LEAGUES_SYNC': return { kind: 'replace', items: Array.isArray(message.data) ? message.data : [] };
+        case 'LEAGUE_ADDED':
+        case 'LEAGUE_UPDATED': return message.data?.id ? { kind: 'upsert', item: message.data } : { kind: 'ignore' };
+        case 'LEAGUE_DELETED': return message.data?.id ? { kind: 'remove', id: message.data.id } : { kind: 'ignore' };
+        default: return { kind: 'ignore' };
       }
-    };
+    },
+  });
 
-    wsService.on('update', handleUpdate);
-    const unsubscribeLeagues = wsService.subscribeToRoom(leagueRoom, handleUpdate);
+  // A member's way into the workspace: Admin and Staff manage it; a Member — a coach — opens it for what is theirs.
+  const { isAuthenticated, user, orgMemberships, teamMemberships } = useAuthStore();
+  const access = orgAccess(orgId, user?.globalRole === 'admin', orgMemberships, teamMemberships);
+  const workspaceLabel = !isAuthenticated ? null : access.canManage ? 'Manage Workspace' : access.canOpenWorkspace ? 'Open Workspace' : null;
 
-    return () => {
-      active = false;
-      unsubscribeLeagues();
-      wsService.off('update', handleUpdate);
-    };
-  }, [isConnected, orgId]);
+  const sportName = (id?: string | null) => sports.find(s => s.id === id)?.name || 'Other';
+  const activeTeams = useMemo(() => teams.filter(t => t.isActive !== false), [teams]);
+  const teamsBySport = useMemo(() => {
+    const groups = new Map<string, Team[]>();
+    for (const t of activeTeams) groups.set(t.sportId || '', [...(groups.get(t.sportId || '') || []), t]);
+    return Array.from(groups.entries()).map(([sportId, list]) => ({ sportId, list: list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })) }));
+  }, [activeTeams]);
+  const activeSites = sites.filter(s => s.isActive !== false);
 
-  if (isLoading || isOrgLoading || !orgData) {
+  if (isLoading || !org) {
     return (
-      <SafeAreaView className="flex-1 bg-canvas items-center justify-center" edges={['top', 'left', 'right']}>
-        <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
+        <ScreenHeader title="Organisation" onBack={() => safeBack('/(tabs)/organizations')} />
+        <View className="flex-1 items-center justify-center p-6">
+          {isLoading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+            <Text className="font-inter text-sm text-ink-muted">This organisation could not be found.</Text>
+          )}
+        </View>
       </SafeAreaView>
     );
   }
 
-  const { primary: primaryColor, secondary: secondaryColor } = orgColors(orgData);
-  const mappedSports = orgData.supportedSportIds?.map((id: string) => sportsMap[id] || id) || ['General'];
-
-  const ink = inkOnBrand(primaryColor);
-  const isLightBg = ink.isLight;
-  const textColor = ink.text;
-  const subtextColor = ink.subtext;
-  const borderColor = ink.border;
-
-  const access = orgAccess(orgId, user?.globalRole === 'admin', orgMemberships, teamMemberships);
-  const membershipStatus = isAuthenticated ? access.role : null;
-  // Admin and Staff manage the workspace; a Member — a coach, say — opens it for what is theirs there.
-  const workspaceLabel = !isAuthenticated ? null : access.canManage ? 'Manage' : access.canOpenWorkspace ? 'Open' : null;
-
-  const getTeamName = (teamId: string) => {
-    const t = teams.find(t => t.id === teamId);
-    return t ? t.name : 'Unknown Team';
+  const muted = themeColor(isDark, 'ink-muted');
+  const link = (label: string, onPress: () => void) => (
+    <TouchableOpacity onPress={onPress} accessibilityRole="link" hitSlop={8}>
+      <Text className="font-inter-bold text-sm text-primary-ink">{label}</Text>
+    </TouchableOpacity>
+  );
+  const row = (key: string, first: boolean, children: React.ReactNode, onPress?: () => void) => {
+    const body = <View className={`flex-row items-center gap-3 py-2.5 ${first ? '' : 'border-t border-line-soft'}`}>{children}</View>;
+    return onPress ? <TouchableOpacity key={key} onPress={onPress} accessibilityRole="link">{body}</TouchableOpacity> : <View key={key}>{body}</View>;
   };
-  const getSiteName = (siteId: string) => {
-    const s = sites.find(s => s.id === siteId);
-    return s ? s.name : 'Unknown Site';
-  };
+  const groupHeading = (label: string, count: number, first: boolean) => (
+    <Text className={`font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest pb-1 ${first ? '' : 'pt-3'}`}>{label}  {count}</Text>
+  );
 
-  const mappedTeams = teams.map(t => ({
-    id: t.id,
-    name: t.name,
-    sport: sportsMap[t.sportId] || t.sportId || 'Sport',
-    players: t.playerCount || 0,
-    coach: 'TBD'
-  }));
+  /* -- Overview -- */
+  const nowNextCard = (
+    <TournamentCard title="On now & next" right={link('All fixtures ›', () => setTab('fixtures'))}>
+      <OrgEventsListView orgId={orgId} publicView nowNext={3} />
+    </TournamentCard>
+  );
+  const description = org.description?.trim() || '';
+  const longAbout = description.length > 160;
+  const aboutCard = description ? (
+    <TournamentCard title="About">
+      <Text className="font-inter text-sm text-ink-soft leading-6" numberOfLines={longAbout && !aboutOpen ? 2 : undefined}>{description}</Text>
+      {longAbout ? link(aboutOpen ? 'Show less' : 'Show more', () => setAboutOpen(o => !o)) : null}
+    </TournamentCard>
+  ) : null;
+  const pin = hasPin(org.address) ? org.address : null;
+  const addressCard = org.address ? (
+    <TournamentCard title="Address">
+      {pin ? <AddressMap latitude={pin.latitude} longitude={pin.longitude} title={org.name} interactive={false} height={isWide ? 150 : 120} /> : null}
+      <AddressLines address={org.address} />
+      <View className="flex-row gap-2">
+        <TouchableOpacity onPress={() => openDirections(pin, org.address?.fullAddress || '')} accessibilityRole="button" className="rounded-xl border border-line px-3.5 py-2">
+          <Text className="font-inter-bold text-sm text-ink">Directions</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => copyText(org.address?.fullAddress || '', 'The address')} accessibilityRole="button" className="rounded-xl border border-line px-3.5 py-2">
+          <Text className="font-inter-bold text-sm text-ink">Copy address</Text>
+        </TouchableOpacity>
+      </View>
+    </TournamentCard>
+  ) : null;
+  const sportIds = org.supportedSportIds || [];
+  const sportsCard = sportIds.length ? (
+    <TournamentCard title="Sports">
+      <View className="flex-row flex-wrap gap-1.5">
+        {sportIds.map(id => (
+          <View key={id} className="rounded-full bg-sunken px-3 py-1"><Text className="font-inter-semibold text-[13px] text-ink-soft">{sportName(id)}</Text></View>
+        ))}
+      </View>
+    </TournamentCard>
+  ) : null;
+  const overview = isWide ? (
+    <View className="flex-row gap-4 items-start">
+      <View className="gap-4 min-w-0" style={{ flex: 1.2 }}>{nowNextCard}{aboutCard}</View>
+      <View className="gap-4 min-w-0" style={{ flex: 1 }}>{addressCard}{sportsCard}</View>
+    </View>
+  ) : (
+    <View className="gap-3">{nowNextCard}{aboutCard}{addressCard}{sportsCard}</View>
+  );
 
-  const mappedFixtures = games.map(g => {
-    // A fixture with no kick-off says so, rather than borrowing today's date.
-    const kickoff = g.scheduledStartTime || g.startTime;
-    return {
-      id: g.id,
-      title: g.name || 'Match',
-      sport: sportsMap[g.sportId] || 'Sport',
-      home: getTeamName(g.homeTeamId),
-      away: getTeamName(g.awayTeamId),
-      date: formatInstantDate(kickoff) || 'Date TBD',
-      time: (g.timeTbd ? '' : formatKickoffTime(kickoff)) || 'TBD',
-      venue: getSiteName(g.siteId)
-    };
-  });
+  /* -- Teams: by sport, each with its head coach -- */
+  const teamsTab = (
+    <TournamentCard title="Teams" count={activeTeams.length}>
+      {activeTeams.length ? (
+        <View>
+          {teamsBySport.map((group, g) => (
+            <View key={group.sportId}>
+              {teamsBySport.length > 1 ? groupHeading(sportName(group.sportId), group.list.length, g === 0) : null}
+              {group.list.map((t, i) => row(t.id, i === 0, (
+                <>
+                  <View className="flex-1 min-w-0">
+                    <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{t.name}</Text>
+                    <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{t.coachName ? `Coach ${t.coachName}` : 'No coach yet'}</Text>
+                  </View>
+                  <Text className="font-inter text-xs text-ink-muted">{t.playerCount ?? 0} {t.playerCount === 1 ? 'player' : 'players'}</Text>
+                </>
+              )))}
+            </View>
+          ))}
+        </View>
+      ) : <Text className="font-inter text-sm text-ink-muted">No teams yet.</Text>}
+    </TournamentCard>
+  );
 
-  const mappedFacilities = sites.map(s => ({
-    id: s.id,
-    name: s.name,
-    type: s.type || 'Site',
-    location: s.address?.city || 'Location TBD'
-  }));
+  /* -- Sites -- */
+  const sitesTab = (
+    <TournamentCard title="Sites" count={activeSites.length}>
+      {activeSites.length ? (
+        <View>
+          {activeSites.map((s, i) => {
+            const own = facilities.filter(f => f.siteId === s.id && f.isActive !== false);
+            return row(s.id, i === 0, (
+              <>
+                <Ionicons name="location-outline" size={18} color={muted} />
+                <View className="flex-1 min-w-0">
+                  <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{s.name}</Text>
+                  {s.address?.fullAddress ? <Text className="font-inter text-xs text-ink-muted" numberOfLines={2}>{s.address.fullAddress}</Text> : null}
+                </View>
+                <Text className="font-inter text-xs text-ink-muted">{own.length} {own.length === 1 ? 'facility' : 'facilities'}</Text>
+              </>
+            ));
+          })}
+        </View>
+      ) : <Text className="font-inter text-sm text-ink-muted">No sites yet.</Text>}
+    </TournamentCard>
+  );
 
-  const org: OrgDetails = {
-    name: orgData.name || 'Unknown Organisation',
-    sports: mappedSports,
-    membersCount: String(orgData.memberCount || 0),
-    teamsCount: orgData.teamCount || 0,
-    eventsCount: orgData.eventCount || 0,
-    facilitiesCount: orgData.siteCount || 0,
-    primaryColor: primaryColor,
-    secondaryColor: secondaryColor,
-    description: orgData.description || 'No description available for this organisation.',
-    membershipStatus: membershipStatus || '',
-    registrationStatus: 'Registrations Open',
-    teams: mappedTeams,
-    fixtures: mappedFixtures,
-    facilities: mappedFacilities,
-  };
+  /* -- Leagues: each opens its public page -- */
+  const leaguesTab = (
+    <TournamentCard title="Leagues" count={leagues.length}>
+      {leagues.length ? (
+        <View>
+          {leagues.map((l: any, i) => row(l.id, i === 0, (
+            <>
+              <Ionicons name="trophy-outline" size={18} color={muted} />
+              <View className="flex-1 min-w-0">
+                <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{l.name}</Text>
+                <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{[sportName(l.sportId), l.ageGroup].filter(Boolean).join(' · ')}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-faint')} />
+            </>
+          ), () => router.push(`/leagues/${l.id}` as any)))}
+        </View>
+      ) : <Text className="font-inter text-sm text-ink-muted">No leagues yet.</Text>}
+    </TournamentCard>
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
-      {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
-        <TouchableOpacity
-          onPress={() => router.push('/(tabs)/organizations')}
-          className="flex-row items-center gap-1 active:opacity-85"
-        >
-          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
-          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
-            Back
-          </Text>
-        </TouchableOpacity>
-        <Text className="font-orbitron-bold text-xs tracking-widest text-ink uppercase">
-          Organisation Profile
-        </Text>
-        <View className="w-10 h-2" />
-      </View>
-
-      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* BRANDED HERO CARD WITH ACCENT GLOW */}
-        <OrgBrandedCard
-          primaryColor={org.primaryColor}
-          secondaryColor={org.secondaryColor}
-          className="p-6 mb-6"
-        >
-          <View className="flex-row justify-between items-center gap-3 mb-4">
-            <View className="flex-row items-center gap-3 flex-1">
-              <OrgLogo 
-                logo={orgData.logo} 
-                settings={orgData.settings} 
-                size={40} 
-                className="border bg-logo-plate rounded-full" 
-                style={{ borderColor: borderColor }}
-              />
-              <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-xl uppercase tracking-wide leading-tight flex-shrink">
-                {org.name}
-              </Text>
-            </View>
-            {org.membershipStatus ? (
-              <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-1 rounded-lg">
-                <Ionicons name="ribbon-outline" size={12} color={textColor} />
-                <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
-                  {org.membershipStatus}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          {/* QUICK METRICS GRID */}
-          <View style={{ borderTopColor: borderColor }} className="flex-row justify-between border-t pt-4">
-            <View className="items-center flex-1">
-              <Text style={{ color: textColor }} className="font-orbitron-bold text-base">
-                {org.sports.length}
-              </Text>
-              <Text style={{ color: subtextColor }} className="font-inter text-[9px] uppercase tracking-widest mt-0.5">
-                {org.sports.length === 1 ? 'Sport' : 'Sports'}
-              </Text>
-            </View>
-            <View style={{ borderLeftColor: borderColor }} className="items-center flex-1 border-l">
-              <Text style={{ color: textColor }} className="font-orbitron-bold text-base">
-                {org.membersCount}
-              </Text>
-              <Text style={{ color: subtextColor }} className="font-inter text-[9px] uppercase tracking-widest mt-0.5">
-                Members
-              </Text>
-            </View>
-            <View style={{ borderLeftColor: borderColor }} className="items-center flex-1 border-l">
-              <Text style={{ color: textColor }} className="font-orbitron-bold text-base">
-                {org.teamsCount}
-              </Text>
-              <Text style={{ color: subtextColor }} className="font-inter text-[9px] uppercase tracking-widest mt-0.5">
-                Teams
-              </Text>
-            </View>
-            <View style={{ borderLeftColor: borderColor }} className="items-center flex-1 border-l">
-              <Text style={{ color: textColor }} className="font-orbitron-bold text-base">
-                {org.facilitiesCount}
-              </Text>
-              <Text style={{ color: subtextColor }} className="font-inter text-[9px] uppercase tracking-widest mt-0.5">
-                Facilities
-              </Text>
-            </View>
-          </View>
-
-          {workspaceLabel && (
-            <View style={{ borderTopColor: borderColor }} className="mt-4 border-t pt-4">
-              <TouchableOpacity
-                style={{
-                  backgroundColor: ink.button,
-                  borderColor: borderColor,
-                }}
-                className="w-full border py-2.5 rounded-lg items-center justify-center active:opacity-85"
-                onPress={() => router.push(`/admin/${orgId}` as any)}
-              >
-                <Text style={{ color: textColor }} className="font-inter-bold text-sm">
-                  {workspaceLabel} Workspace
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </OrgBrandedCard>
-
-        {/* INTERACTIVE NAVIGATION TABS */}
-        <View className="flex-row bg-card border border-line p-1 rounded-xl mb-6 gap-1">
-          {(['overview', 'teams', 'fixtures', 'facilities', 'leagues'] as const).map((tab) => {
-            const isTabActive = activeTab === tab;
-            return (
-              <TouchableOpacity
-                key={tab}
-                onPress={() => setActiveTab(tab)}
-                className="flex-1 py-2.5 rounded-lg items-center active:opacity-85"
-                style={{
-                  backgroundColor: isTabActive ? themeColor(isDark, 'raised') : 'transparent',
-                }}
-              >
-                <Text
-                  className="font-orbitron-bold text-[10px] uppercase tracking-wider"
-                  style={{
-                    color: themeColor(isDark, isTabActive ? 'primary-ink' : 'ink-muted'),
-                  }}
-                >
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+      <ScreenHeader title="Organisation" onBack={() => safeBack('/(tabs)/organizations')} />
+      <ScrollView contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+        <View style={{ padding: isWide ? 24 : 12, paddingBottom: 0 }}>
+          <PageBody>
+            <OrgProfileBanner org={org} action={workspaceLabel ? { label: workspaceLabel, onPress: () => router.push(`/admin/${orgId}` as any) } : undefined} />
+          </PageBody>
         </View>
-
-        {/* TAB CONTENTS */}
-        <View className="mb-6">
-          {activeTab === 'overview' && (
-            <View className="gap-4">
-              <GlassCard className="border border-line p-5">
-                <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-3">
-                  About Organisation
-                </Text>
-                <Text className="font-inter text-sm text-ink-soft leading-6">
-                  {org.description}
-                </Text>
-              </GlassCard>
-
-              <GlassCard className="border border-primary-line bg-primary-soft p-5 flex-row items-center gap-3">
-                <Ionicons name="information-circle-outline" size={22} color={themeColor(isDark, 'primary')} />
-                <View className="flex-1">
-                  <Text className="font-orbitron-bold text-xs text-ink uppercase tracking-wider">
-                    Registration Alert
-                  </Text>
-                  <Text className="font-inter text-xs text-ink-muted mt-0.5">
-                    {org.registrationStatus}
-                  </Text>
-                </View>
-              </GlassCard>
-            </View>
-          )}
-
-          {activeTab === 'teams' && (
-            <View className="gap-4">
-              {org.teams.map((team) => (
-                <GlassCard key={team.id} className="border border-line p-4 flex-row justify-between items-center">
-                  <View className="flex-1 mr-3">
-                    <View className="bg-sunken px-2 py-0.5 rounded-full w-fit mb-2 border border-line-soft">
-                      <Text className="font-inter-bold text-[8px] text-ink-soft uppercase tracking-wider">
-                        {team.sport}
-                      </Text>
-                    </View>
-                    <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wide">
-                      {team.name}
-                    </Text>
-                    <Text className="font-inter text-xs text-ink-muted mt-1">
-                      Coach: {team.coach}
-                    </Text>
-                  </View>
-                  <View className="items-end bg-sunken border border-line rounded-xl px-3 py-2">
-                    <Text className="font-orbitron-bold text-sm text-ink">
-                      {team.players}
-                    </Text>
-                    <Text className="font-inter text-[8px] text-ink-muted uppercase tracking-wider mt-0.5">
-                      Players
-                    </Text>
-                  </View>
-                </GlassCard>
-              ))}
-            </View>
-          )}
-
-          {activeTab === 'fixtures' && (
-            <View className="gap-4">
-              {org.fixtures.map((fix) => (
-                <GlassCard key={fix.id} className="border border-line p-5">
-                  <View className="flex-row justify-between items-center mb-3">
-                    <View className="bg-primary-soft px-2.5 py-0.5 rounded border border-primary-line">
-                      <Text className="font-orbitron-bold text-[8px] text-primary-ink uppercase tracking-wider">
-                        {fix.title}
-                      </Text>
-                    </View>
-                    <Text className="font-inter-bold text-[9px] text-ink-muted uppercase tracking-wider">
-                      {fix.sport}
-                    </Text>
-                  </View>
-
-                  <Text className="font-orbitron-bold text-base text-ink text-center py-2 uppercase tracking-wide">
-                    {fix.home} <Text className="text-primary-ink text-xs font-inter lowercase">vs</Text> {fix.away}
-                  </Text>
-
-                  <View className="flex-row justify-between border-t border-line-soft pt-3 mt-1">
-                    <View className="flex-row items-center gap-1.5">
-                      <Ionicons name="calendar-outline" size={13} color={themeColor(isDark, 'primary')} />
-                      <Text className="font-inter text-xs text-ink-muted">
-                        {fix.date} @ {fix.time}
-                      </Text>
-                    </View>
-                    <View className="flex-row items-center gap-1.5">
-                      <Ionicons name="location-outline" size={13} color={themeColor(isDark, 'primary')} />
-                      <Text className="font-inter text-xs text-ink-muted">
-                        {fix.venue}
-                      </Text>
-                    </View>
-                  </View>
-                </GlassCard>
-              ))}
-            </View>
-          )}
-
-          {activeTab === 'facilities' && (
-            <View className="gap-4">
-              {org.facilities.map((fac) => (
-                <GlassCard key={fac.id} className="border border-line p-4 flex-row items-center gap-3.5">
-                  <View className="w-10 h-10 rounded-xl bg-special-soft border border-special-line items-center justify-center">
-                    <Ionicons name="location-outline" size={18} color={themeColor(isDark, 'special')} />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wide">
-                      {fac.name}
-                    </Text>
-                    <View className="flex-row items-center gap-2 mt-1">
-                      <Text className="font-inter-bold text-[9px] text-special-ink uppercase tracking-wide bg-special-soft px-2 py-0.5 rounded border border-special-line">
-                        {fac.type}
-                      </Text>
-                      <Text className="font-inter text-xs text-ink-muted">
-                        {fac.location}
-                      </Text>
-                    </View>
-                  </View>
-                </GlassCard>
-              ))}
-            </View>
-          )}
-
-          {activeTab === 'leagues' && (
-            <View className="gap-4">
-              {leagues.map((league) => (
-                <GlassCard key={league.id} className="border border-line p-4 flex-row items-center gap-3.5">
-                  <View className="w-10 h-10 rounded-xl bg-primary-soft items-center justify-center border border-primary-line">
-                    <Ionicons name="trophy" size={16} color={themeColor(isDark, 'primary')} />
-                  </View>
-                  
-                  <View className="flex-1">
-                    <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wide">
-                      {league.name}
-                    </Text>
-                    <View className="flex-row items-center gap-2 mt-1">
-                      <Text className="font-inter-bold text-[9px] text-ink-muted uppercase tracking-wide">
-                        {sportsMap[league.sportId] || 'Sport'}
-                      </Text>
-                      {!!league.ageGroup && (
-                        <>
-                          <Text className="text-ink-faint">•</Text>
-                          <Text className="font-inter-bold text-[9px] text-ink-muted uppercase tracking-wide">
-                            {league.ageGroup}
-                          </Text>
-                        </>
-                      )}
-                    </View>
-                  </View>
-
-                  <Button
-                    title="View"
-                    variant="secondary"
-                    onPress={() => router.push(`/leagues/${league.id}` as any)}
-                    className="px-4 py-1.5 rounded-lg shadow-sm"
-                  />
-                </GlassCard>
-              ))}
-
-              {leagues.length === 0 && (
-                <View className="items-center justify-center py-10">
-                  <Ionicons name="trophy-outline" size={36} color={themeColor(isDark, 'ink-muted')} className="opacity-45 mb-2" />
-                  <Text className="font-orbitron-bold text-xs text-ink-muted">No Active Leagues</Text>
-                </View>
-              )}
-            </View>
-          )}
+        <View className="bg-card mt-4 border-y border-line">
+          <PageBody>
+            <Tabs items={TABS} activeKey={tab} onChange={setTab} />
+          </PageBody>
         </View>
-
-        {/* PREMIUM ACTION CTA CARD */}
-        <GlassCard className="bg-primary-soft border border-primary-line p-5 items-center">
-          <Ionicons name="mail-unread-outline" size={24} color={themeColor(isDark, 'primary')} className="mb-2" />
-          <Text className="font-orbitron-bold text-sm text-ink text-center mb-1 uppercase tracking-wide">
-            INTERESTED IN JOINING?
-          </Text>
-          <Text className="font-inter text-xs text-ink-muted text-center mb-4 leading-4">
-            Contact the organisation administration team to enquire about league placements or roster registrations.
-          </Text>
-          <Button
-            title="Inquire / Register as Athlete"
-            variant="primary"
-            onPress={() => {}}
-            className="w-full max-w-xs"
-          />
-        </GlassCard>
+        <View style={{ padding: isWide ? 24 : 12 }}>
+          <PageBody className="gap-3">
+            {tab === 'overview' ? overview : null}
+            {tab === 'teams' ? teamsTab : null}
+            {tab === 'fixtures' ? <OrgEventsListView orgId={orgId} publicView /> : null}
+            {tab === 'sites' ? sitesTab : null}
+            {tab === 'leagues' ? leaguesTab : null}
+          </PageBody>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

@@ -55,6 +55,9 @@ import { useTournamentLinks } from './tournamentLinks';
  *   of its row — red while live, with how far it has got under its name.
  * - **Organisation** (`FIX-25`): on the public page, a fourth dropdown in place of *Mine / My
  *   organisation / All* — the fixtures any one organisation's teams play.
+ * - **The list for anyone who cannot move fixtures** (2026-10-22, the user): the grid is a tool for
+ *   placing them, so the public, a coach and a guest organisation get the list on every screen — all
+ *   the days, each under its heading, with *All days* first in the Day dropdown to narrow it to one.
  */
 
 const PX = 1.4; // pixels a minute
@@ -150,6 +153,11 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
   const fixtureDays = [...new Set(model.bookings.map(b => b.day))].sort();
   const days: DayChoice[] = playingDays.length ? playingDays : fixtureDays;
   const [day, setDay] = useState<DayChoice>(days[0] || '');
+  /** Anyone who cannot move fixtures reads the list, every day at once unless they pick one. */
+  const listOnly = !canEdit;
+  const [listDay, setListDay] = useState<DayChoice | 'all'>('all');
+  const shownDay = listOnly ? listDay : day;
+  const onShownDay = (d?: DayChoice | null) => shownDay === 'all' || d === shownDay;
   useEffect(() => { if (!days.includes(day) && days.length) setDay(days[0]); }, [days.join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const [divisionId, setDivisionId] = useState(initialDivisionId || 'all');
   /** Opened on a division: its first day with fixtures, once they have arrived — then the viewer's. */
@@ -671,14 +679,23 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
 
   /* -- the phone list -- */
   const listed = games
-    .filter(g => !isUnscheduled(g) && inDivision(g) && model.placeOf(g)?.day === day && (facilityId === 'all' || facilityId === 'every' || g.facilityId === facilityId))
-    .sort((a, b) => (model.placeOf(a)!.start - model.placeOf(b)!.start) || facilityLabel(a.facilityId).localeCompare(facilityLabel(b.facilityId)));
-  const byStart = new Map<number, GameSummary[]>();
-  listed.forEach(g => { const s = model.placeOf(g)!.start; byStart.set(s, [...(byStart.get(s) || []), g]); });
+    .filter(g => !isUnscheduled(g) && inDivision(g) && onShownDay(model.placeOf(g)?.day) && (facilityId === 'all' || facilityId === 'every' || g.facilityId === facilityId))
+    .sort((a, b) => model.placeOf(a)!.day.localeCompare(model.placeOf(b)!.day) || (model.placeOf(a)!.start - model.placeOf(b)!.start) || facilityLabel(a.facilityId).localeCompare(facilityLabel(b.facilityId)));
+  const byStart = new Map<string, { day: DayChoice; start: number; rows: GameSummary[] }>();
+  listed.forEach(g => {
+    const place = model.placeOf(g)!;
+    const key = `${place.day}|${place.start}`;
+    const slot = byStart.get(key) || { day: place.day, start: place.start, rows: [] };
+    slot.rows.push(g);
+    byStart.set(key, slot);
+  });
   const list = (
     <View>
-      {[...byStart.entries()].map(([start, rows]) => (
-        <View key={start} className="gap-1.5 mb-1">
+      {[...byStart.values()].map(({ day: slotDay, start, rows }, i, slots) => (
+        <View key={`${slotDay}|${start}`} className="gap-1.5 mb-1">
+          {shownDay === 'all' && slotDay !== slots[i - 1]?.day ? (
+            <Text className={`font-orbitron-bold text-[11px] text-ink uppercase tracking-widest ${i ? 'mt-4' : ''}`}>{formatPlayingDay(slotDay) || slotDay}</Text>
+          ) : null}
           <Text className="font-inter-bold text-[11px] text-ink-muted uppercase tracking-wider mt-2">{timeOfDay(start)}</Text>
           {rows.map(g => {
             const [home, away] = g.participants || [];
@@ -706,7 +723,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
           })}
         </View>
       ))}
-      {!listed.length ? <Text className="font-inter text-sm text-ink-muted py-2">Nothing on this day{divisionId !== 'all' ? ' for this division' : ''}.</Text> : null}
+      {!listed.length ? <Text className="font-inter text-sm text-ink-muted py-2">Nothing {shownDay === 'all' ? 'scheduled' : 'on this day'}{divisionId !== 'all' ? ' for this division' : ''}.</Text> : null}
     </View>
   );
 
@@ -808,9 +825,12 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
         compact
         accessibilityLabel="Day"
         placeholder="Day"
-        value={day}
-        onChange={setDay}
-        options={days.map(d => ({ value: d, label: formatPlayingDay(d) || d, description: plural(model.bookings.filter(b => b.day === d && gameOf(b.id)).length, 'fixture') }))}
+        value={shownDay}
+        onChange={d => (listOnly ? setListDay(d as DayChoice | 'all') : setDay(d))}
+        options={[
+          ...(listOnly ? [{ value: 'all', label: 'All days', description: plural(model.bookings.filter(b => gameOf(b.id)).length, 'fixture') }] : []),
+          ...days.map(d => ({ value: d, label: formatPlayingDay(d) || d, description: plural(model.bookings.filter(b => b.day === d && gameOf(b.id)).length, 'fixture') })),
+        ]}
       />
       <CustomSelect
         compact
@@ -877,7 +897,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
     )
   ) : undefined;
 
-  const scheduledCount = games.filter(g => !isUnscheduled(g) && inDivision(g) && model.placeOf(g)?.day === day).length;
+  const scheduledCount = games.filter(g => !isUnscheduled(g) && inDivision(g) && onShownDay(model.placeOf(g)?.day)).length;
   const offline = canEdit && !online ? (
     <View className="rounded-xl bg-warning-soft px-3.5 py-2.5"><Text className="font-inter text-sm text-warning-ink"><Text className="font-inter-bold">You're offline.</Text> This is the schedule as it last arrived. Results you enter are sent when the connection is back; moving fixtures and scheduling need a connection.</Text></View>
   ) : null;
@@ -895,7 +915,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
       {offline}
       {scopeLine}
       {toolbar}
-      {isWide ? (
+      {isWide && !listOnly ? (
         <View className="flex-row gap-4 items-start">
           <View className="min-w-0" style={{ flex: 3 }}>
             <TournamentCard title="Scheduled" count={scheduledCount} right={clashStatus}>

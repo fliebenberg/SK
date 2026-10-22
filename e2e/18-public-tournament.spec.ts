@@ -32,8 +32,11 @@ test.describe('the public tournament page, logged out', () => {
     await expect(visible(page, /of 4 · 15 points · 3 teams/)).toBeVisible();
   });
 
-  test('the Schedule shows scores and narrows to an organisation', async ({ page }) => {
+  test('the Schedule is a list of every day, with scores, and narrows to an organisation', async ({ page }) => {
     await page.goto(`${AUTUMN}?tab=schedule`);
+    // The list, not the organisers' grid, on a wide screen too: every day unless one is picked.
+    await expect(page.getByRole('button', { name: /^Day: All days/ })).toBeVisible();
+    await expect(visible(page, 'Sat 3 Oct')).toBeVisible();
     await expect(visible(page, '12 – 8')).toBeVisible();
     await page.getByRole('button', { name: /^Organisation:/ }).click();
     await page.getByRole('button', { name: 'Test Riverbend High School', exact: true }).click();

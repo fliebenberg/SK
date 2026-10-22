@@ -775,7 +775,10 @@ on the side it started. Under the provider:
   room in the workspace pages, so team counts and withdrawn teams show there too.
 - **Taking part** opens an organisation's results page, as a leaderboard row does; there is no
   *See all*, the organisers' organisation pages not being public.
-- **The Schedule** keeps Day, Division and Facility and adds **Organisation**; a clash is not shown.
+- **The Schedule is the list**, not the organisers' grid, on every screen — for anyone who cannot
+  move fixtures (the public, a coach, a guest organisation; the user, 2026-10-22): every day under
+  its heading, *All days* first in the Day dropdown to narrow it to one. It keeps Division and
+  Facility and adds **Organisation**; a clash is not shown.
   Scores now show on every Schedule (the grid's blocks and the phone's list), and Live now's score is
   larger — for organisers too.
 - **The game page** asks for no team sheet and no full record: score, teams ("Players are not named
@@ -805,6 +808,13 @@ Profile's banner (logo, name and short code, type, town), then the tournament pa
 - **Gone**: the old counts in the banner (members are not the public's business), *Registration
   Alert* and *Inquire / Register as Athlete*, which did nothing. Applying to join comes back with
   `MEMBER-1`, only for an organisation that allows it.
-- A member of the organisation sees the same page with *Manage workspace ›* or *Open workspace ›* in
-  the banner. Team and site rows open nothing until the public team and site pages are designed —
-  the next piece of work.
+- A member of the organisation sees the same page with *Manage Workspace ›* or *Open Workspace ›* at
+  the end of the banner. Team and site rows open nothing until the public team and site pages are
+  designed — the next piece of work.
+- **Built 2026-10-22** in [organizations/[orgId].tsx](file:///c:/Fred/Coding/SK/expo-app/app/(tabs)/organizations/%5BorgId%5D.tsx),
+  everything from public rooms (summary, teams, sites, events, fixtures, leagues). The Fixtures tab
+  and *On now & next* are the workspace list itself, `OrgEventsListView` in
+  [events/index.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/index.tsx) with
+  `publicView` (and `nowNext={3}`, its rows in the compact layout), so the two lists cannot drift.
+  The tab bar's own header is hidden on this page, which has its own with Back.
+  `e2e/19-public-organisation.spec.ts`.

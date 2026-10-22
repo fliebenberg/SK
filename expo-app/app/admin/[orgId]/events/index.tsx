@@ -102,9 +102,32 @@ const gameMs = (game: GameSummary, event?: Event) => {
 };
 
 export default function OrgEventsList() {
+  const { orgId } = useLocalSearchParams<{ orgId: string }>();
+  return <OrgEventsListView orgId={orgId} />;
+}
+
+const NO_GRANTS = { eventIds: [] as string[], sports: [] as Array<{ eventId: string }>, divisions: [] as Array<{ eventId: string }> };
+
+/**
+ * The list itself, for the workspace page above and — with `publicView` — the public organisation
+ * page's Fixtures tab (`UI-34`, docs/events.md §11): the same rows, sections, Events / All games,
+ * Upcoming / Past, search and Filters, read-only. There is no "you" on the public page, so no
+ * Mine / All, no New event, no invitations and no *Convening*; *Away* stays, being about the
+ * organisation. Only what is public is in `org:{id}:events` to begin with, and a row opens the
+ * tournament's public page. Embedded, it brings no header or scroll of its own.
+ */
+export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
+  orgId: string;
+  publicView?: boolean;
+  /**
+   * Only the first this many upcoming events — what is on now first, then the soonest — as rows with
+   * no toolbar or headings: the public organisation page's *On now & next* (`UI-34`). Saved filters
+   * do not apply to it.
+   */
+  nowNext?: number;
+}) {
   const router = useRouter();
   const safeBack = useSafeBack();
-  const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -115,15 +138,16 @@ export default function OrgEventsList() {
   const dependants = useAuthStore((state: any) => state.dependants);
   const viewerRole = (orgMemberships || []).find((m: any) => m.orgId === orgId)?.roleId;
   /** Creating an event is a manage-org action: Admin and Staff. */
-  const canCreate = user?.globalRole === 'admin' || ADMIN_ROLES.includes(viewerRole);
+  const canCreate = !publicView && (user?.globalRole === 'admin' || ADMIN_ROLES.includes(viewerRole));
 
   /* Mine / All and Events / All games are remembered on this device. Until someone chooses, Admin
      and Staff see everything the organisation has on, and everyone else what is theirs. */
   const savedView = useSettingsStore(state => state.localOverrides[VIEW_KEY]) as View_ | undefined;
   const setLocalOverride = useSettingsStore(state => state.setLocalOverride);
   // Shared with the tournament pages (`useMineAll`): one Mine / All everywhere.
-  const [scope, setScope] = useMineAll(orgId);
-  const view: View_ = savedView ?? 'events';
+  const [savedScope, setScope] = useMineAll(orgId);
+  const scope: Scope = publicView ? 'all' : savedScope;
+  const view: View_ = nowNext ? 'events' : savedView ?? 'events';
   const setView = (next: View_) => setLocalOverride(VIEW_KEY, next);
 
   const [search, setSearch] = useState('');
@@ -133,7 +157,7 @@ export default function OrgEventsList() {
      chips and count sit right under the search. Search and Upcoming / Past are not remembered: a
      search is a one-off, and Past is a look back. */
   const savedFilters = useSettingsStore(state => state.localOverrides[filtersKey(orgId)]) as EventListFilters | undefined;
-  const filters: EventListFilters = { ...NO_FILTERS, ...(savedFilters || {}) };
+  const filters: EventListFilters = nowNext ? NO_FILTERS : { ...NO_FILTERS, ...(savedFilters || {}) };
   const setFilters = (next: EventListFilters | ((current: EventListFilters) => EventListFilters)) =>
     setLocalOverride(filtersKey(orgId), typeof next === 'function' ? next(filters) : next);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -163,7 +187,7 @@ export default function OrgEventsList() {
    * answer, and one it declined or withdrew from, kept as the record. A members' room — the
    * public `org:{id}:events` shows a tournament only once the organisation is in it.
    */
-  const { items: invitedEvents } = useLiveRoom<Event>(orgId ? `org:${orgId}:invitations` : null, {
+  const { items: invitedEvents } = useLiveRoom<Event>(orgId && !publicView ? `org:${orgId}:invitations` : null, {
     reduce: (message) =>
       message.type === 'EVENT_INVITATIONS_SYNC' ? { kind: 'replace', items: message.data || [] } : { kind: 'ignore' },
   });
@@ -193,7 +217,8 @@ export default function OrgEventsList() {
 
   const { sites, facilities } = useOrgSites(orgId);
   const { data: sportsData } = useSocketQuery<Sport[]>('sports');
-  const grants = useMyEventGrants();
+  const myGrants = useMyEventGrants();
+  const grants = publicView ? NO_GRANTS : myGrants;
 
   const sportName = (id?: string) => (sportsData || []).find(s => s.id === id)?.name || '';
   const siteName = (id?: string | null) => sites.find(s => s.id === id)?.name || '';
@@ -431,12 +456,12 @@ export default function OrgEventsList() {
    * ------------------------------------------------------------------------------------------- */
   /** A game opens its page, whoever is looking: what they may do there is the page's to show (stage 3). */
   const openGame = (game: GameSummary, _event?: Event) => {
-    router.push(`/admin/${orgId}/events/${game.eventId}/games/${game.id}`);
+    router.push((publicView ? `/events/${game.eventId}/games/${game.id}` : `/admin/${orgId}/events/${game.eventId}/games/${game.id}`) as any);
   };
   const openEvent = (event: Event) => {
     const single = resolveEventType(event).kind === 'SingleMatch' ? (gamesByEvent.get(event.id) || [])[0] : undefined;
     if (single) openGame(single, event);
-    else router.push(`/admin/${orgId}/events/${event.id}`);
+    else router.push((publicView ? `/events/${event.id}` : `/admin/${orgId}/events/${event.id}`) as any);
   };
 
   /*
@@ -463,12 +488,12 @@ export default function OrgEventsList() {
     () => new Set<string>((teamMemberships || []).filter((m: any) => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach').map((m: any) => m.teamId)),
     [teamMemberships]
   );
-  const { entries: teamInvites } = useTeamEntries({ orgId: isAdmin || coachTeamIds.size ? orgId : null });
+  const { entries: teamInvites } = useTeamEntries({ orgId: !publicView && (isAdmin || coachTeamIds.size) ? orgId : null });
   const teamToAnswer = teamInvites.filter(e =>
     isAdmin ? !toAnswer.some(ev => ev.id === e.eventId) : !!e.teamId && coachTeamIds.has(e.teamId));
   const invitationCount = (isAdmin || !coachTeamIds.size ? toAnswer.length : 0) + teamToAnswer.length;
   const orgLines = isAdmin || !coachTeamIds.size ? toAnswer : [];
-  const invitationsBox = invitationCount ? (
+  const invitationsBox = invitationCount && !publicView ? (
     <View className="rounded-2xl bg-warning-soft px-4 py-3 gap-1">
       <View className="flex-row items-center gap-2">
         <Ionicons name="mail-unread-outline" size={16} color={themeColor(isDark, 'warning-ink')} />
@@ -662,7 +687,7 @@ export default function OrgEventsList() {
     <>
       <View className="flex-row items-center gap-2.5">
         {searchBox}
-        {scopeSwitch}
+        {publicView ? null : scopeSwitch}
         {viewSwitch}
         {whenSwitch}
         {filtersButton}
@@ -678,7 +703,7 @@ export default function OrgEventsList() {
       </View>
       {chipsRow}
       <View className="flex-row items-center gap-2">
-        <View className="flex-1">{scopeSwitch}</View>
+        {publicView ? null : <View className="flex-1">{scopeSwitch}</View>}
         <View className="flex-1">{viewSwitch}</View>
       </View>
       {scopeLine}
@@ -693,7 +718,49 @@ export default function OrgEventsList() {
     </View>
   );
 
-  const rowProps = { isWide, orgId: orgId!, canCreate, sportName, siteName, facilityName, today };
+  // On now & next sits in a card a column wide, so its rows take the compact, phone layout.
+  const rowProps = { isWide: isWide && !nowNext, orgId: orgId!, canCreate, sportName, siteName, facilityName, today };
+
+  /** One event's row: a match, a tournament, or one whose type the app cannot name. */
+  const eventRow = (event: Event, i: number) => {
+    const type = resolveEventType(event);
+    const own = gamesByEvent.get(event.id) || [];
+    const away = event.orgId !== orgId;
+    const convening = conveneEventIds.has(event.id);
+    if (type.kind === 'Unknown') {
+      return <UnknownRow key={event.id} name={event.name} message={unknownEventTypeMessage(type)} first={i === 0} />;
+    }
+    if (type.kind === 'SingleMatch' && own[0]) {
+      return (
+        <MatchRow
+          key={event.id}
+          {...rowProps}
+          game={own[0]}
+          event={event}
+          first={i === 0}
+          showDate
+          away={away}
+          convening={convening}
+          onPress={() => openEvent(event)}
+        />
+      );
+    }
+    return (
+      <TournamentRow
+        key={event.id}
+        {...rowProps}
+        event={event}
+        games={own}
+        sportIds={eventSportIds(event)}
+        first={i === 0}
+        isPast={when === 'past'}
+        invitation={invitationTo(event)}
+        away={away}
+        convening={convening}
+        onPress={() => openEvent(event)}
+      />
+    );
+  };
 
   const body = (() => {
     if (accessDenied) {
@@ -784,49 +851,57 @@ export default function OrgEventsList() {
       <View key={section.key} className="gap-2">
         {sectionHeading(section.label, section.items.length, section.isNow)}
         <View className="rounded-2xl border border-line bg-card overflow-hidden">
-          {section.items.map((event, i) => {
-            const type = resolveEventType(event);
-            const own = gamesByEvent.get(event.id) || [];
-            const away = event.orgId !== orgId;
-            const convening = conveneEventIds.has(event.id);
-            if (type.kind === 'Unknown') {
-              return <UnknownRow key={event.id} name={event.name} message={unknownEventTypeMessage(type)} first={i === 0} />;
-            }
-            if (type.kind === 'SingleMatch' && own[0]) {
-              return (
-                <MatchRow
-                  key={event.id}
-                  {...rowProps}
-                  game={own[0]}
-                  event={event}
-                  first={i === 0}
-                  showDate
-                  away={away}
-                  convening={convening}
-                  onPress={() => openEvent(event)}
-                />
-              );
-            }
-            return (
-              <TournamentRow
-                key={event.id}
-                {...rowProps}
-                event={event}
-                games={own}
-                sportIds={eventSportIds(event)}
-                first={i === 0}
-                isPast={when === 'past'}
-                invitation={invitationTo(event)}
-                away={away}
-                convening={convening}
-                onPress={() => openEvent(event)}
-              />
-            );
-          })}
+          {section.items.map((event, i) => eventRow(event, i))}
         </View>
       </View>
     ));
   })();
+
+  if (nowNext) {
+    if (eventsLoading || gamesLoading) return <View className="items-center py-6"><ActivityIndicator color={themeColor(isDark, 'primary')} /></View>;
+    const soonest = eventSections.flatMap(section => section.items).slice(0, nowNext);
+    return soonest.length
+      ? <View>{soonest.map((event, i) => eventRow(event, i))}</View>
+      : <Text className="font-inter text-sm text-ink-muted py-2">Nothing coming up.</Text>;
+  }
+
+  const filtersDialog = (
+    <EventFiltersDialog
+      visible={filtersOpen}
+      onClose={() => setFiltersOpen(false)}
+      filters={filters}
+      onChange={setFilters}
+      sportOptions={sportOptions}
+      roleCounts={roleCounts}
+      showKind={view === 'events'}
+      when={isWide ? undefined : when}
+      onWhenChange={isWide ? undefined : setWhen}
+      shownLabel={`Show ${shownCount} ${shownCount === 1 ? noun.slice(0, -1) : noun}`}
+    />
+  );
+  const pastLink = !isWide && when === 'upcoming' && (events || []).length ? (
+    <TouchableOpacity
+      onPress={() => setWhen('past')}
+      accessibilityRole="button"
+      className="flex-row items-center justify-between rounded-2xl border border-line bg-card px-4 py-3 mt-1"
+    >
+      <Text className="font-inter-semibold text-sm text-ink-soft">Past events and results</Text>
+      <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} />
+    </TouchableOpacity>
+  ) : null;
+
+  if (publicView) {
+    return eventsLoading || gamesLoading ? (
+      <View className="items-center justify-center py-16"><ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /></View>
+    ) : (
+      <View className="gap-3">
+        {toolbar}
+        {body}
+        {pastLink}
+        {filtersDialog}
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
@@ -842,32 +917,12 @@ export default function OrgEventsList() {
             {toolbar}
             {body}
             {/* A phone has no Upcoming / Past switch in its toolbar, so the upcoming list ends with the way to the results. */}
-            {!isWide && when === 'upcoming' && (events || []).length ? (
-              <TouchableOpacity
-                onPress={() => setWhen('past')}
-                accessibilityRole="button"
-                className="flex-row items-center justify-between rounded-2xl border border-line bg-card px-4 py-3 mt-1"
-              >
-                <Text className="font-inter-semibold text-sm text-ink-soft">Past events and results</Text>
-                <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} />
-              </TouchableOpacity>
-            ) : null}
+            {pastLink}
           </PageBody>
         </ScrollView>
       )}
 
-      <EventFiltersDialog
-        visible={filtersOpen}
-        onClose={() => setFiltersOpen(false)}
-        filters={filters}
-        onChange={setFilters}
-        sportOptions={sportOptions}
-        roleCounts={roleCounts}
-        showKind={view === 'events'}
-        when={isWide ? undefined : when}
-        onWhenChange={isWide ? undefined : setWhen}
-        shownLabel={`Show ${shownCount} ${shownCount === 1 ? noun.slice(0, -1) : noun}`}
-      />
+      {filtersDialog}
       {canCreate ? (
         <NewHeadToHeadDialog
           visible={namingHeadToHead}

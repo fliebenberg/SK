@@ -54,6 +54,10 @@ real boundary ([auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md))
     reads the user's own `dependants`, so it shows nothing to anyone who is not a guardian, and the
     rail and bottom menu list it only when there are dependants.
 
+*   `/organizations/[orgId]`: **an organisation as anyone sees it** (`UI-34`, [events.md](file:///c:/Fred/Coding/SK/docs/events.md) §11):
+    the Profile's banner, then Overview, Teams, Fixtures (the workspace's events list with
+    `publicView`), Sites and Leagues — read-only, from public rooms; a member gets the way into the
+    workspace at the end of the banner.
 *   `/events/[eventId]`: **a tournament as the public sees it** (`FIX-25`, [events.md](file:///c:/Fred/Coding/SK/docs/events.md)
     §11). Its routes — the tournament, `/events/[eventId]/divisions/[divisionId]`,
     `/events/[eventId]/games/[gameId]`, an organisation's and a team's results pages (`/events/[eventId]/standings/organisations/[participantOrgId]`, `/events/[eventId]/standings/teams/[entrantId]`) and

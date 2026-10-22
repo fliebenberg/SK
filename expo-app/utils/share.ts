@@ -1,4 +1,4 @@
-import { Platform, Share } from 'react-native';
+import { Linking, Platform, Share } from 'react-native';
 import { useToastStore } from '../store/toastStore';
 
 /**
@@ -30,4 +30,27 @@ export async function shareLink(path: string, what: string): Promise<void> {
     return;
   }
   Share.share({ message: url, url }).catch(() => {});
+}
+
+/** The phone's maps app, or Google Maps on the web, with directions to a pin or, without one, an address. */
+export function openDirections(to: { latitude?: number | null; longitude?: number | null } | null, oneLine: string): void {
+  const destination = to?.latitude != null && to?.longitude != null ? `${to.latitude},${to.longitude}` : oneLine;
+  const url = Platform.OS === 'ios'
+    ? `http://maps.apple.com/?daddr=${encodeURIComponent(destination)}`
+    : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+  Linking.openURL(url).catch(() => useToastStore.getState().showError('No maps app could open the address.', 'Directions'));
+}
+
+/** Text onto the clipboard on the web; on a phone the share sheet, which offers Copy and needs no clipboard library. */
+export async function copyText(text: string, what: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    try {
+      await (navigator as any).clipboard.writeText(text);
+      useToastStore.getState().showSuccess(`${what} is on your clipboard.`, 'Copied');
+    } catch {
+      useToastStore.getState().showError(`The browser would not allow copying. Select ${what.toLowerCase()} and copy it instead.`, 'Not Copied');
+    }
+    return;
+  }
+  Share.share({ message: text }).catch(() => {});
 }

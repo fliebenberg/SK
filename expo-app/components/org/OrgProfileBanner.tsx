@@ -19,7 +19,13 @@ import { useActiveTheme } from '../../store/settingsStore';
  * read as separate facts, and Edit ends that row so the name gets the whole top row on a phone.
  * Padding is kept tight: the banner already sits in the page's margin.
  */
-export function OrgProfileBanner({ org, onEdit, onEditLogo }: { org: Organization; onEdit?: () => void; onEditLogo?: () => void }) {
+export function OrgProfileBanner({ org, onEdit, onEditLogo, action }: {
+  org: Organization;
+  onEdit?: () => void;
+  onEditLogo?: () => void;
+  /** At the end of the footer row instead of Edit: the public page's way into the workspace (`UI-34`). */
+  action?: { label: string; onPress: () => void };
+}) {
   const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();
   const isNarrow = width < 768;
@@ -77,6 +83,14 @@ export function OrgProfileBanner({ org, onEdit, onEditLogo }: { org: Organizatio
           >
             <Ionicons name="pencil" size={12} color={themeColor(isDark, 'on-fill')} />
             <Text className="font-inter-semibold text-sm text-on-fill">Edit</Text>
+          </TouchableOpacity>
+        ) : action ? (
+          <TouchableOpacity
+            onPress={action.onPress}
+            accessibilityRole="link"
+            className="ml-auto flex-row items-center gap-1.5 rounded-full px-3 py-1 border bg-overlay/20 border-on-fill/30"
+          >
+            <Text className="font-inter-semibold text-sm text-on-fill">{action.label} ›</Text>
           </TouchableOpacity>
         ) : null}
       </View>

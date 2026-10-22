@@ -69,6 +69,8 @@ export default function TabLayout() {
         name="organizations" 
         options={{ 
           headerTitle: 'ORGANISATIONS',
+          // An organisation's own page has its header, with Back (`UI-34`); only the list wears the tab's.
+          headerShown: !isLargeScreen && (segments as string[])[2] !== '[orgId]',
           tabBarLabel: 'Orgs',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "business" : "business-outline"} size={22} color={color} />
