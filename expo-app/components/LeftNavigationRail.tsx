@@ -267,7 +267,8 @@ export function LeftNavigationRail() {
                     }`}
                     style={isActive ? { borderLeftColor: activeColor } : undefined}
                   >
-                    {/* The bar carries the org's colour; the icon is ink like the label (UI-27). */}
+                    {/* The current page: the bar carries the org's colour, the icon is ink like the
+                        label (UI-27); the main menu below does the same with the brand orange. */}
                     <Ionicons
                       name={isActive ? item.icon : (`${item.icon}-outline` as any)}
                       size={20}
@@ -296,20 +297,20 @@ export function LeftNavigationRail() {
                   key={item.name}
                   onPress={() => confirmThenNavigate(() => router.push(item.route as any))}
                   className={`flex-row items-center gap-3.5 px-3 py-3 rounded-xl ${
-                    isActive 
-                      ? 'bg-primary-soft border-l-4 border-primary'
+                    isActive
+                      ? 'bg-sunken border-l-4 border-primary'
                       : 'hover:bg-sunken border-l-4 border-transparent'
                   }`}
                 >
-                  <Ionicons 
-                    name={isActive ? item.icon : (`${item.icon}-outline` as any)} 
-                    size={20} 
-                    color={isActive ? themeColor(isDark, 'primary') : (themeColor(isDark, 'ink-muted'))} 
+                  <Ionicons
+                    name={isActive ? item.icon : (`${item.icon}-outline` as any)}
+                    size={20}
+                    color={themeColor(isDark, isActive ? 'ink' : 'ink-muted')}
                   />
-                  <Text 
+                  <Text
                     className={`font-inter-bold text-sm tracking-wide ${
-                      isActive 
-                        ? 'text-primary-ink' 
+                      isActive
+                        ? 'text-ink'
                         : 'text-ink-muted'
                     }`}
                   >
@@ -418,9 +419,9 @@ export function LeftNavigationRail() {
         <ScrollView className="flex-1 w-full" contentContainerStyle={{ alignItems: 'center', gap: 12 }} showsVerticalScrollIndicator={false}>
           {navConfig.items.map((item: any) => {
             const isActive = navConfig.isOrg ? orgSubTab === item.name : activeTab === item.name;
-            const activeColor = item.attention
-              ? themeColor(isDark, 'warning-ink')
-              : navConfig.isOrg ? orgColors(orgData).primary : themeColor(isDark, 'primary');
+            // The current page as in the open rail: sunken, a bar in the org's colour (the brand
+            // orange outside a workspace), the icon in ink (UI-27).
+            const barColor = navConfig.isOrg ? orgColors(orgData).primary : themeColor(isDark, 'primary');
             return (
               <TouchableOpacity
                 key={item.name}
@@ -429,15 +430,16 @@ export function LeftNavigationRail() {
                   item.attention
                     ? 'bg-warning-soft border border-warning-line'
                     : isActive
-                    ? 'bg-primary-soft border border-primary-line'
-                    : 'hover:bg-sunken border border-transparent'
+                    ? 'bg-sunken border-l-[3px]'
+                    : 'hover:bg-sunken border-l-[3px] border-transparent'
                 }`}
+                style={isActive && !item.attention ? { borderLeftColor: barColor } : undefined}
                 {...(Platform.OS === 'web' ? { title: item.label } : {})}
               >
-                <Ionicons 
-                  name={isActive ? item.icon : (`${item.icon}-outline` as any)} 
-                  size={20} 
-                  color={isActive || item.attention ? activeColor : (themeColor(isDark, 'ink-muted'))} 
+                <Ionicons
+                  name={isActive ? item.icon : (`${item.icon}-outline` as any)}
+                  size={20}
+                  color={themeColor(isDark, item.attention ? 'warning-ink' : isActive ? 'ink' : 'ink-muted')}
                 />
               </TouchableOpacity>
             );
