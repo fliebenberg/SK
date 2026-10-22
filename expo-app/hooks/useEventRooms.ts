@@ -83,14 +83,15 @@ export function useEventStandings(eventId?: string | null) {
   const { items, isLoading } = useLiveRoom<EventStandings & { id: string }>(eventId ? `event:${eventId}:standings` : null, {
     reduce: message =>
       message.type === 'EVENT_STANDINGS_UPDATED'
-        ? { kind: 'replace', items: [{ id: 'standings', rows: message.data?.rows || [], divisions: message.data?.divisions || [] }] }
+        ? { kind: 'replace', items: [{ id: 'standings', rows: message.data?.rows || [], divisions: message.data?.divisions || [], sports: message.data?.sports || [] }] }
         : { kind: 'ignore' },
   });
   const standings = items[0];
-  return { rows: standings?.rows || NO_ROWS, divisions: standings?.divisions || NO_DIVISIONS, isLoading };
+  return { rows: standings?.rows || NO_ROWS, divisions: standings?.divisions || NO_DIVISIONS, sports: standings?.sports || NO_SPORTS, isLoading };
 }
 const NO_ROWS: EventStandings['rows'] = [];
 const NO_DIVISIONS: EventStandings['divisions'] = [];
+const NO_SPORTS: NonNullable<EventStandings['sports']> = [];
 
 /** Every sport: global reference data that no room owns, so a one-shot read. */
 export function useSports() {

@@ -29,7 +29,8 @@ npm run e2e:report     # the last run's report, with traces of any failure
   `server/src/scripts/setup/fixtures/testOrgs.ts`), which holds every kind of team answer, and *Test
   Saturday Fixtures* (`fx-tour-saturday`), drawn and scheduled for the Schedule tab, and *Test Head to
   Head* (`fx-tour-h2h`), played with one of every result, and *Test Autumn Festival* (`fx-tour-autumn`),
-  under way with its tables rebuilt for the Standings tab — and restarts
+  under way with its tables rebuilt for the Standings tab, and *Test Netball Pairs Day* (`fx-tour-pairs`),
+  one division set by hand with its games paired by level across four organisations — and restarts
   the API so its caches reload. That deletes anything made by hand under a test organisation.
   `E2E_SKIP_RESET=1` runs against the data as it is.
 - **The files run in order, one at a time,** and later ones start from what earlier ones did: the
@@ -54,7 +55,9 @@ npm run e2e:report     # the last run's report, with traces of any failure
   *Test Saturday Fixtures*, Kwaggafontein's U16 Lions coach's two games with a proposed team, its admin seeing them
   as the coach's; on the desktop the coach confirms one from its game page), then My Organisations
   (`16-my-organisations.spec.ts`: Kwaggafontein's U16 Lions coach seeing Kwaggafontein, as a Member, with
-  *Open Workspace*, and St Aldric's staff seeing theirs to manage). A single file run on its own may therefore fail where the suite
+  *Open Workspace*, and St Aldric's staff seeing theirs to manage), then divisions that rank organisations
+  (`17-paired-standings.spec.ts`: *Test Netball Pairs Day*'s division won by an organisation and ranked by
+  organisation on its page, a Head to Head division's table of two, and the Standings tab narrowed to a sport). A single file run on its own may therefore fail where the suite
   passes.
 - **The phone runs first and only tests tagged `@phone`** — ones that read and change nothing — so it sees
   the data before the desktop tests change it.

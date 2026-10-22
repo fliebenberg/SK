@@ -984,10 +984,10 @@ tiebreakers.
 - **Results, not standings**: games won by each side and drawn, for the day, each sport and each
   division (`dualTally`), with a dot per game in the winner's colours — primary, ringed in the
   secondary. Shown in full, like every result in the app; the task to hide results or show only the
-  outcome has to cover this summary too when it lands. **Decided 2026-10-22, not yet built
-  (`SCORE-23`):** each division's tally becomes a table by organisation — P W D L, no points — the
-  same table a *Set fixtures by hand* division gets in a full tournament
-  ([events.md](file:///c:/Fred/Coding/SK/docs/events.md) §10).
+  outcome has to cover this summary too when it lands. **Since 2026-10-22 (`SCORE-23`)**
+  each division, opened, leads with its table by organisation — P W D L, no points — above its games,
+  and the division page has it as its Standings card: the same table a *Set fixtures by hand* division
+  gets in a full tournament ([events.md](file:///c:/Fred/Coding/SK/docs/events.md) §10).
 
 **Where it lives:** created from the events list's *New event* menu, between Match and Tournament
 ([EventListDialogs.tsx](file:///c:/Fred/Coding/SK/expo-app/components/events/EventListDialogs.tsx));

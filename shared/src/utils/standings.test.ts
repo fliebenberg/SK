@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '../models/event/Game';
 import { MatchTopology } from '../models/sport/Sport';
-import { ScoringSystem, TournamentAdjustment } from '../models/event/Tournament';
+import { ScoringSystem, TournamentAdjustment, ranksOrganisations } from '../models/event/Tournament';
 import {
   StandingsSubject,
   calculateStandings,
@@ -536,6 +536,41 @@ describe('a weighted two-division roll-up', () => {
 
     const rows = rollUpByOrganisation([{ weighting: 0.5, rows: penalised }], orgs);
     expect(byId(rows, 'org-north')).toMatchObject({ points: 0.5, adjustment: -1 });
+  });
+});
+
+describe('a division of paired games (SCORE-23)', () => {
+  // Set by hand, paired by level across three organisations: A v A, B v B. Each team plays once or
+  // twice, so the division is ranked by organisation — the roll-up over this one division.
+  const orgs = [
+    { id: 'org-dkl', name: 'DKL' },
+    { id: 'org-ksc', name: 'KSC' },
+    { id: 'org-sac', name: 'SAC' },
+  ];
+  const teams: StandingsSubject[] = [
+    { id: 'dkl-a', name: 'Open A', orgId: 'org-dkl' }, { id: 'dkl-b', name: 'Open B', orgId: 'org-dkl' },
+    { id: 'ksc-a', name: 'Open A', orgId: 'org-ksc' }, { id: 'ksc-b', name: 'Open B', orgId: 'org-ksc' },
+    { id: 'sac-a', name: 'Open A', orgId: 'org-sac' },
+  ];
+  const rows = calculateStandings(
+    [h2h('g1', 'dkl-a', 15, 'ksc-a', 11), h2h('g2', 'dkl-b', 10, 'ksc-b', 10), h2h('g3', 'sac-a', 9, 'dkl-a', 12)],
+    teams,
+    { scoring: THREE_ONE_ZERO }
+  );
+
+  it('is one stage set by hand, and only that', () => {
+    expect(ranksOrganisations(['Festival'])).toBe(true);
+    expect(ranksOrganisations(['RoundRobin'])).toBe(false);
+    expect(ranksOrganisations(['RoundRobin', 'Knockout'])).toBe(false);
+    expect(ranksOrganisations([])).toBe(false);
+  });
+
+  it("adds each organisation's teams into one row, ranked on the division's results", () => {
+    const table = rollUpByOrganisation([{ divisionId: 'div-open', weighting: 1, rows }], orgs);
+    // DKL: A won twice, B drew — 7 points from 3 games. KSC: a loss and a draw. SAC: one loss.
+    expect(byId(table, 'org-dkl')).toMatchObject({ played: 3, wins: 2, draws: 1, losses: 0, points: 7, rank: 1 });
+    expect(byId(table, 'org-ksc')).toMatchObject({ played: 2, wins: 0, draws: 1, losses: 1, points: 1, rank: 2 });
+    expect(byId(table, 'org-sac')).toMatchObject({ played: 1, wins: 0, losses: 1, points: 0, rank: 3 });
   });
 });
 

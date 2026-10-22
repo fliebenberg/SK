@@ -15,6 +15,7 @@ import {
 } from '@sk/shared';
 import { FixtureCrest, sideScores } from '../events/EventBits';
 import { TournamentCard } from './TournamentBits';
+import { DivisionOrgStandings } from './DivisionStandings';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
 
@@ -22,6 +23,9 @@ import { themeColor } from '../../constants/Colors';
  * A Head to Head's results (`H2H-1`, agreed 2026-10-13 on `mockups/head-to-head.html`): games won by
  * each organisation, and drawn, for the day and for each division. There are no points or tables —
  * a Head to Head is won by games — so this stands where a tournament's Standings would.
+ *
+ * Each division, opened, leads with its table by organisation — P W D L, no points — the same table a
+ * division set by hand has in a full tournament (`SCORE-23`, 2026-10-22), then its games.
  *
  * Results are shown in full, as everywhere else in the app; hiding them is a separate task, and
  * when it lands this has to respect it. Each game is a dot in the colours of the side that won it,
@@ -235,6 +239,9 @@ export function DualResults({ event, orgId, hostOrg, divisions, games, sports, u
                     </TouchableOpacity>
                     {isOpen ? (
                       <View className="pb-2 gap-1">
+                        <View className="pb-2">
+                          <DivisionOrgStandings eventId={event.id} divisionId={d.id} showPoints={false} orgs={event.participatingOrgs} />
+                        </View>
                         {inDivision.map(g => {
                           const sides = g.participants || [];
                           const h = sides.find(p => p.orgId === host.id) || sides[0];

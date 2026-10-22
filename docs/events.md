@@ -706,18 +706,25 @@ the page already holds (`formByEntrant`), never a ranking.
 half played, Netball U16 not started — and the reset rebuilds its tables after loading
 (`rebuildFixtureStandings`). Checked by `e2e/12-standings.spec.ts`.
 
-**Decided 2026-10-22, not yet built (`SCORE-23`, `FIX-25`).**
+**Built 2026-10-22 (`SCORE-23`).**
 - **A division of paired games ranks organisations, not teams.** A *Set fixtures by hand* division is
   usually paired by level across organisations — U16 A v U16 A, U16 B v U16 B — so each team plays
   once or twice, and one table of teams would crown a team that played once. Such a division, and
   every Head to Head division, gets a table like the leaderboard's but for the division:
   organisation, teams, P W D L, and points where the scoring system has them (none under wins /
   draws / losses, none for a Head to Head). It replaces the team table on the division page, and the
-  Divisions line says *Won by Doringkloof*. A round robin keeps its team table.
-- **The Standings tab gets the Schedule's sport filter** — the same choice on both tabs — for
-  everyone, beside *Mine / My organisation / All*. A sport narrows the Divisions list, whose rows then
-  drop the sport from their names (rule 26: "U14", not "Netball U14"), and makes the leaderboard that
-  sport's, adding up only its divisions. There is no organisation filter on Standings: a table is a
+  Divisions line says *Won by DKL*; a Head to Head division, which had no Standings card, gets one
+  too. A round robin keeps its team table. The server adds the division's kept team table up by
+  organisation when the standings are read — the leaderboard's own roll-up over one division, so the
+  two cannot disagree — and sends it as `byOrganisation` on `event:{id}:standings` (`ranksOrganisations`
+  in [Tournament.ts](file:///c:/Fred/Coding/SK/shared/src/models/event/Tournament.ts) decides which
+  divisions: one `Festival` stage). In a narrow column organisations go by their short names. Test
+  data: *Test Netball Pairs Day* (`fx-tour-pairs`); `e2e/17-paired-standings.spec.ts`.
+- **The Standings tab has a Sport dropdown**, in the style of the Schedule's filters (Day, Division,
+  Facility — the Schedule has no sport filter of its own), for everyone, when the tournament has more
+  than one sport. A sport narrows the Divisions list, whose rows already drop the sport from their
+  names under it (rule 26), and makes the leaderboard that sport's: the server's roll-up of only its
+  divisions (`EventStandings.sports`). There is no organisation filter on Standings: a table is a
   comparison.
 
 ## 11. The public view (`FIX-25`)
@@ -738,8 +745,8 @@ such state today, and the event's public rooms are open from creation.
 - **Outside every workspace**, in the public tab bar (Orgs marked), at a route of its own. *Share* in
   the header copies a link, or opens the phone's share sheet.
 - **The same tabs and cards, without what only those taking part do**: no response card, To do,
-  *Mine / My organisation / All*, Organisers or ⋯. The Schedule narrows by sport and organisation
-  instead.
+  *Mine / My organisation / All*, Organisers or ⋯. The Schedule keeps its Day, Division and Facility
+  dropdowns and adds an **Organisation** dropdown in place of *Mine / My organisation / All*.
 - **On the day, Live now leads.** **Once it is over, the Leaderboard leads** — the top three
   organisations and *Standings ›* — and the divisions stay on the Standings tab, a tap away. Between
   days the same card shows the standings so far.

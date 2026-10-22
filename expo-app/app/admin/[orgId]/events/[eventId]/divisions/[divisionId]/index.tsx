@@ -22,6 +22,7 @@ import {
   timeOfDay,
   dualUnpaired,
   isDualEvent,
+  ranksOrganisations,
 } from '@sk/shared';
 import { lockGapsLine } from '../../../../../../../components/tournament/DivisionEntries';
 import { ScreenHeader } from '../../../../../../../components/ScreenHeader';
@@ -38,7 +39,7 @@ import { formatPlayingDay, instantToVenueInputs, venueTimeZone } from '../../../
 import { DivisionTeamsCard } from '../../../../../../../components/tournament/DivisionTeams';
 import { DivisionFixturesCard } from '../../../../../../../components/tournament/DivisionFixtures';
 import { AddFixtureDialog } from '../../../../../../../components/tournament/AddFixtureDialog';
-import { DivisionStandings } from '../../../../../../../components/tournament/DivisionStandings';
+import { DivisionOrgStandings, DivisionStandings } from '../../../../../../../components/tournament/DivisionStandings';
 import { awardsPoints } from '../../../../../../../components/tournament/standingsBits';
 import { DualPairingCard } from '../../../../../../../components/tournament/DualPairing';
 import { TournamentScopeLine, useTournamentScope } from '../../../../../../../components/tournament/TournamentScope';
@@ -510,9 +511,16 @@ export default function DivisionScreen() {
     </TournamentCard>
   ) : null;
   const detailsCard = <React.Fragment key="details">{whereCard}{whenCard}{organisersCard}</React.Fragment>;
-  const standingsCard = drawn && !dual ? (
+  // Games set by hand, and a Head to Head's, are paired by level, so they rank organisations (SCORE-23).
+  // A Head to Head has no points — it is won by games.
+  const byOrganisation = ranksOrganisations(ordered.map(s => s.format));
+  const standingsCard = drawn ? (
     <TournamentCard key="standings" title="Standings">
-      <DivisionStandings divisionId={divisionId} canEdit={canEdit} showPoints={awardsPoints(event)} orgs={event.participatingOrgs} games={games} isWide={isWide} viewerOrgIds={viewerOrgIds} />
+      {byOrganisation ? (
+        <DivisionOrgStandings eventId={event.id} divisionId={divisionId} showPoints={!dual && awardsPoints(event)} orgs={event.participatingOrgs} isWide={isWide} viewerOrgIds={viewerOrgIds} />
+      ) : (
+        <DivisionStandings divisionId={divisionId} canEdit={canEdit} showPoints={awardsPoints(event)} orgs={event.participatingOrgs} games={games} isWide={isWide} viewerOrgIds={viewerOrgIds} />
+      )}
     </TournamentCard>
   ) : null;
 
@@ -520,7 +528,7 @@ export default function DivisionScreen() {
   const format_ = dual ? null : formatCard;
   const columns: [React.ReactNode[], React.ReactNode[]] = dual
     // A Head to Head's games are its teams' pairing, so they lead from the start.
-    ? [[fixturesCard], [canEdit ? teamsCard : null, detailsCard]]
+    ? [[fixturesCard], [standingsCard, canEdit ? teamsCard : null, detailsCard]]
     : started
     ? [[fixturesCard], [standingsCard, canEdit ? teamsCard : null, format_, detailsCard]]
     : drawn

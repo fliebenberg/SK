@@ -580,6 +580,11 @@ export interface FixtureTournamentDivision {
     /** Its own facilities, by the host's facility keys (a subset of the tournament's). */
     facilities?: string[];
     /**
+     * *Set fixtures by hand* (`Festival`): one stage of games written in `games`, never drawn — as a
+     * Head to Head's division is. Its games may be between any two organisations (`SCORE-23`).
+     */
+    handSet?: boolean;
+    /**
      * Drawn as a round robin and scheduled by the same planner the server uses (`planDivision`),
      * in the order the divisions are listed. Needs `locked` and every team accepted.
      */
@@ -598,11 +603,12 @@ export interface FixtureTournamentDivision {
     picked?: Array<{ org: string; team: string }>;
     teams: FixtureTournamentTeam[];
     /**
-     * A Head to Head's games (`H2H-1`), paired by hand: the host's team key against the other
-     * organisation's, at a time on the tournament's first day, with a result when played. The score
-     * is the host's first.
+     * Games set by hand — a Head to Head's (`H2H-1`) or a `handSet` division's: the first side's team
+     * key against the second's, at a time on the tournament's first day, with a result when played,
+     * the first side's score first. The sides are the host's and the other organisation's unless
+     * `hostOrg` / `guestOrg` name them.
      */
-    games?: Array<{ host: string; guest: string; time: string; facility: string; status: 'Scheduled' | 'Finished'; score?: [number, number] }>;
+    games?: Array<{ host: string; guest: string; hostOrg?: string; guestOrg?: string; time: string; facility: string; status: 'Scheduled' | 'Finished'; score?: [number, number] }>;
 }
 export interface FixtureTournament {
     key: string;
@@ -835,6 +841,42 @@ export const TEST_TOURNAMENTS: FixtureTournament[] = [
                 key: 'netball-u19', name: 'U19', sportId: 'netball', ageGroup: 'U19',
                 teams: [{ org: 'dkl', team: 'netball-u19a', status: 'accepted' }],
                 games: [],
+            },
+        ],
+    },
+    /**
+     * *Test Netball Pairs Day* (`SCORE-23`): one division set by hand, its games paired by level
+     * across four organisations — U14 against U14, U16 against U16 — so each team plays once or
+     * twice and the division ranks organisations, not teams. Played on a Saturday already past:
+     * Doringkloof wins it, a point ahead of Kwaggafontein, with one game drawn.
+     */
+    {
+        key: 'pairs', name: 'Test Netball Pairs Day', host: 'dkl', startDate: '2026-10-17', endDate: '2026-10-17',
+        days: [{ day: '2026-10-17', dayStarts: '08:00', dayEnds: '12:00' }],
+        facilities: ['court-1', 'court-2', 'court-3'],
+        sportIds: ['netball'], orgsMayAddTeams: false,
+        orgs: [
+            { org: 'sac', invitation: 'accepted', by: 'Catherine Whitfield' },
+            { org: 'rbh', invitation: 'accepted' },
+            { org: 'ksc', invitation: 'accepted' },
+        ],
+        divisions: [
+            {
+                key: 'netball-open', name: 'Open', sportId: 'netball', ageGroup: 'Open', locked: true, handSet: true,
+                teams: [
+                    { org: 'dkl', team: 'netball-u14a', status: 'accepted' }, { org: 'dkl', team: 'netball-u16a', status: 'accepted' },
+                    { org: 'sac', team: 'netball-u14a', status: 'accepted' }, { org: 'sac', team: 'netball-u16a', status: 'accepted' },
+                    { org: 'rbh', team: 'netball-u14a', status: 'accepted' }, { org: 'rbh', team: 'netball-u16a', status: 'accepted' },
+                    { org: 'ksc', team: 'netball-u14', status: 'accepted' }, { org: 'ksc', team: 'netball-u16', status: 'accepted' },
+                ],
+                games: [
+                    { hostOrg: 'dkl', host: 'netball-u14a', guestOrg: 'sac', guest: 'netball-u14a', time: '08:00', facility: 'court-1', status: 'Finished', score: [12, 8] },
+                    { hostOrg: 'rbh', host: 'netball-u14a', guestOrg: 'ksc', guest: 'netball-u14', time: '08:00', facility: 'court-2', status: 'Finished', score: [9, 11] },
+                    { hostOrg: 'dkl', host: 'netball-u16a', guestOrg: 'sac', guest: 'netball-u16a', time: '09:00', facility: 'court-1', status: 'Finished', score: [10, 10] },
+                    { hostOrg: 'rbh', host: 'netball-u16a', guestOrg: 'ksc', guest: 'netball-u16', time: '09:00', facility: 'court-2', status: 'Finished', score: [14, 7] },
+                    { hostOrg: 'dkl', host: 'netball-u14a', guestOrg: 'rbh', guest: 'netball-u14a', time: '10:00', facility: 'court-1', status: 'Finished', score: [13, 6] },
+                    { hostOrg: 'sac', host: 'netball-u16a', guestOrg: 'ksc', guest: 'netball-u16', time: '10:00', facility: 'court-3', status: 'Finished', score: [8, 12] },
+                ],
             },
         ],
     },

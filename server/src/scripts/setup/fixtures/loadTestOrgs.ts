@@ -503,9 +503,12 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
                 ['id', 'event_id', 'name', 'sport_id', 'age_group_id', 'sort_order', 'entries_locked_at', 'entries_locked_by_user_id', 'orgs_may_add_teams'],
                 [divisionId, tourId, division.name, division.sportId, starterAgeGroupId(division.sportId, division.ageGroup), sortOrder,
                  division.locked ? FIXTURE_MEMBERSHIP_START : null, division.locked ? userOf(host.admin.name) : null, division.orgsMayAddTeams ?? null]);
-            // A Head to Head's division plays one stage of games set by hand (`stagePlanForFormat('Dual')`).
+            // A Head to Head's division, and one set by hand, plays one stage of games set by hand
+            // (`stagePlanForFormat('Dual')`, `stagePlanForFormat('Festival')`).
             await insert('division_stages', ['id', 'division_id', 'name', 'format', 'sequence'],
-                tour.format === 'Dual' ? [stageId, divisionId, 'Games', 'Festival', 1] : [stageId, divisionId, 'Fixtures', 'RoundRobin', 1]);
+                tour.format === 'Dual' ? [stageId, divisionId, 'Games', 'Festival', 1]
+                    : division.handSet ? [stageId, divisionId, 'Fixtures', 'Festival', 1]
+                    : [stageId, divisionId, 'Fixtures', 'RoundRobin', 1]);
             for (const [seed, entry] of division.teams.entries()) {
                 const org = TEST_ORGS.find(o => o.key === entry.org);
                 if (entry.placeholder ? division.drawn : !org?.teams.some(t => t.key === entry.team)) {
@@ -528,13 +531,14 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
             }
             for (const key of division.facilities || []) await insert('division_facilities', ['division_id', 'facility_id'], [divisionId, hostFacility(key)]);
             if (division.drawn) await drawAndSchedule(tour, division, divisionId, stageId, booked, hostFacility);
-            // A Head to Head's games, as pairing writes them; a result keyed by participant, as the app records one.
+            // Games set by hand — a Head to Head's, as pairing writes them, or a hand-set division's;
+            // a result keyed by participant, as the app records one.
             for (const [n, game] of (division.games || []).entries()) {
-                const guestOrg = tour.orgs[0]?.org;
+                const guestOrg = game.guestOrg ?? tour.orgs[0]?.org;
                 if (!guestOrg) throw new Error(`Tournament ${tour.key}: a Head to Head needs the organisation it plays.`);
                 const gameId = fixtureIds.tournamentGame(tour.key, division.key, n + 1);
                 const sides = [
-                    { org: tour.host, team: game.host, id: `${gameId}-home` },
+                    { org: game.hostOrg ?? tour.host, team: game.host, id: `${gameId}-home` },
                     { org: guestOrg, team: game.guest, id: `${gameId}-away` },
                 ];
                 for (const side of sides) {
@@ -569,7 +573,8 @@ export async function rebuildFixtureStandings(): Promise<void> {
     const { tournamentManager } = await import('../../../managers/TournamentManager');
     for (const tour of TEST_TOURNAMENTS) {
         for (const division of tour.divisions) {
-            if (division.results?.length) await tournamentManager.recalculateDivision(fixtureIds.division(tour.key, division.key));
+            const played = division.results?.length || division.games?.some(g => g.status === 'Finished');
+            if (played) await tournamentManager.recalculateDivision(fixtureIds.division(tour.key, division.key));
         }
     }
 }

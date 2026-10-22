@@ -3,7 +3,8 @@ import { Text, View } from 'react-native';
 import { EventOrgBadge, GameSummary, TournamentAdjustment, TournamentStandingRow } from '@sk/shared';
 import { StandingsTable } from './StandingsTable';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
-import { formByEntrant } from './standingsBits';
+import { formByEntrant, orgName } from './standingsBits';
+import { useEventStandings } from '../../hooks/useEventRooms';
 
 /**
  * One division's table, or one per stage where the division has more than one.
@@ -41,6 +42,50 @@ export interface DivisionStandingsProps {
   isWide?: boolean;
   /** Our own organisation's rows are tinted. */
   viewerOrgIds?: string[];
+}
+
+/**
+ * The table of a division that ranks **organisations** (`SCORE-23`, agreed 2026-10-22): one stage of
+ * games set by hand, or a Head to Head's, usually paired by level — A v A, B v B — so each team plays
+ * once or twice and a table of teams would crown one that played once. Its results are added up by
+ * organisation, like the leaderboard but for this division, by the server (`byOrganisation` on
+ * `event:{id}:standings`); its Teams column counts the organisation's teams in the division.
+ */
+export function DivisionOrgStandings({ eventId, divisionId, showPoints = true, orgs, isWide = false, viewerOrgIds }: {
+  eventId: string;
+  divisionId: string;
+  showPoints?: boolean;
+  orgs?: EventOrgBadge[];
+  isWide?: boolean;
+  viewerOrgIds?: string[];
+}) {
+  const { divisions, isLoading } = useEventStandings(eventId);
+  const entry = divisions.find(d => d.divisionId === divisionId);
+  const teamCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of entry?.rows || []) if (row.orgId) counts.set(row.orgId, (counts.get(row.orgId) || 0) + 1);
+    return counts;
+  }, [entry]);
+
+  if (isLoading) {
+    return <Text className="font-inter text-xs text-ink-muted italic py-6 text-center">Loading the table...</Text>;
+  }
+  return (
+    <StandingsTable
+      rows={entry?.byOrganisation || []}
+      kind="organisation"
+      subjectLabel="Organisation"
+      orgs={orgs}
+      isWide={isWide}
+      framed={false}
+      teamCounts={teamCounts}
+      showPoints={showPoints}
+      // It sits in a narrow column, where organisations go by their short names (docs/events.md §10).
+      nameOf={row => orgName(row as any, orgs, true)}
+      highlight={row => !!viewerOrgIds?.includes(row.orgId || row.teamId)}
+      emptyMessage="Nothing to rank yet. Once a game is finished this table fills in."
+    />
+  );
 }
 
 export function DivisionStandings({ divisionId, canEdit = false, showPoints = true, orgs, games, isWide = false, viewerOrgIds }: DivisionStandingsProps) {

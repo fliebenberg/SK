@@ -1,12 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Event, EventOrgBadge, GameSummary, Sport, TournamentDivision, TournamentEntrant } from '@sk/shared';
+import { Event, EventOrgBadge, GameSummary, Sport, TournamentDivision, TournamentEntrant, ranksOrganisations } from '@sk/shared';
 import { StandingsTable } from './StandingsTable';
+import CustomSelect from '../CustomSelect';
 import { FixtureCrest } from '../events/EventBits';
 import { DivisionStateLine, TournamentCard, divisionFormatLabel, divisionStateOf } from './TournamentBits';
-import { awardsPoints, crestOf, entrantName, hasOneTable } from './standingsBits';
+import { awardsPoints, crestOf, entrantName, hasOneTable, orgName } from './standingsBits';
 import { useEventStandings } from '../../hooks/useEventRooms';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
@@ -24,6 +25,11 @@ import { themeColor } from '../../constants/Colors';
  * **Mine / My organisation / All** (2026-10-17): the tournament's one remembered choice, on the line
  * above. It narrows the divisions to those the viewer's teams, or their organisation's, are in; the
  * leaderboard stays whole — it is a comparison — with the viewer's organisation tinted.
+ *
+ * **Sport** (`SCORE-23`, 2026-10-22): a dropdown, as the Schedule's filters are, when the tournament
+ * has more than one sport. It narrows the divisions, and makes the leaderboard that sport's — the
+ * server's roll-up of only its divisions (`EventStandings.sports`), so it never adds rugby points to
+ * netball goals. There is no organisation filter: a table is a comparison.
  */
 export function StandingsTab({ event, orgId, isWide, divisions: allDivisions, games, sports, viewerOrgIds, narrowTo, scopeLine }: {
   event: Event;
@@ -38,22 +44,29 @@ export function StandingsTab({ event, orgId, isWide, divisions: allDivisions, ga
   narrowTo?: TournamentEntrant[] | null;
   scopeLine?: React.ReactNode;
 }) {
-  const divisions = narrowTo ? allDivisions.filter(d => narrowTo.some(e => e.divisionId === d.id)) : allDivisions;
   const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
-  const { rows, divisions: tables } = useEventStandings(event.id);
+  const { rows: allRows, divisions: tables, sports: sportTables } = useEventStandings(event.id);
   const orgs = event.participatingOrgs;
+
+  const sportIds = [...new Set(allDivisions.map(d => d.sportId).filter(Boolean))] as string[];
+  const [sportId, setSportId] = useState('all');
+  const inSport = (d: TournamentDivision) => sportId === 'all' || d.sportId === sportId;
+  const divisions = (narrowTo ? allDivisions.filter(d => narrowTo.some(e => e.divisionId === d.id)) : allDivisions).filter(inSport);
+  const sportDivisionIds = new Set(allDivisions.filter(inSport).map(d => d.id));
+  const rows = sportId === 'all' ? allRows : sportTables.find(t => t.sportId === sportId)?.rows || [];
 
   // Teams per organisation: the entrants the leaderboard counted, from each division's table.
   const teamCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const table of tables) for (const row of table.rows) {
-      if (row.orgId) counts.set(row.orgId, (counts.get(row.orgId) || 0) + 1);
+    for (const table of tables) {
+      if (!sportDivisionIds.has(table.divisionId)) continue;
+      for (const row of table.rows) if (row.orgId) counts.set(row.orgId, (counts.get(row.orgId) || 0) + 1);
     }
     return counts;
-  }, [tables]);
+  }, [tables, sportId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const counted = games.filter(g => g.status !== 'Cancelled' && g.divisionId);
+  const counted = games.filter(g => g.status !== 'Cancelled' && g.divisionId && sportDivisionIds.has(g.divisionId));
   const played = counted.filter(g => g.status === 'Finished').length;
 
   const leaderboard = (
@@ -91,13 +104,16 @@ export function StandingsTab({ event, orgId, isWide, divisions: allDivisions, ga
 
   const divisionLine = (division: TournamentDivision, divisionGames: GameSummary[]) => {
     const finished = divisionGames.filter(g => g.status === 'Finished').length;
-    const table = tables.find(t => t.divisionId === division.id)?.rows || [];
+    // A division of paired games is won by an organisation, not a team (SCORE-23).
+    const entry = tables.find(t => t.divisionId === division.id);
+    const byOrganisation = ranksOrganisations((division.stageShapes || []).map(s => s.format));
+    const table = (byOrganisation ? entry?.byOrganisation : entry?.rows) || [];
     const top = table.find(r => !r.withdrawn && r.rank === 1);
     const level = table.filter(r => !r.withdrawn && r.rank === 1).length > 1;
     if (!finished || !hasOneTable(division) || !top) return divisionFormatLabel(division);
     const all = finished === divisionGames.filter(g => g.status !== 'Cancelled').length;
     if (level) return all ? 'Level at the top' : 'Level at the top so far';
-    return `${all ? 'Won by' : 'Led by'} ${entrantName(top, orgs, true)}`;
+    return `${all ? 'Won by' : 'Led by'} ${byOrganisation ? orgName(top, orgs, true) : entrantName(top, orgs, true)}`;
   };
 
   const divisionsCard = (
@@ -138,10 +154,24 @@ export function StandingsTab({ event, orgId, isWide, divisions: allDivisions, ga
     </TournamentCard>
   );
 
-  if (!isWide) return <View className="gap-3">{scopeLine}{leaderboard}{divisionsCard}</View>;
+  const sportFilter = sportIds.length > 1 ? (
+    <View className="flex-row flex-wrap items-center gap-2">
+      <CustomSelect
+        compact
+        accessibilityLabel="Sport"
+        placeholder="Sport"
+        value={sportId}
+        onChange={setSportId}
+        options={[{ value: 'all', label: 'All sports' }, ...sportIds.map(id => ({ value: id, label: sports.find(s => s.id === id)?.name || 'Sport' }))]}
+      />
+    </View>
+  ) : null;
+
+  if (!isWide) return <View className="gap-3">{scopeLine}{sportFilter}{leaderboard}{divisionsCard}</View>;
   return (
     <View className="gap-3">
       {scopeLine}
+      {sportFilter}
       <View className="flex-row items-start gap-5">
         <View style={{ flex: 1.55, minWidth: 0 }}>{leaderboard}</View>
         <View style={{ flex: 1, minWidth: 0 }}>{divisionsCard}</View>

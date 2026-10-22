@@ -35,6 +35,7 @@ import {
   calculateStandings,
   isResultNotProvided,
   rollUpByOrganisation,
+  ranksOrganisations,
   hasLeft,
   isDualEvent,
   isPlayedFixture,
@@ -2929,15 +2930,7 @@ export class TournamentManager extends BaseManager {
    */
   async recalculateEventStandings(eventId: string): Promise<TournamentStandingRow[]> {
     const divisions = await this.getDivisions(eventId);
-
-    const orgRes = await this.query(
-      `SELECT DISTINCT o.id, COALESCE(o.short_name, o.name) AS name
-         FROM division_entrants e
-         JOIN tournament_divisions d ON d.id = e.division_id
-         JOIN organizations o ON o.id = e.org_id
-        WHERE d.event_id = $1`,
-      [eventId]
-    );
+    const organisations = await this.getStandingsOrganisations(eventId);
 
     const divisionGames = `g.stage_id IN (SELECT id FROM division_stages WHERE division_id = $1)`;
     const weighted = [];
@@ -2967,7 +2960,7 @@ export class TournamentManager extends BaseManager {
     // The tournament's own system orders the leaderboard: under `winsDrawsLosses` no division
     // awards points, so organisations rank on the wins, then draws, they add up to (`SCORE-18`).
     const eventRes = await this.query(`SELECT settings FROM events WHERE id = $1`, [eventId]);
-    const rollUp = rollUpByOrganisation(weighted, orgRes.rows, {
+    const rollUp = rollUpByOrganisation(weighted, organisations, {
       scoring: eventRes.rows[0]?.settings?.scoring || DEFAULT_SCORING_SYSTEM,
     });
     await this.query(`UPDATE events SET cached_standings = $1 WHERE id = $2`, [JSON.stringify(rollUp), eventId]);
@@ -2984,8 +2977,12 @@ export class TournamentManager extends BaseManager {
    */
   async getEventStandings(eventId: string): Promise<EventStandings> {
     const read = () => this.query(
-      `SELECT ev.cached_standings as "rows",
-              COALESCE((SELECT json_agg(json_build_object('divisionId', d.id, 'rows', d.cached_standings)
+      `SELECT ev.cached_standings as "rows", ev.settings as "settings",
+              COALESCE((SELECT json_agg(json_build_object(
+                                   'divisionId', d.id, 'rows', d.cached_standings, 'sportId', d.sport_id,
+                                   'weighting', d.weighting, 'scoring', d.settings->'scoring',
+                                   'stageFormats', (SELECT COALESCE(json_agg(s.format ORDER BY s.sequence), '[]'::json)
+                                                      FROM division_stages s WHERE s.division_id = d.id))
                                  ORDER BY d.sort_order, d.created_at)
                           FROM tournament_divisions d WHERE d.event_id = ev.id), '[]'::json) as "divisions",
               EXISTS (SELECT 1 FROM tournament_divisions d WHERE d.event_id = ev.id AND d.cached_standings IS NULL) as "stale"
@@ -2998,11 +2995,56 @@ export class TournamentManager extends BaseManager {
       await this.recalculateEventStandings(eventId);
       res = await read();
     }
-    const { rows, divisions } = res.rows[0];
+    const { rows, settings } = res.rows[0];
+    const divisions: Array<{ divisionId: string; rows: TournamentStandingRow[]; sportId: string | null; weighting: number | null; scoring: any; stageFormats: string[] }> =
+      (res.rows[0].divisions || []).map((d: any) => ({ ...d, rows: d.rows || [] }));
+    const eventScoring = settings?.scoring || DEFAULT_SCORING_SYSTEM;
+
+    // Both views below add up tables already kept — the same roll-up as the leaderboard's, over fewer
+    // divisions — so they can never disagree with it, and need no table of their own (`SCORE-23`).
+    const ranked = divisions.filter(d => ranksOrganisations(d.stageFormats));
+    const sportIds = [...new Set(divisions.map(d => d.sportId).filter(Boolean))] as string[];
+    const organisations = ranked.length || sportIds.length > 1 ? await this.getStandingsOrganisations(eventId) : [];
+    const byOrganisation = new Map(ranked.map(d => [d.divisionId, rollUpByOrganisation(
+      [{ divisionId: d.divisionId, weighting: 1, rows: d.rows }],
+      organisations.filter(o => d.rows.some(r => r.orgId === o.id)),
+      { scoring: d.scoring || eventScoring }
+    )]));
+
     return {
       rows: rows || [],
-      divisions: (divisions || []).map((d: any) => ({ divisionId: d.divisionId, rows: d.rows || [] })),
+      divisions: divisions.map(d => ({
+        divisionId: d.divisionId,
+        rows: d.rows,
+        ...(byOrganisation.has(d.divisionId) ? { byOrganisation: byOrganisation.get(d.divisionId) } : {}),
+      })),
+      ...(sportIds.length > 1 ? {
+        sports: sportIds.map(sportId => {
+          const inSport = divisions.filter(d => d.sportId === sportId);
+          return {
+            sportId,
+            rows: rollUpByOrganisation(
+              inSport.map(d => ({ divisionId: d.divisionId, weighting: d.weighting ?? 1, rows: d.rows })),
+              organisations.filter(o => inSport.some(d => d.rows.some(r => r.orgId === o.id))),
+              { scoring: eventScoring }
+            ),
+          };
+        }),
+      } : {}),
     };
+  }
+
+  /** The organisations with a team in the tournament, as the roll-up names them (its short name). */
+  private async getStandingsOrganisations(eventId: string): Promise<Array<{ id: string; name: string }>> {
+    const res = await this.query(
+      `SELECT DISTINCT o.id, COALESCE(o.short_name, o.name) AS name
+         FROM division_entrants e
+         JOIN tournament_divisions d ON d.id = e.division_id
+         JOIN organizations o ON o.id = e.org_id
+        WHERE d.event_id = $1`,
+      [eventId]
+    );
+    return res.rows;
   }
 
   /**

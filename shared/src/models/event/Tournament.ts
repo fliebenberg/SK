@@ -405,7 +405,20 @@ export interface TournamentStandingRow extends LeagueStandingRow {
  */
 export interface EventStandings {
   rows: TournamentStandingRow[];
-  divisions: Array<{ divisionId: string; rows: TournamentStandingRow[] }>;
+  divisions: Array<{
+    divisionId: string;
+    rows: TournamentStandingRow[];
+    /**
+     * The same results added up by organisation, for a division that ranks organisations rather
+     * than teams ({@link ranksOrganisations}, `SCORE-23`): what its page and its Divisions line show.
+     */
+    byOrganisation?: TournamentStandingRow[];
+  }>;
+  /**
+   * The leaderboard of each sport, adding up only that sport's divisions — what the Standings tab
+   * shows with a sport chosen (`SCORE-23`). Present only when the tournament has more than one sport.
+   */
+  sports?: Array<{ sportId: string; rows: TournamentStandingRow[] }>;
 }
 
 /**
@@ -582,6 +595,19 @@ export function stagePlanForFormat(
     default:
       return [{ name: 'Fixtures', format: 'Festival', sequence: 1 }];
   }
+}
+
+/**
+ * Whether a division ranks **organisations** rather than teams (`SCORE-23`, agreed 2026-10-22).
+ *
+ * One stage of fixtures set by hand — a *Set fixtures by hand* division, or a Head to Head's, which
+ * plays a `Festival` stage too — is usually paired by level across organisations: U16 A v U16 A,
+ * U16 B v U16 B. Each team plays once or twice, so a table of teams would crown one that played
+ * once; the question such a division answers is which organisation came out on top. A drawn format
+ * (round robin, pools, a knockout) keeps its table of teams.
+ */
+export function ranksOrganisations(stageFormats: Array<string | null | undefined>): boolean {
+  return stageFormats.length === 1 && stageFormats[0] === 'Festival';
 }
 
 /**
