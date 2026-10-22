@@ -7,7 +7,7 @@ tags:
   - routing
   - pages
   - navigation-guards
-timestamp: 2026-10-16T00:00:00Z
+timestamp: 2026-10-22T00:00:00Z
 ---
 
 # Client Pages & Routing Maps
@@ -39,6 +39,7 @@ Full description, including where Exit sits: [design_spec.md §2](file:///c:/Fre
 | `app/claim/` | `/claim`, `/claim/refer`, `/claim/decline` | Anyone holding an invitation to administer an org ([nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md)). |
 | `app/(tabs)/` | `/` (Live feed), `/organizations`, `/organizations/[orgId]`, `/teams`, `/sites`, `/family`, `/settings` | Anyone; the directories are public. `/family` and `/settings` show their content only when signed in. |
 | `app/leagues/` | `/leagues/[leagueId]` | Anyone: a league's public page. |
+| `app/(tabs)/events/` | `/events/[eventId]` and the pages under it | Anyone, signed in or not: a tournament as the public sees it — read-only for everyone, an organiser included (`FIX-25`). |
 | `app/(tabs)/admin/` | `/admin`, `/admin/users`, `/admin/reports`, `/admin/sports` | **System admins only** (`AuthGuard requireGlobalAdmin` on the layout). `/admin/reports` is user moderation, not analytics, and still a mockup on hardcoded data ([reports.md](file:///c:/Fred/Coding/SK/docs/reports.md)). |
 | `app/admin/[orgId]/` | the org workspace, below | **Anyone with a role in that org** (`AuthGuard orgId` on the layout); what they may change depends on the role. A guardian holds no membership, so it refuses them. |
 
@@ -52,6 +53,16 @@ real boundary ([auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md))
     switch), inviting them once allowed, and the guardian's own details at that org, read-only. It
     reads the user's own `dependants`, so it shows nothing to anyone who is not a guardian, and the
     rail and bottom menu list it only when there are dependants.
+
+*   `/events/[eventId]`: **a tournament as the public sees it** (`FIX-25`, [events.md](file:///c:/Fred/Coding/SK/docs/events.md)
+    §11). Its routes — the tournament, `/events/[eventId]/divisions/[divisionId]`,
+    `/events/[eventId]/games/[gameId]`, an organisation's and a team's results pages (`/events/[eventId]/standings/organisations/[participantOrgId]`, `/events/[eventId]/standings/teams/[entrantId]`) and
+    `/events/[eventId]/sports` — mount the workspace's own pages inside `PublicTournamentProvider`
+    ([tournamentLinks.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/tournamentLinks.tsx)).
+    **Every tournament page builds its links with `useTournamentLinks`**, never a workspace path of its own, so a
+    link stays on the side it started; and under the provider the page edits nothing and shows nothing
+    only those taking part see (capabilities are not asked, no roster, no players' names). A shared
+    link opens it directly, signed in or not.
 
 ### The organisation workspace (`/admin/[orgId]/*`)
 

@@ -39,6 +39,14 @@ export const INVITATION_LIST = `('invited', 'declined', 'withdrawn')`;
 export const NOT_LISTED = (event: string, org: string) =>
   `EXISTS (SELECT 1 FROM event_organizations nx WHERE nx.event_id = ${event} AND nx.org_id = ${org} AND nx.invitation NOT IN ${LISTED})`;
 
+/**
+ * SQL: the public may see organisation `org`'s teams in event `event` (`FIX-25`): the host's, and
+ * those of an organisation that accepted — or withdrew after the fixtures were made, so its games are
+ * not left as unexplained gaps. One only invited, or that declined, is not public business.
+ */
+export const PUBLIC_TEAMS = (event: string, org: string, host: string) =>
+  `(${org} = ${host} OR NOT EXISTS (SELECT 1 FROM event_organizations px WHERE px.event_id = ${event} AND px.org_id = ${org} AND px.invitation NOT IN ('accepted', 'withdrawal_pending', 'withdrawn')))`;
+
 /** SQL: organisation `org` has a row in event `event` that gives its members no access. */
 export const NO_MEMBER_ACCESS = (event: string, org: string) =>
   `EXISTS (SELECT 1 FROM event_organizations nx WHERE nx.event_id = ${event} AND nx.org_id = ${org} AND nx.invitation NOT IN ${MEMBER_ACCESS})`;

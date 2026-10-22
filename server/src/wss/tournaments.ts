@@ -15,6 +15,7 @@ import {
   eventDivisionsRoom,
   eventEntrantsRoom,
   eventStandingsRoom,
+  eventTeamsRoom,
   userCapabilitiesRoom,
 } from './rooms';
 
@@ -87,6 +88,9 @@ export async function publishEntrants(divisionId: string, entrants: any[], event
   const resolvedEventId = eventId || (await tournamentManager.getDivisionEventId(divisionId));
   if (resolvedEventId) {
     broadcast(eventEntrantsRoom(resolvedEventId), 'DIVISION_ENTRANTS_SYNC', { divisionId, entrants });
+    // And the public's projection of the same change (`FIX-25`), read again rather than cut from
+    // `entrants`, so which organisations the public may see is decided in one place.
+    broadcast(eventTeamsRoom(resolvedEventId), 'DIVISION_TEAMS_SYNC', { divisionId, teams: await tournamentManager.getPublicTeams(resolvedEventId, divisionId) });
   }
 }
 

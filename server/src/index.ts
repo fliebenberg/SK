@@ -2039,6 +2039,9 @@ io.on('connection', (socket) => {
                 entrants: await dataManager.getEventEntrants(id),
             });
 
+        } else if (kind === 'event' && sub === 'teams') {
+            pushToSocket(socket, room, 'EVENT_TEAMS_SYNC', { eventId: id, teams: await dataManager.getPublicTeams(id) });
+
         } else if (kind === 'event' && sub === 'fixtures') {
             pushToSocket(socket, room, 'GAME_SUMMARIES_SYNC', await dataManager.getGameSummariesByEvent(id));
 

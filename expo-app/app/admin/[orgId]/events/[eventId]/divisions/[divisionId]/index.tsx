@@ -44,7 +44,7 @@ import { awardsPoints } from '../../../../../../../components/tournament/standin
 import { DualPairingCard } from '../../../../../../../components/tournament/DualPairing';
 import { TournamentScopeLine, useTournamentScope } from '../../../../../../../components/tournament/TournamentScope';
 import { useLiveRoom } from '../../../../../../../hooks/useLiveRoom';
-import { useEventDivisions, useEventRecord, useSports } from '../../../../../../../hooks/useEventRooms';
+import { useEventDivisions, useEventPublicTeams, useEventRecord, useSports } from '../../../../../../../hooks/useEventRooms';
 import { useOrgSites } from '../../../../../../../hooks/useOrgSites';
 import { useDivisionEntrants } from '../../../../../../../hooks/useDivisionEntrants';
 import { useEventEntrants } from '../../../../../../../hooks/useEventEntrants';
@@ -55,6 +55,7 @@ import { sendAction } from '../../../../../../../services/actions';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { PageBody } from '../../../../../../../components/PageBody';
+import { useTournamentLinks } from '../../../../../../../components/tournament/tournamentLinks';
 
 /**
  * A division of a tournament (`FIX-27`, agreed 2026-10-09 on `mockups/division-read-first.html`,
@@ -77,12 +78,14 @@ export default function DivisionScreen() {
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId, eventId, divisionId } = useLocalSearchParams<{ orgId: string; eventId: string; divisionId: string }>();
+  const links = useTournamentLinks(orgId);
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const memberships = useAuthStore((state: any) => state.orgMemberships);
-  const viewerOrgIds = useMemo(() => (memberships || []).map((m: any) => m.orgId) as string[], [memberships]);
+  // None on the public page (`FIX-25`): it shows what anyone sees.
+  const viewerOrgIds = useMemo(() => (links.isPublic ? [] : (memberships || []).map((m: any) => m.orgId)) as string[], [memberships, links.isPublic]);
   const isConnected = useWsStore((state: any) => state.isConnected);
-  const backToTournament = () => safeBack(`/admin/${orgId}/events/${eventId}`);
+  const backToTournament = () => safeBack(links.event(eventId));
 
   /* -- data ------------------------------------------------------------------------------- */
   const { capabilities } = useEventCapabilities(eventId);
@@ -133,7 +136,10 @@ export default function DivisionScreen() {
   const canEditRecord = canEditEvent || runsThisSport;
 
   // The roster is the organisers' tier; the whole tournament's, the tournament organisers'.
-  const { entrants } = useDivisionEntrants(divisionId, canEdit);
+  const { entrants: roster } = useDivisionEntrants(divisionId, canEdit);
+  // Anyone else gets the teams the public sees — enough for the banner's count and a withdrawn team (`FIX-25`).
+  const publicTeams = useEventPublicTeams(eventId, !canEdit);
+  const entrants = useMemo(() => (canEdit ? roster : publicTeams.filter(e => e.divisionId === divisionId)), [canEdit, roster, publicTeams, divisionId]);
   // A guest organisation's members read the tournament's roster too (the server's room allows it), for Mine / My organisation.
   const takesPart = !!event?.participatingOrgs?.some(o =>
     viewerOrgIds.includes(o.id) && (o.invitation === 'invited' || o.invitation === 'accepted' || o.invitation === 'withdrawal_pending'));
@@ -197,7 +203,7 @@ export default function DivisionScreen() {
     [canEdit, entrants, eventEntrantsAll, divisionId]
   );
   const scoped = useTournamentScope({ orgId, hostOrgId: event?.orgId, canEdit, entrants: divisionEntrants, orgName: id => event?.participatingOrgs?.find(o => o.id === id)?.name });
-  const shownGames = scoped.narrowTo ? games.filter(scoped.keepsGame) : games;
+  const shownGames = scoped.narrowTo && !links.isPublic ? games.filter(scoped.keepsGame) : games;
 
   const [dialog, setDialog] = useState<null | 'details' | 'format' | 'delete' | 'where' | 'when' | 'gaps' | 'organisers' | 'schedule' | 'reschedule'>(null);
   const [addingFixture, setAddingFixture] = useState(false);
@@ -242,7 +248,7 @@ export default function DivisionScreen() {
     setDeleting(false);
     if (!result.ok) return;
     setDialog(null);
-    router.replace(`/admin/${orgId}/events/${eventId}`);
+    router.replace(links.event(eventId));
   };
 
   /* -- the page's ⋯ ------------------------------------------------------------------------- */
@@ -382,7 +388,7 @@ export default function DivisionScreen() {
    */
   const byHand = !dual && format?.format === 'Festival';
   const inSchedule = games.length > 0 || byHand;
-  const openSchedule = () => router.push(`/admin/${orgId}/events/${eventId}?tab=schedule&division=${divisionId}` as any);
+  const openSchedule = () => router.push(links.event(eventId, `?tab=schedule&division=${divisionId}`) as any);
   const schedulingFooter = (
     // Scheduling sits with the settings it uses: a primary Schedule once drawn, a quiet Schedule
     // again once anything has a time, and before the draw just why there is nothing to schedule.
@@ -547,7 +553,7 @@ export default function DivisionScreen() {
         <PageBody className="gap-3.5">
           {banner}
           {nextStrip}
-          <TournamentScopeLine {...scoped} isWide={isWide} allLabel="the whole division" />
+          {links.isPublic ? null : <TournamentScopeLine {...scoped} isWide={isWide} allLabel="the whole division" />}
           {isWide ? (
             <View className="flex-row gap-4 items-start">
               <View className="gap-3.5 min-w-0" style={{ flex: 1.1 }}>{columns[0]}</View>

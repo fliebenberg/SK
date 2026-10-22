@@ -52,6 +52,8 @@ export const eventStandingsRoom = (eventId: string) => `event:${eventId}:standin
  * joins on one screen open.
  */
 export const eventEntrantsRoom = (eventId: string) => `event:${eventId}:entrants`;
+/** The teams the public sees taking part — the roster without people, placeholders or answers (`FIX-25`). */
+export const eventTeamsRoom = (eventId: string) => `event:${eventId}:teams`;
 
 // --- Division ---
 /** The `TournamentDivision` record itself. */

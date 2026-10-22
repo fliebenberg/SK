@@ -531,6 +531,10 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
             }
             for (const key of division.facilities || []) await insert('division_facilities', ['division_id', 'facility_id'], [divisionId, hostFacility(key)]);
             if (division.drawn) await drawAndSchedule(tour, division, divisionId, stageId, booked, hostFacility);
+            // Withdrawn after the draw: still in it, marked so, as the division page's *Withdraw* leaves a team.
+            for (const w of division.withdrawnAfterDraw || []) {
+                await client.query(`UPDATE division_entrants SET status = 'withdrawn' WHERE id = $1`, [fixtureIds.entrant(tour.key, division.key, w.org, w.team)]);
+            }
             // Games set by hand — a Head to Head's, as pairing writes them, or a hand-set division's;
             // a result keyed by participant, as the app records one.
             for (const [n, game] of (division.games || []).entries()) {

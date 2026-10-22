@@ -49,6 +49,10 @@ import { useActiveTheme, useSettingsStore } from '../../store/settingsStore';
 import { calendarRangeStatus, dateCountdown, eventDayOfRange, formatDateRange, formatKickoffTime, formatPlayingDay, venueTimeZone, whenMs } from '../../utils/dates';
 import { themeColor } from '../../constants/Colors';
 import { LAYOUT } from '../../constants/layout';
+import { useTournamentLinks } from './tournamentLinks';
+import { useEventStandings } from '../../hooks/useEventRooms';
+import { StandingsTable } from './StandingsTable';
+import { awardsPoints } from './standingsBits';
 
 /**
  * The tournament page's first tab, *Overview* (docs/events.md §7; agreed 2026-10-09 on
@@ -227,6 +231,7 @@ export function TournamentHome({
   mySportIds?: string[];
 }) {
   const router = useRouter();
+  const links = useTournamentLinks(orgId);
   const isDark = useActiveTheme() === 'dark';
   const showHelp = useShowFieldHelp();
 
@@ -241,7 +246,8 @@ export function TournamentHome({
    */
   const everyEntrant = useMemo(() => Array.from(allEntrantsByDivision.values()).flat(), [allEntrantsByDivision]);
   const scoped = useTournamentScope({ orgId, hostOrgId: event.orgId, canEdit, entrants: everyEntrant, orgName: id => event.participatingOrgs?.find(o => o.id === id)?.name });
-  const { narrowTo } = scoped;
+  // The public page shows the whole tournament, whoever is looking (`FIX-25`).
+  const narrowTo = links.isPublic ? null : scoped.narrowTo;
   const mine = !!narrowTo;
   const divisions = narrowTo ? allDivisions.filter(d => narrowTo.some(e => e.divisionId === d.id)) : allDivisions;
   const games = narrowTo ? allGames.filter(scoped.keepsGame) : allGames;
@@ -286,8 +292,10 @@ export function TournamentHome({
   const sportsSection = useSportsSection({ event, orgId, sports, divisions, games, entrantsByDivision, canEdit, setupMode, complete, mySportIds, timeZone: venueTimeZone(site as any, hostOrg as any) });
   // Taking part is who you are playing: every organisation, whatever the switch shows (2026-10-18, `FIX-24`).
   const orgs = useOrganisationsSection({ event, orgId, sports, divisions: allDivisions, entrantsByDivision: allEntrantsByDivision, hostOrg, viewerOrgIds, canEdit, setupMode });
-  const openSportsPage = () => router.push(`/admin/${orgId}/events/${eventId}/sports` as any);
-  const openOrgsPage = () => router.push(`/admin/${orgId}/events/${eventId}/organisations` as any);
+  const openSportsPage = () => router.push(links.event(eventId, `/sports`) as any);
+  const openOrgsPage = () => router.push(links.event(eventId, `/organisations`) as any);
+  // On the public page an organisation opens its results — its teams and their places (`FIX-25`).
+  const openOrgResults = (id: string) => router.push(links.event(eventId, `/standings/organisations/${id}`) as any);
 
   /* ---------------------------------------------------------------- folding and jumping --- */
   /*
@@ -612,7 +620,7 @@ export function TournamentHome({
           {setupMode ? <WarningsCount count={orgs.warnings.length} /> : null}
           {/* A Head to Head plays one organisation: once it has one, there is nobody to add. */}
           {orgs.addOrganisation && !onTheDay && !(dual && guestOrg) ? edit(orgs.addOrganisation, dual ? '＋ Choose' : narrow || phone ? '＋ Add' : '＋ Add organisation') : null}
-          {orgRowsShown.length ? seeAll(openOrgsPage) : null}
+          {orgRowsShown.length && !links.isPublic ? seeAll(openOrgsPage) : null}
         </>
       )}
     >
@@ -623,7 +631,7 @@ export function TournamentHome({
         <WarningsList warnings={orgs.warnings} limit={3} onMore={openOrgsPage} />
         {canEdit ? <NotInvitedBox count={orgs.notInvited.length} nobodyYet={orgs.nobodyInvited} onInviteAll={orgs.inviteAll} subject={dual ? 'Head to Head' : 'tournament'} orgName={dual ? guestOrg?.name : undefined} /> : null}
         <View>
-          <OrgsList rows={orgRowsShown} isWide={isWide} showInvitations={canEdit} onOpen={canEdit || orgs.highlightOrgId ? orgs.openOrg : undefined} openOnly={canEdit ? undefined : orgs.highlightOrgId} highlightOrgId={orgs.highlightOrgId} beforeDivisions={setupMode && beforeDivisions} />
+          <OrgsList rows={orgRowsShown} isWide={isWide} showInvitations={canEdit} onOpen={links.isPublic ? openOrgResults : canEdit || orgs.highlightOrgId ? orgs.openOrg : undefined} openOnly={canEdit ? undefined : orgs.highlightOrgId} highlightOrgId={orgs.highlightOrgId} beforeDivisions={setupMode && beforeDivisions} />
           <UnnamedList entrants={orgs.unnamed} divisionName={orgs.divisionName} onOpen={canEdit ? orgs.openUnnamed : undefined} />
         </View>
         {setupMode && !beforeDivisions ? (
@@ -799,7 +807,7 @@ export function TournamentHome({
                 const [home, away] = g.participants || [];
                 const division = divisions.find(d => d.id === g.divisionId);
                 return (
-                  <TouchableOpacity key={g.id} onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}`)} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`}>
+                  <TouchableOpacity key={g.id} onPress={() => router.push(links.event(eventId, `/games/${g.id}`))} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`}>
                     <View className="flex-row items-center gap-2">
                       <FixtureSideFitted names={fixtureSideNames(home, orgId)} participant={home} align="left" />
                       <Text className="font-inter-semibold text-xs text-ink-muted" style={{ minWidth: 40, textAlign: 'center' }}>{g.timeTbd ? 'TBD' : formatKickoffTime(g.startTime)}</Text>
@@ -890,11 +898,11 @@ export function TournamentHome({
           const scores = sideScores(g);
           const division = divisions.find(d => d.id === g.divisionId);
           return (
-            <TouchableOpacity key={g.id} onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}`)} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`} style={{ maxWidth: 560 }}>
+            <TouchableOpacity key={g.id} onPress={() => router.push(links.event(eventId, `/games/${g.id}`))} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`} style={{ maxWidth: 560 }}>
               <View className="flex-row items-center gap-2">
                 <FixtureSideFitted names={fixtureSideNames(home, orgId)} participant={home} align="left" />
                 <View className="items-center" style={{ minWidth: 52 }}>
-                  <Text className="font-orbitron-bold text-[15px] text-danger-ink">{scores ? `${scores[0]} – ${scores[1]}` : 'Live'}</Text>
+                  <Text className="font-orbitron-bold text-[20px] text-danger-ink">{scores ? `${scores[0]} – ${scores[1]}` : 'Live'}</Text>
                 </View>
                 <FixtureSideFitted names={fixtureSideNames(away, orgId)} participant={away} align="right" />
               </View>
@@ -905,6 +913,29 @@ export function TournamentHome({
           );
         })}
       </View>
+    </TournamentCard>
+  ) : null;
+
+  /*
+   * The public page (`FIX-25`, docs/events.md §11): once there are results and nothing is being
+   * played — between days, or once it is over — the organisation leaderboard leads, its top three,
+   * with *Standings ›* for the rest. A Head to Head's Results card does this for it already.
+   */
+  const { rows: leaderboardRows } = useEventStandings(links.isPublic ? eventId : null);
+  const anyFinished = games.some(g => g.status === 'Finished');
+  const leaderboardCard = links.isPublic && !dual && !liveGames.length && anyFinished && leaderboardRows.length ? (
+    <TournamentCard title="Leaderboard" right={seeAll(onOpenResults || onOpenSchedule, 'Standings')}>
+      <StandingsTable
+        rows={leaderboardRows.slice(0, 3)}
+        kind="organisation"
+        subjectLabel="Organisation"
+        orgs={event.participatingOrgs}
+        isWide={isWide}
+        framed={false}
+        showPoints={awardsPoints(event)}
+        // As on the Standings tab: an organisation opens its results.
+        onPressRow={row => openOrgResults(row.orgId || row.teamId)}
+      />
     </TournamentCard>
   ) : null;
 
@@ -992,6 +1023,8 @@ export function TournamentHome({
   // A Head to Head's results lead once anything is played (`H2H-1`).
   const resultsA = anchor('results', resultsCard);
   if (resultsA) columns[0].unshift(resultsA);
+  const leaderboardA = anchor('leaderboard', leaderboardCard);
+  if (leaderboardA) columns[0].unshift(leaderboardA);
 
   // What the viewer still owes the tournament — teams to answer, for now (`FIX-24`): under the banner.
   const todo = useTournamentTodo({ event, divisions: allDivisions, entrants: everyEntrant, canEdit, sports, games: allGames, orgId });
@@ -1000,19 +1033,19 @@ export function TournamentHome({
   return (
     <View ref={rootRef} collapsable={false} className="gap-4" onLayout={e => setRootWidth(e.nativeEvent.layout.width)}>
       {top}
-      <TodoCard
+      {links.isPublic ? null : <TodoCard
         tasks={todo.tasks}
         rows={todo.rows}
         orgId={orgId}
         eventName={event.name}
         orgName={id => event.participatingOrgs?.find(o => o.id === id)?.name || 'Your organisation'}
-        onAnswerEach={pid => router.push(`/admin/${orgId}/events/${eventId}/organisations/${pid}` as any)}
+        onAnswerEach={pid => router.push(links.event(eventId, `/organisations/${pid}`) as any)}
         onOpenGame={(gameId, pickFor) => router.push(`/admin/${orgId}/events/${eventId}/games/${gameId}${pickFor ? `/selection?teamId=${pickFor}` : ''}` as any)}
         onChanged={todo.reload}
-        onSeeAll={() => router.push(`/admin/${orgId}/events/${eventId}/todo` as any)}
-      />
+        onSeeAll={() => router.push(links.event(eventId, `/todo`) as any)}
+      />}
       {nextStrip}
-      {mineLine}
+      {links.isPublic ? null : mineLine}
       {isWide ? (
         <View className="flex-row gap-4 items-start">
           {columns.map((cards, i) => (

@@ -16,6 +16,7 @@ import { useOrgSites } from '../../../../../../../hooks/useOrgSites';
 import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { whenMs } from '../../../../../../../utils/dates';
+import { useTournamentLinks } from '../../../../../../../components/tournament/tournamentLinks';
 
 /**
  * One team's results in a tournament (stage 4, docs/events.md §10): where it stands, its fixtures
@@ -29,12 +30,13 @@ import { whenMs } from '../../../../../../../utils/dates';
 export default function TeamResultsScreen() {
   const { orgId, eventId, entrantId } = useLocalSearchParams<{ orgId: string; eventId: string; entrantId: string }>();
   const router = useRouter();
+  const links = useTournamentLinks(orgId);
   const safeBack = useSafeBack();
-  const back = () => safeBack(`/admin/${orgId}/events/${eventId}?tab=standings`);
+  const back = () => safeBack(links.event(eventId, `?tab=standings`));
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const memberships = useAuthStore((state: any) => state.orgMemberships);
-  const viewerOrgIds = useMemo(() => (memberships || []).map((m: any) => m.orgId) as string[], [memberships]);
+  const viewerOrgIds = useMemo(() => (links.isPublic ? [] : (memberships || []).map((m: any) => m.orgId)) as string[], [memberships, links.isPublic]);
 
   const { event, accessDenied } = useEventRecord(eventId);
   const divisions = useEventDivisions(eventId);
@@ -89,7 +91,7 @@ export default function TeamResultsScreen() {
       <Text className="font-inter-bold text-[13px] text-primary-ink">Team page ›</Text>
     </TouchableOpacity>
   ) : null;
-  const openDivision = () => router.push(`/admin/${orgId}/events/${eventId}/divisions/${division.id}`);
+  const openDivision = () => router.push(links.event(eventId, `/divisions/${division.id}`));
 
   const head = (
     <ResultsHead
@@ -131,7 +133,7 @@ export default function TeamResultsScreen() {
         showPoints={awardsPoints(event)}
         framed={false}
         highlight={r => (r.entrantId || r.teamId) === entrantId}
-        onPressRow={r => (r.entrantId || r.teamId) !== entrantId && router.push(`/admin/${orgId}/events/${eventId}/standings/teams/${r.entrantId || r.teamId}`)}
+        onPressRow={r => (r.entrantId || r.teamId) !== entrantId && router.push(links.event(eventId, `/standings/teams/${r.entrantId || r.teamId}`))}
       />
     </TournamentCard>
   );

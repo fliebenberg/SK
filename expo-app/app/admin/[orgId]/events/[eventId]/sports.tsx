@@ -14,6 +14,7 @@ import { useSafeBack } from '../../../../../hooks/useSafeBack';
 import { PageBody } from '../../../../../components/PageBody';
 import { LAYOUT } from '../../../../../constants/layout';
 import { venueTimeZone } from '../../../../../utils/dates';
+import { useTournamentLinks } from '../../../../../components/tournament/tournamentLinks';
 
 /**
  * Sports & divisions as a page of its own — the Overview card's *See all ›* (agreed 2026-10-09 on
@@ -24,8 +25,9 @@ import { venueTimeZone } from '../../../../../utils/dates';
  */
 export default function TournamentSportsScreen() {
   const { orgId, eventId } = useLocalSearchParams<{ orgId: string; eventId: string }>();
+  const links = useTournamentLinks(orgId);
   const safeBack = useSafeBack();
-  const backToTournament = () => safeBack(`/admin/${orgId}/events/${eventId}`);
+  const backToTournament = () => safeBack(links.event(eventId));
   const data = useTournamentData(orgId, eventId);
 
   if (data.accessDenied) {

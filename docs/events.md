@@ -731,7 +731,8 @@ half played, Netball U16 not started — and the reset rebuilds its tables after
 
 Designed 2026-10-22 on `mockups/tournament-public.html` (kept local), **option A**: the tournament
 page as built, read-only. B (*Watch a team*, the public's stand-in for Mine) and C (an Overview that
-changes with the moment) were not chosen. Not built yet.
+changes with the moment) were not chosen. **The tournament's public pages were built 2026-10-22**
+(how, below); the public organisation page that leads to them is `UI-34`.
 
 **Who it is for, and how they get there.** Anyone outside every organisation taking part — a parent,
 a supporter — **with or without an account**: logged out and logged in see the same page for now
@@ -758,6 +759,36 @@ such state today, and the event's public rooms are open from creation.
 - **No players' names** until `PEOPLE-4` gives a consent rule: match events name the team, not the
   scorer, and the game page has no team sheets — said once, on its Teams card. Coaches are named
   (on the organisation page).
+
+**How it is built (2026-10-22).** The public routes, `/events/[eventId]` and the pages under it in
+`app/(tabs)/events/`, mount the workspace's own pages inside `PublicTournamentProvider`
+([tournamentLinks.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/tournamentLinks.tsx)) —
+one page for both, not a copy that drifts. Every link goes through `useTournamentLinks`, so it stays
+on the side it started. Under the provider:
+- **Read-only for everyone.** `useEventCapabilities` asks nothing, and the game page's permissions are
+  worked out as for nobody: an organiser or a coach on the public link sees what the public sees, and
+  edits in their workspace.
+- **No roster.** The roster is the members' tier; the public page reads `event:{id}:teams` instead
+  (`getPublicTeams`): team entrants in or withdrawn, of organisations that accepted or withdrew
+  (`PUBLIC_TEAMS` in [eventVisibility.ts](file:///c:/Fred/Coding/SK/server/src/managers/eventVisibility.ts)),
+  with nothing a fixture does not already say. Anyone else outside the tournament gets the same
+  room in the workspace pages, so team counts and withdrawn teams show there too.
+- **Taking part** opens an organisation's results page, as a leaderboard row does; there is no
+  *See all*, the organisers' organisation pages not being public.
+- **The Schedule** keeps Day, Division and Facility and adds **Organisation**; a clash is not shown.
+  Scores now show on every Schedule (the grid's blocks and the phone's list), and Live now's score is
+  larger — for organisers too.
+- **The game page** asks for no team sheet and no full record: score, teams ("Players are not named
+  on the public page", once), When & where and the division. Its match events wait for a public feed
+  without names (`FIX-39`).
+- **A withdrawn team** is struck through in the fixtures, as the organisers see it; "Not played" for
+  its remaining games, drawn on the mockup, is not built.
+- **Share** copies the page's address on the web, or opens the phone's share sheet. A phone has no
+  public web address yet (`EXPO_PUBLIC_WEB_URL`, unset while there is only a dev environment), so it
+  shares the app's own link until there is.
+
+Test data: *Test Autumn Festival*'s Netball U16 has Kwaggafontein's U16 Comets withdrawn after the
+draw; `e2e/18-public-tournament.spec.ts` reads the pages logged out and signed in.
 
 **The public organisation page (`UI-34`)**, designed the same day on `mockups/org-public-events.html`
 (option B) and `mockups/org-public-page.html` (option A). It is redone read-first: the workspace

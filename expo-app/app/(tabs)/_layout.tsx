@@ -85,6 +85,11 @@ export default function TabLayout() {
           unmountOnBlur: true,
         }} 
       />
+      {/* A tournament as the public sees it (`FIX-25`): reached from an organisation or a link, never a tab. */}
+      <Tabs.Screen
+        name="events"
+        options={{ href: null, headerShown: false }}
+      />
       {/* My Family (`MEMBER-3`). Reached from the bottom menu and the rail, which show it only to a
           guardian; the tab bar itself is `BottomMenu`, so no tab button needs hiding here. */}
       <Tabs.Screen

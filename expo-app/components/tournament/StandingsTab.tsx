@@ -11,6 +11,7 @@ import { awardsPoints, crestOf, entrantName, hasOneTable, orgName } from './stan
 import { useEventStandings } from '../../hooks/useEventRooms';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
+import { useTournamentLinks } from './tournamentLinks';
 
 /**
  * The tournament page's Standings tab (stage 4, agreed 2026-10-17 on
@@ -45,6 +46,7 @@ export function StandingsTab({ event, orgId, isWide, divisions: allDivisions, ga
   scopeLine?: React.ReactNode;
 }) {
   const router = useRouter();
+  const links = useTournamentLinks(orgId);
   const isDark = useActiveTheme() === 'dark';
   const { rows: allRows, divisions: tables, sports: sportTables } = useEventStandings(event.id);
   const orgs = event.participatingOrgs;
@@ -84,7 +86,7 @@ export function StandingsTab({ event, orgId, isWide, divisions: allDivisions, ga
         teamCounts={teamCounts}
         showPoints={awardsPoints(event)}
         highlight={row => viewerOrgIds.includes(row.orgId || row.teamId)}
-        onPressRow={row => router.push(`/admin/${orgId}/events/${event.id}/standings/organisations/${row.orgId || row.teamId}`)}
+        onPressRow={row => router.push(links.event(event.id, `/standings/organisations/${row.orgId || row.teamId}`))}
         emptyMessage="Nothing to rank yet. The leaderboard fills in as results come in."
       />
     </TournamentCard>
@@ -131,7 +133,7 @@ export function StandingsTab({ event, orgId, isWide, divisions: allDivisions, ga
                 return (
                   <TouchableOpacity
                     key={division.id}
-                    onPress={() => router.push(`/admin/${orgId}/events/${event.id}/divisions/${division.id}`)}
+                    onPress={() => router.push(links.event(event.id, `/divisions/${division.id}`))}
                     accessibilityRole="link"
                     accessibilityLabel={`${division.name}, ${state.label}`}
                     className="flex-row items-center gap-3 py-2.5 border-t border-line-soft"

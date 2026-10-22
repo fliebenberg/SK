@@ -42,6 +42,7 @@ import {
   pairInNameOrder,
 } from "@sk/shared";
 import { BaseManager, Tx } from "./BaseManager";
+import { PUBLIC_TEAMS } from "./eventVisibility";
 import { eventManager } from "./EventManager";
 
 /**
@@ -638,6 +639,35 @@ export class TournamentManager extends BaseManager {
         WHERE d.event_id = $1
         ORDER BY d.sort_order, d.created_at, e.seed NULLS LAST, e.created_at`,
       [eventId]
+    );
+    return res.rows;
+  }
+
+  /**
+   * The teams a tournament shows the public (`FIX-25`, docs/events.md §11), on `event:{id}:teams`.
+   *
+   * The roster (`event:{id}:entrants`) is the members' tier: an entrant may be a person, a place
+   * still to be named carries a label somebody wrote, and an answer carries who gave it and why. The
+   * public needs none of that — only which teams are in each division, and which withdrew, which is
+   * what a fixture already says. So: team entrants only, in or withdrawn (a pending withdrawal is
+   * still in), of organisations the public may see ({@link PUBLIC_TEAMS}); the team's name and its
+   * organisation, nothing else.
+   */
+  async getPublicTeams(eventId: string, divisionId?: string): Promise<TournamentEntrant[]> {
+    const res = await this.query(
+      `SELECT e.id, e.division_id as "divisionId", e.team_id as "teamId", e.org_id as "orgId", e.seed,
+              t.name, o.short_name as "orgShortName",
+              CASE WHEN e.status = 'withdrawn' THEN 'withdrawn' ELSE 'accepted' END as "status"
+         FROM division_entrants e
+         JOIN tournament_divisions d ON d.id = e.division_id
+         JOIN events ev ON ev.id = d.event_id
+         JOIN teams t ON t.id = e.team_id
+         LEFT JOIN organizations o ON o.id = e.org_id
+        WHERE d.event_id = $1 AND ($2::text IS NULL OR e.division_id = $2)
+          AND e.status IN ('accepted', 'withdrawal_pending', 'withdrawn')
+          AND ${PUBLIC_TEAMS('d.event_id', 'e.org_id', 'ev.org_id')}
+        ORDER BY d.sort_order, d.created_at, e.seed NULLS LAST, e.created_at`,
+      [eventId, divisionId ?? null]
     );
     return res.rows;
   }

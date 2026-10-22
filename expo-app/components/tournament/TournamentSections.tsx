@@ -26,6 +26,7 @@ import { AddOrganisationsDialog, InviteOrganisationsDialog, NominateFor } from '
 import { nominateOrgContact } from '../../services/nominations';
 import { OrgAddingLine } from './DivisionEntries';
 import { sendAction } from '../../services/actions';
+import { useTournamentLinks } from './tournamentLinks';
 
 /**
  * The two big sections of the tournament page — Sports & divisions, and Organisations & teams — as
@@ -59,6 +60,7 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
   timeZone: TimeZone;
 }) {
   const router = useRouter();
+  const links = useTournamentLinks(orgId);
   const eventId = event.id;
   const sportName = (id?: string | null) => sports.find(s => s.id === id)?.name || '';
   const gamesIn = (d: TournamentDivision) => games.filter(g => g.divisionId === d.id);
@@ -80,7 +82,7 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
     if (!setupMode) return own.some(d => gamesIn(d).some(g => g.status === 'Live')) ? 'live' : null;
     return own.some(d => divisionState(d).tone === 'wait') ? 'wait' : null;
   };
-  const openDivision = (d: TournamentDivision) => router.push(`/admin/${orgId}/events/${eventId}/divisions/${d.id}`);
+  const openDivision = (d: TournamentDivision) => router.push(links.event(eventId, `/divisions/${d.id}`));
 
   /* Adding a division asks first — age group, name, how it is played — rather than creating one
      called after the sport (`FIX-27`). A sport just ticked gets its first division the same way:
@@ -148,7 +150,7 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
       <AddDivisionDialog
         visible={!!addingTo}
         onClose={() => setAddingTo(null)}
-        onAdded={id => router.push(`/admin/${orgId}/events/${eventId}/divisions/${id}`)}
+        onAdded={id => router.push(links.event(eventId, `/divisions/${id}`))}
         orgId={orgId}
         event={event}
         sport={sports.find(s => s.id === addingTo) || null}
@@ -199,6 +201,7 @@ export function useOrganisationsSection({ event, orgId, sports, divisions, entra
   setupMode: boolean;
 }) {
   const router = useRouter();
+  const links = useTournamentLinks(orgId);
   const eventId = event.id;
   const sportName = (id?: string | null) => sports.find(s => s.id === id)?.name || '';
   const allEntrants = useMemo(() => Array.from(entrantsByDivision.values()).flat(), [entrantsByDivision]);
@@ -257,7 +260,7 @@ export function useOrganisationsSection({ event, orgId, sports, divisions, entra
   const unnamed = activeEntrants.filter(e => !e.orgId && !e.teamId && !e.orgProfileId);
   const notInvited = takingPart.filter(o => o.id !== event.orgId && o.invitation === 'not_invited');
   const nobodyInvited = takingPart.every(o => o.id === event.orgId || o.invitation === 'not_invited');
-  const openOrg = (id: string) => router.push(`/admin/${orgId}/events/${eventId}/organisations/${id}` as any);
+  const openOrg = (id: string) => router.push(links.event(eventId, `/organisations/${id}`) as any);
 
   /**
    * What keeps the section from being done, one line each, with where to put it right: an
@@ -362,7 +365,7 @@ export function useOrganisationsSection({ event, orgId, sports, divisions, entra
     warnings,
     divisionName,
     openOrg,
-    openUnnamed: (e: TournamentEntrant) => router.push(`/admin/${orgId}/events/${eventId}/divisions/${e.divisionId}`),
+    openUnnamed: (e: TournamentEntrant) => router.push(links.event(eventId, `/divisions/${e.divisionId}`)),
     /** "＋ Add organisation" — one action, since the dialog offers both Add and Add and invite. */
     addOrganisation: canEdit ? () => setOrgDialog({ kind: 'add' }) : undefined,
     inviteAll: () => setOrgDialog({ kind: 'inviteAll' }),

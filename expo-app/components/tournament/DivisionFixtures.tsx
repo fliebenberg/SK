@@ -23,6 +23,7 @@ import { scheduleResultMessage } from './ScheduleActions';
 import { Ionicons } from '@expo/vector-icons';
 import { themeColor } from '../../constants/Colors';
 import { useActiveTheme } from '../../store/settingsStore';
+import { useTournamentLinks } from './tournamentLinks';
 
 /**
  * The division page's fixtures card (`FIX-27`, docs/events.md §8): *The draw* until there is one,
@@ -288,6 +289,7 @@ export function FixtureList({ games, orgId, eventId, facilities, isWide, ownOrgI
   withdrawnIds?: Set<string>;
 }) {
   const router = useRouter();
+  const links = useTournamentLinks(orgId);
   const struck = (entrantId?: string) => !!entrantId && !!withdrawnIds?.has(entrantId);
 
   const fixtureRow = (g: GameSummary, i: number) => {
@@ -302,7 +304,7 @@ export function FixtureList({ games, orgId, eventId, facilities, isWide, ownOrgI
     return (
       <TouchableOpacity
         key={g.id}
-        onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${g.id}`)}
+        onPress={() => router.push(links.event(eventId, `/games/${g.id}`))}
         accessibilityRole="link"
         className={`py-2 ${i ? 'border-t border-line-soft' : ''} ${live ? 'bg-danger-soft rounded-lg px-2 -mx-2' : ''}`}
       >

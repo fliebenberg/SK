@@ -11,6 +11,7 @@ import { ResultsHead } from '../../../../../../../components/tournament/Standing
 import { awardsPoints, formByEntrant, hasOneTable, standingSummary } from '../../../../../../../components/tournament/standingsBits';
 import { useEventDivisions, useEventFixtures, useEventRecord, useEventStandings, useSports } from '../../../../../../../hooks/useEventRooms';
 import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
+import { useTournamentLinks } from '../../../../../../../components/tournament/tournamentLinks';
 
 /**
  * One organisation's results in a tournament (stage 4, docs/events.md §10): where it stands on the
@@ -27,8 +28,9 @@ import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 export default function OrganisationResultsScreen() {
   const { orgId, eventId, participantOrgId } = useLocalSearchParams<{ orgId: string; eventId: string; participantOrgId: string }>();
   const router = useRouter();
+  const links = useTournamentLinks(orgId);
   const safeBack = useSafeBack();
-  const back = () => safeBack(`/admin/${orgId}/events/${eventId}?tab=standings`);
+  const back = () => safeBack(links.event(eventId, `?tab=standings`));
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
 
@@ -112,7 +114,7 @@ export default function OrganisationResultsScreen() {
               nameOf={row => row.teamName}
               subline={row => place(row as any)}
               groupOf={row => sportName(division(row as any)?.sportId)}
-              onPressRow={row => router.push(`/admin/${orgId}/events/${eventId}/standings/teams/${row.entrantId || row.teamId}`)}
+              onPressRow={row => router.push(links.event(eventId, `/standings/teams/${row.entrantId || row.teamId}`))}
               emptyMessage="No teams in the tables yet."
             />
             {rows.length ? (

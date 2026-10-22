@@ -37,6 +37,8 @@ import { resolveEventType, unknownEventTypeMessage } from '@sk/shared';
 import { isCollapsed } from '@sk/shared';
 import { themeColor } from '../../../../constants/Colors';
 import { PageBody } from '../../../../components/PageBody';
+import { shareLink } from '../../../../utils/share';
+import { useTournamentLinks } from '../../../../components/tournament/tournamentLinks';
 
 /**
  * One event, at whichever of its two altitudes applies.
@@ -76,12 +78,15 @@ export default function EventDetails() {
     /** With `tab=schedule`: the division the Schedule opens on (the division page's *Edit in the Schedule*). */
     division?: string;
   }>();
+  const links = useTournamentLinks(orgId);
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
   const secondary = themeColor(isDark, 'ink-muted');
 
   const user = useAuthStore((state: any) => state.user);
   const orgMemberships = useAuthStore((state: any) => state.orgMemberships);
+  /** The viewer's organisations — none on the public page, which shows what anyone sees (`FIX-25`). */
+  const viewerOrgIds: string[] = links.isPublic ? [] : (orgMemberships || []).map((m: any) => m.orgId);
   const teamMemberships = useAuthStore((state: any) => state.teamMemberships);
 
   // ------------------------------------------------------------------------------------------
@@ -253,7 +258,7 @@ export default function EventDetails() {
       setIsProcessing(false);
       setIsDeleting(false);
       // A failed delete leaves the organiser on the event; the refusal is already toasted.
-      if (result.ok) router.push(`/admin/${orgId}/events`);
+      if (result.ok) router.push(links.home());
     });
   };
 
@@ -307,7 +312,7 @@ export default function EventDetails() {
       <ScreenHeader
         /* A tournament's name is its banner's (stage 2), so the bar names what the page is. */
         title={resolved.kind === 'Tournament' ? (dual ? 'Head to Head' : 'Tournament') : event.name}
-        onBack={() => safeBack(`/admin/${orgId}/events`)}
+        onBack={() => safeBack(links.home())}
         right={
           /* The danger zone, relocated here from the bottom of the Setup tab (U49): it belongs to
              the event rather than to its setup, and ending a set-up checklist on a red box
@@ -353,6 +358,10 @@ export default function EventDetails() {
                 },
               ]}
             />
+          ) : links.isPublic ? (
+            <TouchableOpacity onPress={() => shareLink(`/events/${eventId}`, "The tournament's link")} accessibilityRole="button" hitSlop={8}>
+              <Text className="font-inter-bold text-sm text-primary-ink">Share</Text>
+            </TouchableOpacity>
           ) : undefined
         }
       />
@@ -414,7 +423,7 @@ export default function EventDetails() {
   if (resolved.kind === 'SingleMatch') {
     // A single match has no event page: the match *is* the event, and its page is the game's (stage 3).
     const game = games[0];
-    if (game) return <Redirect href={`/admin/${orgId}/events/${eventId}/games/${game.id}` as any} />;
+    if (game) return <Redirect href={links.event(eventId, `/games/${game.id}`) as any} />;
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         {header}
@@ -469,7 +478,7 @@ export default function EventDetails() {
               organizers={organizers}
               onEditOrganizers={() => setOrganizersOpen(true)}
               hostOrg={hostOrg}
-              viewerOrgIds={(orgMemberships || []).map((m: any) => m.orgId)}
+              viewerOrgIds={viewerOrgIds}
               onOpenSchedule={() => setActiveTab('schedule')}
               onOpenResults={() => setActiveTab('standings')}
               mySportIds={capabilities?.convenesSportIds}
@@ -488,8 +497,9 @@ export default function EventDetails() {
               canEdit={scheduleCanEdit}
               isWide={isWide}
               divisions={divisions}
-              games={viewScope.narrowTo ? games.filter(viewScope.keepsGame) : games}
-              scopeLine={<TournamentScopeLine {...viewScope} isWide={isWide} allLabel="the whole schedule" />}
+              games={viewScope.narrowTo && !links.isPublic ? games.filter(viewScope.keepsGame) : games}
+              scopeLine={links.isPublic ? undefined : <TournamentScopeLine {...viewScope} isWide={isWide} allLabel="the whole schedule" />}
+              orgFilter={links.isPublic}
               sports={sports}
               sites={sites}
               facilities={facilities}
@@ -529,9 +539,9 @@ export default function EventDetails() {
               divisions={orderedDivisions}
               games={games}
               sports={sports}
-              viewerOrgIds={(orgMemberships || []).map((m: any) => m.orgId)}
-              narrowTo={viewScope.narrowTo}
-              scopeLine={<TournamentScopeLine {...viewScope} isWide={isWide} allLabel="every division" />}
+              viewerOrgIds={viewerOrgIds}
+              narrowTo={links.isPublic ? null : viewScope.narrowTo}
+              scopeLine={links.isPublic ? undefined : <TournamentScopeLine {...viewScope} isWide={isWide} allLabel="every division" />}
             />
           </PageBody>
         )}

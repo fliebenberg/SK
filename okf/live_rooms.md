@@ -83,6 +83,7 @@ membership opens none of these rooms (`MEMBER-3`; see
 | `event:{id}:facilities` | public | `EVENT_FACILITIES_SYNC` | `EVENT_FACILITIES_SYNC` |
 | `event:{id}:standings` | public | `EVENT_STANDINGS_UPDATED` | `EVENT_STANDINGS_UPDATED` |
 | `event:{id}:entrants` | member | `EVENT_ENTRANTS_SYNC` (the whole tournament) | `DIVISION_ENTRANTS_SYNC` (one division's slice) |
+| `event:{id}:teams` | public | `EVENT_TEAMS_SYNC` (the whole tournament) | `DIVISION_TEAMS_SYNC` (one division's slice) — the roster as the public sees it: team entrants in or withdrawn, of organisations the public may see (`PUBLIC_TEAMS`); no people, placeholder labels or answers (`FIX-25`) |
 
 **Sports and divisions publish each other (U52).** A tournament's sports and divisions move
 together, so each write can publish the other's message: an `UPDATE_EVENT` (or `ADD_EVENT`) that adds
@@ -171,7 +172,7 @@ in the room is idempotent under "keep the latest for this key". Sorting all type
 | Class | Key | Collapse rule | Types |
 | --- | --- | --- | --- |
 | **Snapshot** | the collection | keep only the latest; everything before it is dead | `EVENTS_SYNC`, `GAME_SUMMARIES_SYNC`, `DIVISIONS_SYNC`, `TEAMS_SYNC`, `SITES_SYNC`, `FACILITIES_SYNC`, `ORG_MEMBERS_SYNC`, `ORG_REFERRALS_SYNC`, `TEAM_MEMBERS_SYNC`, `DIVISION_GAMES_SYNC`, `GAME_EVENTS_SYNC`, `ACTIVE_DISPUTES_SYNC`, `NOTIFICATIONS_SYNC`, `LEAGUES_SYNC`, `SEASONS_SYNC`, `STANDINGS_UPDATED` |
-| **Scoped snapshot** | a scope id inside the payload | keep the latest **per scope id** | `EVENT_ENTRANTS_SYNC` (eventId), `DIVISION_ENTRANTS_SYNC` (divisionId), `STAGE_ENTRANTS_SYNC` (stageId), `STAGES_SYNC` (divisionId), `STAGE_FIXTURES_SYNC` (stageId), `EVENT_FACILITIES_SYNC`, `DIVISION_FACILITIES_SYNC`, `DIVISION_ADJUSTMENTS_SYNC`, `EVENT_STANDINGS_UPDATED`, `DIVISION_STANDINGS_UPDATED` |
+| **Scoped snapshot** | a scope id inside the payload | keep the latest **per scope id** | `EVENT_ENTRANTS_SYNC` (eventId), `DIVISION_ENTRANTS_SYNC` (divisionId), `EVENT_TEAMS_SYNC` (eventId), `DIVISION_TEAMS_SYNC` (divisionId), `STAGE_ENTRANTS_SYNC` (stageId), `STAGES_SYNC` (divisionId), `STAGE_FIXTURES_SYNC` (stageId), `EVENT_FACILITIES_SYNC`, `DIVISION_FACILITIES_SYNC`, `DIVISION_ADJUSTMENTS_SYNC`, `EVENT_STANDINGS_UPDATED`, `DIVISION_STANDINGS_UPDATED` |
 | **Whole-entity upsert** | `data.id` | keep the latest per id | `ORGANIZATION_UPDATED`, `EVENT_ADDED/UPDATED`, `TEAM_*`, `SITE_*`, `FACILITY_*`, `LEAGUE_*`, `SEASON_*`, `DIVISION_UPDATED`, `GAME_SUMMARY_UPDATED`, `GAME_ADDED/UPDATED`, `GAME_EVENT_ADDED/UPDATED`, `TEAM_MEMBER_UPDATED`, `ORG_MEMBER_UPDATED`, `NOTIFICATION_ADDED` |
 | **Removal** | `data.id` | keep the latest per id, ordered against upserts for that id | `*_DELETED`, `GAME_SUMMARY_REMOVED`, `GAME_EVENT_REMOVED` |
 

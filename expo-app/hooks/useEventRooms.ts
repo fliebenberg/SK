@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Event, EventStandings, GameSummary, Sport, TournamentDivision } from '@sk/shared';
+import { Event, EventStandings, GameSummary, Sport, TournamentDivision, TournamentEntrant } from '@sk/shared';
 import { useLiveRoom } from './useLiveRoom';
 import { useWsStore } from '../store/wsStore';
 import { wsService } from '../services/websocket';
@@ -92,6 +92,27 @@ export function useEventStandings(eventId?: string | null) {
 const NO_ROWS: EventStandings['rows'] = [];
 const NO_DIVISIONS: EventStandings['divisions'] = [];
 const NO_SPORTS: NonNullable<EventStandings['sports']> = [];
+
+/**
+ * The teams the public sees taking part (`FIX-25`), from `event:{id}:teams`: team entrants in or
+ * withdrawn, with their division and organisation — what a page uses in place of the roster when its
+ * viewer may not read that (the public page, or anyone outside the tournament). The join pushes the
+ * whole tournament; a change, the one division it touched.
+ */
+export function useEventPublicTeams(eventId?: string | null, enabled = true) {
+  const { items } = useLiveRoom<TournamentEntrant>(eventId ? `event:${eventId}:teams` : null, {
+    enabled,
+    reduce: message => {
+      if (message.type === 'EVENT_TEAMS_SYNC') return { kind: 'replace', items: message.data?.teams || [] };
+      if (message.type === 'DIVISION_TEAMS_SYNC' && message.data?.divisionId) {
+        const divisionId = message.data.divisionId;
+        return { kind: 'replaceWhere', items: message.data?.teams || [], where: (e: TournamentEntrant) => e.divisionId === divisionId };
+      }
+      return { kind: 'ignore' };
+    },
+  });
+  return items;
+}
 
 /** Every sport: global reference data that no room owns, so a one-shot read. */
 export function useSports() {

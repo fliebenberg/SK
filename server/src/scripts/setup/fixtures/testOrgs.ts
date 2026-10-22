@@ -589,6 +589,11 @@ export interface FixtureTournamentDivision {
      * in the order the divisions are listed. Needs `locked` and every team accepted.
      */
     drawn?: boolean;
+    /**
+     * Teams that withdrew after the draw: they stay in it, marked withdrawn, their results standing —
+     * as the division page's *Withdraw* leaves them (`FIX-25`: the public sees them struck through).
+     */
+    withdrawnAfterDraw?: Array<{ org: string; team: string }>;
     /** Fixtures (by index in the draw) left without a time — for the Schedule tab's tray. */
     leaveUnscheduled?: number[];
     /**
@@ -758,7 +763,7 @@ export const TEST_TOURNAMENTS: FixtureTournament[] = [
      *
      * - **Netball U14**: every result in — the division is finished.
      * - **Rugby U16**: three of its six results in, one a draw — still being played.
-     * - **Netball U16**: drawn, nothing played.
+     * - **Netball U16**: drawn, nothing played; Kwaggafontein's U16 Comets withdrew after the draw.
      */
     {
         key: 'autumn', name: 'Test Autumn Festival', host: 'dkl', startDate: '2026-10-03', endDate: '2026-10-03',
@@ -784,6 +789,7 @@ export const TEST_TOURNAMENTS: FixtureTournament[] = [
             },
             {
                 key: 'netball-u16', name: 'U16', sportId: 'netball', ageGroup: 'U16', locked: true, drawn: true, facilities: ['court-3'],
+                withdrawnAfterDraw: [{ org: 'ksc', team: 'netball-u16' }],
                 teams: [
                     { org: 'dkl', team: 'netball-u16a', status: 'accepted' },
                     { org: 'sac', team: 'netball-u16a', status: 'accepted' },

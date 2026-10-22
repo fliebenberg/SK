@@ -158,6 +158,9 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
       if (sub === 'fixtures' || sub === 'divisions' || sub === 'facilities' || sub === 'standings') {
         return { access: 'public' };
       }
+      // The teams taking part, as the public sees them (`FIX-25`): team entrants only, with nothing
+      // a fixture does not already say — no people, no placeholder labels, no answers.
+      if (sub === 'teams') return { access: 'public' };
       if (sub === 'entrants') {
         return {
           access: 'member',

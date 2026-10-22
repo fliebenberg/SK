@@ -23,7 +23,8 @@ export function BottomMenu({ onSettingsPress, confirmThenNavigate }: BottomMenuP
   // Determine active tab based on router segments
   const getActiveTab = () => {
     // segments might look like: ["(tabs)", "index"] or ["admin", "[orgId]"]
-    if (segments.includes('organizations') || segments.includes('admin')) {
+    // A public tournament page is reached from an organisation, so Orgs stays marked (`FIX-25`).
+    if (segments.includes('organizations') || segments.includes('admin') || segments.includes('events')) {
       return 'orgs';
     }
     if (segments.includes('family')) {

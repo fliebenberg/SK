@@ -310,6 +310,7 @@ export class DataManager {
 
   getDivisionEntrants = (divisionId: string) => tournamentManager.getEntrants(divisionId);
   getEventEntrants = (eventId: string) => tournamentManager.getEventEntrants(eventId);
+  getPublicTeams = (eventId: string, divisionId?: string) => tournamentManager.getPublicTeams(eventId, divisionId);
   getEventCandidateTeams = (eventId: string) => tournamentManager.getEventCandidateTeams(eventId);
   setDivisionEntrants = (
     divisionId: string,

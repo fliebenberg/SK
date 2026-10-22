@@ -100,8 +100,9 @@ export function LeftNavigationRail() {
   const showAdminPortal = isAuthenticated && user?.globalRole === 'admin';
 
   // Extract current tab name based on active segment
+  // A public tournament page (`FIX-25`) is reached from an organisation, so Orgs stays marked.
   const activeTab = segments[0] === '(tabs)' 
-    ? (segments[1] || 'index') 
+    ? (segments[1] === 'events' ? 'organizations' : segments[1] || 'index') 
     : (segments[0] === 'landing' ? 'index' : (segments[0] === 'admin' ? 'admin' : ''));
 
   const getInitials = (userName: string) => {

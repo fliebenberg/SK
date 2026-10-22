@@ -7,6 +7,7 @@ import {
   divisionFullName, findClashes, isDualEvent, isPlayedFixture, minuteOfDay, timeOfDay,
 } from '@sk/shared';
 import CustomSelect from '../CustomSelect';
+import { sideScores } from '../events/EventBits';
 import { TournamentCard } from './TournamentBits';
 import { isUnscheduled } from './scheduleModel';
 import { ScheduleDivisionDialog } from './ScheduleActions';
@@ -19,6 +20,7 @@ import { useToastStore } from '../../store/toastStore';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
 import { formatPlayingDay, venueInputsToInstant, type CalendarDate } from '../../utils/dates';
+import { useTournamentLinks } from './tournamentLinks';
 
 /**
  * The tournament's **Schedule** tab (Phase 7, agreed on `mockups/tournament-schedule.html`).
@@ -49,6 +51,10 @@ import { formatPlayingDay, venueInputsToInstant, type CalendarDate } from '../..
  * - **Offline** (U20): the schedule reads; moving and adding need a connection.
  * - **Mine / My organisation / All** (2026-10-17): for someone outside the organisers, the
  *   tournament's one remembered choice on its own line above the toolbar; it narrows the fixtures.
+ * - **Scores** (2026-10-22, `FIX-25`): a live or finished fixture shows its score, large, at the end
+ *   of its row — red while live, with how far it has got under its name.
+ * - **Organisation** (`FIX-25`): on the public page, a fourth dropdown in place of *Mine / My
+ *   organisation / All* — the fixtures any one organisation's teams play.
  */
 
 const PX = 1.4; // pixels a minute
@@ -74,6 +80,8 @@ interface Props {
   initialDivisionId?: string;
   /** Mine / My organisation / All, above the toolbar; `games` comes already narrowed by it. */
   scopeLine?: React.ReactNode;
+  /** The public page's Organisation dropdown (`FIX-25`). */
+  orgFilter?: boolean;
 }
 
 /** How far each overlapping fixture is set in from the one beneath it, so that one stays reachable. */
@@ -107,8 +115,9 @@ const plural = (n: number, word: string, many?: string) => `${n} ${n === 1 ? wor
 /** Each division's colour on the grid — theme tokens, in turn. */
 const DIVISION_TONES = ['info', 'special', 'success', 'primary', 'accent', 'warning', 'danger'] as const;
 
-export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: savedGames, sports, sites, facilities, facilityIds, hostOrg, canSetHours, initialDivisionId, scopeLine }: Props) {
+export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: savedGames, sports, sites, facilities, facilityIds, hostOrg, canSetHours, initialDivisionId, scopeLine, orgFilter }: Props) {
   const router = useRouter();
+  const links = useTournamentLinks(orgId);
 
   /**
    * A fixture just moved shows where it was put until the server's copy of it arrives, rather than
@@ -116,10 +125,14 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
    */
   const [movesSaving, setMovesSaving] = useState<Record<string, { startTime: string | null; facilityId: string | null }>>({});
   const sameInstant = (a?: string | null, b?: string | null) => (!a || !b ? !a && !b : Date.parse(a) === Date.parse(b));
-  const games = useMemo(() => savedGames.map(g => {
-    const m = movesSaving[g.id];
-    return m ? { ...g, startTime: m.startTime, facilityId: m.facilityId, timeTbd: m.startTime == null } as GameSummary : g;
-  }), [savedGames, movesSaving]);
+  /** The public page's Organisation choice: the fixtures one organisation's teams play, or 'all'. */
+  const [orgPick, setOrgPick] = useState('all');
+  const games = useMemo(() => savedGames
+    .filter(g => !orgFilter || orgPick === 'all' || (g.participants || []).some(p => p.orgId === orgPick))
+    .map(g => {
+      const m = movesSaving[g.id];
+      return m ? { ...g, startTime: m.startTime, facilityId: m.facilityId, timeTbd: m.startTime == null } as GameSummary : g;
+    }), [savedGames, movesSaving, orgFilter, orgPick]);
   useEffect(() => {
     const arrived = Object.keys(movesSaving).filter(id => {
       const g = savedGames.find(s => s.id === id), m = movesSaving[id];
@@ -160,6 +173,13 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
    */
   const [facilityId, setFacilityId] = useState('all');
   const [extras, setExtras] = useState<Set<string>>(new Set());
+
+  /** A live or finished fixture's score, home first; nothing before it starts. */
+  const scoreOf = (g?: GameSummary) => {
+    if (!g || (g.status !== 'Live' && g.status !== 'Finished')) return null;
+    const scores = sideScores(g);
+    return scores ? `${scores[0]} – ${scores[1]}` : null;
+  };
 
   const toneOf = (divisionId?: string | null) => {
     const i = divisions.findIndex(d => d.id === divisionId);
@@ -413,7 +433,8 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
     const g = gameOf(b.id);
     const other = !g;
     const faded = !other && !inDivision(g);
-    const bad = clashIds.has(b.id);
+    // A clash is the organisers' to see, not the public's (`FIX-25`).
+    const bad = !links.isPublic && clashIds.has(b.id);
     const division = g ? divisionOf(g.divisionId) : undefined;
     const [home, away] = g?.participants || [];
     const label = other ? 'Another event' : `${timeOfDay(b.start)} ${division?.name || ''}${g?.round ? ` R${g.round}` : ''}`;
@@ -424,10 +445,15 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
       >
         <Text className={`font-inter-bold text-[11px] ${bad ? 'text-warning-ink' : 'text-ink-soft'}`} numberOfLines={1}>{bad ? '⚠ ' : ''}{label}</Text>
         {!other ? <Text className="font-inter text-[11px] text-ink" numberOfLines={b.minutes > 45 ? 3 : 1}>{fixtureName(g)}</Text> : null}
+        {!other && scoreOf(g) ? (
+          <Text className={`font-orbitron-bold text-[14px] ${g?.status === 'Live' ? 'text-danger-ink' : 'text-ink'}`} numberOfLines={1}>
+            {scoreOf(g)}{g?.status === 'Live' ? <Text className="font-inter-bold text-[10px]">{`  LIVE${g.periodLabel ? ` · ${g.periodLabel}` : ''}`}</Text> : null}
+          </Text>
+        ) : null}
       </View>
     );
     if (other) return <React.Fragment key={b.id}>{inner}</React.Fragment>;
-    const open = () => (canEdit ? setMoving(g!) : router.push(`/admin/${orgId}/events/${event.id}/games/${b.id}`));
+    const open = () => (canEdit ? setMoving(g!) : router.push(links.event(event.id, `/games/${b.id}`)));
     if (web && canMove) {
       return (
         <div
@@ -656,11 +682,11 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
           <Text className="font-inter-bold text-[11px] text-ink-muted uppercase tracking-wider mt-2">{timeOfDay(start)}</Text>
           {rows.map(g => {
             const [home, away] = g.participants || [];
-            const why = clashes.filter(c => c.ids.includes(g.id)).map(c => clashText(c).title);
+            const why = links.isPublic ? [] : clashes.filter(c => c.ids.includes(g.id)).map(c => clashText(c).title);
             return (
               <TouchableOpacity
                 key={g.id}
-                onPress={() => (canEdit ? setMoving(g) : router.push(`/admin/${orgId}/events/${event.id}/games/${g.id}`))}
+                onPress={() => (canEdit ? setMoving(g) : router.push(links.event(event.id, `/games/${g.id}`)))}
                 accessibilityRole="button"
                 className={`flex-row items-center gap-2 rounded-lg px-3 py-2 border-l-4 ${why.length ? 'bg-warning-soft' : 'bg-sunken'}`}
                 style={{ borderLeftColor: toneOf(g.divisionId) }}
@@ -668,8 +694,12 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
                 <View className="flex-1 min-w-0">
                   <Text className="font-inter-semibold text-sm text-ink" numberOfLines={2}>{fixtureName(g)}</Text>
                   <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{divisionName(g.divisionId)} · {facilityLabel(g.facilityId)}</Text>
+                  {g.status === 'Live' ? <Text className="font-inter-bold text-xs text-danger-ink">LIVE{g.periodLabel ? ` · ${g.periodLabel}` : ''}</Text> : null}
                   {why.length ? <Text className="font-inter-semibold text-xs text-warning-ink">⚠ {why.join(' · ')}</Text> : null}
                 </View>
+                {scoreOf(g) ? (
+                  <Text className={`font-orbitron-bold text-[17px] ${g.status === 'Live' ? 'text-danger-ink' : 'text-ink'}`}>{scoreOf(g)}</Text>
+                ) : null}
                 <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-muted')} />
               </TouchableOpacity>
             );
@@ -812,6 +842,20 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
         }}
         options={facilityOptions}
       />
+      {orgFilter ? (
+        <CustomSelect
+          compact
+          accessibilityLabel="Organisation"
+          placeholder="Organisation"
+          value={orgPick}
+          onChange={setOrgPick}
+          options={[
+            { value: 'all', label: 'Every organisation' },
+            ...(event.participatingOrgs || []).filter(o => o.invitation === 'accepted' || o.invitation === 'withdrawal_pending' || o.id === event.orgId)
+              .map(o => ({ value: o.id, label: o.name })),
+          ]}
+        />
+      ) : null}
       {/* The filters on the left, what changes the schedule on the right (2026-10-16). */}
       <View className="flex-1" />
       {scheduleButton}
@@ -916,7 +960,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
           games={games.filter(g => g.divisionId === scheduling.id)}
           orgId={orgId}
           onClose={() => setScheduling(null)}
-          onChangeWhen={() => { setScheduling(null); router.push(`/admin/${orgId}/events/${event.id}/divisions/${scheduling.id}`); }}
+          onChangeWhen={() => { setScheduling(null); router.push(links.event(event.id, `/divisions/${scheduling.id}`)); }}
         />
       ) : null}
     </View>

@@ -164,7 +164,7 @@ export function Scoreboard({ summary, moment, isWide, kicker, statusRight, where
  * phone's Overview. *Who played* sits under a side from the draw, for whoever may edit; picking a
  * team is the scoreboard's button, so it is not offered here again (say it once).
  */
-export function TeamsCard({ summary, lineups, proposals = {}, homeSides, sideBySide, compact, started, onOpen, onWhoPlayed }: {
+export function TeamsCard({ summary, lineups, proposals = {}, homeSides, sideBySide, compact, started, onOpen, onWhoPlayed, note }: {
   summary: GameSummary;
   /** The viewer's own sides' proposed teams (`FIX-32`), shown as proposed — not picked — until confirmed. */
   proposals?: Record<string, LineupProposal | null>;
@@ -178,6 +178,8 @@ export function TeamsCard({ summary, lineups, proposals = {}, homeSides, sideByS
   compact?: boolean;
   onOpen?: () => void;
   onWhoPlayed?: (participantId: string) => void;
+  /** One line under the teams, said once — the public page's "Players are not named". */
+  note?: string;
 }) {
   const sides = (summary.participants || []).slice(0, 2);
   if (compact) {
@@ -200,6 +202,7 @@ export function TeamsCard({ summary, lineups, proposals = {}, homeSides, sideByS
             );
           })}
         </View>
+        {note ? <Text className="font-inter text-xs text-ink-muted">{note}</Text> : null}
       </TournamentCard>
     );
   }

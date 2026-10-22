@@ -1,9 +1,12 @@
-import { useEventDivisions, useEventFacilityIds, useEventFixtures, useEventRecord, useSports } from './useEventRooms';
+import { useMemo } from 'react';
+import { TournamentEntrant } from '@sk/shared';
+import { useEventDivisions, useEventFacilityIds, useEventFixtures, useEventPublicTeams, useEventRecord, useSports } from './useEventRooms';
 import { useEventEntrants } from './useEventEntrants';
 import { useEventCapabilities } from './useEventCapabilities';
 import { useOrgSummary } from './useOrgSummary';
 import { useOrgSites } from './useOrgSites';
 import { useAuthStore } from '../store/authStore';
+import { useIsPublicTournament } from '../components/tournament/tournamentLinks';
 
 /**
  * What a tournament's pages need of it — the tournament page and its full pages
@@ -26,9 +29,21 @@ export function useTournamentData(orgId?: string, eventId?: string) {
   // The roster is the members' tier: the organisers, and the members of an organisation taking part
   // or invited — a coach finds their own teams in it (`FIX-31`), as the server's room allows.
   const memberOrgIds = useAuthStore((state: any) => (state.orgMemberships || []).map((m: any) => m.orgId)) as string[];
-  const takesPart = !!event?.participatingOrgs?.some(o =>
+  // Not on the public page (`FIX-25`): it shows what anyone sees, whoever is looking.
+  const isPublic = useIsPublicTournament();
+  const takesPart = !isPublic && !!event?.participatingOrgs?.some(o =>
     memberOrgIds.includes(o.id) && (o.invitation === 'invited' || o.invitation === 'accepted' || o.invitation === 'withdrawal_pending'));
-  const { entrants, byDivision: entrantsByDivision } = useEventEntrants(eventId, canEdit || takesPart);
+  const readsRoster = canEdit || takesPart;
+  const roster = useEventEntrants(eventId, readsRoster);
+  // Anyone else — the public page above all — gets the teams the public sees in its place (`FIX-25`).
+  const publicTeams = useEventPublicTeams(eventId, !readsRoster);
+  const entrants = readsRoster ? roster.entrants : publicTeams;
+  const entrantsByDivision = useMemo(() => {
+    if (readsRoster) return roster.byDivision;
+    const map = new Map<string, TournamentEntrant[]>();
+    for (const e of publicTeams) map.set(e.divisionId, [...(map.get(e.divisionId) || []), e]);
+    return map;
+  }, [readsRoster, roster.byDivision, publicTeams]);
   const { org: hostOrg } = useOrgSummary(event?.orgId);
 
   return { event, eventLoading, accessDenied, games, divisions, facilityIds, sites, facilities, sports, capabilities, canEdit, entrants, entrantsByDivision, hostOrg };

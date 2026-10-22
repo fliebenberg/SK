@@ -18,6 +18,7 @@ import { TournamentCard } from './TournamentBits';
 import { DivisionOrgStandings } from './DivisionStandings';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
+import { useTournamentLinks } from './tournamentLinks';
 
 /**
  * A Head to Head's results (`H2H-1`, agreed 2026-10-13 on `mockups/head-to-head.html`): games won by
@@ -182,6 +183,7 @@ export function DualResults({ event, orgId, hostOrg, divisions, games, sports, u
   unpairedNames: (divisionId: string) => string[];
 }) {
   const router = useRouter();
+  const links = useTournamentLinks(orgId);
   const { host, guest } = dualSides(event, hostOrg);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const toggle = (id: string) => setOpen(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -253,7 +255,7 @@ export function DualResults({ event, orgId, hostOrg, divisions, games, sports, u
                           return (
                             <TouchableOpacity
                               key={g.id}
-                              onPress={() => router.push(`/admin/${orgId}/events/${event.id}/games/${g.id}`)}
+                              onPress={() => router.push(links.event(event.id, `/games/${g.id}`))}
                               accessibilityRole="link"
                               className="flex-row items-center gap-2 py-1"
                             >

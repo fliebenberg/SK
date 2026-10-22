@@ -33,6 +33,7 @@ import { useActiveTheme } from '../../../../../../../store/settingsStore';
 import { themeColor } from '../../../../../../../constants/Colors';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { formatInstantDate, formatKickoffTime, venueInputsToInstant } from '../../../../../../../utils/dates';
+import { useTournamentLinks } from '../../../../../../../components/tournament/tournamentLinks';
 
 type Dialog = null | 'edit' | 'move' | 'who' | 'result' | 'cancel' | 'reinstate' | 'delete';
 type PhoneTab = 'overview' | 'teams' | 'events';
@@ -57,6 +58,7 @@ export default function GamePage() {
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId, eventId, gameId } = useLocalSearchParams<{ orgId: string; eventId: string; gameId: string }>();
+  const links = useTournamentLinks(orgId);
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const isDark = useActiveTheme() === 'dark';
@@ -76,7 +78,8 @@ export default function GamePage() {
   // The full record, for the result dialog and the match events; read again whenever the summary moves.
   const [game, setGame] = useState<Game | null>(null);
   useEffect(() => {
-    if (!isConnected || !gameId) return;
+    // The full record is the members' (it carries who scored); the public page has the summary (`FIX-39`).
+    if (!isConnected || !gameId || links.isPublic) return;
     wsService.emit('get_data', { type: 'game', id: gameId }, (res: any) => { if (res) setGame(res); });
   }, [isConnected, gameId, summary?.updatedAt, summary?.status]);
   useResultSent(gameId, setGame);
@@ -91,7 +94,8 @@ export default function GamePage() {
   }, [isConnected, summary?.siteId, summary?.facilityId]);
 
   const sides = useMemo(() => (summary?.participants || []).slice(0, 2), [summary]);
-  const { lineups, reload: reloadLineups } = useGameLineups(sides.map(p => p.id));
+  // Players are not named on the public page (`PEOPLE-4`, `FIX-25`): it asks for no team sheets.
+  const { lineups, reload: reloadLineups } = useGameLineups(links.isPublic ? [] : sides.map(p => p.id));
   const homeSides = useMemo(() => new Set(sides.filter(p => site?.orgId && p.orgId === site.orgId).map(p => p.id)), [sides, site]);
 
   const divisions = useEventDivisions(isFixture ? eventId : null);
@@ -102,13 +106,16 @@ export default function GamePage() {
   const [tab, setTab] = useState<PhoneTab>('overview');
   const [busy, setBusy] = useState(false);
 
-  const permissions = getMatchPermissions({ game: summary || null, event, currentOrgId: orgId, user, orgMemberships, teamMemberships, capabilities });
+  // The public page is read-only whoever is looking: a coach picks their team in their workspace.
+  const permissions = getMatchPermissions(links.isPublic
+    ? { game: summary || null, event, user: null, orgMemberships: [], teamMemberships: [], capabilities: null }
+    : { game: summary || null, event, currentOrgId: orgId, user, orgMemberships, teamMemberships, capabilities });
   const canEdit = permissions.canEdit;
   // The viewer's own sides' proposed teams (`FIX-32`); another side's is not theirs to see as picked.
   const mySideIds = sides.filter((p, i) => (i === 0 ? permissions.canEditTeam1Lineup : permissions.canEditTeam2Lineup)).map(p => p.id);
   const { proposals, reload: reloadProposals } = useLineupProposals(isFixture ? mySideIds : []);
 
-  const backHref = isMatch ? `/admin/${orgId}/events` : `/admin/${orgId}/events/${eventId}`;
+  const backHref = isMatch ? links.home() : links.event(eventId);
   const goBack = () => safeBack(backHref);
 
   if (accessDenied) {
@@ -141,7 +148,7 @@ export default function GamePage() {
   const next = moment === 'live' ? 'score' : moment === 'done' ? 'correct'
     : mySides.length && !picked ? 'pick' : permissions.canScore ? 'start' : null;
   const pickTeam = () => router.push(`/admin/${orgId}/events/${eventId}/games/${gameId}/selection${mySides.length === 1 && mySides[0].teamId ? `?teamId=${mySides[0].teamId}` : ''}` as any);
-  const score = () => router.push(`/admin/${orgId}/events/${eventId}/games/${gameId}/score` as any);
+  const score = () => router.push(links.event(eventId, `/games/${gameId}/score`) as any);
   /*
    * A side with no team of its own but a proposed one (`FIX-32`): *Confirm team* saves the proposal
    * as this game's, and stays the next step until done — nothing the coach has not looked at shows
@@ -181,14 +188,14 @@ export default function GamePage() {
   }
 
   /* -- the line above the teams, and the status beside it -- */
-  const openDivision = () => summary.divisionId && router.push(`/admin/${orgId}/events/${eventId}/divisions/${summary.divisionId}` as any);
+  const openDivision = () => summary.divisionId && router.push(links.event(eventId, `/divisions/${summary.divisionId}`) as any);
   const sportName = sport?.name || '';
   const divisionName = division ? (division.name.startsWith(sportName) ? division.name : `${sportName} ${division.name}`.trim()) : sportName;
   const kicker = isMatch ? (
     <Text className="font-inter-semibold text-[13px] text-ink-muted">{sportName ? `${sportName} · ` : ''}Match</Text>
   ) : (
     <Text className="font-inter-semibold text-[13px] text-ink-muted" numberOfLines={2}>
-      <Text className="text-primary-ink" onPress={() => router.push(`/admin/${orgId}/events/${eventId}` as any)}>{event.name}</Text>
+      <Text className="text-primary-ink" onPress={() => router.push(links.event(eventId) as any)}>{event.name}</Text>
       {division ? <Text>{' · '}<Text className="text-primary-ink" onPress={openDivision}>{divisionName}</Text></Text> : null}
       {summary.round ? ` · Round ${summary.round}` : ''}
     </Text>
@@ -273,7 +280,18 @@ export default function GamePage() {
   );
 
   let body: React.ReactNode;
-  if (isWide) {
+  if (links.isPublic) {
+    // The teams, the score above and where — no team sheets and no match events yet (`FIX-39`).
+    const teams = <TeamsCard summary={summary} lineups={lineups} homeSides={homeSides} started={started || moment === 'cancelled'} compact note="Players are not named on the public page." />;
+    body = isWide ? (
+      <View className="flex-row gap-4 items-start">
+        <View className="flex-1 gap-3.5 min-w-0">{teams}{divisionCard}</View>
+        <View className="gap-3.5" style={{ width: 340 }}>{whereCard}</View>
+      </View>
+    ) : (
+      <View className="gap-2.5">{teams}{whereCard}{divisionCard}</View>
+    );
+  } else if (isWide) {
     body = (
       <View className="flex-row gap-4 items-start">
         <View className="flex-1 gap-3.5 min-w-0">

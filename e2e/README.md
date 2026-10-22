@@ -57,7 +57,10 @@ npm run e2e:report     # the last run's report, with traces of any failure
   (`16-my-organisations.spec.ts`: Kwaggafontein's U16 Lions coach seeing Kwaggafontein, as a Member, with
   *Open Workspace*, and St Aldric's staff seeing theirs to manage), then divisions that rank organisations
   (`17-paired-standings.spec.ts`: *Test Netball Pairs Day*'s division won by an organisation and ranked by
-  organisation on its page, a Head to Head division's table of two, and the Standings tab narrowed to a sport). A single file run on its own may therefore fail where the suite
+  organisation on its page, a Head to Head division's table of two, and the Standings tab narrowed to a sport), then the
+  public tournament page (`18-public-tournament.spec.ts`: *Test Autumn Festival* at `/events/...` logged out — the
+  leaderboard, an organisation's results, the Schedule's scores and Organisation filter, a withdrawn team, a game
+  with no players named — and the same read-only page for a signed-in organiser). A single file run on its own may therefore fail where the suite
   passes.
 - **The phone runs first and only tests tagged `@phone`** — ones that read and change nothing — so it sees
   the data before the desktop tests change it.

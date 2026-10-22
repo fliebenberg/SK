@@ -3,6 +3,7 @@ import { EventCapabilities, EventGrants } from '@sk/shared';
 import { wsService } from '../services/websocket';
 import { useWsStore } from '../store/wsStore';
 import { useAuthStore } from '../store/authStore';
+import { useIsPublicTournament } from '../components/tournament/tournamentLinks';
 
 /**
  * What *this user* may do in *this tournament* — asked of the server, because the client cannot
@@ -21,10 +22,14 @@ import { useAuthStore } from '../store/authStore';
  * when a grant changes. That room is held here rather than by the root layout: it is one dataset
  * of its own (rule 4), and the hook that depends on it is the honest place to hold it. A withdrawn
  * convenor's controls disappear at once rather than at their next reconnect.
+ *
+ * On the public tournament page (`FIX-25`) there is nothing to ask: it is read-only whoever is
+ * looking, an organiser included — their workspace is where they edit.
  */
 export function useEventCapabilities(eventId?: string | null) {
   const isConnected = useWsStore((state: any) => state.isConnected);
-  const userId = useAuthStore((state: any) => state.user?.id);
+  const isPublic = useIsPublicTournament();
+  const userId = useAuthStore((state: any) => (isPublic ? undefined : state.user?.id));
   const [capabilities, setCapabilities] = useState<EventCapabilities | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
