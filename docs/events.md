@@ -475,7 +475,9 @@ task going to its coach or, with none, to the admin — and who may pick a side 
 > on the Overview. **Schedule**: for its organisers **the draw** — its state and buttons, without
 > its fixture list — then the tournament's Schedule locked to this division (`divisionOnly`): the
 > grid, or the all-days list for anyone who cannot move fixtures; *Edit in the Schedule ›* is gone,
-> the schedule being right there. **Standings**: the full table, or the organisations'. The cards
+> the schedule being right there. **Standings**: the full table, or the organisations' — **with its
+> teams on nought before the first result**, unranked ("–"), rather than an empty box
+> (`getDivisionTables` works out a stage's table while it is still empty). The cards
 > below keep their rules; only where they sit changed.
 
 > **Revised in Phase 7 (2026-10-11): Where, When and Organisers.** The division's *Organisers &

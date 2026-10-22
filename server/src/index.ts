@@ -2112,15 +2112,10 @@ io.on('connection', (socket) => {
                 // now (rule 4) - this one carried four datasets.
                 pushToSocket(socket, room, 'DIVISION_GAMES_SYNC', await dataManager.getDivisionGames(id));
             } else if (sub === 'standings') {
-                const standingsStages = await dataManager.getStages(id);
+                // Its teams on nought until the first result, rather than an empty table.
                 pushToSocket(socket, room, 'DIVISION_STANDINGS_UPDATED', {
                     divisionId: id,
-                    stages: standingsStages.map(stage => ({
-                        stageId: stage.id,
-                        name: stage.name,
-                        status: stage.status,
-                        rows: stage.cachedStandings || [],
-                    })),
+                    stages: await tournamentManager.getDivisionTables(id),
                 });
             } else {
                 // The division record. The roster, pool membership and adjustments that used to

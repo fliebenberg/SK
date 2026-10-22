@@ -2950,6 +2950,23 @@ export class TournamentManager extends BaseManager {
   }
 
   /**
+   * A division's stage tables, as `division:{id}:standings` carries them. A stage whose table is
+   * still empty — nothing played yet, so nothing has rewritten it — is worked out here, which gives
+   * its teams on nought: a table shows who is in it before the first result, not an empty box
+   * (2026-10-22, the user). The choke point is the one thing that writes a table either way.
+   */
+  async getDivisionTables(divisionId: string): Promise<Array<{ stageId: string; name: string; status: string; rows: TournamentStandingRow[] }>> {
+    const stages = await this.getStages(divisionId);
+    const tables = [];
+    for (const stage of stages) {
+      const kept: TournamentStandingRow[] = (stage as any).cachedStandings || [];
+      const rows = kept.length ? kept : await this.recalculateStageStandings(stage.id);
+      tables.push({ stageId: stage.id, name: stage.name, status: stage.status as string, rows });
+    }
+    return tables;
+  }
+
+  /**
    * Rewrite the event's organisation roll-up (D6, D18).
    *
    * Each division contributes **one** set of points, computed over all of its fixtures at once

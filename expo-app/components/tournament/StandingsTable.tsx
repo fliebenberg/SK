@@ -137,6 +137,8 @@ export function StandingsTable({
     return key === 'pointsDifference' && value > 0 ? `+${value}` : value;
   };
   const heading = 'font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-wider text-center';
+  // Before the first result every row is level on nought: the teams are listed, not yet ranked.
+  const nonePlayed = rows.length > 0 && rows.every(row => !row.played);
 
   return (
     <View className={framed ? 'bg-card border border-line rounded-2xl overflow-hidden' : ''}>
@@ -170,7 +172,7 @@ export function StandingsTable({
                       signal that a human has to decide. So the server's rank is printed when there
                       is one, rather than the row's position in the list. A withdrawn entrant has no
                       rank at all: its results stand, but it is not competing for a place. */}
-                  {row.withdrawn ? '–' : row.rank ?? index + 1}
+                  {row.withdrawn || nonePlayed ? '–' : row.rank ?? index + 1}
                 </Text>
               )}
               {crest ? <FixtureCrest participant={crest as any} size={26} /> : null}

@@ -536,7 +536,8 @@ export default function DivisionScreen() {
   // Games set by hand, and a Head to Head's, are paired by level, so they rank organisations (SCORE-23).
   // A Head to Head has no points — it is won by games.
   const byOrganisation = ranksOrganisations(ordered.map(s => s.format));
-  const standingsCard = drawn ? (
+  // Before the first result, and before the draw, it is the teams on nought (2026-10-22).
+  const standingsCard = active.length || drawn ? (
     <TournamentCard key="standings" title="Standings">
       {byOrganisation ? (
         <DivisionOrgStandings eventId={event.id} divisionId={divisionId} showPoints={!dual && awardsPoints(event)} orgs={event.participatingOrgs} isWide={isWide} viewerOrgIds={viewerOrgIds} />

@@ -124,10 +124,9 @@ export function publishStageFixtures(divisionId: string, stageId: string, games:
  */
 export async function publishStandings(divisionId: string | null, eventId: string | null): Promise<void> {
   if (divisionId) {
-    const stages = await tournamentManager.getStages(divisionId);
     broadcast(divisionStandingsRoom(divisionId), 'DIVISION_STANDINGS_UPDATED', {
       divisionId,
-      stages: stages.map(stage => ({ stageId: stage.id, name: stage.name, status: stage.status, rows: stage.cachedStandings || [] })),
+      stages: await tournamentManager.getDivisionTables(divisionId),
     });
   }
   if (eventId) {
