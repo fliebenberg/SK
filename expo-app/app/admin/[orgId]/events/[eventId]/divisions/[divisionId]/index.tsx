@@ -35,7 +35,7 @@ import { DivisionDetailsDialog, DivisionOrganisersDialog, FormatDialog, formatDe
 import { DivisionWhenDialog, DivisionWhereDialog, GapsDialog, divisionDayLines, gapsLine } from '../../../../../../../components/tournament/ScheduleSetup';
 import { ScheduleDivisionDialog, scheduleReadiness } from '../../../../../../../components/tournament/ScheduleActions';
 import { afterDayEndByDivision, isUnscheduled, scheduleModel } from '../../../../../../../components/tournament/scheduleModel';
-import { formatPlayingDay, instantToVenueInputs, venueTimeZone } from '../../../../../../../utils/dates';
+import { formatKickoffTime, formatPlayingDay, instantToVenueInputs, venueTimeZone } from '../../../../../../../utils/dates';
 import { DivisionTeamsCard } from '../../../../../../../components/tournament/DivisionTeams';
 import { DivisionFixturesCard } from '../../../../../../../components/tournament/DivisionFixtures';
 import { AddFixtureDialog } from '../../../../../../../components/tournament/AddFixtureDialog';
@@ -56,10 +56,26 @@ import { useWsStore } from '../../../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { PageBody } from '../../../../../../../components/PageBody';
 import { useTournamentLinks } from '../../../../../../../components/tournament/tournamentLinks';
+import { Tabs } from '../../../../../../../components/Tabs';
+import { ScheduleTab } from '../../../../../../../components/tournament/ScheduleTab';
+import { FixtureList } from '../../../../../../../components/tournament/DivisionFixtures';
+import { AddressMap } from '../../../../../../../components/address/AddressMap';
+import { useTournamentData } from '../../../../../../../hooks/useTournamentData';
+import { hasPin } from '../../../../../../../services/places';
+import { openDirections } from '../../../../../../../utils/share';
 
 /**
  * A division of a tournament (`FIX-27`, agreed 2026-10-09 on `mockups/division-read-first.html`,
- * option A; docs/events.md §8): one page of cards, read first.
+ * option A; docs/events.md §8): read first, in the tournament page's three tabs since 2026-10-22
+ * (`FIX-40`, `mockups/division-tabs.html`, option A) — **Overview**, **Schedule**, **Standings**,
+ * addressed by `?tab=`.
+ *
+ * - **Overview**: the banner and what's next; *Live now* on the day; **Teams** — who is entered,
+ *   then, from the first result, the table (*Standings ›*); a small **Fixtures** card; Where (with
+ *   the map), When, How it's played and Organisers. A Head to Head's pairing stays here.
+ * - **Schedule**: for its organisers the draw (its state and buttons), then the tournament's
+ *   Schedule locked to this division — the grid; for anyone else the all-days list.
+ * - **Standings**: the full table, or the organisations' for a division of paired games.
  *
  * - **The banner** says what the division is and where it has got to, in the same words as its
  *   tile on the tournament page (`divisionStateOf`), with Edit for its details.
@@ -77,8 +93,13 @@ import { useTournamentLinks } from '../../../../../../../components/tournament/t
 export default function DivisionScreen() {
   const router = useRouter();
   const safeBack = useSafeBack();
-  const { orgId, eventId, divisionId } = useLocalSearchParams<{ orgId: string; eventId: string; divisionId: string }>();
+  const { orgId, eventId, divisionId, tab: tabParam } = useLocalSearchParams<{ orgId: string; eventId: string; divisionId: string; tab?: string }>();
   const links = useTournamentLinks(orgId);
+  type DivisionTab = 'overview' | 'schedule' | 'standings';
+  const tabOf = (t?: string): DivisionTab => (t === 'schedule' || t === 'standings' ? t : 'overview');
+  const [tab, setTab] = useState<DivisionTab>(() => tabOf(tabParam));
+  // Arriving again with a tab — a link to a page already open — follows it.
+  useEffect(() => { if (tabParam) setTab(tabOf(tabParam)); }, [tabParam]);
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const memberships = useAuthStore((state: any) => state.orgMemberships);
@@ -147,6 +168,9 @@ export default function DivisionScreen() {
   const eventEntrants = canEditEvent ? eventEntrantsAll : null;
 
   const sports = useSports();
+  // The whole tournament's fixtures and venues: the Schedule tab is the tournament's Schedule, locked
+  // to this division, and checks its clashes against every other.
+  const tournament = useTournamentData(orgId, eventId);
 
   // The organisations that may enter, and their teams: a one-shot read, as no room owns that set.
   // Addressed by division too, so a division organiser is answered.
@@ -211,6 +235,8 @@ export default function DivisionScreen() {
   const [replacing, setReplacing] = useState<TournamentEntrant | null>(null);
   const [drawDialog, setDrawDialog] = useState<null | 'make' | 'redo'>(null);
   const [deleting, setDeleting] = useState(false);
+  // An organiser's way to the teams' answers and actions once the Teams card has become the table.
+  const [managingTeams, setManagingTeams] = useState(false);
 
   if (accessDenied) {
     return (
@@ -317,7 +343,7 @@ export default function DivisionScreen() {
           ? `${[orgName(late[0].orgId), late[0].name || 'A team'].filter(Boolean).join(' ')} asks to enter late.`
           : `${late.length} teams ask to enter late.`
         : undefined;
-      return <NextStrip tone="go" text="Entries are locked — ready for the draw." warning={warning} isWide={isWide} action={{ label: 'Make the draw', onPress: () => setDrawDialog('make') }} />;
+      return <NextStrip tone="go" text="Entries are locked — ready for the draw." warning={warning} isWide={isWide} action={{ label: 'Make the draw', onPress: () => { setTab('schedule'); setDrawDialog('make'); } }} />;
     }
     if (!drawn && byHand && !locked && gaps.total) {
       return <NextStrip tone="wait" text={`${lockGapsLine(gaps)}.`} />;
@@ -327,7 +353,7 @@ export default function DivisionScreen() {
         ...changes.leftDraw.map(c => `${c.entrant.name || c.entrant.label} withdrew with ${c.unplayed} ${c.unplayed === 1 ? 'fixture' : 'fixtures'} still to play`),
         ...changes.notInDraw.map(e => `${e.name || e.label} has no fixtures`),
       ];
-      return <NextStrip tone="wait" text={`${changes.count} ${changes.count === 1 ? 'change' : 'changes'} since the draw:`} detail={parts.join(' · ')} action={{ label: 'Redo the draw', onPress: () => setDrawDialog('redo'), ghost: true }} />;
+      return <NextStrip tone="wait" text={`${changes.count} ${changes.count === 1 ? 'change' : 'changes'} since the draw:`} detail={parts.join(' · ')} action={{ label: 'Redo the draw', onPress: () => { setTab('schedule'); setDrawDialog('redo'); }, ghost: true }} />;
     }
     // Phase 7: drawn, then scheduled. Only fixtures with no time are placed; the rest stay.
     if (drawn && !started && unscheduledCount) {
@@ -387,8 +413,6 @@ export default function DivisionScreen() {
    * are added by hand. The game page's *When & where* and *＋ Add a fixture* stay, as the form.
    */
   const byHand = !dual && format?.format === 'Festival';
-  const inSchedule = games.length > 0 || byHand;
-  const openSchedule = () => router.push(links.event(eventId, `?tab=schedule&division=${divisionId}`) as any);
   const schedulingFooter = (
     // Scheduling sits with the settings it uses: a primary Schedule once drawn, a quiet Schedule
     // again once anything has a time, and before the draw just why there is nothing to schedule.
@@ -405,26 +429,7 @@ export default function DivisionScreen() {
         {dual ? 'Games can be scheduled once they are paired.' : byHand ? 'Fixtures can be scheduled once they are added.' : 'Fixtures can be scheduled once the draw is made.'}
       </Text>
     ) : null}
-    {canEdit && ((!started && drawn) || inSchedule) ? (
-      <View className="flex-row flex-wrap items-center gap-x-4 gap-y-2">
-        {!started && drawn ? (
-          unscheduledCount === games.filter(g => g.status !== 'Cancelled').length ? (
-            <TouchableOpacity onPress={() => setDialog('schedule')} accessibilityRole="button" className="self-start rounded-xl bg-primary px-4 py-2">
-              <Text className="font-inter-bold text-sm text-on-primary">Schedule</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={() => setDialog('reschedule')} accessibilityRole="button" className="self-start">
-              <Text className="font-inter-semibold text-[13px] text-ink-muted">Schedule again</Text>
-            </TouchableOpacity>
-          )
-        ) : null}
-        {inSchedule ? (
-          <TouchableOpacity onPress={openSchedule} accessibilityRole="link" className="self-start py-1">
-            <Text className="font-inter-bold text-[13px] text-primary-ink">{games.length ? 'Edit in the Schedule ›' : 'Add fixtures in the Schedule ›'}</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-    ) : null}
+    {/* Schedule and Schedule again are the schedule's own, in its toolbar right below (`FIX-40`). */}
     </View>
   );
   const fixturesCard = dual ? (
@@ -451,6 +456,7 @@ export default function DivisionScreen() {
       scheduleOffer={scheduleReadiness({ event, division, sport })}
       footer={schedulingFooter}
       onAddFixture={addFixture}
+      listFixtures={false}
     />
   );
   const formatCard = (
@@ -474,12 +480,22 @@ export default function DivisionScreen() {
    */
   const courtNames = (division.facilityIds || []).map(id => facilities.find(f => f.id === id)?.name).filter(Boolean);
   const facilityTerm = sport?.facilityTerm?.trim() ? `${sport.facilityTerm.trim()}s` : 'Facilities';
+  // The tournament's venue on a map, as on the tournament page (`FIX-40`), then this division's own.
+  const site = sites.find(s => s.id === event.siteId);
+  const pin = hasPin(site?.address) ? site!.address! : null;
   const whereCard = (
     <TournamentCard key="where" title="Where" right={canEdit ? <EditLink onPress={() => setDialog('where')} /> : undefined}>
+      {pin ? <AddressMap latitude={pin.latitude!} longitude={pin.longitude!} title={site?.name} interactive={false} height={isWide ? 140 : 120} /> : null}
+      {site ? <Text className="font-inter-bold text-sm text-ink">{site.name}</Text> : null}
       <View>
         <Text className="font-inter text-xs text-ink-muted">{facilityTerm}</Text>
         <Text className="font-inter text-sm text-ink">{courtNames.length ? courtNames.join(', ') : "Any of the tournament's"}</Text>
       </View>
+      {site?.address ? (
+        <TouchableOpacity onPress={() => openDirections(pin, site.address?.fullAddress || '')} accessibilityRole="button" className="self-start rounded-xl border border-line px-3.5 py-2">
+          <Text className="font-inter-bold text-sm text-ink">Directions</Text>
+        </TouchableOpacity>
+      ) : null}
     </TournamentCard>
   );
   // A calculated end shows the time the schedule worked out, once there is one.
@@ -530,16 +546,97 @@ export default function DivisionScreen() {
     </TournamentCard>
   ) : null;
 
-  // The order follows the moment (option A): teams while setting up, fixtures on the day.
+  /* -- Overview ----------------------------------------------------------------------------- */
+  const toTab = (t: DivisionTab, label: string) => <EditLink label={label} icon={null} onPress={() => setTab(t)} />;
+  const liveGames = shownGames.filter(g => g.status === 'Live');
+  const liveCard = liveGames.length ? (
+    <TournamentCard key="live" title="Live now" count={liveGames.length} right={toTab('schedule', 'Schedule ›')}>
+      <FixtureList games={liveGames} orgId={orgId} eventId={eventId} facilities={facilities} isWide={false} ownOrgId={event.orgId} />
+    </TournamentCard>
+  ) : null;
+  /*
+   * Teams (option A): who is entered, then — from the first result — the division's table, with
+   * *Standings ›* for the full one. The organisers' answers and actions stay one tap away under it.
+   */
+  const hasResult = games.some(g => g.status === 'Finished');
+  const orgNameOf = (id?: string | null) => event.participatingOrgs?.find(o => o.id === id)?.name || '';
+  const compactTable = byOrganisation ? (
+    <DivisionOrgStandings eventId={event.id} divisionId={divisionId} showPoints={!dual && awardsPoints(event)} orgs={event.participatingOrgs} isWide={false} viewerOrgIds={viewerOrgIds} />
+  ) : (
+    <DivisionStandings divisionId={divisionId} canEdit={canEdit} showPoints={awardsPoints(event)} orgs={event.participatingOrgs} games={games} isWide={false} viewerOrgIds={viewerOrgIds} />
+  );
+  const entered = (
+    <TournamentCard key="teams" title="Teams" count={active.length}>
+      {active.length ? (
+        <View>
+          {active.map((e, i) => (
+            <Text key={e.id} className={`font-inter-semibold text-sm text-ink py-2 ${i ? 'border-t border-line-soft' : ''}`} numberOfLines={1}>{`${orgNameOf(e.orgId)} ${e.name || e.label || ''}`.trim()}</Text>
+          ))}
+        </View>
+      ) : <Text className="font-inter text-sm text-ink-muted">No teams yet.</Text>}
+    </TournamentCard>
+  );
+  const teamsSection = hasResult ? (
+    <React.Fragment key="teams">
+      <TournamentCard title="Teams" count={active.length} right={toTab('standings', 'Standings ›')}>
+        {compactTable}
+        {canEdit ? <EditLink label={managingTeams ? 'Hide the teams' : 'Manage teams'} icon={null} onPress={() => setManagingTeams(m => !m)} /> : null}
+      </TournamentCard>
+      {canEdit && managingTeams ? teamsCard : null}
+    </React.Fragment>
+  ) : canEdit ? teamsCard : entered;
+  // The small Fixtures card: how many, how far, what is next — the fixtures are on the Schedule.
+  const playedCount = games.filter(isPlayedFixture).length;
+  const nextGame = games
+    .filter(g => g.status === 'Scheduled' && g.startTime && !g.timeTbd)
+    .sort((a, b) => Date.parse(a.startTime!) - Date.parse(b.startTime!))[0];
+  const fixturesSummary = (
+    <TournamentCard key="fixtures" title="Fixtures" right={toTab('schedule', 'Schedule ›')}>
+      <Text className="font-inter text-sm text-ink">
+        {games.length
+          ? [`${games.length} ${games.length === 1 ? 'fixture' : 'fixtures'}`, playedCount ? `${playedCount} played` : 'none played yet', nextGame ? `next at ${formatKickoffTime(nextGame.startTime)}` : ''].filter(Boolean).join(' · ')
+          : canEdit ? (byHand ? 'No fixtures yet. Add them on the Schedule.' : 'Not drawn yet. Lock the entries, then make the draw on the Schedule.') : 'Fixtures to come.'}
+      </Text>
+    </TournamentCard>
+  );
   const format_ = dual ? null : formatCard;
-  const columns: [React.ReactNode[], React.ReactNode[]] = dual
-    // A Head to Head's games are its teams' pairing, so they lead from the start.
-    ? [[fixturesCard], [standingsCard, canEdit ? teamsCard : null, detailsCard]]
-    : started
-    ? [[fixturesCard], [standingsCard, canEdit ? teamsCard : null, format_, detailsCard]]
+  // The order follows the moment: teams while setting up, Live now on the day. A Head to Head's
+  // games are its teams' pairing, so they lead from the start.
+  const overviewColumns: [React.ReactNode[], React.ReactNode[]] = dual
+    ? [[fixturesCard], [hasResult ? teamsSection : null, canEdit && !hasResult ? teamsCard : null, detailsCard]]
     : drawn
-      ? [[canEdit ? teamsCard : null, format_, detailsCard], [fixturesCard, standingsCard]]
-      : [[canEdit ? teamsCard : null], [format_, fixturesCard, detailsCard]];
+      ? [[liveCard, teamsSection, fixturesSummary], [whereCard, whenCard, format_, organisersCard]]
+      : [[teamsSection], [fixturesSummary, format_, whereCard, whenCard, organisersCard]];
+
+  /* -- Schedule: the draw, then the tournament's Schedule locked to this division --------------- */
+  const scheduleTab = (
+    <View className="gap-3.5">
+      {canEdit && !dual ? fixturesCard : null}
+      <ScheduleTab
+        event={event}
+        orgId={orgId}
+        canEdit={canEdit}
+        isWide={isWide}
+        divisions={tournament.divisions}
+        games={scoped.narrowTo && !links.isPublic ? tournament.games.filter(scoped.keepsGame) : tournament.games}
+        sports={sports}
+        sites={sites}
+        facilities={facilities}
+        facilityIds={tournament.facilityIds}
+        hostOrg={tournament.hostOrg as any}
+        canSetHours={() => canEdit}
+        initialDivisionId={divisionId}
+        divisionOnly={divisionId}
+        orgFilter={links.isPublic}
+        withdrawnEntrantIds={new Set(entrants.filter(e => e.status === 'withdrawn').map(e => e.id))}
+      />
+    </View>
+  );
+
+  /* -- Standings: the full table ---------------------------------------------------------------- */
+  const standingsTab = standingsCard || (
+    <TournamentCard title="Standings"><Text className="font-inter text-sm text-ink-muted">Nothing to rank yet. The table fills in as results come in.</Text></TournamentCard>
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
@@ -549,19 +646,32 @@ export default function DivisionScreen() {
         onBack={backToTournament}
         right={menu.length ? <OverflowMenu items={menu} title={divisionFullName(division.name, sport?.name)} accessibilityLabel="Division actions" /> : undefined}
       />
+      <View className="bg-card">
+        <Tabs
+          items={[{ key: 'overview', label: 'Overview' }, { key: 'schedule', label: 'Schedule' }, { key: 'standings', label: dual ? 'Results' : 'Standings' }]}
+          activeKey={tab}
+          onChange={key => setTab(key as DivisionTab)}
+        />
+      </View>
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 80 }}>
         <PageBody className="gap-3.5">
-          {banner}
-          {nextStrip}
-          {links.isPublic ? null : <TournamentScopeLine {...scoped} isWide={isWide} allLabel="the whole division" />}
-          {isWide ? (
-            <View className="flex-row gap-4 items-start">
-              <View className="gap-3.5 min-w-0" style={{ flex: 1.1 }}>{columns[0]}</View>
-              <View className="gap-3.5 min-w-0" style={{ flex: 1 }}>{columns[1]}</View>
-            </View>
-          ) : (
-            <View className="gap-2.5">{[...columns[0], ...columns[1]]}</View>
-          )}
+          {tab === 'overview' ? (
+            <>
+              {banner}
+              {nextStrip}
+              {links.isPublic ? null : <TournamentScopeLine {...scoped} isWide={isWide} allLabel="the whole division" />}
+              {isWide ? (
+                <View className="flex-row gap-4 items-start">
+                  <View className="gap-3.5 min-w-0" style={{ flex: 1.1 }}>{overviewColumns[0]}</View>
+                  <View className="gap-3.5 min-w-0" style={{ flex: 1 }}>{overviewColumns[1]}</View>
+                </View>
+              ) : (
+                <View className="gap-2.5">{[...overviewColumns[0], ...overviewColumns[1]]}</View>
+              )}
+            </>
+          ) : null}
+          {tab === 'schedule' ? scheduleTab : null}
+          {tab === 'standings' ? standingsTab : null}
         </PageBody>
       </ScrollView>
 

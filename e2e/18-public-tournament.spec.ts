@@ -48,7 +48,9 @@ test.describe('the public tournament page, logged out', () => {
   test('a withdrawn team stays in its division, counted out @phone', async ({ page }) => {
     await page.goto(`${AUTUMN}/divisions/fx-div-autumn-netball-u16`);
     await expect(visible(page, /3 teams/)).toBeVisible();
-    await expect(visible(page, 'KSC U16 Comets')).toBeVisible();
+    // Its fixtures, on the division's Schedule tab (FIX-40), keep it — marked withdrawn.
+    await page.goto(`${AUTUMN}/divisions/fx-div-autumn-netball-u16?tab=schedule`);
+    await expect(visible(page, '(withdrawn)')).toBeVisible();
   });
 
   test('a game names no players and offers nothing to do @phone', async ({ page }) => {

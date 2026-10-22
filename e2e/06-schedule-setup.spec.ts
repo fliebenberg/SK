@@ -95,6 +95,8 @@ test.describe('scheduling setup, as the host', () => {
     await expect(page.getByText('Sat 28 Nov')).toBeVisible();
     await expect(page.getByText('· calculated').first()).toBeVisible();
     await expect(page.getByText('Organisers', { exact: true })).toBeVisible();
+    // The scheduling gaps sit with the draw, on the division's Schedule tab (FIX-40).
+    await page.goto(`${U16_NETBALL}?tab=schedule`);
     await expect(page.getByText("Scheduling · the tournament's")).toBeVisible();
   });
 
@@ -111,7 +113,8 @@ test.describe('scheduling setup, as the host', () => {
   });
 
   test("a division's own gaps, then back to the tournament's", async ({ page }) => {
-    await page.goto(U16_NETBALL);
+    // With the draw, on the division's Schedule tab (FIX-40).
+    await page.goto(`${U16_NETBALL}?tab=schedule`);
     await editGaps(page);
     await page.getByLabel('Between games, minutes').fill('10');
     await page.getByRole('button', { name: 'Save', exact: true }).click();

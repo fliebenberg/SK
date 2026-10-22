@@ -183,13 +183,14 @@ test.describe('the Schedule tab, as the host', () => {
   });
 });
 
-test.describe('the division page opens the Schedule on its division', () => {
-  test('Edit in the Schedule chooses the division, on the day its fixtures are', async ({ page }) => {
+test.describe("the division page's Schedule tab", () => {
+  test('is the Schedule locked to its division, on the day its fixtures are (FIX-40)', async ({ page }) => {
     await signIn(page, USERS.hostAdmin);
     await page.goto(`${SATURDAY}/divisions/fx-div-saturday-netball-u16`);
-    await page.getByRole('link', { name: 'Edit in the Schedule ›' }).click();
-    await expect(page).toHaveURL(/tab=schedule&division=fx-div-saturday-netball-u16/);
-    await expect(page.getByRole('button', { name: /^Division: Netball U16/ })).toBeVisible();
+    await page.getByText('Schedule', { exact: true }).first().click();
+    await expect(page.getByText('The draw', { exact: true })).toBeVisible();
+    // No Division dropdown: it is this division's.
+    await expect(page.getByRole('button', { name: /^Division:/ })).toHaveCount(0);
     await expect(page.getByTestId('schedule-column-fx-fac-dkl-court-3')).toBeVisible();
   });
 });

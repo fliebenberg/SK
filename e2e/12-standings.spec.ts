@@ -52,7 +52,8 @@ test.describe('the Standings tab', () => {
     await expect(visible(page, 'Team page ›')).toBeVisible();
 
     await visible(page, 'Full table ›').click();
-    await expect(page).toHaveURL(/\/divisions\/fx-div-autumn-netball-u14$/);
+    // Straight to the division's Standings tab (FIX-40).
+    await expect(page).toHaveURL(/\/divisions\/fx-div-autumn-netball-u14\?tab=standings$/);
     await expect(visible(page, 'Standings')).toBeVisible();
   });
 
@@ -60,7 +61,7 @@ test.describe('the Standings tab', () => {
     await signIn(page, USERS.hostAdmin);
     await page.goto(STANDINGS);
     await visible(page, 'Led by DKL U16 A').click();
-    await expect(page).toHaveURL(/\/divisions\/fx-div-autumn-rugby-u16$/);
+    await expect(page).toHaveURL(/\/divisions\/fx-div-autumn-rugby-u16\?tab=standings$/);
   });
 
   // Last, because it changes the tournament's scoring; it puts back the 3 / 1 / 0 it started from.

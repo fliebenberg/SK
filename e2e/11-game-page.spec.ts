@@ -111,15 +111,15 @@ test.describe('the game page', () => {
     await expect(page.getByText('Edit', { exact: true }).filter({ visible: true })).toHaveCount(0);
   });
 
-  test("the division page's ＋ Add a fixture opens the Schedule's sheet, sides from the division (FIX-36)", async ({ page }, info) => {
+  test("the division's Schedule tab adds a fixture with the Schedule's sheet, sides from the division (FIX-36, FIX-40)", async ({ page }, info) => {
     test.skip(info.project.name === 'phone', 'Once is enough');
     await signIn(page, USERS.hostAdmin);
-    await page.goto('/admin/fx-org-dkl/events/fx-tour-saturday/divisions/fx-div-saturday-netball-u16');
+    await page.goto('/admin/fx-org-dkl/events/fx-tour-saturday/divisions/fx-div-saturday-netball-u16?tab=schedule');
     await visible(page, '＋ Add a fixture').click();
     await expect(page.getByRole('radio', { name: 'Not yet' })).toBeChecked();
     await page.locator('[data-testid^="add-fixture-home-"]').first().click();
     await page.locator('[data-testid^="add-fixture-away-"]').nth(1).click();
     await page.getByRole('button', { name: 'Add it', exact: true }).click();
-    await expect(page.getByText(/^.+ v .+ is under Without a time on the Schedule, to place later\.$/)).toBeVisible();
+    await expect(page.getByText(/^.+ v .+ is under Without a time.*, to place later\.$/)).toBeVisible();
   });
 });

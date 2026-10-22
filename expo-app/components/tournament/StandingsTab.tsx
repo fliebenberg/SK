@@ -133,7 +133,7 @@ export function StandingsTab({ event, orgId, isWide, divisions: allDivisions, ga
                 return (
                   <TouchableOpacity
                     key={division.id}
-                    onPress={() => router.push(links.event(event.id, `/divisions/${division.id}`))}
+                    onPress={() => router.push(links.event(event.id, `/divisions/${division.id}?tab=standings`))}
                     accessibilityRole="link"
                     accessibilityLabel={`${division.name}, ${state.label}`}
                     className="flex-row items-center gap-3 py-2.5 border-t border-line-soft"

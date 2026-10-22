@@ -464,6 +464,20 @@ task going to its coach or, with none, to the admin — and who may pick a side 
 
 ## 8. The division page (`FIX-27`)
 
+> **Redone in tabs on 2026-10-22 (`FIX-40`, `mockups/division-tabs.html`, option A)**, like the
+> tournament page: **Overview**, **Schedule**, **Standings** (*Results* for a Head to Head),
+> addressed by `?tab=` — the tournament's Standings and a team's *Full table ›* open the Standings
+> tab. **Overview**: the banner and next-step strip as below; *Live now* on the day; **Teams** —
+> who is entered (for organisers with their answers and actions), and from the first result the
+> division's table with *Standings ›*, the organisers' list then one tap away under *Manage teams*;
+> a small **Fixtures** card ("6 fixtures · 3 played · next at 09:40", *Schedule ›*); Where (now with
+> the venue's map and Directions), When, How it's played, Organisers. A Head to Head's pairing stays
+> on the Overview. **Schedule**: for its organisers **the draw** — its state and buttons, without
+> its fixture list — then the tournament's Schedule locked to this division (`divisionOnly`): the
+> grid, or the all-days list for anyone who cannot move fixtures; *Edit in the Schedule ›* is gone,
+> the schedule being right there. **Standings**: the full table, or the organisations'. The cards
+> below keep their rules; only where they sit changed.
+
 > **Revised in Phase 7 (2026-10-11): Where, When and Organisers.** The division's *Organisers &
 > courts* section is split to match the tournament page section for section: **Where** (its
 > facilities, under the sport's own word — *Courts* for netball — and "Any of the tournament's" when

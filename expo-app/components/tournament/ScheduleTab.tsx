@@ -11,7 +11,7 @@ import { sideScores } from '../events/EventBits';
 import { TournamentCard } from './TournamentBits';
 import { isUnscheduled } from './scheduleModel';
 import { ScheduleDivisionDialog } from './ScheduleActions';
-import { MoveSheet, fixtureName } from './MoveSheet';
+import { MoveSheet, fixtureName, sideName } from './MoveSheet';
 import { AddFixtureSheet, type FixtureSlot } from './AddFixtureSheet';
 import { useScheduleCheck } from './useScheduleCheck';
 import { sendAction } from '../../services/actions';
@@ -85,6 +85,13 @@ interface Props {
   scopeLine?: React.ReactNode;
   /** The public page's Organisation dropdown (`FIX-25`). */
   orgFilter?: boolean;
+  /** On a division page's Schedule tab (`FIX-40`): that division only, with no Division dropdown. */
+  divisionOnly?: string;
+  /**
+   * Teams that withdrew after the draw: struck through in the list, as the division page's fixtures
+   * show them, so a game they will not play is never an unexplained gap (`FIX-25`).
+   */
+  withdrawnEntrantIds?: Set<string>;
 }
 
 /** How far each overlapping fixture is set in from the one beneath it, so that one stays reachable. */
@@ -118,7 +125,7 @@ const plural = (n: number, word: string, many?: string) => `${n} ${n === 1 ? wor
 /** Each division's colour on the grid — theme tokens, in turn. */
 const DIVISION_TONES = ['info', 'special', 'success', 'primary', 'accent', 'warning', 'danger'] as const;
 
-export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: savedGames, sports, sites, facilities, facilityIds, hostOrg, canSetHours, initialDivisionId, scopeLine, orgFilter }: Props) {
+export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: savedGames, sports, sites, facilities, facilityIds, hostOrg, canSetHours, initialDivisionId, scopeLine, orgFilter, divisionOnly, withdrawnEntrantIds }: Props) {
   const router = useRouter();
   const links = useTournamentLinks(orgId);
 
@@ -709,7 +716,18 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
                 style={{ borderLeftColor: toneOf(g.divisionId) }}
               >
                 <View className="flex-1 min-w-0">
-                  <Text className="font-inter-semibold text-sm text-ink" numberOfLines={2}>{fixtureName(g)}</Text>
+                  <Text className="font-inter-semibold text-sm text-ink" numberOfLines={2}>
+                    {[home, away].map((p, k) => {
+                      const out = !!p?.entrantId && !!withdrawnEntrantIds?.has(p.entrantId);
+                      return (
+                        <Text key={k}>
+                          {k ? ' v ' : ''}
+                          <Text className={out ? 'text-ink-muted line-through' : undefined}>{sideName(p)}</Text>
+                          {out ? <Text className="font-inter text-xs text-ink-muted"> (withdrawn)</Text> : null}
+                        </Text>
+                      );
+                    })}
+                  </Text>
                   <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{divisionName(g.divisionId)} · {facilityLabel(g.facilityId)}</Text>
                   {g.status === 'Live' ? <Text className="font-inter-bold text-xs text-danger-ink">LIVE{g.periodLabel ? ` · ${g.periodLabel}` : ''}</Text> : null}
                   {why.length ? <Text className="font-inter-semibold text-xs text-warning-ink">⚠ {why.join(' · ')}</Text> : null}
@@ -832,7 +850,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
           ...days.map(d => ({ value: d, label: formatPlayingDay(d) || d, description: plural(model.bookings.filter(b => b.day === d && gameOf(b.id)).length, 'fixture') })),
         ]}
       />
-      <CustomSelect
+      {divisionOnly ? null : <CustomSelect
         compact
         accessibilityLabel="Division"
         placeholder="Division"
@@ -846,7 +864,7 @@ export function ScheduleTab({ event, orgId, canEdit, isWide, divisions, games: s
           { value: 'all', label: 'All divisions' },
           ...sportsInPlay.flatMap(sid => divisions.filter(d => d.sportId === sid).map(d => ({ value: d.id, label: divisionFullName(d.name, sportName(sid)), group: sportName(sid), swatch: toneOf(d.id) }))),
         ]}
-      />
+      />}
       <CustomSelect
         compact
         accessibilityLabel="Facility"

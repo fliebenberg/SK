@@ -500,6 +500,7 @@ export default function EventDetails() {
               games={viewScope.narrowTo && !links.isPublic ? games.filter(viewScope.keepsGame) : games}
               scopeLine={links.isPublic ? undefined : <TournamentScopeLine {...viewScope} isWide={isWide} allLabel="the whole schedule" />}
               orgFilter={links.isPublic}
+              withdrawnEntrantIds={new Set(entrants.filter(e => e.status === 'withdrawn').map(e => e.id))}
               sports={sports}
               sites={sites}
               facilities={facilities}

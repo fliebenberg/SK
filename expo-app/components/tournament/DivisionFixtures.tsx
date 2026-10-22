@@ -39,7 +39,7 @@ import { useTournamentLinks } from './tournamentLinks';
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const SHOWN = 8;
 
-export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games, entrants, format, facilities, canEdit, started, entriesLocked, lockGaps, isWide, ownOrgId, dialog: dialogProp, onDialog, footer, scheduleOffer, onAddFixture }: {
+export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games, entrants, format, facilities, canEdit, started, entriesLocked, lockGaps, isWide, ownOrgId, dialog: dialogProp, onDialog, footer, scheduleOffer, onAddFixture, listFixtures = true }: {
   orgId: string;
   eventId: string;
   divisionId: string;
@@ -69,6 +69,11 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
   scheduleOffer?: { ok: true; minutes: number } | { ok: false; reason: string };
   /** *＋ Add a fixture*: the Schedule's add sheet, opened by the page (`FIX-36`). */
   onAddFixture: () => void;
+  /**
+   * The fixtures themselves, by round. Off on the division's Schedule tab (`FIX-40`), where the
+   * schedule beneath lists them: the card is then the draw — its state and its buttons.
+   */
+  listFixtures?: boolean;
 }) {
   const isDark = useActiveTheme() === 'dark';
   const ordered = useMemo(() => [...stages].sort((a, b) => (a.sequence || 0) - (b.sequence || 0)), [stages]);
@@ -175,14 +180,15 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
   };
 
   const drawn = stageGames.length > 0;
-  const title = games.length ? 'Fixtures' : 'The draw';
+  const title = games.length && listFixtures ? 'Fixtures' : 'The draw';
   const count = games.length ? (played ? `${played} of ${games.length} played` : games.length) : undefined;
 
   return (
     <TournamentCard
       title={title}
       count={count}
-      right={canEdit && games.length ? <LinkButton label="＋ Add a fixture" onPress={addFixture} /> : undefined}
+      // Without its list, the schedule beneath has *＋ Add a fixture* already.
+      right={canEdit && games.length && listFixtures ? <LinkButton label="＋ Add a fixture" onPress={addFixture} /> : undefined}
     >
       {ordered.length > 1 ? (
         <SegmentedControl
@@ -194,9 +200,9 @@ export function DivisionFixturesCard({ orgId, eventId, divisionId, stages, games
         />
       ) : null}
 
-      {drawn || loose.length ? list() : beforeDraw()}
+      {drawn || loose.length ? (listFixtures ? list() : null) : beforeDraw()}
 
-      {shown.length > SHOWN ? (
+      {listFixtures && shown.length > SHOWN ? (
         <LinkButton label={showAll ? 'Show fewer' : `All ${plural(shown.length, 'fixture')} ›`} onPress={() => setShowAll(v => !v)} />
       ) : null}
 

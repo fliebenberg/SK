@@ -47,7 +47,8 @@ test.describe('scheduling, as the host', () => {
   });
 
   test('a division is scheduled again, keeping what was placed by hand', async ({ page }) => {
-    await page.goto(division('rugby-u16'));
+    // From the Schedule's toolbar, on the division's Schedule tab (FIX-40).
+    await page.goto(`${division('rugby-u16')}?tab=schedule`);
     await expect(page.getByText('Scheduled', { exact: true }).first()).toBeVisible();
     await page.getByRole('button', { name: 'Schedule again' }).click();
     await expect(page.getByText('Schedule U16 again?')).toBeVisible();
@@ -59,7 +60,7 @@ test.describe('scheduling, as the host', () => {
 
   test("the Spring Festival's Netball U14 was scheduled straight away with its draw", async ({ page }) => {
     // 02-division makes this draw; the draw dialog's "Schedule them straight away" is ticked by default.
-    await page.goto(`${tournamentUrl(ORG.dkl)}/divisions/fx-div-spring-netball-u14`);
+    await page.goto(`${tournamentUrl(ORG.dkl)}/divisions/fx-div-spring-netball-u14?tab=schedule`);
     await expect(page.getByText(/Netball Court \d/).first()).toBeVisible();
     await expect(page.getByText('Draw made · not scheduled')).toBeHidden();
   });

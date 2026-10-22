@@ -91,7 +91,7 @@ export default function TeamResultsScreen() {
       <Text className="font-inter-bold text-[13px] text-primary-ink">Team page ›</Text>
     </TouchableOpacity>
   ) : null;
-  const openDivision = () => router.push(links.event(eventId, `/divisions/${division.id}`));
+  const openDivision = () => router.push(links.event(eventId, `/divisions/${division.id}?tab=standings`));
 
   const head = (
     <ResultsHead
