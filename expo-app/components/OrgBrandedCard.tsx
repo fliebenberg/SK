@@ -9,6 +9,7 @@ interface OrgBrandedCardProps {
   children: React.ReactNode;
   className?: string;
   style?: ViewStyle | ViewStyle[];
+  testID?: string;
 }
 
 export function OrgBrandedCard({
@@ -17,12 +18,14 @@ export function OrgBrandedCard({
   children,
   className = '',
   style,
+  testID,
 }: OrgBrandedCardProps) {
   // Each colour falls back to the one before it (`orgColors`).
   const { primary: finalPrimary, secondary: finalSecondary } = orgColors({ primaryColor, secondaryColor });
 
   return (
     <View 
+      testID={testID}
       className={`relative overflow-hidden rounded-2xl shadow-sm ${className}`}
       style={[
         { backgroundColor: finalPrimary },

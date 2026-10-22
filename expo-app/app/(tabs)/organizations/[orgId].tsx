@@ -16,6 +16,7 @@ import { useAuthStore } from '@/store/authStore';
 import { formatInstantDate, formatKickoffTime } from '../../../utils/dates';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { themeColor } from '../../../constants/Colors';
+import { orgAccess } from '../../../utils/orgAccess';
 
 interface Team {
   id: string;
@@ -69,7 +70,7 @@ export default function PublicOrgDetail() {
 
   const [activeTab, setActiveTab] = useState<'overview' | 'teams' | 'fixtures' | 'facilities' | 'leagues'>('overview');
   const isConnected = useWsStore(state => state.isConnected);
-  const { isAuthenticated, user, orgMemberships } = useAuthStore();
+  const { isAuthenticated, user, orgMemberships, teamMemberships } = useAuthStore();
 
   // The organisation itself comes from its summary room, not a query (`LIVE-12`).
   const { org: orgData, isLoading: isOrgLoading } = useOrgSummary(orgId);
@@ -173,17 +174,10 @@ export default function PublicOrgDetail() {
   const subtextColor = ink.subtext;
   const borderColor = ink.border;
 
-  const userMembership = orgMemberships.find(m => m.orgId === orgId);
-  let membershipStatus: string | null = null;
-  if (isAuthenticated) {
-    if (userMembership) {
-      if (userMembership.roleId === 'role-org-admin') membershipStatus = 'Admin';
-      else if (userMembership.roleId === 'role-org-staff') membershipStatus = 'Staff';
-      else if (userMembership.roleId === 'role-org-member') membershipStatus = 'Member';
-    } else if (user?.globalRole === 'admin') {
-      membershipStatus = 'Admin';
-    }
-  }
+  const access = orgAccess(orgId, user?.globalRole === 'admin', orgMemberships, teamMemberships);
+  const membershipStatus = isAuthenticated ? access.role : null;
+  // Admin and Staff manage the workspace; a Member — a coach, say — opens it for what is theirs there.
+  const workspaceLabel = !isAuthenticated ? null : access.canManage ? 'Manage' : access.canOpenWorkspace ? 'Open' : null;
 
   const getTeamName = (teamId: string) => {
     const t = teams.find(t => t.id === teamId);
@@ -326,7 +320,7 @@ export default function PublicOrgDetail() {
             </View>
           </View>
 
-          {(org.membershipStatus === 'Admin' || org.membershipStatus === 'Staff') && (
+          {workspaceLabel && (
             <View style={{ borderTopColor: borderColor }} className="mt-4 border-t pt-4">
               <TouchableOpacity
                 style={{
@@ -337,7 +331,7 @@ export default function PublicOrgDetail() {
                 onPress={() => router.push(`/admin/${orgId}` as any)}
               >
                 <Text style={{ color: textColor }} className="font-inter-bold text-sm">
-                  Manage Workspace
+                  {workspaceLabel} Workspace
                 </Text>
               </TouchableOpacity>
             </View>

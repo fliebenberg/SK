@@ -16,6 +16,7 @@ import { OrgLogo } from '../../../components/OrgLogo';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { inkOnBrand } from '@/utils/colorUtils';
 import { deviceTimeZone } from '@/utils/dates';
+import { orgAccess } from '@/utils/orgAccess';
 import { themeColor } from '../../../constants/Colors';
 
 
@@ -24,7 +25,7 @@ export default function OrganizationsPage() {
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
   const isDark = useActiveTheme() === 'dark';
-  const { isAuthenticated, user, orgMemberships, setMemberships } = useAuthStore();
+  const { isAuthenticated, user, orgMemberships, teamMemberships, setMemberships } = useAuthStore();
   const isConnected = useWsStore(state => state.isConnected);
 
   const [organizations, setOrganizations] = useState<any[]>([]);
@@ -99,17 +100,7 @@ export default function OrganizationsPage() {
 
   // Map database properties dynamically
   const mappedOrgs = organizations.map(org => {
-    const userMembership = orgMemberships.find(m => m.orgId === org.id);
-    const isManaged = (user?.globalRole === 'admin') || (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'));
-
-    let role = 'Guest';
-    if (userMembership) {
-      if (userMembership.roleId === 'role-org-admin') role = 'Admin';
-      else if (userMembership.roleId === 'role-org-staff') role = 'Staff';
-      else if (userMembership.roleId === 'role-org-member') role = 'Member';
-    } else if (user?.globalRole === 'admin') {
-      role = 'Admin';
-    }
+    const access = orgAccess(org.id, user?.globalRole === 'admin', orgMemberships, teamMemberships);
 
     const sports = org.supportedSportIds?.map((id: string) => sportsMap[id] || id) || [];
     const hasFootball = sports.some((s: string) => s.toLowerCase().includes('football'));
@@ -123,8 +114,11 @@ export default function OrganizationsPage() {
       eventsCount: org.eventCount || 0,
       facilitiesCount: org.siteCount || 0,
       membersCount: String(org.memberCount || 0),
-      role,
-      isManaged,
+      role: access.role,
+      // Every org they hold a role in, not only the ones they run — a coach is an org Member.
+      isMine: !!access.role,
+      // Admin and Staff manage the workspace; a Member opens it for what is theirs there.
+      workspaceLabel: access.canManage ? 'Manage' : access.canOpenWorkspace ? 'Open' : null,
     };
   });
 
@@ -133,7 +127,7 @@ export default function OrganizationsPage() {
     org.sports.some((s: string) => s.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const managedOrgs = filteredOrgs.filter(org => org.isManaged);
+  const myOrgs = filteredOrgs.filter(org => org.isMine);
   const orgs = filteredOrgs;
 
   const handleCreateOrg = () => {
@@ -194,7 +188,8 @@ export default function OrganizationsPage() {
     { value: 'OTHER', label: 'Other' },
   ];
 
-  const showTabs = isAuthenticated && (user?.globalRole === 'admin' || user?.isAdminOrCoach);
+  // Anyone signed in may belong to an org, or set one up.
+  const showTabs = isAuthenticated;
 
   return (
     <View className="flex-1 bg-canvas">
@@ -261,21 +256,21 @@ export default function OrganizationsPage() {
         ) : showTabs && activeTab === 'my' ? (
           <View className="mb-8">
             <View className="gap-4">
-              {managedOrgs.length === 0 ? (
+              {myOrgs.length === 0 ? (
                 <GlassCard className="border border-line p-6 items-center">
                   <Ionicons name="business-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="mb-3" />
                   <Text className="font-orbitron-bold text-sm text-ink-soft text-center mb-1 uppercase tracking-wide">
-                    {searchQuery.trim() ? "No Matching Organisations" : "No Managed Organisations"}
+                    {searchQuery.trim() ? "No Matching Organisations" : "No Organisations Yet"}
                   </Text>
                   <Text className="font-inter text-xs text-ink-muted text-center mb-5 leading-4">
                     {searchQuery.trim()
-                      ? `No managed organisations found matching "${searchQuery}".`
-                      : "You don't manage any organisations yet. Create one to get started."
+                      ? `None of your organisations match "${searchQuery}".`
+                      : "You're not part of any organisations yet. Create one to get started."
                     }
                   </Text>
                 </GlassCard>
               ) : (
-                managedOrgs.map((org) => {
+                myOrgs.map((org) => {
                   const { primary: primaryColor, secondary: secondaryColor } = orgColors(org);
                   const ink = inkOnBrand(primaryColor);
                   const isLightBg = ink.isLight;
@@ -287,6 +282,7 @@ export default function OrganizationsPage() {
                   return (
                     <OrgBrandedCard
                       key={org.id}
+                      testID={`my-org-${org.id}`}
                       primaryColor={primaryColor}
                       secondaryColor={secondaryColor}
                       className="p-5"
@@ -344,20 +340,23 @@ export default function OrganizationsPage() {
                         </View>
                       </TouchableOpacity>
 
-                      <View style={{ borderTopColor: borderColor }} className="mt-2 border-t pt-3">
-                        <TouchableOpacity
-                          style={{
-                            backgroundColor: ink.button,
-                            borderColor: borderColor,
-                          }}
-                          className="w-full border py-2.5 rounded-lg items-center justify-center active:opacity-85"
-                          onPress={() => router.push(`/admin/${org.id}` as any)}
-                        >
-                          <Text style={{ color: textColor }} className="font-inter-bold text-sm">
-                            Manage Workspace
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
+                      {/* A restricted minor's membership has no workspace; the card itself opens the profile. */}
+                      {org.workspaceLabel && (
+                        <View style={{ borderTopColor: borderColor }} className="mt-2 border-t pt-3">
+                          <TouchableOpacity
+                            style={{
+                              backgroundColor: ink.button,
+                              borderColor: borderColor,
+                            }}
+                            className="w-full border py-2.5 rounded-lg items-center justify-center active:opacity-85"
+                            onPress={() => router.push(`/admin/${org.id}` as any)}
+                          >
+                            <Text style={{ color: textColor }} className="font-inter-bold text-sm">
+                              {org.workspaceLabel} Workspace
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </OrgBrandedCard>
                   );
                 })
@@ -395,11 +394,11 @@ export default function OrganizationsPage() {
               const subtextColor = ink.subtext;
               const badgeBgColor = ink.badge;
               const borderColor = ink.border;
-              const showManage = isAuthenticated && org.isManaged && (user?.globalRole === 'admin' || user?.isAdminOrCoach);
 
               return (
                 <OrgBrandedCard
                   key={org.id}
+                  testID={`org-${org.id}`}
                   primaryColor={primaryColor}
                   secondaryColor={secondaryColor}
                   className="p-5"
@@ -422,7 +421,7 @@ export default function OrganizationsPage() {
                         </Text>
                       </View>
                       
-                      {showManage ? (
+                      {org.isMine ? (
                         <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
                           <Ionicons name="shield-checkmark" size={12} color={textColor} />
                           <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
@@ -489,7 +488,7 @@ export default function OrganizationsPage() {
                         View Profile
                       </Text>
                     </TouchableOpacity>
-                    {showManage && (
+                    {org.workspaceLabel && (
                       <TouchableOpacity
                         style={{
                           backgroundColor: ink.text,
@@ -499,7 +498,7 @@ export default function OrganizationsPage() {
                         onPress={() => router.push(`/admin/${org.id}` as any)}
                       >
                         <Text style={{ color: ink.inverse }} className="font-inter-bold text-sm">
-                          Manage
+                          {org.workspaceLabel}
                         </Text>
                       </TouchableOpacity>
                     )}

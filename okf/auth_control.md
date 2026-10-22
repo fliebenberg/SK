@@ -115,7 +115,10 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
       `memberAccess` in `@sk/shared`. Identity checks (`ownsOrgProfile`, `PROFILE_IDS_FOR_USER`,
       organiser grants) and team duties are untouched.
     - The app's `AuthGuard` keeps a restricted member out of the org workspace unless they hold a
-      coaching duty there.
+      coaching duty there. The rule is `orgAccess` in
+      [orgAccess.ts](file:///c:/Fred/Coding/SK/expo-app/utils/orgAccess.ts), which the Organisations
+      list and an org's public page use too, so a workspace button shows only where the guard lets
+      them in: *Manage Workspace* for Admin and Staff, *Open Workspace* for a Member.
     - **Guardians hold no membership.** Being a guardian is derived from an active
       `profile_guardians` link, so a guardian reads nothing org-wide; what they see of their child
       arrives as `dependants` in their own `USER_MEMBERSHIPS_UPDATED`.

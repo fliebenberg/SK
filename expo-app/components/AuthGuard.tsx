@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
+import { orgAccess } from '../utils/orgAccess';
 
 import { AccessDenied } from './AccessDenied';
 import { useActiveTheme } from '../store/settingsStore';
@@ -52,14 +53,7 @@ export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage }
   const teamMemberships = useAuthStore((state) => state.teamMemberships);
 
   const isGlobalAdmin = user?.globalRole === 'admin';
-  const membership = orgId ? (orgMemberships || []).find((m: any) => m.orgId === orgId) : undefined;
-  // A minor whose membership carries no member privileges (`MEMBER-3`) is still a member, but the
-  // server refuses them everything org-wide — so the workspace is theirs only for a team duty they
-  // hold there (coach or assistant coach), which the server still honours.
-  const holdsTeamDuty = !!orgId && (teamMemberships || []).some(
-    (t: any) => t.orgId === orgId && (t.roleId === 'role-coach' || t.roleId === 'role-assistant-coach')
-  );
-  const isRestricted = !!membership?.restrictedReason && !holdsTeamDuty;
+  const { membership, isRestricted } = orgAccess(orgId, isGlobalAdmin, orgMemberships, teamMemberships);
   const isOrgMember = !!membership && !isRestricted;
 
   // A persisted session is only trustworthy once storage has rehydrated and any

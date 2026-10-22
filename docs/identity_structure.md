@@ -142,9 +142,7 @@ mechanism serves both: **the person whose information it is grants access to som
 The role is called **Trusted Contact** (`role-trusted-contact`).
 
 > **On the name.** Three obvious alternatives are already taken in ways that would mislead.
-> **Guest** currently means *no relationship at all* — `role = 'Guest'` in
-> [organizations/index.tsx](file:///c:/Fred/Coding/SK/expo-app/app/(tabs)/organizations/index.tsx)
-> and "browsing as a guest" in settings. **Delegate** is the wrong word here because "delegation" in
+> **Guest** currently means *no relationship at all* — "browsing as a guest" in settings. **Delegate** is the wrong word here because "delegation" in
 > this product consistently means handing *organisational duties* to another org person — division
 > delegation to a convenor (`D22`, `D31`), admin guide §11, and the "Delegated Control" language in
 > [nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md). **Nominee** and

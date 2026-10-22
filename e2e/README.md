@@ -52,7 +52,9 @@ npm run e2e:report     # the last run's report, with traces of any failure
   teams to answer and its place to name on the Overview's card and on the To do page, with its sport filter; on the
   desktop, last, Riverbend naming the place with its 1st XV), then proposed teams (`15-team-picking.spec.ts`: on
   *Test Saturday Fixtures*, Kwaggafontein's U16 Lions coach's two games with a proposed team, its admin seeing them
-  as the coach's; on the desktop the coach confirms one from its game page). A single file run on its own may therefore fail where the suite
+  as the coach's; on the desktop the coach confirms one from its game page), then My Organisations
+  (`16-my-organisations.spec.ts`: Kwaggafontein's U16 Lions coach seeing Kwaggafontein, as a Member, with
+  *Open Workspace*, and St Aldric's staff seeing theirs to manage). A single file run on its own may therefore fail where the suite
   passes.
 - **The phone runs first and only tests tagged `@phone`** — ones that read and change nothing — so it sees
   the data before the desktop tests change it.
