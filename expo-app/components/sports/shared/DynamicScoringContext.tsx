@@ -86,7 +86,17 @@ interface DynamicScoringContextType {
 
 const DynamicScoringContext = createContext<DynamicScoringContextType | null>(null);
 
-export function DynamicScoringProvider({ game, children }: { game: Game; children: React.ReactNode }) {
+/**
+ * `spectator`: the public game page's match events (`FIX-39`, 2026-10-22). It reads only what is
+ * public — the scoring feed and the team sheets — and leaves out the full record, the open disputes
+ * and the team's members, which an anonymous socket is refused.
+ */
+export function DynamicScoringProvider({ game, spectator = false, children }: { game: Game; spectator?: boolean; children: React.ReactNode }) {
+  // A team's members fill names a team sheet lacks, or stand in for one: the members' read only.
+  const readTeamMembers = (teamId: string, done: (members: any[]) => void) => {
+    if (spectator) { done([]); return; }
+    wsService.emit('get_data', { type: 'team_members', teamId, gameId: game.id }, done);
+  };
   // The request scope of the event being captured — see the ADD_GAME_EVENT send below.
   const addRequestScope = useRef(newRequestId());
   const [scoringState, setScoringState] = useState<DynamicScoringContextType['scoringState']>({
@@ -127,8 +137,9 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   // them, and this one wants both so it holds both.
   useEffect(() => {
     if (!game.id) return;
-    const unsubscribeRoom = wsService.subscribeToRoom(`game:${game.id}`);
     const unsubscribeEventsRoom = wsService.subscribeToRoom(`game:${game.id}:events`);
+    if (spectator) return unsubscribeEventsRoom;
+    const unsubscribeRoom = wsService.subscribeToRoom(`game:${game.id}`);
     const unsubscribeDisputesRoom = wsService.subscribeToRoom(`game:${game.id}:disputes`);
 
     return () => {
@@ -136,7 +147,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       unsubscribeEventsRoom();
       unsubscribeDisputesRoom();
     };
-  }, [game.id]);
+  }, [game.id, spectator]);
 
   // 2. Fetch general team objects
   useEffect(() => {
@@ -188,6 +199,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
 
   // 4. Fetch active disputes
   useEffect(() => {
+    if (spectator) return;
     wsService.emit('get_data', { type: 'active_disputes', id: game.id }, (disputeData: GameDispute[]) => {
       if (Array.isArray(disputeData)) {
         setDisputes(disputeData.filter((d: any) => !d.status || d.status === 'OPEN'));
@@ -225,7 +237,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
           if (activeFetches === 0) setIsLoadingRosters(false);
           
           if (homeTeamId) {
-            wsService.emit('get_data', { type: 'team_members', teamId: homeTeamId, gameId: game.id }, (members: any[]) => {
+            readTeamMembers(homeTeamId, (members: any[]) => {
               if (Array.isArray(members) && members.length > 0) {
                 const memberMap = new Map(
                   members.map((m: any) => [m.orgProfileId || m.id, m.name || m.orgProfileName])
@@ -239,7 +251,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
             });
           }
         } else if (homeTeamId) {
-          wsService.emit('get_data', { type: 'team_members', teamId: homeTeamId, gameId: game.id }, (members: any[]) => {
+          readTeamMembers(homeTeamId, (members: any[]) => {
             if (Array.isArray(members) && members.length > 0) {
               const fallback = members.map((m: any) => ({
                 id: m.orgProfileId || m.id,
@@ -275,7 +287,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
           if (activeFetches === 0) setIsLoadingRosters(false);
 
           if (awayTeamId) {
-            wsService.emit('get_data', { type: 'team_members', teamId: awayTeamId, gameId: game.id }, (members: any[]) => {
+            readTeamMembers(awayTeamId, (members: any[]) => {
               if (Array.isArray(members) && members.length > 0) {
                 const memberMap = new Map(
                   members.map((m: any) => [m.orgProfileId || m.id, m.name || m.orgProfileName])
@@ -289,7 +301,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
             });
           }
         } else if (awayTeamId) {
-          wsService.emit('get_data', { type: 'team_members', teamId: awayTeamId, gameId: game.id }, (members: any[]) => {
+          readTeamMembers(awayTeamId, (members: any[]) => {
             if (Array.isArray(members) && members.length > 0) {
               const fallback = members.map((m: any) => ({
                 id: m.orgProfileId || m.id,

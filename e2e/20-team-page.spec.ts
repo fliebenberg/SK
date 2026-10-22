@@ -40,3 +40,14 @@ test.describe('the team page', () => {
     await expect(visible(page, '#7 · Openside Flanker · 4 games · 1 card')).toBeVisible();
   });
 });
+
+test.describe('a game, logged out', () => {
+  test('shows its team sheet and match events, naming the players @phone', async ({ page }) => {
+    // Public by decision until PEOPLE-4 gives a way to hide players (FIX-39, 2026-10-22).
+    await page.goto(`/events/fx-event-dkl-u16a-r1/games/fx-game-dkl-u16a-r1`);
+    await expect(visible(page, '21 – 10')).toBeVisible();
+    await expect(visible(page, 'Match events')).toBeVisible();
+    await expect(visible(page, 'Dian Ferreira')).toBeVisible();
+    await expect(page.getByText(/permission/i)).toHaveCount(0);
+  });
+});

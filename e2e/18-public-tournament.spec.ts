@@ -53,10 +53,10 @@ test.describe('the public tournament page, logged out', () => {
     await expect(visible(page, '(withdrawn)')).toBeVisible();
   });
 
-  test('a game names no players and offers nothing to do @phone', async ({ page }) => {
+  test('a game shows its teams and offers nothing to do @phone', async ({ page }) => {
     await page.goto(`${AUTUMN}/games/fx-game-autumn-netball-u14-1`);
     await expect(visible(page, '12 – 8')).toBeVisible();
-    await expect(visible(page, 'Players are not named on the public page.')).toBeVisible();
+    await expect(visible(page, 'No team sheet')).toBeVisible();
     await expect(page.getByText('Pick team', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Game actions' })).toHaveCount(0);
   });

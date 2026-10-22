@@ -170,11 +170,14 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // A single game's full record is the internal tier, not the summary.
   game:                 { room: (req: any) => (req.id ? `game:${req.id}` : null) },
   game_events:          { room: (req: any) => (req.id ? `game:${req.id}:events` : null) },
-  active_disputes:      { room: (req: any) => (req.id ? `game:${req.id}:events` : null) },
-  // A roster is addressed by participant id, so resolve its game first.
+  // A dispute names who raised it: the disputes room's level, not the public scoring feed's.
+  active_disputes:      { room: (req: any) => (req.id ? `game:${req.id}:disputes` : null) },
+  // A team sheet — names, numbers and positions only — is public with the game's summary since
+  // 2026-10-22, by decision until `PEOPLE-4` gives a way to hide players. Addressed by participant
+  // id, so resolve its game first.
   game_roster:          { room: async (req: any) => {
                             const gameId = req.id ? await dataManager.getGameIdForParticipant(req.id) : null;
-                            return gameId ? `game:${gameId}` : null;
+                            return gameId ? `game:${gameId}:summary` : null;
                           } },
   game_roster_proposal: { room: async (req: any) => {
                             const gameId = req.id ? await dataManager.getGameIdForParticipant(req.id) : null;

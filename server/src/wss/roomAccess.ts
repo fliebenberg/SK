@@ -114,13 +114,18 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
         // The summary tier is the spectator view: score, clock, status, teams.
         case 'summary':
           return { access: 'public' };
-        // The base room carries the full game; `:events` the scoring feed and `:disputes` the
-        // open disputes. All three are internal. `:detail` was a second name for the base room and
-        // was removed 2026-09-11 under rule 4 — one dataset, one room, one name.
-        case undefined:
+        // The scoring feed — tries, goals, cards, each naming its player — is public since
+        // 2026-10-22 (`FIX-39`): players are shown until `PEOPLE-4` gives a way to hide them, and
+        // that switch belongs here, at the read boundary. It carries ids and the sport's words, no
+        // contact or identity details.
         case 'events':
-        // Open disputes were pushed to `game:{id}:events` alongside the scoring feed — two datasets,
-        // one room. Same tier: a dispute names who raised it.
+          return { access: 'public' };
+        // The base room carries the full game and `:disputes` the open disputes; both are
+        // internal. `:detail` was a second name for the base room and was removed 2026-09-11 under
+        // rule 4 — one dataset, one room, one name.
+        case undefined:
+        // Open disputes were split out of `game:{id}:events`, which carried the scoring feed too.
+        // A dispute names who raised it.
         case 'disputes':
           return {
             access: 'member',

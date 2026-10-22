@@ -94,8 +94,8 @@ export default function GamePage() {
   }, [isConnected, summary?.siteId, summary?.facilityId]);
 
   const sides = useMemo(() => (summary?.participants || []).slice(0, 2), [summary]);
-  // Players are not named on the public page (`PEOPLE-4`, `FIX-25`): it asks for no team sheets.
-  const { lineups, reload: reloadLineups } = useGameLineups(links.isPublic ? [] : sides.map(p => p.id));
+  // The team sheets — public too, by decision until `PEOPLE-4` gives a way to hide players.
+  const { lineups, reload: reloadLineups } = useGameLineups(sides.map(p => p.id));
   const homeSides = useMemo(() => new Set(sides.filter(p => site?.orgId && p.orgId === site.orgId).map(p => p.id)), [sides, site]);
 
   const divisions = useEventDivisions(isFixture ? eventId : null);
@@ -279,19 +279,12 @@ export default function GamePage() {
     />
   );
 
+  // The match events read the scoring feed, which is public (`FIX-39`); the public page has no full
+  // record, so they go by the summary, which carries what the feed needs — its id, sides and sport.
+  const feedGame = game || (links.isPublic ? (summary as unknown as Game) : null);
+
   let body: React.ReactNode;
-  if (links.isPublic) {
-    // The teams, the score above and where — no team sheets and no match events yet (`FIX-39`).
-    const teams = <TeamsCard summary={summary} lineups={lineups} homeSides={homeSides} started={started || moment === 'cancelled'} compact note="Players are not named on the public page." />;
-    body = isWide ? (
-      <View className="flex-row gap-4 items-start">
-        <View className="flex-1 gap-3.5 min-w-0">{teams}{divisionCard}</View>
-        <View className="gap-3.5" style={{ width: 340 }}>{whereCard}</View>
-      </View>
-    ) : (
-      <View className="gap-2.5">{teams}{whereCard}{divisionCard}</View>
-    );
-  } else if (isWide) {
+  if (isWide) {
     body = (
       <View className="flex-row gap-4 items-start">
         <View className="flex-1 gap-3.5 min-w-0">
@@ -299,7 +292,7 @@ export default function GamePage() {
           {divisionCard}
         </View>
         <View className="gap-3.5" style={{ width: 340 }}>
-          {started && game ? <MatchEventsCard game={game} height={260} /> : null}
+          {started && feedGame ? <MatchEventsCard game={feedGame} height={260} spectator={links.isPublic} /> : null}
           {whereCard}
         </View>
       </View>
@@ -312,11 +305,11 @@ export default function GamePage() {
       <View className="gap-2.5">
         <View className="rounded-xl border border-line bg-card overflow-hidden"><Tabs items={tabs} activeKey={shown} onChange={setTab} /></View>
         {shown === 'teams' ? <TeamsCard summary={summary} lineups={lineups} proposals={proposals} homeSides={homeSides} started={started || moment === 'cancelled'} onWhoPlayed={whoPlayed} /> : null}
-        {shown === 'events' && game ? <MatchEventsCard game={game} height={520} /> : null}
+        {shown === 'events' && feedGame ? <MatchEventsCard game={feedGame} height={520} spectator={links.isPublic} /> : null}
         {shown === 'overview' ? (
           <>
             <TeamsCard summary={summary} lineups={lineups} proposals={proposals} homeSides={homeSides} started={started || moment === 'cancelled'} compact onOpen={() => setTab('teams')} />
-            {started && game ? <MatchEventsCard game={game} height={280} /> : null}
+            {started && feedGame ? <MatchEventsCard game={feedGame} height={280} spectator={links.isPublic} /> : null}
             {whereCard}
             {divisionCard}
           </>

@@ -797,9 +797,11 @@ on the side it started. Under the provider:
   Facility and adds **Organisation**; a clash is not shown.
   Scores now show on every Schedule (the grid's blocks and the phone's list), and Live now's score is
   larger — for organisers too.
-- **The game page** asks for no team sheet and no full record: score, teams ("Players are not named
-  on the public page", once), When & where and the division. Its match events wait for a public feed
-  without names (`FIX-39`).
+- **The game page** asks for no full record: score, both teams' **team sheets** (names and numbers),
+  the **Match events** card, When & where and the division. Players were left unnamed at first; on
+  2026-10-22 the user decided players are public until `PEOPLE-4` gives a way to hide them, so the
+  team sheets (`game_roster`) and the scoring feed (`game:{id}:events`) became public (`FIX-39`). The
+  card reads only those (`DynamicScoringProvider`'s `spectator`): no disputes, no team's members.
 - **A withdrawn team** is struck through in the fixtures, as the organisers see it; "Not played" for
   its remaining games, drawn on the mockup, is not built.
 - **Share** copies the page's address on the web, or opens the phone's share sheet. A phone has no

@@ -80,8 +80,8 @@ with one of three access levels:
 
 | Access | Meaning | Examples |
 | --- | --- | --- |
-| `public` | A spectator may legitimately see this. Includes anonymous sockets, because the org directory is browsable logged out. | `org:*:events`, `org:*:teams`, `org:*:sites`, `event:*`, `game:*:summary`, `season:*:standings` |
-| `member` | Personal data, or an org's internal state. Requires a current membership of a related org. | `org:*:members`, `team:*` (rosters), `game:*`, `game:*:events` |
+| `public` | A spectator may legitimately see this. Includes anonymous sockets, because the org directory is browsable logged out. | `org:*:events`, `org:*:teams`, `org:*:sites`, `event:*`, `game:*:summary`, `game:*:events` (players public until `PEOPLE-4`), `season:*:standings` |
+| `member` | Personal data, or an org's internal state. Requires a current membership of a related org. | `org:*:members`, `team:*` (rosters), `game:*`, `game:*:disputes` |
 | `self` | The socket's own user. | `user:*` |
 
 The identity is `socket.userId`, proven by the handshake — never anything in a payload. It is
@@ -210,7 +210,7 @@ A game has two tiers, and they are different rooms:
   status, scores, clock, times, venue ids, and participants **with their team name and org
   short name**. Published to `org:*:events` and `game:{id}:summary`.
 - **The full `Game` plus its feed** — recorded events, disputes, rosters, sin bins.
-  `game:{id}` and `game:{id}:events` only.
+  `game:{id}`, `game:{id}:events` (the feed, public) and `game:{id}:disputes` only.
 
 A list wants the summary. Never subscribe a list to `game:{id}:events` to get a score: that
 room hands over every recorded event in the match.

@@ -122,7 +122,7 @@ coach of a team playing in it (`MEMBER-3`).
 | --- | --- | --- | --- |
 | `game:{id}:summary` | public | `GAME_SUMMARY_UPDATED` | `GAME_SUMMARY_UPDATED`, `GAME_SUMMARY_REMOVED` |
 | `game:{id}` | member, a grant, or a duty | `GAME_UPDATED` (full `Game`) | `GAME_UPDATED` (always the full `Game`, clock actions included), `GAME_DELETED`, `GAME_RESET`, `GAME_EVENT_ADDED`, `GAME_EVENT_UPDATED`, `GAME_ROSTER_UPDATED` |
-| `game:{id}:events` | member, a grant, or a duty | `GAME_EVENTS_SYNC` | `GAME_EVENT_ADDED/UPDATED/REMOVED`, `GAME_EVENTS_BATCH_UPDATED`, `GAME_EVENTS_SYNC`, `GAME_RESET` |
+| `game:{id}:events` | public (since 2026-10-22, `FIX-39`: players are public until `PEOPLE-4`) | `GAME_EVENTS_SYNC` | `GAME_EVENT_ADDED/UPDATED/REMOVED`, `GAME_EVENTS_BATCH_UPDATED`, `GAME_EVENTS_SYNC`, `GAME_RESET` |
 | `game:{id}:disputes` | member, a grant, or a duty | `ACTIVE_DISPUTES_SYNC` | `DISPUTE_STARTED`, `DISPUTE_VOTE_UPDATED`, `DISPUTE_RESOLVED` |
 
 ### League, season, user

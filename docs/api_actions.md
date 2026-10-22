@@ -56,7 +56,8 @@ to be playing in that game, so it cannot be used to reach an unrelated roster.
 | `event:{id}` | public | `EVENT_UPDATED`, `GAME_SUMMARIES_SYNC` | event and game changes for one event |
 | `game:{id}:summary` | public | `GAME_SUMMARY_UPDATED` | score, clock, status, teams |
 | `game:{id}` | member | `GAME_UPDATED` (full game) | game state, rosters |
-| `game:{id}:events` | member | `GAME_EVENTS_SYNC`, `ACTIVE_DISPUTES_SYNC` | the recorded scoring feed and disputes |
+| `game:{id}:events` | public | `GAME_EVENTS_SYNC` | the recorded scoring feed (public since 2026-10-22, `FIX-39`) |
+| `game:{id}:disputes` | member | `ACTIVE_DISPUTES_SYNC` | open disputes |
 
 There is **no** `org:{orgId}:games` room — nothing ever published to one; game changes reach
 a fixtures list on `org:{orgId}:events`.
