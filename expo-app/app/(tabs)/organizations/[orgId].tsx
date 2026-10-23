@@ -180,8 +180,9 @@ export default function PublicOrgPage() {
                     <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{t.coachName ? `Coach ${t.coachName}` : 'No coach yet'}</Text>
                   </View>
                   <Text className="font-inter text-xs text-ink-muted">{t.playerCount ?? 0} {t.playerCount === 1 ? 'player' : 'players'}</Text>
+                  <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-faint')} />
                 </>
-              )))}
+              ), () => router.push(`/teams/${t.id}` as any)))}
             </View>
           ))}
         </View>
@@ -204,8 +205,9 @@ export default function PublicOrgPage() {
                   {s.address?.fullAddress ? <Text className="font-inter text-xs text-ink-muted" numberOfLines={2}>{s.address.fullAddress}</Text> : null}
                 </View>
                 <Text className="font-inter text-xs text-ink-muted">{own.length} {own.length === 1 ? 'facility' : 'facilities'}</Text>
+                <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-faint')} />
               </>
-            ));
+            ), () => router.push(`/sites/${s.id}` as any));
           })}
         </View>
       ) : <Text className="font-inter text-sm text-ink-muted">No sites yet.</Text>}

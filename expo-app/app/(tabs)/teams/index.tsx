@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, useWindowDimensions } from 'react-native';
-import { GlassCard } from '../../components/GlassCard';
-import { Button } from '../../components/Button';
+import { GlassCard } from '../../../components/GlassCard';
+import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore } from '../../../store/authStore';
 
-import { useActiveTheme } from '../../store/settingsStore';
-import { themeColor } from '../../constants/Colors';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 export default function TeamsPage() {
   const isDark = useActiveTheme() === 'dark';
   const [followedTeams, setFollowedTeams] = useState<string[]>([]);

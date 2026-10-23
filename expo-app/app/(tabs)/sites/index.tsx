@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, Text, ScrollView, TextInput, useWindowDimensions } from 'react-native';
-import { GlassCard } from '../../components/GlassCard';
-import { Button } from '../../components/Button';
+import { GlassCard } from '../../../components/GlassCard';
+import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 
-import { useActiveTheme } from '../../store/settingsStore';
-import { themeColor } from '../../constants/Colors';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 export default function SitesPage() {
   const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();

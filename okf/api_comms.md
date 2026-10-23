@@ -189,6 +189,10 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     ([docs/teams.md](file:///c:/Fred/Coding/SK/docs/teams.md) §3). Defers to `org:{id}:teams`
     (public): players' names, numbers and positions are public by decision until `PEOPLE-4`. A
     one-shot read, worked out by `TeamManager.getTeamSeasonStats`.
+*   **`team_squad`** and **`team_competitions`** (2026-10-22): the public team page's squad — each
+    current player's and staff member's name and role, nothing more — and its accepted places in
+    tournaments, in place of the roster (`team:{id}:members`) and `team_entries`, which are members'.
+    Both defer to `org:{id}:teams` (public); players are public until `PEOPLE-4`.
 *   **Two reads that no room owns** (Phase 6): `event_entrants` defers to the room above, and
     `event_candidate_teams` — "teams that could be entered" — is a standalone
     `tournament-organiser` read scoped by **either** an `eventId` (the entry screen) or a

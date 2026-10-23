@@ -1371,6 +1371,15 @@ export class TournamentManager extends BaseManager {
    * organisation still invited, for its invitations list (`FIX-31`). Never a tournament its
    * organisation has not been invited to yet: it cannot see that one.
    */
+  /**
+   * The tournaments a team plays in, as the public sees them on its page (2026-10-22): its accepted
+   * places only — an invitation, declined or still open, is its organisation's business.
+   */
+  async getPublicTeamEntries(teamId: string): Promise<TeamEntry[]> {
+    const entries = await this.getTeamEntries({ teamId });
+    return entries.filter(e => e.status === 'accepted' && (!e.orgInvitation || e.orgInvitation === 'accepted'));
+  }
+
   async getTeamEntries(filter: { teamId: string } | { orgId: string; invitedOnly: true }): Promise<TeamEntry[]> {
     const byTeam = 'teamId' in filter;
     const res = await this.query(

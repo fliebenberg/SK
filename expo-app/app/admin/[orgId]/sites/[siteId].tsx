@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,6 +29,10 @@ import { timeZoneLabel, venueTimeZone, whenMs } from '../../../../utils/dates';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { themeColor } from '../../../../constants/Colors';
 import { PageBody } from '../../../../components/PageBody';
+import { useTournamentLinks } from '../../../../components/tournament/tournamentLinks';
+import { copyText, openDirections } from '../../../../utils/share';
+import { wsService } from '../../../../services/websocket';
+import { useWsStore } from '../../../../store/wsStore';
 
 type Dialog = 'name' | 'location' | 'facility' | 'deactivate' | 'delete' | null;
 type Section = 'facilities' | 'location' | 'games';
@@ -48,19 +52,34 @@ const GAMES_SHOWN = 3;
  * One search covers facilities and the games coming up. Wide, it sits above the two columns; on a
  * phone it is pinned under the header with buttons that jump to each card. A viewer who cannot edit
  * (anyone but Admin or Staff) gets the same page with no Edit, no Add and no menus.
+ *
+ * **The public page** (`/sites/[siteId]`, 2026-10-22) is this page under the public layout
+ * (`useTournamentLinks().isPublic`): read-only whoever is looking, inactive facilities left out,
+ * *Directions* and *Copy address* under the map, and games opening on the public side. Its
+ * organisation comes from the site, since the address names only the site.
  */
 export default function SitePage() {
   const isDark = useActiveTheme() === 'dark';
   const router = useRouter();
   const safeBack = useSafeBack();
-  const { orgId, siteId } = useLocalSearchParams<{ orgId: string; siteId: string }>();
+  const { orgId: orgParam, siteId } = useLocalSearchParams<{ orgId: string; siteId: string }>();
+  const links = useTournamentLinks(orgParam);
+  const isPublic = links.isPublic;
+  // The public address names only the site; its organisation comes from the site itself.
+  const isConnected = useWsStore((s: any) => s.isConnected);
+  const [publicOrgId, setPublicOrgId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isPublic || !isConnected || !siteId) return;
+    wsService.emit('get_data', { type: 'site', id: siteId }, (res: any) => setPublicOrgId(res?.orgId || null));
+  }, [isPublic, isConnected, siteId]);
+  const orgId = orgParam || publicOrgId || undefined;
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
   const isNarrow = width < 640;
 
   const user = useAuthStore(state => state.user);
   const viewerRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId && !m.restrictedReason)?.roleId);
-  const canEdit = user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || viewerRole === 'role-org-staff';
+  const canEdit = !isPublic && (user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || viewerRole === 'role-org-staff');
 
   const { sites, facilities: allFacilities, isLoading } = useOrgSites(orgId);
   const { org } = useOrgSummary(orgId);
@@ -69,8 +88,8 @@ export default function SitePage() {
 
   const site = sites.find(s => s.id === siteId) || null;
   const facilities = useMemo(
-    () => allFacilities.filter(f => f.siteId === siteId).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
-    [allFacilities, siteId]
+    () => allFacilities.filter(f => f.siteId === siteId && (!isPublic || f.isActive !== false)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
+    [allFacilities, siteId, isPublic]
   );
   const { games, events, eventNames, gamesByFacility } = useSiteGames(orgId, siteId, facilities);
 
@@ -85,15 +104,16 @@ export default function SitePage() {
   const jump = useJumpSections<Section>(['facilities', 'location', 'games'], isWide ? 24 : 12);
   const markers = useMemo(() => facilityMarkers(facilities, sports, isDark), [facilities, sports, isDark]);
 
-  const back = () => safeBack(`/admin/${orgId}/sites`);
+  const back = () => safeBack(isPublic ? (orgId ? `/organizations/${orgId}?tab=sites` : '/organizations') : `/admin/${orgId}/sites`);
   const q = query.trim().toLowerCase();
 
   if (isLoading || !site) {
+    const loading = isLoading || (isPublic && !orgId);
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Site" backLabel="Sites" onBack={back} />
         <View className="flex-1 items-center justify-center px-6">
-          {isLoading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+          {loading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
             <Text className="font-inter text-sm text-ink-muted text-center">This site does not exist any more.</Text>
           )}
         </View>
@@ -117,7 +137,7 @@ export default function SitePage() {
       })
     : upcoming;
 
-  const openGame = (g: GameSummary) => router.push(`/admin/${orgId}/events/${g.eventId}/games/${g.id}`);
+  const openGame = (g: GameSummary) => router.push(links.event(g.eventId!, `/games/${g.id}`));
   const openFacility = (f: Facility | null) => { setEditing(f); setDialog('facility'); };
 
   /* ---------------- actions ---------------- */
@@ -258,7 +278,7 @@ export default function SitePage() {
     >
       {!facilities.length ? (
         <CardNote
-          text="No facilities yet. Add the fields, courts and halls played on here, and anything else visitors look for — parking, the tuck shop, restrooms."
+          text={isPublic ? 'No facilities listed yet.' : 'No facilities yet. Add the fields, courts and halls played on here, and anything else visitors look for — parking, the tuck shop, restrooms.'}
           action={canEdit ? '＋ Add facility' : undefined}
           onAction={() => openFacility(null)}
         />
@@ -284,18 +304,30 @@ export default function SitePage() {
             {/* Read-only: a site's timezone comes from its pin, and moving the pin is how to change it (DATE-2). */}
             <Text className="font-inter text-sm text-ink-soft flex-shrink">
               {timeZoneLabel(timeZone)}
-              <Text className="text-ink-muted">
-                {site.timezone ? ' · from the pin' : hasPin(site.address) ? ' · the organisation\'s' : ' · the organisation\'s, until the address has a pin'}
-              </Text>
+              {isPublic ? null : (
+                <Text className="text-ink-muted">
+                  {site.timezone ? ' · from the pin' : hasPin(site.address) ? ' · the organisation\'s' : ' · the organisation\'s, until the address has a pin'}
+                </Text>
+              )}
             </Text>
           </View>
           {hasPin(site.address) ? (
             <AddressMap latitude={site.address.latitude} longitude={site.address.longitude} title={site.name} interactive={false} height={isNarrow ? 170 : 220} markers={markers} />
           ) : null}
+          {isPublic ? (
+            <View className="flex-row gap-2">
+              <TouchableOpacity onPress={() => openDirections(hasPin(site.address) ? site.address! : null, site.address?.fullAddress || '')} accessibilityRole="button" className="rounded-xl border border-line px-3.5 py-2">
+                <Text className="font-inter-bold text-sm text-ink">Directions</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => copyText(site.address?.fullAddress || '', 'The address')} accessibilityRole="button" className="rounded-xl border border-line px-3.5 py-2">
+                <Text className="font-inter-bold text-sm text-ink">Copy address</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </>
       ) : (
         <ReadCardEmpty
-          text={`No address yet, so the site has no map, and kick-offs here are in the organisation's timezone: ${timeZoneLabel(timeZone)}.`}
+          text={isPublic ? 'No address yet.' : `No address yet, so the site has no map, and kick-offs here are in the organisation's timezone: ${timeZoneLabel(timeZone)}.`}
           action={canEdit ? '＋ Add address' : undefined}
           onPress={() => setDialog('location')}
         />
@@ -307,7 +339,7 @@ export default function SitePage() {
   const gamesCard = (
     <SectionCard label="Coming up" count={q ? `${matchingGames.length} of ${upcoming.length}` : upcoming.length ? String(upcoming.length) : undefined}>
       {!upcoming.length ? (
-        <CardNote text="No games coming up here. Games are added to an event, and pick their site and facility there." />
+        <CardNote text={isPublic ? 'No games coming up here.' : 'No games coming up here. Games are added to an event, and pick their site and facility there.'} />
       ) : !matchingGames.length ? (
         <CardNote text={`No games here match “${query.trim()}”.`} />
       ) : (
@@ -377,7 +409,7 @@ export default function SitePage() {
       >
         <PageBody className="gap-4">
           {banner}
-          {inactiveNote}
+          {isPublic ? null : inactiveNote}
           {isWide ? (
             <>
               {hasContent ? searchBox : null}

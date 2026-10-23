@@ -22,11 +22,9 @@ export default function TabLayout() {
 
   const showAdminPortal = isAuthenticated && user?.globalRole === 'admin';
   
-  const shouldHideTabBar = (segments as string[]).includes('[siteId]');
-
   const content = (
     <Tabs 
-      tabBar={() => !isLargeScreen && !shouldHideTabBar ? (
+      tabBar={() => !isLargeScreen ? (
         <BottomMenu 
           onSettingsPress={() => {
             if (showAdminPortal) {
@@ -108,6 +106,8 @@ export default function TabLayout() {
         name="teams" 
         options={{ 
           headerTitle: 'TEAMS DIRECTORY',
+          // A team's own page has its header, with Back (2026-10-22); only the list wears the tab's.
+          headerShown: !isLargeScreen && (segments as string[])[2] !== '[teamId]',
           tabBarLabel: 'Teams',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "people" : "people-outline"} size={22} color={color} />
@@ -118,6 +118,8 @@ export default function TabLayout() {
         name="sites" 
         options={{ 
           headerTitle: 'SITES & FACILITIES',
+          // A site's own page has its header, with Back (2026-10-22); only the list wears the tab's.
+          headerShown: !isLargeScreen && (segments as string[])[2] !== '[siteId]',
           tabBarLabel: 'Sites',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "map" : "map-outline"} size={22} color={color} />

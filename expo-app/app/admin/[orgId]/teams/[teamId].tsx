@@ -20,6 +20,8 @@ import { Tabs } from '../../../../components/Tabs';
 import CustomSelect from '../../../../components/CustomSelect';
 import { useOrgSites } from '../../../../hooks/useOrgSites';
 import { useTeamSeasonStats } from '../../../../hooks/useTeamSeasonStats';
+import { useTeamCompetitions, useTeamOrgId, useTeamSquad } from '../../../../hooks/usePublicTeam';
+import { useTournamentLinks } from '../../../../components/tournament/tournamentLinks';
 import { currentSeason, seasonOf, whenMs } from '../../../../utils/dates';
 import { AddPlayersDialog, AddStaffDialog, ChangeRoleDialog, TeamDetailsDialog, TeamRole } from '../../../../components/teams/TeamDialogs';
 import { useOrgTeams } from '../../../../hooks/useOrgTeams';
@@ -69,12 +71,22 @@ const PLAYERS_SHOWN = 15;
  * is pinned under the header with buttons that jump to each card, since everything there is one
  * long column. A viewer who cannot edit (anyone but Admin or Staff) gets the same page with no
  * Edit, no Add, no menus and no Pick team.
+ *
+ * **The public page** (`/teams/[teamId]`, 2026-10-22) is this page under the public layout, which
+ * makes `useTournamentLinks().isPublic` true: read-only whoever is looking, its links on the public
+ * side, and in place of the members' reads the squad by name and role and the tournaments it has
+ * a place in (hooks/usePublicTeam.ts). Its organisation comes from the team, since the address
+ * names only the team.
  */
 export default function TeamPage() {
   const isDark = useActiveTheme() === 'dark';
   const router = useRouter();
   const safeBack = useSafeBack();
-  const { orgId, teamId, tab: tabParam } = useLocalSearchParams<{ orgId: string; teamId: string; tab?: string }>();
+  const { orgId: orgParam, teamId, tab: tabParam } = useLocalSearchParams<{ orgId: string; teamId: string; tab?: string }>();
+  const links = useTournamentLinks(orgParam);
+  const isPublic = links.isPublic;
+  const publicOrgId = useTeamOrgId(isPublic ? teamId : null);
+  const orgId = orgParam || publicOrgId || undefined;
   const [tab, setTab] = useState<Tab>(() => (TABS.some(t => t.key === tabParam) ? (tabParam as Tab) : 'overview'));
   const [season, setSeason] = useState<number>(currentSeason());
   const [resultsView, setResultsView] = useState<'stats' | 'list'>('stats');
@@ -84,20 +96,25 @@ export default function TeamPage() {
 
   const user = useAuthStore(state => state.user);
   const viewerRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId && !m.restrictedReason)?.roleId);
-  const canEdit = user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || viewerRole === 'role-org-staff';
+  const canEdit = !isPublic && (user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || viewerRole === 'role-org-staff');
 
   const { teams, isLoading: isTeamsLoading } = useOrgTeams(orgId);
-  const { roster } = useTeamRoster(teamId);
+  const { roster: workspaceRoster } = useTeamRoster(isPublic ? null : teamId);
+  const squad = useTeamSquad(isPublic ? teamId : null);
+  const roster = isPublic ? squad : workspaceRoster;
   const { games, eventNames } = useTeamGames(orgId, teamId);
   // Its places in tournaments, and invitations to answer (`FIX-31`): its coach, or an admin, answers.
-  const { entries: teamEntries, refresh: refreshEntries } = useTeamEntries({ teamId });
+  const { entries: workspaceEntries, refresh: refreshEntries } = useTeamEntries({ teamId: isPublic ? null : teamId });
+  const publicEntries = useTeamCompetitions(isPublic ? teamId : null);
+  const teamEntries = isPublic ? publicEntries : workspaceEntries;
   const teamMemberships = useAuthStore((state: any) => state.teamMemberships) || [];
   const coachesThis = teamMemberships.some((m: any) => m.teamId === teamId && (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach'));
-  const canAnswer = user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || coachesThis;
+  const canAnswer = !isPublic && (user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || coachesThis);
   const { org } = useOrgSummary(orgId);
-  const { members } = useOrgMembers(orgId);
-  const { byPlayer: guardiansByPlayer } = useOrgGuardians(orgId);
-  const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
+  // The organisation's people are its members' business: the public page has the squad alone.
+  const { members } = useOrgMembers(isPublic ? null : orgId);
+  const { byPlayer: guardiansByPlayer } = useOrgGuardians(isPublic ? null : orgId);
+  const { settings: minorsSettings } = useOrgMinorsSettings(isPublic ? null : orgId);
   const { data: sportsData } = useSocketQuery<Sport[]>('sports');
   const { data: rolesData } = useSocketQuery<any>('roles');
   const inviteCooldownHours = useInviteCooldownHours();
@@ -119,7 +136,7 @@ export default function TeamPage() {
   const seasonStats = useTeamSeasonStats(teamId, season);
 
   const team = teams.find(t => t.id === teamId) || null;
-  const back = () => safeBack(`/admin/${orgId}/teams`);
+  const back = () => safeBack(isPublic ? (orgId ? `/organizations/${orgId}?tab=teams` : '/organizations') : `/admin/${orgId}/teams`);
   const q = query.trim().toLowerCase();
 
   // Names, photos and org IDs come from the org's members, which update the moment a person page
@@ -142,11 +159,12 @@ export default function TeamPage() {
   const matchingStaff = q ? staff.filter(m => nameOf(m).toLowerCase().includes(q) || roleName(m.roleId).toLowerCase().includes(q)) : staff;
 
   if (isTeamsLoading || !team) {
+    const loading = isTeamsLoading || (isPublic && !orgId);
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Team" backLabel="Teams" onBack={back} />
         <View className="flex-1 items-center justify-center px-6">
-          {isTeamsLoading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+          {loading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
             <Text className="font-inter text-sm text-ink-muted text-center">This team does not exist any more.</Text>
           )}
         </View>
@@ -164,7 +182,7 @@ export default function TeamPage() {
       ? () => router.push({ pathname: '/admin/[orgId]/people/[membershipId]', params: { orgId: orgId!, membershipId: membership } })
       : undefined;
   };
-  const openGame = (g: GameSummary) => router.push(`/admin/${orgId}/events/${g.eventId}/games/${g.id}`);
+  const openGame = (g: GameSummary) => router.push(links.event(g.eventId!, `/games/${g.id}`));
   const pickTeam = (g: GameSummary) => router.push(`/admin/${orgId}/events/${g.eventId}/games/${g.id}/selection?teamId=${teamId}`);
 
   const rowMenu = (m: TeamMember): OverflowMenuItem[] | undefined => {
@@ -356,7 +374,7 @@ export default function TeamPage() {
       canAnswer={canAnswer}
       orgId={orgId!}
       onAnswered={refreshEntries}
-      onOpenEvent={eventId => router.push(`/admin/${orgId}/events/${eventId}` as any)}
+      onOpenEvent={eventId => router.push(links.event(eventId))}
     />
   );
   // While anything waits: one strip under the banner that takes the reader to the Events card.
@@ -449,7 +467,7 @@ export default function TeamPage() {
   const competitionsCard = seasonEntries.length ? (
     <TournamentCardLike title="Competitions" right={see('All ›', 'competitions')}>
       {seasonEntries.slice(0, 3).map((e, i) => (
-        <TouchableOpacity key={e.id} onPress={() => router.push(`/admin/${orgId}/events/${e.eventId}` as any)} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`}>
+        <TouchableOpacity key={e.id} onPress={() => router.push(links.event(e.eventId))} accessibilityRole="link" className={`py-2 ${i ? 'border-t border-line-soft' : ''}`}>
           <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{e.eventName}</Text>
           <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{e.divisionName}</Text>
         </TouchableOpacity>

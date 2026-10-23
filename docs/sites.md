@@ -118,7 +118,19 @@ is not counted, so Delete can look available while the server's own check
 (`SiteManager.deleteSite`, `FacilityManager.deleteFacility`) still refuses; its message is shown in
 the confirmation.
 
-## 6. Not settled here
+## 6. The public site page — `/sites/[siteId]`
+
+Built 2026-10-22 (agreed on the local `mockups/team-site-public.html`): a site as anyone sees it,
+opened from its organisation's public page (the Sites tab's rows). It is this same page —
+[app/(tabs)/sites/[siteId].tsx](file:///c:/Fred/Coding/SK/expo-app/app/(tabs)/sites/%5BsiteId%5D.tsx)
+mounts it inside `PublicTournamentProvider` — read-only whoever is looking: the banner, Facilities
+(playing areas and the rest — parking, the tuck shop — with **inactive facilities left out**),
+Location with **Directions** and **Copy address** under the map, and Coming up, whose games open on
+the public side. It reads only public rooms, as it always did; its organisation comes from the site
+(`get_data` `site`), since the address names only the site. The workspace's own notes — where the
+timezone comes from, how to add a facility, the inactive-site strip — are left out.
+
+## 7. Not settled here
 
 - Removing an address: `UPDATE_SITE` cannot clear one, and nothing offers to.
 - Showing other organisations' games at a site, which wants a per-site fixtures room (as `FIX-23`

@@ -124,6 +124,16 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
                             const orgId = req.teamId ? await accessManager.getTeamOrgId(req.teamId) : null;
                             return orgId ? `org:${orgId}:teams` : null;
                           } },
+  // The public team page (2026-10-22): its squad by name and role, and the tournaments it has a
+  // place in — public with the team. Players are public by decision until `PEOPLE-4`.
+  team_squad:           { room: async (req: any) => {
+                            const orgId = req.teamId ? await accessManager.getTeamOrgId(req.teamId) : null;
+                            return orgId ? `org:${orgId}:teams` : null;
+                          } },
+  team_competitions:    { room: async (req: any) => {
+                            const orgId = req.teamId ? await accessManager.getTeamOrgId(req.teamId) : null;
+                            return orgId ? `org:${orgId}:teams` : null;
+                          } },
   // Rosters are personal data, often a minor's — the `team:{id}` room's level.
   //
   // A scoring screen is the exception, and it is why `gameId` is honoured: it shows both

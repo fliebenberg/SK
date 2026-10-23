@@ -35,7 +35,7 @@ export function TeamEventsCard({ entries, canAnswer, orgId, onAnswered, onOpenEv
   return (
     <View className="rounded-2xl border border-line bg-card p-4 gap-2">
       <View className="flex-row items-baseline gap-2">
-        <Text className="font-inter-bold text-[18px] text-ink">Events</Text>
+        <Text className="font-inter-bold text-[18px] text-ink">Competitions</Text>
         <Text className="font-inter text-[15px] text-ink-muted">{entries.length}</Text>
       </View>
       {entries.map(e => {

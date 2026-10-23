@@ -132,7 +132,32 @@ Adding someone to a team makes them a Member of the organisation if they are not
 included — there are no outside coaches: one hired from elsewhere is added as a new person, and their
 account links up by email. `ADD_TEAM_MEMBER` refuses a profile from another organisation.
 
-## 6. Not settled here
+## 6. The public team page — `/teams/[teamId]`
+
+Built 2026-10-22 (agreed on the local `mockups/team-site-public.html` and `mockups/team-tabs.html`):
+a team as anyone sees it, signed in or not, opened from its organisation's public page (the Teams
+tab's rows) and shareable by its address. It is **this same page** —
+[app/(tabs)/teams/[teamId].tsx](file:///c:/Fred/Coding/SK/expo-app/app/(tabs)/teams/%5BteamId%5D.tsx)
+mounts it inside `PublicTournamentProvider`, so `useTournamentLinks().isPublic` is true — in the
+public tab bar with Teams marked:
+
+- **Read-only whoever is looking**: no Edit, Add, row menus, Pick team or ⋯ menu, and no invitation
+  strip; a game or tournament opens on the public side (`/events/...`), Back goes to the
+  organisation's Teams tab.
+- **The squad by name and role** (`get_data` `team_squad`), not the roster: no photos, birthdates,
+  contact details, org IDs or Minor tags. Each player's season line is the same as the workspace's
+  (§3). **Players are public by the user's decision (2026-10-22) until `PEOPLE-4` gives a way to hide
+  them**; this must not reach a live site before then.
+- **Competitions** are its accepted places only (`get_data` `team_competitions`): an invitation is
+  its organisation's business.
+- The organisation's members, guardians and minors settings are not read at all; the organisation
+  itself comes from the team (`get_data` `team`), since the address names only the team.
+
+Both reads are at the `org:{id}:teams` level, public with the team
+([hooks/usePublicTeam.ts](file:///c:/Fred/Coding/SK/expo-app/hooks/usePublicTeam.ts),
+`TeamManager.getTeamSquad`, `TournamentManager.getPublicTeamEntries`).
+
+## 7. Not settled here
 
 - Who may read a team's roster (`PEOPLE-8`) — today any member can open the page read-only.
 - Picking players for a match from the team page itself; Pick team opens the existing selection

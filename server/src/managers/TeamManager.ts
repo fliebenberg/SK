@@ -247,6 +247,22 @@ export class TeamManager extends BaseManager {
     return res.rows[0];
   }
 
+  /**
+   * A team's squad as the public sees it (2026-10-22): each current player's and staff member's
+   * name and role — no photo, birthdate, contact or org ID. Players are public by decision until
+   * `PEOPLE-4` gives a way to hide them; the switch belongs here. Shaped as `TeamMember` rows, so the
+   * team page lists them as it lists the roster.
+   */
+  async getTeamSquad(teamId: string) {
+    const res = await this.query(
+      `SELECT tm.id AS "membershipId", tm.role_id AS "roleId", p.id, p.name, tm.team_id AS "teamId"
+         FROM team_memberships tm JOIN org_profiles p ON p.id = tm.org_profile_id
+        WHERE tm.team_id = $1 AND (tm.end_date IS NULL OR tm.end_date > NOW())`,
+      [teamId]
+    );
+    return res.rows.map((row: any) => ({ ...row, roleName: this.getTeamRole(row.roleId)?.name }));
+  }
+
   async getTeamMembers(teamId: string): Promise<TeamMember[]> {
     const res = await this.query(`
         SELECT 

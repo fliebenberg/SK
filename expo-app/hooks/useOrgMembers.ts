@@ -14,7 +14,8 @@ import { useSocketQuery } from './useSocketQuery';
  */
 export function useOrgMembers(orgId?: string | null) {
   const isConnected = useWsStore(state => state.isConnected);
-  const { data, isLoading, setData } = useSocketQuery<OrgMember[]>('org_members', { orgId });
+  // No organisation, no read: the public team page has none to ask about (the members are theirs).
+  const { data, isLoading, setData } = useSocketQuery<OrgMember[]>('org_members', { orgId }, { enabled: !!orgId });
 
   useEffect(() => {
     if (!isConnected || !orgId) return;

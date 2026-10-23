@@ -1864,6 +1864,12 @@ io.on('connection', (socket) => {
                 );
                 break;
             }
+            case 'team_squad':
+                callback(request.teamId ? await dataManager.getTeamSquad(request.teamId) : []);
+                break;
+            case 'team_competitions':
+                callback(request.teamId ? await tournamentManager.getPublicTeamEntries(request.teamId) : []);
+                break;
             case 'team_entries': {
                 callback(request.teamId ? await tournamentManager.getTeamEntries({ teamId: request.teamId }) : []);
                 break;

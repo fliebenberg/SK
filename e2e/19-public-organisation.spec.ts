@@ -37,3 +37,40 @@ test.describe('the public organisation page, logged out', () => {
     await expect(page).toHaveURL(/\/events\/fx-tour-saturday$/);
   });
 });
+
+test.describe('a team and a site, logged out', () => {
+  test('a team row opens the public team page, read-only, with its players @phone', async ({ page }) => {
+    await page.goto(`${DKL}?tab=teams`);
+    await visible(page, 'Coach Pieter Joubert').click();
+    await expect(page).toHaveURL(/\/teams\/fx-team-dkl-rugby-u16a$/);
+    await expect(visible(page, 'U16 A')).toBeVisible();
+    await expect(visible(page, 'Last result')).toBeVisible();
+    await expect(page.getByText('Edit', { exact: true })).toHaveCount(0);
+    await expect(page.getByText(/permission/i)).toHaveCount(0);
+  });
+
+  test('its Players tab names the squad, with no org IDs or tags', async ({ page }) => {
+    await page.goto('/teams/fx-team-dkl-rugby-u16a?tab=players');
+    await expect(visible(page, '#11 · Left Wing · 4 games · 4 tries')).toBeVisible();
+    await expect(visible(page, 'Coach')).toBeVisible();
+    await expect(page.getByText(/^DKL\d+$/)).toHaveCount(0);
+    await expect(page.getByText('Minor', { exact: true })).toHaveCount(0);
+  });
+
+  test('its Competitions are the tournaments it has a place in, nothing to answer', async ({ page }) => {
+    await page.goto('/teams/fx-team-dkl-rugby-u16a?tab=competitions');
+    await expect(visible(page, 'Test Autumn Festival')).toBeVisible();
+    await expect(page.getByRole('button', { name: '✓ Accept' })).toHaveCount(0);
+  });
+
+  test('a site row opens the public site page, with directions and no inactive facility @phone', async ({ page }) => {
+    await page.goto(`${DKL}?tab=sites`);
+    await visible(page, 'Main Campus').click();
+    await expect(page).toHaveURL(/\/sites\/fx-site-dkl$/);
+    await expect(visible(page, 'Directions')).toBeVisible();
+    await expect(visible(page, 'Copy address')).toBeVisible();
+    await expect(page.getByText('Add facility', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Netball Court 4', { exact: true })).toHaveCount(0);
+    await expect(page.getByText(/permission/i)).toHaveCount(0);
+  });
+});

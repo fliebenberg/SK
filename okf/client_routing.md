@@ -37,7 +37,7 @@ Full description, including where Exit sits: [design_spec.md §2](file:///c:/Fre
 | `app/index.tsx`, `app/landing.tsx` | `/` and `/landing` | Anyone. `/` only decides where to go: the Live feed when signed in, `/landing` otherwise. |
 | `app/(auth)/` | `/login`, `/signup`, `/forgot-password`, `/reset-password` | Anyone. A guarded screen sends a visitor to `/login` with a redirect back. |
 | `app/claim/` | `/claim`, `/claim/refer`, `/claim/decline` | Anyone holding an invitation to administer an org ([nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md)). |
-| `app/(tabs)/` | `/` (Live feed), `/organizations`, `/organizations/[orgId]`, `/teams`, `/sites`, `/family`, `/settings` | Anyone; the directories are public. `/family` and `/settings` show their content only when signed in. |
+| `app/(tabs)/` | `/` (Live feed), `/organizations`, `/organizations/[orgId]`, `/teams`, `/teams/[teamId]`, `/sites`, `/sites/[siteId]`, `/family`, `/settings` | Anyone; the directories are public. `/family` and `/settings` show their content only when signed in. |
 | `app/leagues/` | `/leagues/[leagueId]` | Anyone: a league's public page. |
 | `app/(tabs)/events/` | `/events/[eventId]` and the pages under it | Anyone, signed in or not: a tournament as the public sees it — read-only for everyone, an organiser included (`FIX-25`). |
 | `app/(tabs)/admin/` | `/admin`, `/admin/users`, `/admin/reports`, `/admin/sports` | **System admins only** (`AuthGuard requireGlobalAdmin` on the layout). `/admin/reports` is user moderation, not analytics, and still a mockup on hardcoded data ([reports.md](file:///c:/Fred/Coding/SK/docs/reports.md)). |
@@ -58,6 +58,11 @@ real boundary ([auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md))
     the Profile's banner, then Overview, Teams, Fixtures (the workspace's events list with
     `publicView`), Sites and Leagues — read-only, from public rooms; a member gets the way into the
     workspace at the end of the banner.
+*   `/teams/[teamId]` and `/sites/[siteId]`: **a team and a site as anyone sees them** (2026-10-22,
+    [teams.md](file:///c:/Fred/Coding/SK/docs/teams.md) §6, [sites.md](file:///c:/Fred/Coding/SK/docs/sites.md) §6):
+    the workspace's pages inside `PublicTournamentProvider`, read-only, opened from an organisation's
+    page. The team page reads its squad and accepted competitions through public reads in place of
+    the roster and invitations.
 *   `/events/[eventId]`: **a tournament as the public sees it** (`FIX-25`, [events.md](file:///c:/Fred/Coding/SK/docs/events.md)
     §11). Its routes — the tournament, `/events/[eventId]/divisions/[divisionId]`,
     `/events/[eventId]/games/[gameId]`, an organisation's and a team's results pages (`/events/[eventId]/standings/organisations/[participantOrgId]`, `/events/[eventId]/standings/teams/[entrantId]`) and
