@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { USERS, signIn } from './support';
+import { TOURNAMENT_DAYS, USERS, playingDay, signIn } from './support';
 
 /**
  * The Schedule tab (tournaments Phase 7, agreed on `mockups/tournament-schedule.html`): a grid by
@@ -9,6 +9,8 @@ import { USERS, signIn } from './support';
  * fixture without a time — so the second Saturday's 1st XV, past the day's end, is the clash there.
  */
 const SATURDAY = '/admin/fx-org-dkl/events/fx-tour-saturday';
+/** The two Saturdays, as the app names them. */
+const [SAT_1, SAT_2] = TOURNAMENT_DAYS.saturday.map(playingDay);
 
 async function openSchedule(page: Page) {
   await page.goto(SATURDAY);
@@ -68,7 +70,7 @@ test.describe('the Schedule tab, as the host', () => {
   });
 
   test("the second Saturday shows the 1st XV past the day's end, among the day's clashes", async ({ page }) => {
-    await choose(page, 'Day', 'Sat 5 Dec');
+    await choose(page, 'Day', SAT_2);
     await expect(page.getByText(/Clashes on Sat/)).toBeVisible();
     await expect(page.getByText("Rugby 1st XV runs past the day's end")).toBeVisible();
   });
@@ -85,7 +87,7 @@ test.describe('the Schedule tab, as the host', () => {
     await page.getByLabel('Starts').fill('09:15');
     await expect(page.getByText(/Netball Court 3 is booked twice\. You can still move it\./)).toBeVisible();
     await page.getByRole('button', { name: 'Move', exact: true }).click();
-    await expect(page.getByText(/ — Netball Court 3, Sat 28 Nov/)).toBeVisible();
+    await expect(page.getByText(new RegExp(` — Netball Court 3, ${SAT_1}`))).toBeVisible();
     await expect(page.getByText(/moved anyway/)).toBeVisible();
     await expect(page.getByText(/Netball Court 3 is booked twice/).first()).toBeVisible();
     // The fixture beneath is set out of the way, not hidden: its strip on the left still opens it.
@@ -114,14 +116,14 @@ test.describe('the Schedule tab, as the host', () => {
     // The first Saturday ends at 13:00 for the tournament; an hour earlier is 12:00.
     await expect(page.getByTestId('schedule-hours-end')).toContainText('Day ends');
     await dragLine('end', -60);
-    await expect(page.getByText(/^Day ends 12:00 on Sat 28 Nov\.$/)).toBeVisible();
+    await expect(page.getByText(new RegExp(`^Day ends 12:00 on ${SAT_1}\\.$`))).toBeVisible();
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
     await expect(page.getByTestId('schedule-hours-end')).toContainText('13:00');
     // A division's lines are its own: a later first game, saved for it alone.
     await choose(page, 'Division', 'Netball U14');
     await expect(page.getByTestId('schedule-hours-start')).toContainText('First game');
     await dragLine('start', 30);
-    await expect(page.getByText(/^First game start \d\d:\d\d on Sat 28 Nov for U14\.$/)).toBeVisible();
+    await expect(page.getByText(new RegExp(`^First game start \\d\\d:\\d\\d on ${SAT_1} for U14\\.$`))).toBeVisible();
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
     await expect(page.getByText(/^First game start/)).toHaveCount(0);
   });
@@ -143,9 +145,9 @@ test.describe('the Schedule tab, as the host', () => {
     // The first native drag of a session sometimes does not start in the test browser; try twice.
     for (let attempt = 0; attempt < 2; attempt++) {
       await chip.dragTo(column, { targetPosition: { x: col.width / 2, y } });
-      if (await page.getByText(/ — Netball Court 2, Sat 28 Nov/).isVisible()) break;
+      if (await page.getByText(new RegExp(` — Netball Court 2, ${SAT_1}`)).isVisible()) break;
     }
-    await expect(page.getByText(/ — Netball Court 2, Sat 28 Nov 12:00\./)).toBeVisible();
+    await expect(page.getByText(new RegExp(` — Netball Court 2, ${SAT_1} 12:00\\.`))).toBeVisible();
   });
 
   test("a click on an empty space adds a fixture there, between two of the division's teams, and Undo takes it away", async ({ page }, info) => {
@@ -163,7 +165,7 @@ test.describe('the Schedule tab, as the host', () => {
     await page.locator('[data-testid^="add-fixture-home-"]').first().click();
     await page.locator('[data-testid^="add-fixture-away-"]').nth(1).click();
     await page.getByRole('button', { name: 'Add it here', exact: true }).click();
-    await expect(page.getByText(/^.+ v .+ — Netball Court 1, Sat 28 Nov 12:45\./)).toBeVisible();
+    await expect(page.getByText(new RegExp(`^.+ v .+ — Netball Court 1, ${SAT_1} 12:45\\.`))).toBeVisible();
     await expect(page.getByText(/^(⚠ )?12:45 U14/).first()).toBeVisible();
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
     await expect(page.getByText(/^(⚠ )?12:45 U14/)).toHaveCount(0);

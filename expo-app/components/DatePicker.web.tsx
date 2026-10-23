@@ -7,15 +7,18 @@ interface DatePickerProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** What a screen reader calls the field — the label shown beside it. */
+  accessibilityLabel?: string;
 }
 
-export default function DatePicker({ value, onChange }: DatePickerProps) {
+export default function DatePicker({ value, onChange, accessibilityLabel }: DatePickerProps) {
   const isDark = useActiveTheme() === 'dark';
 
   return (
     <View className="bg-canvas border border-line rounded-xl overflow-hidden">
       <input
         type="date"
+        aria-label={accessibilityLabel}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={{

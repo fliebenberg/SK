@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { USERS, signIn } from './support';
+import { TOURNAMENT_DAYS, USERS, signIn } from './support';
 
 /**
  * The game page (events redesign stage 3, `FIX-21` and `FIX-23`; agreed on
@@ -80,7 +80,8 @@ test.describe('the game page', () => {
     await expect(visible(page, 'Teams')).toBeVisible();
     await expect(page.getByText('Away', { exact: true }).filter({ visible: true })).toHaveCount(0);
     await expect(page.getByLabel(/^Team 1: /)).toBeVisible();
-    // 09:00 on A Field clashes with Test Head to Head's U16 game, with both teams in it.
+    // 09:00 on A Field on Test Head to Head's day clashes with its U16 game, with both teams in it.
+    await page.getByLabel('Date', { exact: true }).fill(TOURNAMENT_DAYS.h2h[0]);
     await page.getByLabel('Kick-off').fill('09:00');
     await expect(visible(page, /A Field has .* from 09:00 to 10:30, with both teams in it too\. You can still save it\./)).toBeVisible({ timeout: 10000 });
     await page.getByLabel('Kick-off').fill('15:00');

@@ -1,4 +1,8 @@
 import { Page, expect } from '@playwright/test';
+import { formatDateRange, formatPlayingDay } from '../expo-app/utils/dates';
+
+export { TOURNAMENT_DAYS } from '../server/src/scripts/setup/fixtures/testOrgs';
+export { addFixtureDays, fixtureDay } from '../server/src/scripts/setup/fixtures/fixtureCalendar';
 
 /** Every fixture account's password (`FIXTURE_PASSWORD` in server/src/scripts/setup/fixtures/testOrgs.ts). */
 export const PASSWORD = 'Test1234!';
@@ -39,3 +43,11 @@ export async function signIn(page: Page, email: string) {
 export const tournamentUrl = (orgId: string) => `/admin/${orgId}/events/${TOURNAMENT}`;
 export const divisionUrl = (orgId: string, divisionId: string) => `${tournamentUrl(orgId)}/divisions/${divisionId}`;
 export const orgPageUrl = (orgId: string, participantOrgId: string) => `${tournamentUrl(orgId)}/organisations/${participantOrgId}`;
+
+/**
+ * Days as the app writes them. The fixture tournaments and games are dated in weeks from a Saturday
+ * that follows today (`fixtureCalendar.ts`), so a test names a day from `TOURNAMENT_DAYS` or
+ * `fixtureDay` through these — never "Sat 28 Nov" spelt out — and the app's own formatting builds it.
+ */
+export const playingDay = (day: string) => formatPlayingDay(day)!;
+export const dateRange = (start: string, end: string) => formatDateRange(start, end)!;

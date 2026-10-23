@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { USERS, signIn } from './support';
+import { TOURNAMENT_DAYS, USERS, playingDay, signIn } from './support';
 
 /**
  * A tournament as the public sees it (`FIX-25`, agreed on `mockups/tournament-public.html`, option A;
@@ -36,7 +36,7 @@ test.describe('the public tournament page, logged out', () => {
     await page.goto(`${AUTUMN}?tab=schedule`);
     // The list, not the organisers' grid, on a wide screen too: every day unless one is picked.
     await expect(page.getByRole('button', { name: /^Day: All days/ })).toBeVisible();
-    await expect(visible(page, 'Sat 3 Oct')).toBeVisible();
+    await expect(visible(page, playingDay(TOURNAMENT_DAYS.autumn[0]))).toBeVisible();
     await expect(visible(page, '12 – 8')).toBeVisible();
     await page.getByRole('button', { name: /^Organisation:/ }).click();
     await page.getByRole('button', { name: 'Test Riverbend High School', exact: true }).click();

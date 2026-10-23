@@ -297,7 +297,7 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
       <View className="flex-row gap-2.5">
         <View className="flex-1 min-w-0 gap-1.5">
           {label('Date')}
-          <DatePicker value={form.date} onChange={date => set({ date })} />
+          <DatePicker value={form.date} onChange={date => set({ date })} accessibilityLabel="Date" />
         </View>
         <View className="flex-1 min-w-0 gap-1.5">
           {label('Kick-off')}

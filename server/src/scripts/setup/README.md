@@ -63,17 +63,17 @@ lists every person with `account: true`.
   U14** is locked, with St Aldric's asking to withdraw its team and to enter its U16 team late;
   **Netball U16** (adding turned off for the division) has St Aldric's declined and Riverbend's
   invited. Defined in `TEST_TOURNAMENTS`. A test that counts a fixture team's tournaments must
-  allow for this one. It has playing days (Sat 21 Nov 08:00–14:00, Sun 22 Nov 08:00–12:00), seven
+  allow for this one. It has playing days (a Saturday five weeks on, 08:00–14:00, and the Sunday, 08:00–12:00), seven
   facilities and the scheduling gaps (5 minutes between games, a 10-minute team break), and no draw.
 - **A drawn and scheduled tournament** (tournaments Phase 7): *Test Saturday Fixtures*
   (`fx-tour-saturday`), hosted by Doringkloof with every organisation accepted, on two Saturdays a
-  week apart (28 Nov, 5 Dec). Four divisions, each locked, drawn as a round robin and scheduled by
+  week apart (six and seven weeks on). Four divisions, each locked, drawn as a round robin and scheduled by
   the server's own planner (`planDivision`): Netball U14 on Courts 1–2, Netball U16 on Court 3
   (spilling onto the second Saturday, with one fixture left **without a time**), Rugby U16 on the
   two mini fields, and Rugby 1st XV on A Field — which waits for the minis on its ground and so
   finishes **after the second Saturday's end**, the one clash the Schedule tab shows.
 - **A Head to Head** (`H2H-1`): *Test Head to Head* (`fx-tour-h2h`), Doringkloof against St
-  Aldric's, who accepted, played on Sat 10 Oct. Its divisions are Doringkloof's age groups, each
+  Aldric's, who accepted, played two Saturdays back. Its divisions are Doringkloof's age groups, each
   team against St Aldric's of the same age, with one of every result: Doringkloof won Rugby U16
   (24–10), St Aldric's Rugby U19 (12–17), Netball U14 was drawn (9–9), Netball U16 is still to play,
   and Doringkloof's Netball U19 had nobody to play.
@@ -113,8 +113,8 @@ lists every person with `account: true`.
     created, and Rugby U15 A, **inactive**.
   - **A season of games** for Rugby U16 A against the other three schools (`games`), each a single
     match in its own event: five results — two wins, a draw, a loss and one recorded as
-    not provided — a cancelled game, and three to come (2026-10-10, -17, -24), the last with its
-    time not set. Dates are fixed, so those stay Scheduled after their day.
+    not provided — a cancelled game, and three to come on the next three Saturdays, the last with its time
+    not set.
 - **Sites** ([sites.md](../../../../docs/sites.md)), at Doringkloof:
   - **The main site has more than playing fields:** a tuck shop, visitors' parking and restrooms,
     and an **inactive** Netball Court 4.
@@ -141,8 +141,19 @@ Anything a test needs beyond this, it adds itself. Keep this file as the shared 
 `fixtureIds` in [testOrgs.ts](fixtures/testOrgs.ts). A test should import that helper rather than
 write the ids out by hand.
 
-**Reproducible.** Every id, date and password hash is fixed, so deleting and reloading gives
-identical rows. `db:test-orgs` also deletes whatever the app built on the test organisations since
+**Dated from this week.** Events and games are dated in weeks from an **anchor**: the last
+Saturday before today, in South African time ([fixtureCalendar.ts](fixtures/fixtureCalendar.ts)).
+So the data always has the same shape — the U16 A league over the past weeks, *Test Autumn
+Festival*, *Test Head to Head* and *Test Netball Pairs Day* on the last three Saturdays, U16 A's
+next three games on the coming Saturdays, *Test Spring Festival* five weeks on and *Test Saturday
+Fixtures* six and seven — and nothing falls on today. A test names a day through
+`TOURNAMENT_DAYS` or `fixtureDay`, never as a literal. Other dates (accounts created, memberships
+started, birthdays, Ethan Murray leaving) are fixed: they need not move, only stay earlier. The
+data is as old as its last load, so reload it to bring it up to this week.
+
+**Reproducible, for a given week.** Every id and password hash is fixed, and the anchor stays the
+same from Sunday to Saturday, so deleting and reloading in the same week gives identical rows.
+`FIXTURE_ANCHOR=YYYY-MM-DD` (a Saturday) loads it as on another week. `db:test-orgs` also deletes whatever the app built on the test organisations since
 the last load, such as events, games and extra players.
 
 ## The test database

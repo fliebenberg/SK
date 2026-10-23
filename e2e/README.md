@@ -33,6 +33,14 @@ npm run e2e:report     # the last run's report, with traces of any failure
   one division set by hand with its games paired by level across four organisations — and restarts
   the API so its caches reload. That deletes anything made by hand under a test organisation.
   `E2E_SKIP_RESET=1` runs against the data as it is.
+- **Dates come from the fixtures, never literals.** The tournaments and games are dated in weeks
+  from the last Saturday before today (`fixtureCalendar.ts` beside `testOrgs.ts`), so there are always
+  played games and games to come. A test names a day through `support.ts`: `TOURNAMENT_DAYS` or
+  `fixtureDay` for the date, `playingDay` and `dateRange` to write it as the app does ("Sat 28 Nov",
+  "28 Nov – 5 Dec 2026"). `global-setup.ts` fixes the anchor in `FIXTURE_ANCHOR` for the reset and the
+  tests together; set it yourself to run as on another week. With `E2E_SKIP_RESET=1`, the data must
+  have been loaded the same week. The team page's season statistics (`20-team-page`) skip themselves
+  for the few weeks a year when the league's rounds straddle New Year (`DB-5`).
 - **The files run in order, one at a time,** and later ones start from what earlier ones did: the
   tournament page, the division page, a coach, an organisation's own page, invitations (which takes
   organisations out), then scheduling setup (`06-schedule-setup.spec.ts`: When, the gaps, a

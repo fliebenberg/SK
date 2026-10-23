@@ -371,15 +371,17 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
                     ? { [homeId]: game.score[0], [awayId]: game.score[1] }
                     : { [homeId]: game.score[1], [awayId]: game.score[0] } }
                 : null;
-            const day = game.kickoff.slice(0, 10);
+            const day = game.day;
+            const kickoff = zonedInputsToInstant(game.day, game.time, SITE_TIMEZONE);
+            if (!kickoff) throw new Error(`Game ${game.key}: not a day and time: ${game.day} ${game.time}`);
 
             await insert('events',
                 ['id', 'name', 'type', 'start_date', 'end_date', 'site_id', 'org_id'],
                 [fixtureIds.event(org.key, game.key), game.event, 'SingleMatch', day, day, fixtureIds.site(host.key), fixtureIds.org(host.key)]);
             await insert('games',
                 ['id', 'event_id', 'sport_id', 'scheduled_start_time', 'start_time', 'finish_time', 'status', 'site_id', 'facility_id', 'final_score_data', 'custom_settings'],
-                [fixtureIds.game(org.key, game.key), fixtureIds.event(org.key, game.key), team.sportId, game.kickoff,
-                 finished ? game.kickoff : null, null, game.status, fixtureIds.site(host.key),
+                [fixtureIds.game(org.key, game.key), fixtureIds.event(org.key, game.key), team.sportId, kickoff,
+                 finished ? kickoff : null, null, game.status, fixtureIds.site(host.key),
                  facility ? fixtureIds.facility(host.key, facility.key) : null, result, game.timeTbd ? { timeTbd: true } : {}]);
             await insert('game_participants', ['id', 'game_id', 'team_id', 'sort_order'], [homeId, fixtureIds.game(org.key, game.key), homeTeam, 0]);
             await insert('game_participants', ['id', 'game_id', 'team_id', 'sort_order'], [awayId, fixtureIds.game(org.key, game.key), awayTeam, 1]);

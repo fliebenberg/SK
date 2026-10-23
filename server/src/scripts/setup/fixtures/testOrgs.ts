@@ -3,9 +3,12 @@
  * database and `db:test:setup` loads into the test database. It is the base every test starts
  * from — a test that needs an edge case adds it on top rather than editing this file.
  *
- * **Reproducible to the byte.** Every id, date and password hash below is a literal or is
- * derived from one; nothing calls `Date.now()`, `NOW()` or a random generator. Deleting the
- * organisations (`npm run db:test-orgs`) and loading them again gives exactly the same rows.
+ * **Reproducible to the byte, for a given week.** Every id and password hash below is a literal
+ * or is derived from one, and nothing calls a random generator. Events and games are dated in
+ * weeks from a Saturday that follows today (`fixtureCalendar.ts`), so there are always games played
+ * and games to come; every other date is a literal. Deleting the organisations (`npm run
+ * db:test-orgs`) and loading them again in the same week — or with `FIXTURE_ANCHOR` pinned — gives
+ * exactly the same rows.
  *
  * **Ids are readable and derived from names**, so a test can name what it expects:
  *
@@ -23,6 +26,8 @@
  * The one person in two organisations (Lerato Mokoena) is deliberate: one user account, a
  * profile in each.
  */
+
+import { fixtureDay } from './fixtureCalendar';
 
 /** The password of every fixture account. */
 export const FIXTURE_PASSWORD = 'Test1234!';
@@ -119,7 +124,7 @@ export interface FixtureTeamStaff {
 /**
  * A game one of the organisation's teams plays, in an event of its own (a single match, as the
  * app makes them). Loaded after every organisation, since the other side is another one's team.
- * Dates are fixed, like everything here, so "upcoming" games stay Scheduled after their day.
+ * Dated in weeks from the fixture anchor (`fixtureDay`), so a Scheduled game is always still to come.
  */
 export interface FixtureGame {
     /** Unique within the organisation; part of the event, game and participant ids. */
@@ -132,9 +137,11 @@ export interface FixtureGame {
     opponent: { org: string; team: string };
     /** At this organisation's site, and this team listed first; otherwise the opponent hosts. */
     home: boolean;
-    /** Kick-off, an instant. */
-    kickoff: string;
-    /** The kick-off time is not set yet (noon venue time, as the app stores it). */
+    /** The day it is played, a calendar date — `fixtureDay(week)`. */
+    day: string;
+    /** Kick-off in venue time, `HH:MM`; the loader makes it an instant. */
+    time: string;
+    /** The kick-off time is not set yet: give `time` as 12:00, noon venue time, as the app stores it. */
     timeTbd?: boolean;
     status: 'Scheduled' | 'Finished' | 'Cancelled';
     /** This team's score, then the opponent's. */
@@ -323,25 +330,26 @@ export const TEST_ORGS: FixtureOrg[] = [
             { team: 'rugby-u16a', name: 'Marelize Coetzee', role: 'role-assistant-coach' },
         ],
         // U16 A's season, for the team page's Games card: wins, a draw, a loss, a result recorded
-        // as not provided, a cancelled game, and three to come — one with its time not set.
+        // as not provided, a cancelled game, and three to come on the next three Saturdays — one with
+        // its time not set.
         games: [
             // Team sheets for the first four league rounds, and match events for three of them: the
             // team page's player statistics (2026-10-22) — Dian Ferreira tops the tries.
-            { key: 'u16a-r1', event: 'Winter league round 1', team: 'rugby-u16a', opponent: { org: 'sac', team: 'rugby-u16a' }, home: true, kickoff: '2026-08-15T08:00:00Z', status: 'Finished', score: [21, 10],
+            { key: 'u16a-r1', event: 'Winter league round 1', team: 'rugby-u16a', opponent: { org: 'sac', team: 'rugby-u16a' }, home: true, day: fixtureDay(-9), time: '10:00', status: 'Finished', score: [21, 10],
               sheet: true, events: [
                 { player: 'Dian Ferreira', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
                 { player: 'Lwazi Ndlovu', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
                 { player: 'Bernard Visser', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
               ] },
-            { key: 'u16a-r2', event: 'Winter league round 2', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: false, kickoff: '2026-08-22T08:30:00Z', status: 'Finished', score: [14, 14],
+            { key: 'u16a-r2', event: 'Winter league round 2', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: false, day: fixtureDay(-8), time: '10:30', status: 'Finished', score: [14, 14],
               sheet: true, events: [
                 { player: 'Dian Ferreira', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
                 { player: 'Neo Mahlangu', kind: 'yellow_card' },
                 { player: 'Marco du Plessis', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
               ] },
-            { key: 'u16a-r3', event: 'Winter league round 3', team: 'rugby-u16a', opponent: { org: 'ksc', team: 'rugby-u16' }, home: true, kickoff: '2026-08-29T08:00:00Z', status: 'Finished', score: [7, 19], sheet: true },
-            { key: 'u16a-friendly', event: 'Friendly', team: 'rugby-u16a', opponent: { org: 'sac', team: 'rugby-u16a' }, home: false, kickoff: '2026-09-05T08:00:00Z', status: 'Finished', scoreNotProvided: true },
-            { key: 'u16a-r4', event: 'Winter league round 4', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: true, kickoff: '2026-09-12T08:00:00Z', status: 'Finished', score: [31, 5],
+            { key: 'u16a-r3', event: 'Winter league round 3', team: 'rugby-u16a', opponent: { org: 'ksc', team: 'rugby-u16' }, home: true, day: fixtureDay(-7), time: '10:00', status: 'Finished', score: [7, 19], sheet: true },
+            { key: 'u16a-friendly', event: 'Friendly', team: 'rugby-u16a', opponent: { org: 'sac', team: 'rugby-u16a' }, home: false, day: fixtureDay(-6), time: '10:00', status: 'Finished', scoreNotProvided: true },
+            { key: 'u16a-r4', event: 'Winter league round 4', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: true, day: fixtureDay(-5), time: '10:00', status: 'Finished', score: [31, 5],
               sheet: true, events: [
                 { player: 'Dian Ferreira', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
                 { player: 'Lwazi Ndlovu', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'missed_conversion' },
@@ -349,10 +357,10 @@ export const TEST_ORGS: FixtureOrg[] = [
                 { player: 'Hanro Smit', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'missed_conversion' },
                 { player: 'Stefan Engelbrecht', kind: 'try' }, { player: 'Kagiso Sithole', kind: 'conversion' },
               ] },
-            { key: 'u16a-r5', event: 'Winter league round 5', team: 'rugby-u16a', opponent: { org: 'ksc', team: 'rugby-u16' }, home: false, kickoff: '2026-09-19T08:00:00Z', status: 'Cancelled' },
-            { key: 'u16a-r6', event: 'Winter league round 6', team: 'rugby-u16a', opponent: { org: 'sac', team: 'rugby-u16a' }, home: true, kickoff: '2026-10-10T07:00:00Z', status: 'Scheduled' },
-            { key: 'u16a-r7', event: 'Winter league round 7', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: false, kickoff: '2026-10-17T08:30:00Z', status: 'Scheduled' },
-            { key: 'u16a-r8', event: 'Winter league round 8', team: 'rugby-u16a', opponent: { org: 'ksc', team: 'rugby-u16' }, home: true, kickoff: '2026-10-24T10:00:00Z', timeTbd: true, status: 'Scheduled' },
+            { key: 'u16a-r5', event: 'Winter league round 5', team: 'rugby-u16a', opponent: { org: 'ksc', team: 'rugby-u16' }, home: false, day: fixtureDay(-4), time: '10:00', status: 'Cancelled' },
+            { key: 'u16a-r6', event: 'Winter league round 6', team: 'rugby-u16a', opponent: { org: 'sac', team: 'rugby-u16a' }, home: true, day: fixtureDay(1), time: '09:00', status: 'Scheduled' },
+            { key: 'u16a-r7', event: 'Winter league round 7', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: false, day: fixtureDay(2), time: '10:30', status: 'Scheduled' },
+            { key: 'u16a-r8', event: 'Winter league round 8', team: 'rugby-u16a', opponent: { org: 'ksc', team: 'rugby-u16' }, home: true, day: fixtureDay(3), time: '12:00', timeTbd: true, status: 'Scheduled' },
         ],
         members: [
             // An adult with a guardian: a *dependant* (docs/people.md §4). The app treats him as a
@@ -664,6 +672,24 @@ export interface FixtureTournament {
 }
 
 /**
+ * Each tournament's playing days, in weeks from the fixture anchor (`fixtureCalendar.ts`), for the
+ * tournaments below and for tests that name a day: three played on the last three Saturdays, two to
+ * come five to seven weeks out.
+ */
+export const TOURNAMENT_DAYS = {
+    /** *Test Autumn Festival*: three Saturdays back. */
+    autumn: [fixtureDay(-2)],
+    /** *Test Head to Head*: two Saturdays back. */
+    h2h: [fixtureDay(-1)],
+    /** *Test Netball Pairs Day*: the last Saturday. */
+    pairs: [fixtureDay(0)],
+    /** *Test Spring Festival*: a Saturday and the Sunday after it, five weeks on. */
+    spring: [fixtureDay(5), fixtureDay(5, 1)],
+    /** *Test Saturday Fixtures*: the two Saturdays after that. */
+    saturday: [fixtureDay(6), fixtureDay(7)],
+};
+
+/**
  * *Test Spring Festival*: Doringkloof hosting, St Aldric's accepted, Riverbend invited, Kwaggafontein
  * added but not invited yet. Between them its divisions hold every answer:
  *
@@ -678,9 +704,9 @@ export interface FixtureTournament {
  */
 export const TEST_TOURNAMENTS: FixtureTournament[] = [
     {
-        key: 'spring', name: 'Test Spring Festival', host: 'dkl', startDate: '2026-11-21', endDate: '2026-11-22',
+        key: 'spring', name: 'Test Spring Festival', host: 'dkl', startDate: TOURNAMENT_DAYS.spring[0], endDate: TOURNAMENT_DAYS.spring[1],
         // Phase 7: its days, facilities and gaps — set up, not drawn, so its entries stay as above.
-        days: [{ day: '2026-11-21', dayStarts: '08:00', dayEnds: '14:00' }, { day: '2026-11-22', dayStarts: '08:00', dayEnds: '12:00' }],
+        days: [{ day: TOURNAMENT_DAYS.spring[0], dayStarts: '08:00', dayEnds: '14:00' }, { day: TOURNAMENT_DAYS.spring[1], dayStarts: '08:00', dayEnds: '12:00' }],
         facilities: ['a-field', 'b-field', 'a-field-1', 'a-field-2', 'court-1', 'court-2', 'court-3'],
         gapBetweenGamesMin: 5, minTeamBreakMin: 10,
         sportIds: ['rugby', 'netball'], orgsMayAddTeams: true,
@@ -732,8 +758,8 @@ export const TEST_TOURNAMENTS: FixtureTournament[] = [
      * - One Netball U16 fixture left without a time, for the tray.
      */
     {
-        key: 'saturday', name: 'Test Saturday Fixtures', host: 'dkl', startDate: '2026-11-28', endDate: '2026-12-05',
-        days: [{ day: '2026-11-28', dayStarts: '08:00', dayEnds: '13:00' }, { day: '2026-12-05', dayStarts: '08:00', dayEnds: '12:00' }],
+        key: 'saturday', name: 'Test Saturday Fixtures', host: 'dkl', startDate: TOURNAMENT_DAYS.saturday[0], endDate: TOURNAMENT_DAYS.saturday[1],
+        days: [{ day: TOURNAMENT_DAYS.saturday[0], dayStarts: '08:00', dayEnds: '13:00' }, { day: TOURNAMENT_DAYS.saturday[1], dayStarts: '08:00', dayEnds: '12:00' }],
         facilities: ['a-field', 'a-field-1', 'a-field-2', 'court-1', 'court-2', 'court-3'],
         gapBetweenGamesMin: 5, minTeamBreakMin: 10,
         sportIds: ['rugby', 'netball'], orgsMayAddTeams: false,
@@ -792,8 +818,8 @@ export const TEST_TOURNAMENTS: FixtureTournament[] = [
      * - **Netball U16**: drawn, nothing played; Kwaggafontein's U16 Comets withdrew after the draw.
      */
     {
-        key: 'autumn', name: 'Test Autumn Festival', host: 'dkl', startDate: '2026-10-03', endDate: '2026-10-03',
-        days: [{ day: '2026-10-03', dayStarts: '08:00', dayEnds: '15:00' }],
+        key: 'autumn', name: 'Test Autumn Festival', host: 'dkl', startDate: TOURNAMENT_DAYS.autumn[0], endDate: TOURNAMENT_DAYS.autumn[0],
+        days: [{ day: TOURNAMENT_DAYS.autumn[0], dayStarts: '08:00', dayEnds: '15:00' }],
         facilities: ['a-field-1', 'a-field-2', 'court-1', 'court-2', 'court-3'],
         gapBetweenGamesMin: 5, minTeamBreakMin: 10,
         sportIds: ['netball', 'rugby'], orgsMayAddTeams: false,
@@ -843,8 +869,8 @@ export const TEST_TOURNAMENTS: FixtureTournament[] = [
      * netball U19 had nobody to play.
      */
     {
-        key: 'h2h', name: 'Test Head to Head', format: 'Dual', host: 'dkl', startDate: '2026-10-10', endDate: '2026-10-10',
-        days: [{ day: '2026-10-10', dayStarts: '08:00', dayEnds: '13:00' }],
+        key: 'h2h', name: 'Test Head to Head', format: 'Dual', host: 'dkl', startDate: TOURNAMENT_DAYS.h2h[0], endDate: TOURNAMENT_DAYS.h2h[0],
+        days: [{ day: TOURNAMENT_DAYS.h2h[0], dayStarts: '08:00', dayEnds: '13:00' }],
         facilities: ['a-field', 'court-1', 'court-2'],
         sportIds: ['rugby', 'netball'], orgsMayAddTeams: false,
         orgs: [{ org: 'sac', invitation: 'accepted', by: 'Catherine Whitfield' }],
@@ -883,8 +909,8 @@ export const TEST_TOURNAMENTS: FixtureTournament[] = [
      * Doringkloof wins it, a point ahead of Kwaggafontein, with one game drawn.
      */
     {
-        key: 'pairs', name: 'Test Netball Pairs Day', host: 'dkl', startDate: '2026-10-17', endDate: '2026-10-17',
-        days: [{ day: '2026-10-17', dayStarts: '08:00', dayEnds: '12:00' }],
+        key: 'pairs', name: 'Test Netball Pairs Day', host: 'dkl', startDate: TOURNAMENT_DAYS.pairs[0], endDate: TOURNAMENT_DAYS.pairs[0],
+        days: [{ day: TOURNAMENT_DAYS.pairs[0], dayStarts: '08:00', dayEnds: '12:00' }],
         facilities: ['court-1', 'court-2', 'court-3'],
         sportIds: ['netball'], orgsMayAddTeams: false,
         orgs: [

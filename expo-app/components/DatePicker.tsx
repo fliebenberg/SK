@@ -13,6 +13,8 @@ interface DatePickerProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** What a screen reader calls the field — the label shown beside it. */
+  accessibilityLabel?: string;
 }
 
 /*
@@ -21,7 +23,7 @@ interface DatePickerProps {
   read off in local time (date-formatting skill).
 */
 
-export default function DatePicker({ value, onChange, placeholder }: DatePickerProps) {
+export default function DatePicker({ value, onChange, placeholder, accessibilityLabel }: DatePickerProps) {
   const isDark = useActiveTheme() === 'dark';
   const [showPicker, setShowPicker] = useState(false);
   // iOS only: the date being browsed in the modal before the user taps Done.
@@ -56,6 +58,7 @@ export default function DatePicker({ value, onChange, placeholder }: DatePickerP
       <TextInput
         value={value}
         onChangeText={onChange}
+        accessibilityLabel={accessibilityLabel}
         placeholder={placeholder || 'YYYY-MM-DD'}
         placeholderTextColor={themeColor(isDark, 'ink-muted')}
         className="flex-1 px-4 font-inter text-sm text-ink"
