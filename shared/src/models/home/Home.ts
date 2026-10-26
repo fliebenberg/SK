@@ -103,6 +103,23 @@ export interface ApproximateLocation {
   label: string;
 }
 
+/**
+ * `get_data { type: 'place_name', near }`: the name of the place at a position, or `null` when
+ * nothing is near enough to name. From the server's own place list (`HOME-4`), not a map service.
+ */
+export interface PlaceName {
+  /** The suburb with its town, or the town — "Doringkloof, Centurion". */
+  label: string;
+}
+
+/** One answer of `get_data { type: 'place_search', query, near? }`: a town or suburb. */
+export interface PlaceMatch {
+  name: string;
+  /** Where it is — "Centurion, Gauteng" for a suburb, "Gauteng" for a town. */
+  context: string;
+  near: ViewerPosition;
+}
+
 /** One of the signed-in viewer's organisations, for *My organisations & teams*. */
 export interface MyHomeOrganization {
   id: string;

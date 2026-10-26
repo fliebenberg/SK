@@ -20,7 +20,8 @@
     "gen:action-schemas": "node scripts/gen-action-schemas.js",
     "check:action-schemas": "node scripts/check-action-schemas.js",
     "assets:migrate": "ts-node src/scripts/migrate-asset-layout.ts",
-    "assets:audit": "ts-node src/scripts/audit-assets.ts"
+    "assets:audit": "ts-node src/scripts/audit-assets.ts",
+    "places:build": "ts-node src/scripts/build-places.ts"
   },
   "dependencies": {
     "@sk/shared": "file:../shared",

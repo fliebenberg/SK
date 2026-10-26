@@ -30,11 +30,15 @@ test.describe('Home, logged out', () => {
     await expect(page).toHaveURL(/\/teams\/fx-team-dkl-/);
   });
 
-  test('Set my location offers the device or a typed place', async ({ page }) => {
+  test('Set my location offers the device, or a town or suburb from our own place list', async ({ page }) => {
     await page.goto('/');
     await visible(page, 'Set my location').click();
     await expect(visible(page, 'Use my location')).toBeVisible();
-    await expect(page.getByPlaceholder('Type a town or address')).toBeVisible();
+    await page.getByPlaceholder('Type a town or suburb').fill('doringk');
+    await expect(visible(page, 'Centurion, Gauteng')).toBeVisible();
+    await visible(page, 'Doringkloof').click();
+    await expect(visible(page, 'Near Doringkloof')).toBeVisible();
+    await expect(visible(page, 'The place you chose · within 25 km')).toBeVisible();
   });
 });
 
@@ -44,6 +48,8 @@ test.describe('Home, with location allowed', () => {
   test('looks where the device is and lists the organisations near it, closest first @phone', async ({ page }) => {
     await page.goto('/');
     await expect(visible(page, 'From this device · within 25 km')).toBeVisible();
+    // Named from the server's place list, on web as on the phones.
+    await expect(visible(page, /^Near .+, Centurion$/)).toBeVisible();
     await expect(visible(page, 'Organisations near you')).toBeVisible();
     await expect(visible(page, 'Test Hoërskool Doringkloof')).toBeVisible();
     // Riverbend is in Pietermaritzburg, far outside 25 km.

@@ -35,3 +35,6 @@ e2e/.run.lock
 e2e/.run.lock.mutex
 e2e/report/
 e2e/shots/
+
+# MaxMind GeoLite2 databases (HOME-4): licensed per account, downloaded, never committed
+*.mmdb

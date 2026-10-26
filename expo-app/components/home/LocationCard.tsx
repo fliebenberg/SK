@@ -1,12 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { HOME_RADIUS_KM } from '@sk/shared';
+import { HOME_RADIUS_KM, PlaceMatch } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
 import { TEXT_INPUT } from '../formStyles';
-import { PlaceSuggestion, PlacesSession } from '../../services/places';
+import { useSocketQuery } from '../../hooks/useSocketQuery';
 import { DevicePermission, canOpenSettings, openAppSettings } from '../../services/location';
 import type { HomeLocation } from '../../hooks/useHome';
 
@@ -61,8 +61,11 @@ export function LocationCard({ location, resolving, onSet }: {
 }
 
 /**
- * *Set my location*: the device's position, or a town or address typed in. A typed place stays
+ * *Set my location*: the device's position, or a town or suburb typed in. A typed place stays
  * until *Use my location* is chosen again, so it is never overwritten by the device moving.
+ *
+ * The search asks the server's own list of towns and suburbs (`place_search`, `HOME-4`), not a map
+ * service, so it costs nothing per keystroke; Home needs no more than a suburb.
  */
 export function SetLocationDialog({ visible, onClose, location, permission, locating, onUseMyLocation, onChoosePlace }: {
   visible: boolean;
@@ -75,52 +78,32 @@ export function SetLocationDialog({ visible, onClose, location, permission, loca
 }) {
   const isDark = useActiveTheme() === 'dark';
   const [query, setQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [settled, setSettled] = useState('');
   const [refused, setRefused] = useState<DevicePermission | null>(null);
-  const session = useRef(new PlacesSession());
 
   useEffect(() => {
     if (!visible) {
       setQuery('');
-      setSuggestions([]);
-      setProblem(null);
+      setSettled('');
       setRefused(null);
     }
   }, [visible]);
 
-  // Suggestions as you type, as the address input does, from three letters.
+  // Suggestions as you type, a quarter of a second after the last keystroke, from two letters.
   useEffect(() => {
-    const text = query.trim();
-    if (text.length < 3) {
-      setSuggestions([]);
-      return;
-    }
-    let cancelled = false;
-    const handle = setTimeout(() => {
-      setSearching(true);
-      session.current.suggest(text)
-        .then(found => { if (!cancelled) { setSuggestions(found); setProblem(null); } })
-        .catch(() => { if (!cancelled) { setSuggestions([]); setProblem('The place search is not responding. Try again in a moment.'); } })
-        .finally(() => { if (!cancelled) setSearching(false); });
-    }, 400);
-    return () => { cancelled = true; clearTimeout(handle); };
+    const handle = setTimeout(() => setSettled(query.trim()), 250);
+    return () => clearTimeout(handle);
   }, [query]);
+  const enabled = visible && settled.length >= 2;
+  const { data, isLoading, error } = useSocketQuery<PlaceMatch[]>(
+    'place_search', { query: settled, near: location?.near ?? null }, { enabled, suppressToast: true }
+  );
+  const suggestions = enabled && Array.isArray(data) ? data : [];
+  const searching = enabled && (isLoading || settled !== query.trim());
 
-  const pick = (s: PlaceSuggestion) => {
-    setSearching(true);
-    session.current.details(s.placeId)
-      .then(place => {
-        if (typeof place.latitude !== 'number' || typeof place.longitude !== 'number') {
-          setProblem('That place has no position on the map. Try a town or a nearby street.');
-          return;
-        }
-        onChoosePlace({ lat: place.latitude, lng: place.longitude }, s.main);
-        onClose();
-      })
-      .catch(() => setProblem('That place could not be looked up. Try again.'))
-      .finally(() => setSearching(false));
+  const pick = (match: PlaceMatch) => {
+    onChoosePlace(match.near, match.name);
+    onClose();
   };
 
   const useMine = async () => {
@@ -157,10 +140,10 @@ export function SetLocationDialog({ visible, onClose, location, permission, loca
           <View className="rounded-xl bg-warning-soft px-3 py-2.5">
             <Text className="font-inter text-[13px] text-warning-ink leading-5">
               {shownRefusal === 'unavailable'
-                ? 'This device could not say where it is. Type a town or address below instead.'
+                ? 'This device could not say where it is. Type a town or suburb below instead.'
                 : canOpenSettings
-                ? 'Location is turned off for ScoreKeeper. Turn it on in Settings, or type a town or address below.'
-                : 'Location is blocked for ScoreKeeper in this browser. Allow it in the site settings, or type a town or address below.'}
+                ? 'Location is turned off for ScoreKeeper. Turn it on in Settings, or type a town or suburb below.'
+                : 'Location is blocked for ScoreKeeper in this browser. Allow it in the site settings, or type a town or suburb below.'}
             </Text>
             {shownRefusal === 'blocked' && canOpenSettings ? (
               <TouchableOpacity onPress={openAppSettings} accessibilityRole="button" className="mt-1.5">
@@ -181,11 +164,11 @@ export function SetLocationDialog({ visible, onClose, location, permission, loca
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Type a town or address"
+            placeholder="Type a town or suburb"
             placeholderTextColor={themeColor(isDark, 'ink-muted')}
             autoCorrect={false}
             className="flex-1 font-inter text-base text-ink outline-none"
-            accessibilityLabel="Type a town or address"
+            accessibilityLabel="Type a town or suburb"
           />
           {searching ? <ActivityIndicator size="small" color={themeColor(isDark, 'ink-muted')} /> : null}
         </View>
@@ -193,18 +176,22 @@ export function SetLocationDialog({ visible, onClose, location, permission, loca
           <View className="rounded-xl border border-line overflow-hidden">
             {suggestions.map((s, i) => (
               <TouchableOpacity
-                key={s.placeId}
+                key={`${s.name}|${s.context}`}
                 onPress={() => pick(s)}
                 accessibilityRole="button"
                 className={`px-3 py-2.5 bg-card ${i > 0 ? 'border-t border-line' : ''}`}
               >
-                <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{s.main}</Text>
-                {s.secondary ? <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{s.secondary}</Text> : null}
+                <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{s.name}</Text>
+                {s.context ? <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{s.context}</Text> : null}
               </TouchableOpacity>
             ))}
           </View>
+        ) : enabled && !searching ? (
+          error || !Array.isArray(data)
+            ? <Text className="font-inter text-[13px] text-danger-ink">The place search is not responding. Try again in a moment.</Text>
+            : <Text className="font-inter text-[13px] text-ink-muted">No town or suburb by that name.</Text>
         ) : null}
-        {problem ? <Text className="font-inter text-[13px] text-danger-ink">{problem}</Text> : null}
+        <Text className="font-inter text-[11px] text-ink-faint">Place names © OpenStreetMap contributors and GeoNames</Text>
       </View>
     </EditDialog>
   );

@@ -43,6 +43,7 @@ import { tournamentManager } from './managers/TournamentManager';
 import { schedulingManager } from './managers/SchedulingManager';
 import { homeManager } from './managers/HomeManager';
 import { approximateLocation, clientAddress } from './services/approximateLocation';
+import { placeNameAt, searchPlaces } from './services/places';
 import { runIdempotent, BatchRefused, BatchFailed } from './wss/batch';
 import { enforceTournamentAction } from './wss/tournamentGate';
 import { payloadProblem } from './wss/actionPayloads';
@@ -1743,6 +1744,14 @@ io.on('connection', (socket) => {
                 break;
             case 'approximate_location':
                 callback(await approximateLocation(clientAddress(socket.handshake.headers['x-forwarded-for'], socket.handshake.address)));
+                break;
+            case 'place_name': {
+                const label = placeNameAt(request.near);
+                callback(label ? { label } : null);
+                break;
+            }
+            case 'place_search':
+                callback(searchPlaces(request.query, request.near));
                 break;
             case 'home_mine': {
                 const readerId = socket.data?.userId;

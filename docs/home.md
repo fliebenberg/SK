@@ -63,8 +63,10 @@ From top to bottom:
 Two lines in a card: *Your location* and where Home is looking ("Near Pretoria"), then how that was
 found and **Set my location** (**Change location** once one is set). Where Home looks is, in order:
 
-1. **A place the viewer typed** in the dialog (Google Places, the same search the address input uses).
-   It stays until they choose *Use my location* again, so the device moving never overwrites it.
+1. **A town or suburb the viewer typed** in the dialog, searched in our own place list
+   (`place_search`, below) — not Google, so a keystroke costs nothing. Home needs no more than a
+   suburb, so it offers no streets. It stays until they choose *Use my location* again, so the device
+   moving never overwrites it.
 2. **The device's position**, once the viewer has tapped *Use my location* and allowed it. Read again
    each time Home opens, in the foreground only — never in the background — and kept once it has
    moved a kilometre. Whether the phone or browser asks again is its own decision: iPhone's *Allow
@@ -82,15 +84,35 @@ loggers redact (`redactViewerPosition` in
 [socketLog.ts](file:///c:/Fred/Coding/SK/server/src/wss/socketLog.ts)); the server answers from it
 and keeps nothing.
 
+**Naming a place.** The device's position is named ("Near Doringkloof, Centurion") by the server
+from its own place list (`place_name`), on web and phones alike: the nearest suburb or village
+within 3 km — OpenStreetMap's when it has one, else GeoNames' — with the town a suburb belongs to;
+else the town that draws the position (a city or large town over a small one nearer by) within
+25 km. With no answer the card says *Your current location*. The name is asked once the connection
+is up, so a position read before it still gets one.
+
+**The place list.** South Africa's towns, villages and suburbs, about 18,000, in
+[server/data/places-za.json.gz](file:///c:/Fred/Coding/SK/server/data/places-za.json.gz), answered in
+memory by [services/places.ts](file:///c:/Fred/Coding/SK/server/src/services/places.ts) — no request
+leaves the server, so no map service sees a position and nothing is billed. Built by
+`npm run places:build` in `server/`
+([build-places.ts](file:///c:/Fred/Coding/SK/server/src/scripts/build-places.ts)) from two free
+sources: **OpenStreetMap** (ODbL), which knows the suburbs, through the Overpass API, and
+**GeoNames** (CC BY 4.0), which adds populations and provinces. The same name within 3 km is one
+place; a suburb's town is the one that draws it most. Rebuild from time to time to pick up new
+suburbs, and commit the file. Both licences ask for a credit where the names are shown: the
+dialog's *Place names © OpenStreetMap contributors and GeoNames*. Another country is a matter of
+running the build for it. **Never add to the list from Google's results** — the Maps Platform terms
+forbid building a mapping dataset from Google content. (Decided 2026-10-26, `HOME-4`, instead of
+Google's Geocoding API, which is billed per request.)
+
 **Setup.**
 - The approximate location needs a MaxMind GeoLite2 City database on the server: download
-  `GeoLite2-City.mmdb` (a free MaxMind account) and set `GEOIP_CITY_DB` to its path. Without it the
-  guess is off and Home asks the viewer instead. A developer's connection is local and has no answer
-  in it; `HOME_APPROX_LOCATION="-25.85,28.19,Pretoria"` stands in for one
+  `GeoLite2-City.mmdb` (a free MaxMind account) and set `GEOIP_CITY_DB` to its path
+  ([server/.env.example](file:///c:/Fred/Coding/SK/server/.env.example)); `*.mmdb` is kept out of
+  git. Without it the guess is off and Home asks the viewer instead. A developer's connection is
+  local and has no answer in it; `HOME_APPROX_LOCATION="-25.85,28.19,Pretoria"` stands in for one
   ([approximateLocation.ts](file:///c:/Fred/Coding/SK/server/src/services/approximateLocation.ts)).
-- On web, naming the device's position ("Near Doringkloof, Centurion") uses the **Geocoding API** on
-  the Maps key; without it the card says *Your current location*. Phones use their own platform's
-  lookup.
 - The phones' permission prompt reads the text set for `expo-location` in
   [app.json](file:///c:/Fred/Coding/SK/expo-app/app.json); it takes effect in the next native build.
 
@@ -114,6 +136,8 @@ next. Nobody else's can be asked for: `home_mine` answers for the signed-in call
 | `home_nearby` `{ near? }` | public | `HomeNearby`: games, tournaments and organisations, with distances |
 | `home_search` `{ query, near? }` | public | `HomeSearchResult` |
 | `approximate_location` | public | `ApproximateLocation` or `null` |
+| `place_name` `{ near }` | public | `PlaceName` (`{ label }`) or `null` |
+| `place_search` `{ query, near? }` | public | `PlaceMatch[]`: towns and suburbs, at most eight |
 | `home_mine` | signed in | `MyHome`, for the caller |
 
 The types are in [shared/src/models/home/Home.ts](file:///c:/Fred/Coding/SK/shared/src/models/home/Home.ts).

@@ -712,6 +712,16 @@ server's loggers redact and nothing stores; a `near` that is not two numbers in 
 *   **Access**: public.
 *   **Returns**: `ApproximateLocation` (`{ near, label }`) from the connection's address, or `null`.
 
+#### `get_data` — `{ type: 'place_name', near }`
+*   **Access**: public.
+*   **Returns**: `PlaceName` (`{ label }`, "Doringkloof, Centurion") for the position, from the
+    server's own place list (`HOME-4`), or `null` when nothing is near enough to name.
+
+#### `get_data` — `{ type: 'place_search', query, near? }`
+*   **Access**: public.
+*   **Returns**: `PlaceMatch[]` — towns and suburbs whose name, or a word of it, starts with the
+    query (two letters or more): `{ name, context, near }`, at most eight, bigger and closer first.
+
 #### `get_data` — `{ type: 'home_mine' }`
 *   **Access**: signed in; answers for the caller only.
 *   **Returns**: `MyHome` — the caller's organisations, each with its live game count, and teams,

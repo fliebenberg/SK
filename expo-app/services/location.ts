@@ -1,7 +1,7 @@
 import { Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
-import { ViewerPosition, roundViewerPosition } from '@sk/shared';
-import { webPlaceNameAt } from './places';
+import { PlaceName, ViewerPosition, roundViewerPosition } from '@sk/shared';
+import { wsService } from './websocket';
 
 /**
  * The device's position, for Home's *Use my location* (`HOME-1`, docs/home.md).
@@ -69,17 +69,17 @@ export async function askDevicePosition(): Promise<{ permission: DevicePermissio
   return { permission: position ? 'granted' : 'unavailable', position };
 }
 
-/** "Doringkloof, Centurion" for a position, or `null` when it has no name we can find. */
-export async function placeNameAt(position: ViewerPosition): Promise<string | null> {
-  try {
-    if (Platform.OS === 'web') return await webPlaceNameAt(position.lat, position.lng);
-    const [place] = await Location.reverseGeocodeAsync({ latitude: position.lat, longitude: position.lng });
-    if (!place) return null;
-    const suburb = place.district && place.district !== place.city ? place.district : null;
-    return [suburb, place.city].filter(Boolean).join(', ') || place.subregion || place.region || null;
-  } catch {
-    return null;
-  }
+/**
+ * "Doringkloof, Centurion" for a position, or `null` when it has no name we can find. Asked of the
+ * server's own place list (`HOME-4`) on every platform, so web and phones name a place alike and
+ * no map service sees the position.
+ */
+export function placeNameAt(position: ViewerPosition): Promise<string | null> {
+  return new Promise(resolve => {
+    wsService.emit('get_data', { type: 'place_name', near: roundViewerPosition(position) }, (res: PlaceName | null) => {
+      resolve(res && typeof res.label === 'string' ? res.label : null);
+    }, undefined, { suppressToast: true });
+  });
 }
 
 /** The phone's settings for this app, where a refused permission is turned back on. Not on web. */

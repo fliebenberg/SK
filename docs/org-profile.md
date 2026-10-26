@@ -52,7 +52,9 @@ The org's address uses the app's shared address input
 ([AddressInput](file:///c:/Fred/Coding/SK/expo-app/components/address/AddressInput.tsx)), which the
 site dialogs use too, so that the same kind of data is entered the same way everywhere:
 
-1. **Search** — suggestions from Google Places as you type.
+1. **Search** — suggestions from Google's Places API (New) as you type, from three letters and half a
+   second after the last keystroke; one search, ended by the pick, is billed as one details lookup
+   ([places.ts](file:///c:/Fred/Coding/SK/expo-app/services/places.ts), `VENUE-12`).
 2. **Picked** — the address as text, with *Change* and *Edit details*, and a map whose pin can be
    dragged onto the main entrance.
 3. **Enter it yourself** — unit or building (optional), street, suburb (optional), town, postal code

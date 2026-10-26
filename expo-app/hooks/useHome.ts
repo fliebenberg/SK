@@ -34,8 +34,7 @@ function isApproximateLocation(value: any): value is ApproximateLocation {
 
 /**
  * Looks up the name of the device's position and adds it, if the position is still the one in use
- * by the time the answer comes. On web this needs the Geocoding API on the Maps key; without it
- * the card says *Your current location*.
+ * by the time the answer comes. Without one the card says *Your current location*.
  */
 function nameDevicePosition(position: ViewerPosition) {
   void placeNameAt(position).then(label => {
@@ -79,11 +78,16 @@ export function useHomeLocation() {
       const moved = position && (!remembered || distanceKm(remembered.near, position) >= MOVED_KM);
       if (moved) setChosen({ source: 'device', near: position, label: null });
       setResolving(false);
-      // The place's name follows on its own, so the cards do not wait for it.
-      if (moved) nameDevicePosition(position);
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // The device's position gets its name on its own, so the cards do not wait for it — and once the
+  // connection is up, since the position is often read before it is.
+  const unnamed = isConnected && chosen?.source === 'device' && !chosen.label ? chosen.near : null;
+  useEffect(() => {
+    if (unnamed) nameDevicePosition(unnamed);
+  }, [unnamed?.lat, unnamed?.lng]);
 
   // The connection's rough location, asked once a visit, for a viewer who has set nothing.
   useEffect(() => {
@@ -101,7 +105,6 @@ export function useHomeLocation() {
       setPermission(answer);
       if (position) {
         useLocationStore.getState().setChosen({ source: 'device', near: position, label: null });
-        nameDevicePosition(position);
       }
       return answer;
     } finally {
