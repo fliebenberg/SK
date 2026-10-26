@@ -190,6 +190,23 @@ export function composeFullAddress(a: Partial<AddressDraft>): string {
     .join(', ');
 }
 
+/**
+ * The name of the place at a position — "Doringkloof, Centurion" — for Home's *Your location*
+ * (`HOME-1`). Web only, through the Maps JavaScript SDK's geocoder; the phones ask their own
+ * platform (`services/location.ts`). `null` when there is no answer.
+ */
+export async function webPlaceNameAt(lat: number, lng: number): Promise<string | null> {
+  if (Platform.OS !== 'web') return null;
+  const google = await loadGoogleMaps();
+  return new Promise(resolve => {
+    new google.maps.Geocoder().geocode({ location: { lat, lng } }, (results: any[], status: string) => {
+      if (status !== 'OK' || !Array.isArray(results) || !results.length) return resolve(null);
+      const place = parsePlace(results[0]);
+      resolve([place.addressLine2, place.city].filter(Boolean).join(', ') || place.province || null);
+    });
+  });
+}
+
 /** "Centurion, Gauteng" — the short form the profile banner shows. */
 export function addressLocality(a: Partial<Address> | null | undefined, includeProvince = true): string {
   if (!a) return '';

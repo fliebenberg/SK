@@ -53,6 +53,7 @@ The whole app moved onto the tokens on 2026-10-04, and `npm run check:colors -- 
 
 *   **Orbitron** (Geometric digital font): Used exclusively for numbers, scoreboards, match clocks, and the main app logo.
 *   **Inter / Roboto**: Used for all standard body text, participant rosters, and smaller UI labels.
+*   **Inter comes in four weights, each its own font class**: `font-inter` (400), `font-inter-medium` (500), `font-inter-semibold` (600, row titles and tags — the mockups' weight) and `font-inter-bold` (700). A class must name a family in [tailwind.config.js](file:///c:/Fred/Coding/SK/expo-app/tailwind.config.js) whose font [app/_layout.tsx](file:///c:/Fred/Coding/SK/expo-app/app/_layout.tsx) loads; anything else falls back to the system font at normal weight without an error. `npm run check:fonts` (pre-commit) enforces it (`UI-36`).
 
 ## Grid & Layouts
 

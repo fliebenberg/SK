@@ -164,7 +164,7 @@ export default function DeclineScreen() {
           <Button 
             title="Cancel" 
             variant="ghost" 
-            onPress={() => safeBack('/landing')} 
+            onPress={() => safeBack('/(tabs)')} 
             className="w-full mt-2"
           />
         </View>

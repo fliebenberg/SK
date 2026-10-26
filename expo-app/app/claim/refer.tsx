@@ -194,7 +194,7 @@ export default function ReferScreen() {
           <Button 
             title="Cancel" 
             variant="ghost" 
-            onPress={() => safeBack('/landing')} 
+            onPress={() => safeBack('/(tabs)')} 
             className="w-full"
           />
         </View>

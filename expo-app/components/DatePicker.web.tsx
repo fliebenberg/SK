@@ -28,7 +28,7 @@ export default function DatePicker({ value, onChange, accessibilityLabel }: Date
           background: 'transparent',
           border: 'none',
           color: themeColor(isDark, 'ink'),
-          fontFamily: 'Inter, System, sans-serif',
+          fontFamily: 'Inter_400Regular, System, sans-serif',
           fontSize: 14,
           outline: 'none',
           colorScheme: isDark ? 'dark' : 'light',

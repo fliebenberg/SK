@@ -41,6 +41,8 @@ import { broadcast, pushToSocket, setBroadcastIo } from './wss/broadcast';
 import { publishGameSummary, publishGameRemoved, captureFixtureRooms, publishEventToOrgs } from './wss/fixtures';
 import { tournamentManager } from './managers/TournamentManager';
 import { schedulingManager } from './managers/SchedulingManager';
+import { homeManager } from './managers/HomeManager';
+import { approximateLocation, clientAddress } from './services/approximateLocation';
 import { runIdempotent, BatchRefused, BatchFailed } from './wss/batch';
 import { enforceTournamentAction } from './wss/tournamentGate';
 import { payloadProblem } from './wss/actionPayloads';
@@ -65,7 +67,7 @@ import { sendMemberInvite } from './wss/memberInvite';
 import { guardianManager } from './managers/GuardianManager';
 import { peopleImportManager, PeopleImportEffects } from './managers/PeopleImportManager';
 import { publishPeopleImport } from './wss/peopleImport';
-import { attachSocketLogging } from './wss/socketLog';
+import { attachSocketLogging, redactViewerPosition } from './wss/socketLog';
 import {
   divisionFacilitiesRoom,
   divisionRoom,
@@ -1534,13 +1536,13 @@ io.on('connection', (socket) => {
       // try blocks that follow — so an emit with no request ended the process. Same defect as
       // `SOCK-1`, checked here for the same reason.
       if (!request || typeof request !== 'object') {
-        console.warn(`[Socket] Malformed get_data payload from ${socket.id}: ${JSON.stringify(request)}`);
+        console.warn(`[Socket] Malformed get_data payload from ${socket.id}: ${JSON.stringify(request, redactViewerPosition)}`);
         if (callback) callback({ status: 'error', error: 'BadRequest', message: 'Malformed request.' });
         return;
       }
 
       const { type, orgId, id, teamId } = request;
-      console.log(`Server: get_data requested: ${JSON.stringify(request)}`);
+      console.log(`Server: get_data requested: ${JSON.stringify(request, redactViewerPosition)}`);
 
       // `get_data` is the query half of the read boundary; rooms are the other.
       // Running log-only while the rules are shaken out: the decision is made and
@@ -1550,7 +1552,7 @@ io.on('connection', (socket) => {
         const decision = await canReadData(readerId, request);
         if (!decision.allowed) {
           console.warn(
-            `[DataAccess]${GET_DATA_ENFORCE ? ' REFUSED' : ' WOULD-REFUSE'} type=${type} user=${readerId} reason=${decision.reason} request=${JSON.stringify(request)}`
+            `[DataAccess]${GET_DATA_ENFORCE ? ' REFUSED' : ' WOULD-REFUSE'} type=${type} user=${readerId} reason=${decision.reason} request=${JSON.stringify(request, redactViewerPosition)}`
           );
           if (GET_DATA_ENFORCE) {
             if (callback) callback({ status: 'error', error: 'Unauthorized', message: 'You do not have permission to read this data.' });
@@ -1558,7 +1560,7 @@ io.on('connection', (socket) => {
           }
         }
       } catch (checkErr) {
-        console.error('[DataAccess] check failed for', JSON.stringify(request), checkErr);
+        console.error('[DataAccess] check failed for', JSON.stringify(request, redactViewerPosition), checkErr);
         if (GET_DATA_ENFORCE) {
           if (callback) callback({ status: 'error', error: 'Unauthorized', message: 'Permission check failed.' });
           return;
@@ -1731,6 +1733,22 @@ io.on('connection', (socket) => {
                 }
                 break;
 
+            // Home (`HOME-1`). The viewer's position arrives as `near`; it is used for this answer
+            // and not kept, and the log lines above redact it.
+            case 'home_nearby':
+                callback(await homeManager.getNearby(request.near));
+                break;
+            case 'home_search':
+                callback(await homeManager.search(request.query, request.near));
+                break;
+            case 'approximate_location':
+                callback(await approximateLocation(clientAddress(socket.handshake.headers['x-forwarded-for'], socket.handshake.address)));
+                break;
+            case 'home_mine': {
+                const readerId = socket.data?.userId;
+                callback(readerId && readerId !== 'anonymous' ? await homeManager.getMine(readerId) : { organizations: [], teams: [] });
+                break;
+            }
             case 'search_similar_orgs':
                 if (request.name) {
                     callback(await dataManager.searchSimilarOrganizations(request.name));
@@ -1953,7 +1971,7 @@ io.on('connection', (socket) => {
                 callback(settingsObj);
                 break;
             default:
-                console.error(`[get_data] ⚠️  UNHANDLED type: "${type}" — no case exists for this request. Full request:`, JSON.stringify(request));
+                console.error(`[get_data] ⚠️  UNHANDLED type: "${type}" — no case exists for this request. Full request:`, JSON.stringify(request, redactViewerPosition));
                 callback(null);
         }
         console.log(`Server: get_data completed. Type: ${type}`);

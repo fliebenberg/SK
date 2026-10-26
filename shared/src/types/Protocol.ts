@@ -1388,5 +1388,9 @@ export type GetDataRequest =
   // `sportId`/`divisionId` narrow the *gate*, not the results: they are the scopes that may appoint
   // without holding the event.
   | { type: 'organizer_candidates'; eventId: string; query: string; global?: boolean;
-      sportId?: string; divisionId?: string };
+      sportId?: string; divisionId?: string }
+  // Home (`HOME-1`). The viewer's position travels only as `near`, which the server never logs.
+  | { type: 'home_nearby'; near?: { lat: number; lng: number } | null }
+  | { type: 'home_search'; query: string; near?: { lat: number; lng: number } | null }
+  | { type: 'approximate_location' | 'home_mine' };
 

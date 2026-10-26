@@ -66,11 +66,21 @@ function passesFilter(...fields: (string | undefined)[]): boolean {
   return fields.some(field => field && field.toLowerCase().includes(filter));
 }
 
+/**
+ * A JSON replacer that blanks the viewer's position. Home sends it as `near` (`HOME-1`, and
+ * `ViewerPosition` in `@sk/shared`), and it is never written to a log — in either direction, since
+ * `approximate_location` answers with one too. Every line that serialises a socket message passes
+ * through this.
+ */
+export function redactViewerPosition(key: string, value: unknown): unknown {
+  return key === 'near' && value ? '<redacted>' : value;
+}
+
 /** `{...}` rendered small enough to sit on a log line, or a note saying why it could not be. */
 function renderPayload(data: unknown): string {
   if (data === undefined) return '';
   try {
-    const json = JSON.stringify(data);
+    const json = JSON.stringify(data, redactViewerPosition);
     if (json === undefined) return ' payload=<unserialisable>';
     const size = json.length;
     const body = size > MAX_PAYLOAD_CHARS ? `${json.slice(0, MAX_PAYLOAD_CHARS)}…` : json;

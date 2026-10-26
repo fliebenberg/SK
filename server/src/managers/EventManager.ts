@@ -118,6 +118,27 @@ export class EventManager extends BaseManager {
     return res.rows;
   }
 
+  /** Summaries of the games named, for Home (`HOME-1`), which picks them by distance first. */
+  async getGameSummariesByIds(gameIds: string[]): Promise<GameSummary[]> {
+    if (!gameIds.length) return [];
+    const res = await this.query(`SELECT ${this.GAME_SUMMARY_COLUMNS} FROM games g WHERE g.id = ANY($1)`, [gameIds]);
+    return res.rows;
+  }
+
+  /** Summaries of every game under the events named, in one read. */
+  async getGameSummariesByEvents(eventIds: string[]): Promise<GameSummary[]> {
+    if (!eventIds.length) return [];
+    const res = await this.query(`SELECT ${this.GAME_SUMMARY_COLUMNS} FROM games g WHERE g.event_id = ANY($1)`, [eventIds]);
+    return res.rows;
+  }
+
+  /** The events named, in the same projection as every other event read. */
+  async getEventsByIds(eventIds: string[]): Promise<Event[]> {
+    if (!eventIds.length) return [];
+    const res = await this.query(`SELECT ${this.EVENT_COLUMNS} FROM events WHERE id = ANY($1)`, [eventIds]);
+    return res.rows;
+  }
+
   /**
    * One stage's fixtures, in generated order — round, then position in the round.
    *

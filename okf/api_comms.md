@@ -8,7 +8,7 @@ tags:
   - WebSockets
   - real-time
   - sport-registry
-timestamp: 2026-09-24T12:00:00Z
+timestamp: 2026-10-23T12:00:00Z
 ---
 
 # API & Real-time WebSockets
@@ -86,7 +86,13 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
 5. **Centralized Error Toast Interception**:
    - REST API calls (`apiService`), WebSocket emissions (`wsService.emit`), and data queries (`useSocketQuery`) automatically intercept non-ok status, error responses, and timeouts, broadcasting user-friendly toast notifications via `useToastStore`.
    - To suppress automatic toast notifications on specific requests, callers pass `{ suppressToast: true }` in request options.
-6. **Uploaded Images** (`MEDIA-1`):
+6. **The viewer's position is never logged or stored** (`HOME-1`). Home sends it only as a field
+   named `near`, rounded to about a kilometre; `redactViewerPosition` in
+   [wss/socketLog.ts](file:///c:/Fred/Coding/SK/server/src/wss/socketLog.ts) blanks that field in every
+   line that serialises a socket message, in both directions. Any new read that takes a position uses
+   the same name. Why: a person's location is personal information (POPIA), and the server needs it
+   for one answer only. The reads are in [home.md](file:///c:/Fred/Coding/SK/docs/home.md).
+7. **Uploaded Images** (`MEDIA-1`):
    - **Rows store a base name (`logo-{id}-{ts}-{random}`), never a URL**, so the files can move without a data migration. The server reduces any image URL a client sends back to that name (`imageService.toStoredName`).
    - **Where files are kept and served from is server configuration** (`ASSET_STORAGE`, `ASSET_LOCAL_DIR`, `ASSET_BASE_URL`), explained in [assetStorage.ts](file:///c:/Fred/Coding/SK/server/src/services/assetStorage.ts). The server announces the base URL on `GET /api/client-config`, which the app reads before it renders, so moving images needs no app rebuild.
    - **Two areas: `public/` (org, league and season logos) and `secure/` (people's pictures).** The area comes from the column, never the name — `IMAGE_KINDS` in [ImageService.ts](file:///c:/Fred/Coding/SK/server/src/services/ImageService.ts) lists every image column; **add a new one there** or its files will be treated as unlinked. `secure/` needs an asset token ([assetAccess.ts](file:///c:/Fred/Coding/SK/server/src/services/assetAccess.ts)), returned by sign-in, sign-up and `/auth/me` and renewed on `/auth/asset-token`. The token proves only a session; *which* pictures a user can see follows from which unguessable names the server sends them, so no image may be exposed through a room or query its reader could not already see. Signed-out surfaces (link previews, emails) get public images only.

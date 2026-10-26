@@ -2,7 +2,7 @@
 #
 # ScoreKeeper pre-commit checks.
 #
-# Nine static checks that each exist because the thing they catch is invisible until much later:
+# Ten static checks that each exist because the thing they catch is invisible until much later:
 #
 #   check:actions     — a socket action sent outside `sendAction` interprets the reply on its own,
 #                       which is how the app came to have failures nobody saw (LIVE-19).
@@ -17,6 +17,9 @@
 #   check:colors      — a colour named by shade rather than purpose, or a class naming a shade that
 #                       does not exist, which applies no colour and is how fifty-one went unseen
 #                       (UI-24). Run with --strict: every colour must be a theme token.
+#   check:fonts       — a font class naming a family the Tailwind config does not define, or a font
+#                       the app does not load, which falls back to the system font at normal weight
+#                       and is how 156 semibold texts went unseen (UI-36).
 #   check:styles      — styling that silently misbehaves on a phone: `space-*` (works on web, does
 #                       nothing on a phone), `truncate`, NativeWind animations, a pseudo-class on a
 #                       plain View, `<Animated.*>` outside AnimatedBox (UI-2). Each rule was tested
@@ -56,5 +59,6 @@ run expo-app/scripts/check-actions.js
 run expo-app/scripts/check-images.js
 run expo-app/scripts/check-dates.js
 run expo-app/scripts/check-colors.js --strict
+run expo-app/scripts/check-fonts.js
 run expo-app/scripts/check-styles.js
 run expo-app/scripts/check-routes.js

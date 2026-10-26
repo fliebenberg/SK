@@ -40,7 +40,7 @@ export function BottomMenu({ onSettingsPress, confirmThenNavigate }: BottomMenuP
     if (segments.includes('settings')) {
       return 'settings';
     }
-    return 'live'; // Default to Live feed
+    return 'live'; // Default to Home
   };
 
   const activeTab = getActiveTab();
@@ -84,7 +84,7 @@ export function BottomMenu({ onSettingsPress, confirmThenNavigate }: BottomMenuP
         className="items-center justify-center flex-1"
       >
         <Ionicons 
-          name={activeTab === 'live' ? "pulse" : "pulse-outline"} 
+          name={activeTab === 'live' ? "home" : "home-outline"}
           size={22} 
           color={getIconColor('live')} 
         />
@@ -92,7 +92,7 @@ export function BottomMenu({ onSettingsPress, confirmThenNavigate }: BottomMenuP
           style={{ fontSize: 10, color: getTextColor('live'), fontFamily: 'Orbitron_700Bold' }} 
           className="mt-1"
         >
-          Live
+          Home
         </Text>
       </TouchableOpacity>
 

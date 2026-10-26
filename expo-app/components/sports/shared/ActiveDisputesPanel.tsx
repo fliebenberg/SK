@@ -47,7 +47,7 @@ function DisputeActionButton({
     >
       {active && (
         <View className="absolute -top-2.5 right-1.5 bg-card px-1.5 py-0.5 rounded-full border border-line shadow-sm">
-          <Text className="text-[8px] font-inter-black text-ink uppercase tracking-tighter">
+          <Text className="text-[8px] font-inter-bold text-ink uppercase tracking-tighter">
             Your Vote
           </Text>
         </View>
@@ -247,7 +247,7 @@ export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
               <View className="flex-1 flex-col">
                 <Text
                   numberOfLines={1}
-                  className="font-inter-black text-sm text-ink uppercase tracking-tight"
+                  className="font-inter-bold text-sm text-ink uppercase tracking-tight"
                 >
                   {eventLabel}
                 </Text>

@@ -61,7 +61,7 @@ export function ResponsiveHeader({ currentPath, showNav = false }: ResponsiveHea
                 ? 'text-primary-ink' 
                 : 'text-ink-muted hover:text-ink'
             }`}>
-              LIVE FEED
+              HOME
             </Text>
           </TouchableOpacity>
           <TouchableOpacity 

@@ -14,6 +14,7 @@ export * from './models/people/User';
 export * from './models/event/Event';
 export * from './models/event/Game';
 export * from './models/event/GameSummary';
+export * from './models/home/Home';
 export * from './models/event/GameEvent';
 export * from './models/event/GameOfficial';
 export * from './models/event/GameParticipant';

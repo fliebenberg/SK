@@ -8,21 +8,15 @@ import { useActiveTheme } from '../store/settingsStore';
 import { themeColor } from '../constants/Colors';
 export default function IndexGateway() {
   const isDark = useActiveTheme() === 'dark';
-  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const isHydrated = useAuthStore(state => state.isHydrated);
   const router = useRouter();
 
   useEffect(() => {
-    // Deciding before rehydration would flash the landing page at users who
-    // already have a stored session.
+    // Home is the same page for everyone (`HOME-1`), and shows the signed-out version until the
+    // stored session is read back — so wait for that rather than flash the hero at a member.
     if (!isHydrated) return;
-
-    if (isAuthenticated) {
-      router.replace('/(tabs)');
-    } else {
-      router.replace('/landing');
-    }
-  }, [isHydrated, isAuthenticated]);
+    router.replace('/(tabs)');
+  }, [isHydrated]);
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: themeColor(isDark, 'canvas') }}>

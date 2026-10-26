@@ -17,6 +17,7 @@
     "expo-font": "~55.0.8",
     "expo-image-manipulator": "~55.0.17",
     "expo-image-picker": "~55.0.20",
+    "expo-location": "~55.1.15",
     "expo-router": "~55.0.16",
     "expo-secure-store": "~55.0.14",
     "expo-sharing": "~55.0.24",
@@ -51,6 +52,7 @@
     "check:actions": "node scripts/check-actions.js",
     "check:dates": "node scripts/check-dates.js",
     "check:colors": "node scripts/check-colors.js",
+    "check:fonts": "node scripts/check-fonts.js",
     "check:images": "node scripts/check-images.js",
     "check:styles": "node scripts/check-styles.js",
     "check:routes": "node scripts/check-routes.js"

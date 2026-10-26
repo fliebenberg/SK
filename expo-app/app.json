@@ -10,7 +10,13 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "ScoreKeeper uses your location to show games, tournaments and organisations near you. It stays on your device."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -136,7 +136,7 @@ export function LeftNavigationRail() {
       items.push({ name: 'admin', label: 'Admin Portal', icon: 'shield-checkmark' as const, route: '/admin' });
     }
     items.push(
-      { name: 'index', label: 'Live Feed', icon: 'pulse' as const, route: '/' },
+      { name: 'index', label: 'Home', icon: 'home' as const, route: '/' },
     );
     // My Family, only for someone who is a guardian of at least one child (`MEMBER-3`).
     if (hasFamily) {

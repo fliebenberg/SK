@@ -292,6 +292,17 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
     organiserScope: (req: any) => ({ eventId: req.eventId, divisionId: req.divisionId }),
   },
 
+  // --- Home (`HOME-1`) -----------------------------------------------------
+  // What is on near the viewer, the search and the connection's rough location: public, signed in
+  // or not. Each answers only what the public pages already show — public events (`PUBLIC_EVENT`),
+  // organisations, active teams and sites.
+  home_nearby:          { standalone: 'public' },
+  home_search:          { standalone: 'public' },
+  approximate_location: { standalone: 'public' },
+  // The caller's own organisations and teams: the identity comes from the handshake and the request
+  // names no user, so there is no way to ask it about somebody else.
+  home_mine:            { standalone: 'authenticated' },
+
   // --- Reference data, no subject -----------------------------------------
   sports:               { standalone: 'public' },
   sport:                { standalone: 'public' },

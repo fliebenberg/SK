@@ -172,7 +172,7 @@ export default function SettingsScreen() {
 
   const handleLogout = () => {
     logout();
-    router.replace("/landing");
+    router.replace("/(tabs)");
   };
 
   const handleLogin = () => {

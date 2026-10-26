@@ -82,7 +82,7 @@ export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage }
     return (
       <AccessDenied
         message={deniedMessage || 'This area is restricted to platform administrators.'}
-        actionLabel="Back to Live Feed"
+        actionLabel="Back to Home"
         onAction={() => router.replace('/(tabs)' as any)}
       />
     );

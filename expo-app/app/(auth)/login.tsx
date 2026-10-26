@@ -162,7 +162,7 @@ export default function LoginScreen() {
               <Button 
                 title="Back to Home" 
                 variant="ghost" 
-                onPress={() => safeBack('/landing')}
+                onPress={() => safeBack('/(tabs)')}
               />
             </>
           )}

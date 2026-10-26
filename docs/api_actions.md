@@ -688,6 +688,35 @@ See [reports.md](reports.md) for the feature overview (producers, consumers, and
 *   **Payload**: `{ id }`
 *   **Logic**: Deletes a specific notification.
 
+### 9b. Home
+
+The Home page's reads (`HOME-1`, [home.md](file:///c:/Fred/Coding/SK/docs/home.md)). All are
+`get_data`, classified in [dataAccess.ts](file:///c:/Fred/Coding/SK/server/src/wss/dataAccess.ts), and
+answered by [HomeManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/HomeManager.ts). **The
+viewer's position travels only as `near`** (`{ lat, lng }`, rounded to two decimals), which the
+server's loggers redact and nothing stores; a `near` that is not two numbers in range is ignored.
+
+#### `get_data` — `{ type: 'home_nearby', near? }`
+*   **Access**: public.
+*   **Returns**: `HomeNearby` — single matches and tournaments on now or in the coming week, and
+    organisations, each with its distance; the closest few with `eventsBeyondRadius` /
+    `organizationsBeyondRadius` when nothing is within 25 km; the names of the sites and facilities
+    the rows mention. Without `near`, the same by time, and organisations by size.
+
+#### `get_data` — `{ type: 'home_search', query, near? }`
+*   **Access**: public.
+*   **Returns**: `HomeSearchResult` — organisations, active teams and sites matching every word,
+    anywhere, closest first, at most ten of each.
+
+#### `get_data` — `{ type: 'approximate_location' }`
+*   **Access**: public.
+*   **Returns**: `ApproximateLocation` (`{ near, label }`) from the connection's address, or `null`.
+
+#### `get_data` — `{ type: 'home_mine' }`
+*   **Access**: signed in; answers for the caller only.
+*   **Returns**: `MyHome` — the caller's organisations, each with its live game count, and teams,
+    each with the game it is playing now or plays next.
+
 ### 10. Tournaments
 
 Added by Phase 3. **Every action below goes through one gate**,

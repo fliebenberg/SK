@@ -33,6 +33,7 @@
     "express": "^4.21.2",
     "geo-tz": "^8.1.9",
     "jsonwebtoken": "^9.0.3",
+    "maxmind": "^5.0.7",
     "nodemailer": "^8.0.1",
     "pg": "^8.18.0",
     "sharp": "^0.34.5",

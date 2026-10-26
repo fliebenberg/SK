@@ -56,10 +56,10 @@ export default function TabLayout() {
       <Tabs.Screen 
         name="index" 
         options={{ 
-          headerTitle: 'LIVE FEED',
-          tabBarLabel: 'Live',
+          headerTitle: 'HOME',
+          tabBarLabel: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "pulse" : "pulse-outline"} size={22} color={color} />
+            <Ionicons name={focused ? "home" : "home-outline"} size={22} color={color} />
           )
         }} 
       />

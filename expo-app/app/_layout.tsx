@@ -13,7 +13,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { Orbitron_400Regular, Orbitron_700Bold } from '@expo-google-fonts/orbitron';
-import { Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { wsService } from '../services/websocket';
 import { loadAssetConfig } from '../services/assets';
 import { useWsStore } from '../store/wsStore';
@@ -36,6 +36,7 @@ export default function RootLayout() {
     Orbitron_700Bold,
     Inter_400Regular,
     Inter_500Medium,
+    Inter_600SemiBold,
     Inter_700Bold,
   });
 

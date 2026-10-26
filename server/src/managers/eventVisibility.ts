@@ -24,7 +24,14 @@
  */
 
 /** Statuses whose tournaments an organisation's public lists show. */
-export const LISTED = `('accepted', 'withdrawal_pending')`;
+/**
+ * Whether an event may be shown to the public on Home (`HOME-1`) — **a stand-in that passes every
+ * event** until the organisers can make a tournament public (`FIX-38`). Replace the body with the
+ * real check then; every public list that should honour it already calls this.
+ */
+export const PUBLIC_EVENT = (_eventAlias: string) => `TRUE`;
+
+export const LISTED =`('accepted', 'withdrawal_pending')`;
 
 /** Statuses whose members may read the tournament's rosters and members' rooms. */
 export const MEMBER_ACCESS = `('invited', 'accepted', 'withdrawal_pending')`;

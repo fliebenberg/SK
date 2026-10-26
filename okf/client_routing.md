@@ -34,10 +34,10 @@ Full description, including where Exit sits: [design_spec.md §2](file:///c:/Fre
 
 | Folder | Routes | Who |
 | --- | --- | --- |
-| `app/index.tsx`, `app/landing.tsx` | `/` and `/landing` | Anyone. `/` only decides where to go: the Live feed when signed in, `/landing` otherwise. |
+| `app/index.tsx`, `app/landing.tsx` | `/` and `/landing` | Anyone. `/` waits for the stored session and opens Home, the same page for everyone (`HOME-1`, [home.md](file:///c:/Fred/Coding/SK/docs/home.md)). `/landing` is the old signed-out page, kept only as Home's *What is ScoreKeeper?* until `HOME-2` replaces it. |
 | `app/(auth)/` | `/login`, `/signup`, `/forgot-password`, `/reset-password` | Anyone. A guarded screen sends a visitor to `/login` with a redirect back. |
 | `app/claim/` | `/claim`, `/claim/refer`, `/claim/decline` | Anyone holding an invitation to administer an org ([nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md)). |
-| `app/(tabs)/` | `/` (Live feed), `/organizations`, `/organizations/[orgId]`, `/teams`, `/teams/[teamId]`, `/sites`, `/sites/[siteId]`, `/family`, `/settings` | Anyone; the directories are public. `/family` and `/settings` show their content only when signed in. |
+| `app/(tabs)/` | `/` (Home), `/organizations`, `/organizations/[orgId]`, `/teams`, `/teams/[teamId]`, `/sites`, `/sites/[siteId]`, `/family`, `/settings` | Anyone; the directories are public. `/family` and `/settings` show their content only when signed in. |
 | `app/leagues/` | `/leagues/[leagueId]` | Anyone: a league's public page. |
 | `app/(tabs)/events/` | `/events/[eventId]` and the pages under it | Anyone, signed in or not: a tournament as the public sees it — read-only for everyone, an organiser included (`FIX-25`). |
 | `app/(tabs)/admin/` | `/admin`, `/admin/users`, `/admin/reports`, `/admin/sports` | **System admins only** (`AuthGuard requireGlobalAdmin` on the layout). `/admin/reports` is user moderation, not analytics, and still a mockup on hardcoded data ([reports.md](file:///c:/Fred/Coding/SK/docs/reports.md)). |
