@@ -380,9 +380,19 @@ export function LeftNavigationRail() {
           <Text className="font-orbitron-bold text-base text-primary-ink">SK</Text>
         </TouchableOpacity>
 
-        {/* Org Logo (If in Org Workspace) */}
+        {/* Org Logo (If in Org Workspace). The way out sits above it, where the open rail's
+            Exit link sits above the workspace card, so it does not jump when the rail opens. */}
         {navConfig.isOrg && (
           <View className="mb-5 items-center gap-1">
+            <TouchableOpacity
+              onPress={exitWorkspace}
+              className="w-10 h-8 rounded-xl items-center justify-center hover:bg-sunken"
+              accessibilityRole="button"
+              accessibilityLabel="Exit Workspace"
+              {...(Platform.OS === 'web' ? { title: 'Exit Workspace' } : {})}
+            >
+              <Ionicons name="arrow-back-outline" size={18} color={themeColor(isDark, 'primary')} />
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => confirmThenNavigate(() => router.push(`/admin/${orgId}` as any))}
               className="items-center justify-center active:opacity-85"
@@ -403,15 +413,6 @@ export function LeftNavigationRail() {
                   className="rounded-lg shadow-sm"
                 />
               </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={exitWorkspace}
-              className="w-10 h-8 rounded-xl items-center justify-center hover:bg-sunken"
-              accessibilityRole="button"
-              accessibilityLabel="Exit Workspace"
-              {...(Platform.OS === 'web' ? { title: 'Exit Workspace' } : {})}
-            >
-              <Ionicons name="arrow-back-outline" size={18} color={themeColor(isDark, 'primary')} />
             </TouchableOpacity>
           </View>
         )}
