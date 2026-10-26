@@ -160,7 +160,7 @@ Sports & divisions, then Organisations & teams, then the small cards — read in
 
 | Card | Holds | Edited in | Full page |
 |---|---|---|---|
-| Where | The base site and the facilities it uses, as chips; the map once set up | *Where* dialog (site + `FacilityPicker`) | — |
+| Where | The base site and the facilities it uses, as chips; the map once set up | *Where* dialog (site + `FacilityPicker`) | `…/map` — the map opens it (`VENUE-10`) |
 | Sports & divisions | One sport at a time (below) | *Sports* dialog; a division's own page | `…/sports` |
 | Organisations & teams | Warnings, who is not invited yet, then each organisation with its invitation and teams (below) | *Add organisations*; each organisation's page | `…/organisations` |
 | Rules & scoring | The scoring system — the points, or *No points* for wins / draws / losses; *Confirm* while the default is unconfirmed | *Rules & scoring* dialog | — |
@@ -489,6 +489,16 @@ task going to its coach or, with none, to the admin — and who may pick a side 
 > "the tournament's" until it sets its own. No section title names a facility type, since that word
 > is the sport's. *Edit details* keeps the division's own record: name, sport and age group.
 
+> **The full map (2026-10-26, `VENUE-10`).** The *Where* card's map, on the tournament page and on a
+> division's, opens **`…/events/[eventId]/map`** — public under `/events/[eventId]/map` like every
+> tournament page. It is the organisation's full map page
+> ([MapPage](file:///c:/Fred/Coding/SK/expo-app/components/address/MapPage.tsx)) with the base site's
+> pin, the facilities in play as markers and as chips on its card — a tap on one goes to it — and
+> opens zoomed to fit them all. From a division (`?division=<id>`) it shows only that division's
+> courts, or the tournament's when it has none ("Any of the tournament's"). Without a base-site pin
+> it draws the facilities alone. The *Where* maps themselves mark the same facilities — the
+> division's its own courts — and fit them all in, so the preview shows what the full map will.
+
 Agreed 2026-10-09 on `mockups/division-read-first.html`, **option A**: one page of cards, read
 first, at `events/[eventId]/divisions/[divisionId]`.
 
@@ -814,7 +824,7 @@ draw; `e2e/18-public-tournament.spec.ts` reads the pages logged out and signed i
 **The public organisation page (`UI-34`)**, designed the same day on `mockups/org-public-events.html`
 (option B) and `mockups/org-public-page.html` (option A). It is redone read-first: the workspace
 Profile's banner (logo, name and short code, type, town), then the tournament page's underlined tabs
-— **Overview** (*On now & next*, About, Address, Sports), **Teams** (by sport, each with its coach),
+— **Overview** (*On now & next*, About, Address — its map preview opens the full map, `/organizations/[orgId]/map` — Sports), **Teams** (by sport, each with its coach),
 **Fixtures**, **Sites** and **Leagues**.
 - **Fixtures is the organisation's Fixtures & Events list** (§1–4), read-only: the same rows,
   sections, *Events / All games*, *Upcoming / Past*, search and Filters, without *Mine / All* and

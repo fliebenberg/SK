@@ -6,6 +6,7 @@ export default function OrganizationsLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="[orgId]" />
+      <Stack.Screen name="[orgId]/map" />
     </Stack>
   );
 }

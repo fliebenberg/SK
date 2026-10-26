@@ -10,6 +10,7 @@ import { PageBody } from '../../../components/PageBody';
 import { OrgProfileBanner } from '../../../components/org/OrgProfileBanner';
 import { TournamentCard } from '../../../components/tournament/TournamentBits';
 import { AddressMap } from '../../../components/address/AddressMap';
+import { MapOverlay } from '../../../components/address/MapOverlay';
 import { AddressLines } from '../../../components/address/AddressInput';
 import { OrgEventsListView } from '../../admin/[orgId]/events/index';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
@@ -134,7 +135,12 @@ export default function PublicOrgPage() {
   const pin = hasPin(org.address) ? org.address : null;
   const addressCard = org.address ? (
     <TournamentCard title="Address">
-      {pin ? <AddressMap latitude={pin.latitude} longitude={pin.longitude} title={org.name} interactive={false} height={isWide ? 150 : 120} /> : null}
+      {pin ? (
+        <View>
+          <AddressMap latitude={pin.latitude} longitude={pin.longitude} title={org.name} interactive={false} height={isWide ? 150 : 120} />
+          <MapOverlay onPress={() => router.push(`/(tabs)/organizations/${orgId}/map` as any)} label="Open map" />
+        </View>
+      ) : null}
       <AddressLines address={org.address} />
       <View className="flex-row gap-2">
         <TouchableOpacity onPress={() => openDirections(pin, org.address?.fullAddress || '')} accessibilityRole="button" className="rounded-xl border border-line px-3.5 py-2">

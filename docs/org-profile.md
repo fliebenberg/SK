@@ -68,8 +68,16 @@ the name belongs on the organisation or site, not in its address.
 The full address is public: it is optional and can be typed by hand, so the org decides how much to
 give. On the Profile, the map preview (desktop) or thumbnail (phone) opens **`/admin/[orgId]/address`**
 ([address.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/address.tsx)): the pin on a
-full map, the address, **Directions** (handed to the phone's maps app) and **Copy address** (the
-clipboard on web, the share sheet on a phone).
+full map the reader can pan and zoom, the address, **Directions** (handed to the phone's maps app)
+and **Copy address** (the clipboard on web, the share sheet on a phone). The organisation's public
+page does the same: its Address card's preview opens **`/organizations/[orgId]/map`**
+([map.tsx](file:///c:/Fred/Coding/SK/expo-app/app/(tabs)/organizations/%5BorgId%5D/map.tsx)), the
+same page with its back link to the organisation. Both are
+[OrgAddressMapPage](file:///c:/Fred/Coding/SK/expo-app/components/address/OrgAddressMapPage.tsx), on
+the shared [MapPage](file:///c:/Fred/Coding/SK/expo-app/components/address/MapPage.tsx) that a
+tournament's map also uses (events.md, `VENUE-10`); a preview is opened by laying
+[MapOverlay](file:///c:/Fred/Coding/SK/expo-app/components/address/MapOverlay.tsx) over it, since
+the preview map itself takes no gestures.
 
 ## 4. Timezone and the address pin
 

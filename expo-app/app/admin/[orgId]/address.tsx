@@ -1,86 +1,11 @@
 import React from 'react';
-import { ActivityIndicator, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { ScreenHeader } from '../../../components/ScreenHeader';
-import { AddressMap } from '../../../components/address/AddressMap';
-import { AddressLines } from '../../../components/address/AddressInput';
-import { useOrgSummary } from '../../../hooks/useOrgSummary';
+import { OrgAddressMapPage } from '../../../components/address/OrgAddressMapPage';
 import { useSafeBack } from '../../../hooks/useSafeBack';
-import { hasPin } from '../../../services/places';
-import { copyText, openDirections as openDirectionsTo } from '../../../utils/share';
-import { useActiveTheme } from '../../../store/settingsStore';
-import { themeColor } from '../../../constants/Colors';
 
-/**
- * The org's address on a map, opened from the map on its Profile (docs/org-profile.md §3).
- *
- * Inside the app first, so looking at where something is does not leave ScoreKeeper; Directions
- * then hands over to the phone's maps app. Copy address uses the browser's clipboard on web; on a
- * phone it is the share sheet, which offers Copy along with the apps the address can go to — the
- * app has no clipboard library, and the share sheet needs none.
- */
+/** The org's address on a map, opened from the map on its Profile (docs/org-profile.md §3). */
 export default function OrgAddressMap() {
-  const isDark = useActiveTheme() === 'dark';
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const safeBack = useSafeBack();
-  const { org, isLoading } = useOrgSummary(orgId);
-  const address = org?.address || null;
-  const pin = hasPin(address) ? address : null;
-  const oneLine = address?.fullAddress || '';
-
-  const openDirections = () => openDirectionsTo(pin, oneLine);
-  const copyAddress = () => copyText(oneLine, 'The address');
-
-  return (
-    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
-      <ScreenHeader title="Map" backLabel="Profile" onBack={() => safeBack(`/admin/${orgId}/profile`)} />
-      {isLoading ? (
-        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /></View>
-      ) : !address ? (
-        <View className="flex-1 items-center justify-center p-6">
-          <Text className="font-inter text-sm text-ink-muted text-center">This organisation has no address yet.</Text>
-        </View>
-      ) : (
-        <View className="flex-1">
-          {pin ? (
-            <View className="flex-1">
-              <AddressMap latitude={pin.latitude} longitude={pin.longitude} title={org?.name} height="100%" />
-            </View>
-          ) : (
-            <View className="flex-1 items-center justify-center p-6">
-              <Text className="font-inter text-sm text-ink-muted text-center">This address has no pin on the map.</Text>
-            </View>
-          )}
-          <View className="absolute left-3 right-3 bottom-4 rounded-2xl bg-card border border-line p-4 gap-3 self-center w-full" style={{ maxWidth: 560 }}>
-            <View className="gap-1">
-              <Text className="font-inter-bold text-base text-ink">{org?.name}</Text>
-              <AddressLines address={address} muted />
-            </View>
-            <View className="flex-row gap-2">
-              <ActionButton icon="navigate" label="Directions" onPress={openDirections} primary />
-              <ActionButton icon={Platform.OS === 'web' ? 'copy-outline' : 'share-outline'} label="Copy address" onPress={copyAddress} />
-            </View>
-          </View>
-        </View>
-      )}
-    </SafeAreaView>
-  );
-}
-
-function ActionButton({ icon, label, onPress, primary }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; primary?: boolean }) {
-  const isDark = useActiveTheme() === 'dark';
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      accessibilityRole="button"
-      className={`flex-1 flex-row items-center justify-center gap-2 min-h-[44px] rounded-xl border ${
-        primary ? 'bg-primary border-primary' : 'border-line'
-      }`}
-    >
-      <Ionicons name={icon} size={16} color={themeColor(isDark, primary ? 'on-primary' : 'primary')} />
-      <Text className={`font-inter-bold text-sm ${primary ? 'text-on-primary' : 'text-ink-soft'}`}>{label}</Text>
-    </TouchableOpacity>
-  );
+  return <OrgAddressMapPage orgId={orgId} backLabel="Profile" onBack={() => safeBack(`/admin/${orgId}/profile`)} />;
 }

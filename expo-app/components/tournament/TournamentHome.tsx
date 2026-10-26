@@ -29,6 +29,7 @@ import { TodoCard, useTournamentTodo } from './TournamentTodo';
 import { SegmentedControl } from '../SegmentedControl';
 import { TournamentScopeLine, useTournamentScope } from './TournamentScope';
 import { AddressMap } from '../address/AddressMap';
+import { MapOverlay } from '../address/MapOverlay';
 import { facilityMarkers } from '../address/facilityMarker';
 import { FacilityIcon, addressText } from '../sites/SiteBits';
 import { FixtureSideFitted, RowTag, TournamentMark, fixtureSideNames, sideScores } from '../events/EventBits';
@@ -267,6 +268,7 @@ export function TournamentHome({
   const sportName = (id?: string | null) => sports.find(s => s.id === id)?.name || '';
   const site = sites.find(s => s.id === event.siteId) || null;
   const usedFacilities = facilities.filter(f => facilityIds.includes(f.id));
+  const whereMarkers = useMemo(() => facilityMarkers(usedFacilities, sports, isDark), [facilities, facilityIds, sports, isDark]); // eslint-disable-line react-hooks/exhaustive-deps
   const playing = divisions.filter(d => !!d.sportId);
   const gamesIn = (d: TournamentDivision) => games.filter(g => g.divisionId === d.id);
   const liveGames = games.filter(g => g.status === 'Live');
@@ -516,7 +518,10 @@ export function TournamentHome({
         {facilityChips}
         {/* The map is for the people coming: not while it is being set up. */}
         {!setupMode && site?.address?.latitude != null && site?.address?.longitude != null ? (
-          <AddressMap latitude={site.address.latitude} longitude={site.address.longitude} title={site.name} interactive={false} height={isWide ? 200 : 170} markers={facilityMarkers(usedFacilities, sports, isDark)} />
+          <View>
+            <AddressMap latitude={site.address.latitude} longitude={site.address.longitude} title={site.name} interactive={false} height={isWide ? 200 : 170} markers={whereMarkers} fitToMarkers />
+            <MapOverlay onPress={() => router.push(links.event(eventId, '/map'))} label="Open map" />
+          </View>
         ) : null}
       </View>
     </TournamentCard>

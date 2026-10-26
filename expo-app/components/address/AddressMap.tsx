@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Platform, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme, useSettingsStore } from '../../store/settingsStore';
@@ -51,6 +51,27 @@ export interface AddressMapProps {
    * facility's pin, which shows what the facility is while it is dragged (`VENUE-3`).
    */
   pinIcon?: { icon: string; color: string };
+  /** Draws no pin, only the markers — a tournament's facilities when its base site has no pin. */
+  hidePin?: boolean;
+  /**
+   * Opens zoomed to fit the pin and every marker rather than close in on the pin, so a large ground
+   * does not cut off its outer fields. Refits when the markers change, not when the reader pans.
+   */
+  fitToMarkers?: boolean;
+  /** Pixels at the bottom that something laid over the map covers — a card — kept clear when fitting. */
+  insetBottom?: number;
+  /** Pans and zooms to this point. A new `nonce` goes there again, after the reader has panned away. */
+  focus?: { latitude: number; longitude: number; nonce: number } | null;
+}
+
+/** The closest a fit or a focus zooms in, so one facility beside the pin is not a field of grass. */
+const MAX_FIT_ZOOM = 18;
+const FOCUS_DELTA = 0.0015;
+
+/** The margin a fit leaves around the markers: 48px on a full map, less on a small preview. */
+function fitPadding(mapHeight: number, insetBottom: number) {
+  const pad = Math.min(48, Math.round(mapHeight * 0.1));
+  return { top: pad, right: pad, bottom: insetBottom + pad, left: pad };
 }
 
 /**
@@ -60,7 +81,10 @@ export interface AddressMapProps {
  * Web draws it with the Maps JavaScript SDK (`services/places.ts` loads it), native with
  * react-native-maps. The map type follows the reader's saved preference.
  */
-export function AddressMap({ latitude, longitude, title, draggable = false, onPinMoved, interactive = true, height = 200, markers = NO_MARKERS, pinIcon }: AddressMapProps) {
+export function AddressMap({
+  latitude, longitude, title, draggable = false, onPinMoved, interactive = true, height = 200, markers = NO_MARKERS, pinIcon,
+  hidePin = false, fitToMarkers = false, insetBottom = 0, focus = null,
+}: AddressMapProps) {
   const isDark = useActiveTheme() === 'dark';
   const mapType = useSettingsStore((state: any) => state.getEffectivePreference('mapType') || 'standard');
 
@@ -78,9 +102,44 @@ export function AddressMap({ latitude, longitude, title, draggable = false, onPi
         markers={markers}
         pinIcon={pinIcon}
         isDark={isDark}
+        hidePin={hidePin}
+        fitToMarkers={fitToMarkers}
+        insetBottom={insetBottom}
+        focus={focus}
       />
     );
   }
+
+  return (
+    <NativeMap
+      latitude={latitude} longitude={longitude} title={title} draggable={draggable} onPinMoved={onPinMoved}
+      interactive={interactive} height={height} markers={markers} pinIcon={pinIcon} hidePin={hidePin}
+      fitToMarkers={fitToMarkers} insetBottom={insetBottom} focus={focus} mapType={mapType} isDark={isDark}
+    />
+  );
+}
+
+function NativeMap({
+  latitude, longitude, title, draggable, onPinMoved, interactive, height, markers, pinIcon, hidePin, fitToMarkers, insetBottom, focus, mapType, isDark,
+}: Required<Pick<AddressMapProps, 'latitude' | 'longitude' | 'draggable' | 'interactive' | 'height' | 'markers' | 'hidePin' | 'fitToMarkers' | 'insetBottom'>> &
+  Pick<AddressMapProps, 'title' | 'onPinMoved' | 'pinIcon' | 'focus'> & { mapType: string; isDark: boolean }) {
+  const mapRef = useRef<any>(null);
+  const region = useMemo(() => ({ latitude, longitude, latitudeDelta: 0.005, longitudeDelta: 0.005 }), [latitude, longitude]);
+
+  // A fitted map is left to the reader once it opens: `initialRegion`, then moved only by a fit or a focus.
+  const fit = () => {
+    if (!fitToMarkers || !mapRef.current) return;
+    const points = [...(hidePin ? [] : [{ latitude, longitude }]), ...markers.map(m => ({ latitude: m.latitude, longitude: m.longitude }))];
+    if (points.length > 1) {
+      mapRef.current.fitToCoordinates(points, { edgePadding: fitPadding(typeof height === 'number' ? height : 480, insetBottom), animated: false });
+    }
+  };
+  useEffect(fit, [markers, insetBottom]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (focus && mapRef.current) {
+      mapRef.current.animateToRegion({ latitude: focus.latitude, longitude: focus.longitude, latitudeDelta: FOCUS_DELTA, longitudeDelta: FOCUS_DELTA });
+    }
+  }, [focus?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!MapView || !Marker) {
     return (
@@ -94,15 +153,16 @@ export function AddressMap({ latitude, longitude, title, draggable = false, onPi
   return (
     <View style={{ height, borderRadius: 12, overflow: 'hidden' }}>
       <MapView
+        ref={mapRef}
         style={{ width: '100%', height: '100%' }}
         mapType={mapType}
-        region={{ latitude, longitude, latitudeDelta: 0.005, longitudeDelta: 0.005 }}
+        {...(fitToMarkers ? { initialRegion: region, onMapReady: fit } : { region })}
         scrollEnabled={interactive}
         zoomEnabled={interactive}
         rotateEnabled={false}
         pitchEnabled={false}
       >
-        <Marker
+        {hidePin ? null : <Marker
           coordinate={{ latitude, longitude }}
           title={title}
           draggable={draggable}
@@ -112,7 +172,7 @@ export function AddressMap({ latitude, longitude, title, draggable = false, onPi
           }}
         >
           {pinIcon ? <MarkerBadge icon={pinIcon.icon} color={pinIcon.color} isDark={isDark} size={18} /> : null}
-        </Marker>
+        </Marker>}
         {markers.map(m => (
           <Marker
             key={m.id}
@@ -170,9 +230,9 @@ function MarkerBadge({ icon, color, isDark, size }: { icon: string; color: strin
 }
 
 function WebMap({
-  latitude, longitude, title, draggable, onPinMoved, interactive, height, satellite, markers, pinIcon, isDark,
-}: Required<Pick<AddressMapProps, 'latitude' | 'longitude' | 'draggable' | 'interactive' | 'height' | 'markers'>> &
-  Pick<AddressMapProps, 'title' | 'onPinMoved' | 'pinIcon'> & { satellite: boolean; isDark: boolean }) {
+  latitude, longitude, title, draggable, onPinMoved, interactive, height, satellite, markers, pinIcon, isDark, hidePin, fitToMarkers, insetBottom, focus,
+}: Required<Pick<AddressMapProps, 'latitude' | 'longitude' | 'draggable' | 'interactive' | 'height' | 'markers' | 'hidePin' | 'fitToMarkers' | 'insetBottom'>> &
+  Pick<AddressMapProps, 'title' | 'onPinMoved' | 'pinIcon' | 'focus'> & { satellite: boolean; isDark: boolean }) {
   const containerRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
@@ -180,6 +240,19 @@ function WebMap({
   // The latest markers, for whichever of the two effects below gets the map first.
   const markersRef = useRef({ markers, isDark });
   markersRef.current = { markers, isDark };
+
+  /** Zooms to the pin and every marker, no closer than `MAX_FIT_ZOOM`. */
+  const fitBounds = (google: any) => {
+    if (!fitToMarkers || !mapRef.current) return;
+    const points = [...(hidePin ? [] : [{ lat: latitude, lng: longitude }]), ...markersRef.current.markers.map(m => ({ lat: m.latitude, lng: m.longitude }))];
+    if (points.length < 2) return;
+    const bounds = new google.maps.LatLngBounds();
+    points.forEach(p => bounds.extend(p));
+    google.maps.event.addListenerOnce(mapRef.current, 'idle', () => {
+      if (mapRef.current.getZoom() > MAX_FIT_ZOOM) mapRef.current.setZoom(MAX_FIT_ZOOM);
+    });
+    mapRef.current.fitBounds(bounds, fitPadding(containerRef.current?.clientHeight || 480, insetBottom));
+  };
 
   const drawMarkers = (google: any) => {
     extraMarkersRef.current.forEach(m => m.setMap(null));
@@ -225,17 +298,19 @@ function WebMap({
           const id = mapRef.current.getMapTypeId();
           setMapType(id === google.maps.MapTypeId.HYBRID || id === google.maps.MapTypeId.SATELLITE ? 'satellite' : 'standard');
         });
-        markerRef.current = new google.maps.Marker({ position: center, map: mapRef.current, title, draggable, icon: pinIconOf(google) });
+        markerRef.current = new google.maps.Marker({ position: center, map: hidePin ? null : mapRef.current, title, draggable, icon: pinIconOf(google) });
         markerRef.current.addListener('dragend', (e: any) => {
           onPinMovedRef.current?.(e.latLng.lat(), e.latLng.lng());
         });
         drawMarkers(google);
+        fitBounds(google);
       } else {
         const current = markerRef.current.getPosition();
         if (!current || Math.abs(current.lat() - latitude) > 1e-7 || Math.abs(current.lng() - longitude) > 1e-7) {
           markerRef.current.setPosition(center);
           mapRef.current.setCenter(center);
         }
+        markerRef.current.setMap(hidePin ? null : mapRef.current);
         markerRef.current.setDraggable(draggable);
         markerRef.current.setIcon(pinIconOf(google) ?? null);
         const wanted = satellite ? google.maps.MapTypeId.HYBRID : google.maps.MapTypeId.ROADMAP;
@@ -246,7 +321,7 @@ function WebMap({
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latitude, longitude, title, draggable, interactive, satellite, pinIcon?.icon, pinIcon?.color, isDark]);
+  }, [latitude, longitude, title, draggable, interactive, satellite, pinIcon?.icon, pinIcon?.color, isDark, hidePin]);
 
   // Redraws the markers when they change, once the map exists; until then the effect above draws them.
   useEffect(() => {
@@ -257,6 +332,25 @@ function WebMap({
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markers, isDark]);
+
+  // Refits when the set of markers changes — they often arrive after the map — but not on a recolour.
+  const markerKey = markers.map(m => `${m.id}:${m.latitude},${m.longitude}`).join('|');
+  useEffect(() => {
+    let cancelled = false;
+    loadGoogleMaps().then(google => {
+      if (!cancelled) fitBounds(google);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markerKey, insetBottom]);
+
+  useEffect(() => {
+    if (!focus || !mapRef.current) return;
+    mapRef.current.setZoom(MAX_FIT_ZOOM);
+    mapRef.current.setCenter({ lat: focus.latitude, lng: focus.longitude });
+    // Into the middle of what the card leaves showing, not behind it.
+    if (insetBottom) mapRef.current.panBy(0, insetBottom / 2);
+  }, [focus?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <View style={{ height, borderRadius: 12, overflow: 'hidden' }} className="bg-sunken">

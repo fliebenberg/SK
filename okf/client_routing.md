@@ -57,7 +57,9 @@ real boundary ([auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md))
 *   `/organizations/[orgId]`: **an organisation as anyone sees it** (`UI-34`, [events.md](file:///c:/Fred/Coding/SK/docs/events.md) §11):
     the Profile's banner, then Overview, Teams, Fixtures (the workspace's events list with
     `publicView`), Sites and Leagues — read-only, from public rooms; a member gets the way into the
-    workspace at the end of the banner.
+    workspace at the end of the banner. `/organizations/[orgId]/map` is its address on a full map,
+    opened from the Address card's preview — the same page as `/admin/[orgId]/address`
+    (`OrgAddressMapPage`), public.
 *   `/teams/[teamId]` and `/sites/[siteId]`: **a team and a site as anyone sees them** (2026-10-22,
     [teams.md](file:///c:/Fred/Coding/SK/docs/teams.md) §6, [sites.md](file:///c:/Fred/Coding/SK/docs/sites.md) §6):
     the workspace's pages inside `PublicTournamentProvider`, read-only, opened from an organisation's
@@ -66,7 +68,7 @@ real boundary ([auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md))
 *   `/events/[eventId]`: **a tournament as the public sees it** (`FIX-25`, [events.md](file:///c:/Fred/Coding/SK/docs/events.md)
     §11). Its routes — the tournament, `/events/[eventId]/divisions/[divisionId]`,
     `/events/[eventId]/games/[gameId]`, an organisation's and a team's results pages (`/events/[eventId]/standings/organisations/[participantOrgId]`, `/events/[eventId]/standings/teams/[entrantId]`) and
-    `/events/[eventId]/sports` — mount the workspace's own pages inside `PublicTournamentProvider`
+    `/events/[eventId]/sports`, `/events/[eventId]/map` — mount the workspace's own pages inside `PublicTournamentProvider`
     ([tournamentLinks.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/tournamentLinks.tsx)).
     **Every tournament page builds its links with `useTournamentLinks`**, never a workspace path of its own, so a
     link stays on the side it started; and under the provider the page edits nothing and shows nothing
@@ -93,7 +95,7 @@ the sidebar and the phone's workspace menu map over (`UI-27`): a new workspace p
 *   `/admin/[orgId]/sites`, `/admin/[orgId]/sites/[siteId]`: The Sites list and one read-first site page, its facilities edited in dialogs on it — read-only for anyone but Admin and Staff (there is no separate view route, and facilities have no route of their own; Add site is a dialog). [sites.md](file:///c:/Fred/Coding/SK/docs/sites.md).
 *   `/admin/[orgId]/leagues`, `/admin/[orgId]/leagues/[leagueId]`, `/admin/[orgId]/leagues/[leagueId]/seasons/[seasonId]`: Leagues and seasons.
 *   `/admin/[orgId]/profile`: The org's profile — identity, about, address and sports, read-first
-    with one edit dialog per card. `/admin/[orgId]/address` shows the address on a map.
+    with one edit dialog per card. `/admin/[orgId]/address` shows the address on a map (`OrgAddressMapPage` on `MapPage`, shared with the public `/organizations/[orgId]/map`).
 *   `/admin/[orgId]/settings`: How the org runs — timezone and minors, one card per setting, each
     saving itself.
 *   `/admin/[orgId]/nominate`: Only while the org has no administrator; the menu shows it in amber
@@ -125,6 +127,10 @@ the sidebar and the phone's workspace menu map over (`UI-27`): a new workspace p
     fixtures**, the **table**, and its **organisers and courts**. Its details and its format are
     dialogs; deleting it is in the ⋯ menu. Opened from a division tile, the draw step and the
     Schedule tab. It replaced the division's basics form and its schedule screen (U53).
+*   `/admin/[orgId]/events/[eventId]/map`: where the tournament is played on a full map (`VENUE-10`) —
+    the base site's pin and the facilities in play, or with `?division=<id>` that division's courts;
+    opened from the *Where* card's map on the tournament and division pages. `MapPage`, the same page
+    as the organisation's map.
 *   `/admin/[orgId]/events/[eventId]/sports`, `/admin/[orgId]/events/[eventId]/organisations`: the
     **full pages** of the Overview's Sports & divisions and Organisations & teams cards (*See all ›*,
     2026-10-09) — the same things the card shows, the same way, with more room. They load what they

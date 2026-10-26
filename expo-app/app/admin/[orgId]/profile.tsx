@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Organization, SocketAction } from '@sk/shared';
@@ -12,6 +12,7 @@ import { SportsDialog } from '../../../components/org/SportsDialog';
 import { AddressDialog } from '../../../components/org/AddressDialog';
 import { FollowAddressTimezoneDialog } from '../../../components/org/TimezoneDialogs';
 import { AddressMap } from '../../../components/address/AddressMap';
+import { MapOverlay } from '../../../components/address/MapOverlay';
 import { AddressLines } from '../../../components/address/AddressInput';
 import { ImageEditor } from '../../../components/ImageEditor';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
@@ -187,18 +188,5 @@ export default function OrgProfile() {
         onCancel={() => setIsEditingLogo(false)}
       />
     </SafeAreaView>
-  );
-}
-
-/** A transparent layer over a map preview, so a tap anywhere on it opens the address page. */
-function MapOverlay({ onPress, label }: { onPress: () => void; label?: string }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="link" accessibilityLabel="Open the address on a map" className="absolute inset-0 rounded-xl">
-      {label ? (
-        <View className="absolute top-2 right-2 px-2 py-1 rounded-md bg-card border border-line">
-          <Text className="font-inter-bold text-xs text-primary-ink">{label} ↗</Text>
-        </View>
-      ) : null}
-    </Pressable>
   );
 }

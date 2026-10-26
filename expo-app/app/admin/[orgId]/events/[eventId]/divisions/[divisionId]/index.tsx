@@ -60,6 +60,9 @@ import { Tabs } from '../../../../../../../components/Tabs';
 import { ScheduleTab } from '../../../../../../../components/tournament/ScheduleTab';
 import { FixtureList } from '../../../../../../../components/tournament/DivisionFixtures';
 import { AddressMap } from '../../../../../../../components/address/AddressMap';
+import { MapOverlay } from '../../../../../../../components/address/MapOverlay';
+import { facilityMarkers } from '../../../../../../../components/address/facilityMarker';
+import { useActiveTheme } from '../../../../../../../store/settingsStore';
 import { useTournamentData } from '../../../../../../../hooks/useTournamentData';
 import { hasPin } from '../../../../../../../services/places';
 import { openDirections } from '../../../../../../../utils/share';
@@ -95,6 +98,7 @@ export default function DivisionScreen() {
   const safeBack = useSafeBack();
   const { orgId, eventId, divisionId, tab: tabParam } = useLocalSearchParams<{ orgId: string; eventId: string; divisionId: string; tab?: string }>();
   const links = useTournamentLinks(orgId);
+  const isDark = useActiveTheme() === 'dark';
   type DivisionTab = 'overview' | 'schedule' | 'standings';
   const tabOf = (t?: string): DivisionTab => (t === 'schedule' || t === 'standings' ? t : 'overview');
   const [tab, setTab] = useState<DivisionTab>(() => tabOf(tabParam));
@@ -193,6 +197,12 @@ export default function DivisionScreen() {
   }, [isConnected, divisionId, canEdit]);
 
   const { sites, facilities } = useOrgSites(event?.orgId);
+  // The Where map's markers, as on its full map: the division's courts, or the tournament's when it has none.
+  const courtIds = division?.facilityIds?.length ? division.facilityIds : tournament.facilityIds;
+  const courtMarkers = useMemo(
+    () => facilityMarkers(facilities.filter(f => courtIds.includes(f.id)), sports, isDark),
+    [facilities, courtIds, sports, isDark],
+  );
 
   /* -- where it has got to ------------------------------------------------------------------ */
   const ordered = useMemo(() => [...stages].sort((a, b) => (a.sequence || 0) - (b.sequence || 0)), [stages]);
@@ -485,7 +495,12 @@ export default function DivisionScreen() {
   const pin = hasPin(site?.address) ? site!.address! : null;
   const whereCard = (
     <TournamentCard key="where" title="Where" right={canEdit ? <EditLink onPress={() => setDialog('where')} /> : undefined}>
-      {pin ? <AddressMap latitude={pin.latitude!} longitude={pin.longitude!} title={site?.name} interactive={false} height={isWide ? 140 : 120} /> : null}
+      {pin ? (
+        <View>
+          <AddressMap latitude={pin.latitude!} longitude={pin.longitude!} title={site?.name} interactive={false} height={isWide ? 140 : 120} markers={courtMarkers} fitToMarkers />
+          <MapOverlay onPress={() => router.push(links.event(eventId, `/map?division=${division.id}`))} label="Open map" />
+        </View>
+      ) : null}
       {site ? <Text className="font-inter-bold text-sm text-ink">{site.name}</Text> : null}
       <View>
         <Text className="font-inter text-xs text-ink-muted">{facilityTerm}</Text>
