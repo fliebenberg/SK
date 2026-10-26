@@ -77,6 +77,9 @@ real boundary ([auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md))
 
 Every screen below is behind [AuthGuard](file:///c:/Fred/Coding/SK/expo-app/components/AuthGuard.tsx),
 applied at the layout so an unauthorized visitor never mounts the workspace or its subscriptions.
+Only a guard on the screen that is showing redirects to the login screen: a workspace left open
+under another screen (say Settings, opened from the sidebar) stays quiet when the person signs out.
+The login screen's **Back to Home** goes to Home (`dismissTo`), not back into a guarded screen.
 
 The workspace menu's pages are listed once, in
 [constants/workspaceNav.ts](file:///c:/Fred/Coding/SK/expo-app/constants/workspaceNav.ts), which both

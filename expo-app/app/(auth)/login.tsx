@@ -8,12 +8,10 @@ import { useActiveTheme } from '../../store/settingsStore';
 import { apiService } from '../../services/api';
 import { useRef, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { useSafeBack } from '../../hooks/useSafeBack';
 import { themeColor } from '../../constants/Colors';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const safeBack = useSafeBack();
   // Set by AuthGuard when it intercepts a protected route.
   const { redirect } = useLocalSearchParams<{ redirect?: string }>();
   // Only ever return to an in-app path, never to an absolute URL.
@@ -162,7 +160,7 @@ export default function LoginScreen() {
               <Button 
                 title="Back to Home" 
                 variant="ghost" 
-                onPress={() => safeBack('/(tabs)')}
+                onPress={() => router.dismissTo('/(tabs)')}
               />
             </>
           )}

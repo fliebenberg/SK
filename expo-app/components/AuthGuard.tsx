@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
-import { usePathname, useRouter } from 'expo-router';
+import { useIsFocused, usePathname, useRouter } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import { orgAccess } from '../utils/orgAccess';
 
@@ -68,10 +68,15 @@ export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage }
 
   const isResolving = isResolvingSession || isResolvingAccess;
 
+  // A guarded screen can stay mounted under others in the stack. Only the one on
+  // screen may redirect: a hidden one would hijack navigation after sign-out,
+  // and read `pathname` from whichever screen is showing.
+  const isFocused = useIsFocused();
+
   useEffect(() => {
-    if (isResolving || isAuthenticated) return;
+    if (!isFocused || isResolving || isAuthenticated) return;
     router.replace({ pathname: '/(auth)/login', params: { redirect: pathname } });
-  }, [isResolving, isAuthenticated, pathname]);
+  }, [isFocused, isResolving, isAuthenticated, pathname]);
 
   // Also covers the frame(s) between deciding to redirect and the route change.
   if (isResolving || !isAuthenticated) {
