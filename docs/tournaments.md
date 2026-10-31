@@ -1,6 +1,6 @@
 # Tournaments — Feature Spec
 
-**Status:** Settled, and **being built**. Phases 0–3 of [the implementation plan](file:///c:/Fred/Coding/SK/docs/tournaments-implementation-plan.md) are complete: the schema, the shared types and standings engine, and the server — divisions, stages, entrants, generation and the recalculation choke point. No client yet; that starts at Phase 5. D1, D6, D7, D9, D10, D11, D13, D17–D21, D23, D26, D29 and D30 have running code behind them.
+**Status:** Settled, and **built** through scheduling — [the implementation plan](file:///c:/Fred/Coding/SK/docs/tournaments-implementation-plan.md) closed on 2026-10-26 with Phases 0–7 complete. The knockout formats and the bracket are `TOUR-1`, copying a tournament `TOUR-2`, in TODO.md. D1, D6, D7, D9, D10, D11, D13, D17–D21, D23, D26, D29 and D30 have running code behind them.
 **Supersedes:** the `SportsDay` event type (see [Consolidation](#1-consolidation-sports-day-becomes-a-format)).
 **Review rounds:** round 1 (through Q8) and round 2 (through Q14) processed 2026-08-28;
 the UI review round (2026-08-30) added D33 and closed two open questions.

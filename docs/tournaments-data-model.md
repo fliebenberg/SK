@@ -1,6 +1,6 @@
 # Tournaments — Data Model
 
-**Status:** Settled, and **being built** — phases 0–3 of the implementation plan are complete (the schema, the shared types and engine, and the server). One paragraph of §4.4 is superseded by Phase 3; the supersession is recorded in place rather than by editing it away. Updated 2026-09-01 from the implementation-plan review —
+**Status:** Settled, and **built** — the implementation plan closed on 2026-10-26 with Phases 0–7 complete; the knockout formats are `TOUR-1` and copying a tournament `TOUR-2`. One paragraph of §4.4 is superseded by Phase 3; the supersession is recorded in place rather than by editing it away. Updated 2026-09-01 from the implementation-plan review —
 §3.7 (organiser storage, which D33 needed and this document lacked), §4.2 (`format` becomes a
 column; `events.type` becomes `NOT NULL`), §9 (migration step order), §10 (both open items answered).
 **Implements:** the decisions in [docs/tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md).

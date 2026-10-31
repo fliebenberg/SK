@@ -1,6 +1,6 @@
 # Tournaments — Phased Implementation Plan
 
-**Status:** In progress. **Phases 0–6 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 and 5 on 2026-09-03, 6 on 2026-09-04). The tournament is now **usable**: teams can be entered on both axes, a draw generated from them, results recorded, and the day ranked — by school across the whole tournament or by entrant within a division. **Phase 7 complete** (2026-10-11 – 2026-10-12) — scheduling: where and when, exit criterion met; see its *Done* section. **Phases 8 and 9 are parked** (2026-10-13), to get a proof of concept in front of users first: the knockout formats and the bracket graphic as `TOUR-1`, copy-a-tournament as `TOUR-2` in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md). Their sections below stay as the plan for when they are picked up.
+**Status:** **Complete** (closed 2026-10-26). **Phases 0–6 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 and 5 on 2026-09-03, 6 on 2026-09-04). The tournament is now **usable**: teams can be entered on both axes, a draw generated from them, results recorded, and the day ranked — by school across the whole tournament or by entrant within a division. **Phase 7 complete** (2026-10-11 – 2026-10-12) — scheduling: where and when, exit criterion met; see its *Done* section. **Phases 8 and 9 were parked** (2026-10-13), to get a proof of concept in front of users first, and on 2026-10-26 **moved out of this plan in full**: the knockout formats and the bracket graphic as `TOUR-1`, copy-a-tournament as `TOUR-2` in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md). Those entries now hold their build steps and exit criteria; nothing remains to do under this plan, which stays as the record of how the tournament was built.
 **Implements:** [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) (D1–D33),
 [tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md),
 [tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) (U1–U42).
@@ -244,7 +244,7 @@ will show an organisation that played nothing, which is how this bug would first
   both tables appear as choices in the copy step, defaulted on, because last year's netball convenor
   is usually this year's. An earlier draft of this plan recommended "no, copying brings structure not
   people", which was the wizard making a decision that belongs to the organiser. U18 was amended on
-  2026-09-01 to state the general principle; see Phase 9.
+  2026-09-01 to state the general principle; see Phase 9, now `TOUR-2`.
 
 ### 0.2 `format` sits in JSONB while `type` becomes a constrained column
 
@@ -298,8 +298,8 @@ fresh database is mislabelled.
 | 5 | Client foundations: routes, screens, the collapse rule | L | ✅ done | Yes — a tournament you can navigate |
 | 6 | `Festival` and `RoundRobin`: entrants, generation, standings | L | ✅ done | **Yes — the first genuinely usable tournament** |
 | 7 | Scheduling: facilities, day windows, the greedy pass, the grid | L | ✅ done | Yes |
-| 8 | `Knockout` and `PoolsKnockout` on the round list | L | parked — `TOUR-1` | Yes |
-| 9 | The bracket graphic, and copy-a-tournament | M | parked — `TOUR-1`, `TOUR-2` | Yes |
+| 8 | `Knockout` and `PoolsKnockout` on the round list | L | moved to `TOUR-1` | Yes |
+| 9 | The bracket graphic, and copy-a-tournament | M | moved to `TOUR-1`, `TOUR-2` | Yes |
 
 Phases 0–3 build nothing visible. That is four phases of foundation before the first screen, which is
 worth naming up front rather than discovering in week three — it follows directly from D12 ("model
@@ -998,7 +998,7 @@ lazy `require`s, as `LeagueManager` already was); and both scripts run green twi
 tournament tables back to zero rows afterwards.
 
 **One thing not built, deliberately:** `settings.feedsPlate` is read by nothing. Loser routing into
-a parallel bracket is Phase 8, and the `loserOf` primitive the third-place playoff already uses is
+a parallel bracket is Phase 8 (now `TOUR-1`), and the `loserOf` primitive the third-place playoff already uses is
 what makes it reachable there.
 
 ---
@@ -1172,7 +1172,7 @@ this phase changed `roomAccess.ts`, which is exactly what that script exists to 
 1. **Create wizard changes (U17, partial)** — format picker (`Festival` / `RoundRobin` / `Knockout` /
    `PoolsKnockout`, labelled as stored per U34), venue(s), participating orgs. "Sports Day" goes.
    The implicit division is created **silently with the tournament** (U16), not lazily.
-   Copy-an-existing-tournament (U18) is Phase 9.
+   Copy-an-existing-tournament (U18) is Phase 9 (now `TOUR-2`).
 2. **`FIX-1`'s client half (U39)** — the four `=== 'SingleMatch' ? … : Tournament` fall-throughs
    become explicit branches whose default case is an **error state**, not a Tournament.
 3. **Division screen** at `/admin/[orgId]/events/[eventId]/divisions/[divisionId]` (U13), with
@@ -1791,100 +1791,18 @@ this phase:
 
 ---
 
-## Phase 8 — `Knockout` and `PoolsKnockout` on the round list
+## Phases 8 and 9 — moved to `TOUR-1` and `TOUR-2`
 
-> **Parked 2026-10-13 as `TOUR-1`.** Festival and round robin are enough for a first proof of concept,
-> so the knockout formats wait for user feedback; the picker stops offering them meanwhile. `TOUR-1`
-> records what Phase 3 already built for this phase and what is missing.
+Parked on 2026-10-13 so a proof of concept with *Round robin* and *Set fixtures by hand* could reach
+users first, and moved out of this plan on 2026-10-26 so the plan could close. Each to-do in
+[TODO.md](file:///c:/Fred/Coding/SK/TODO.md) carries its phase's goal, build steps, exit criterion and
+doc obligations, word for word in substance:
 
-**Goal:** brackets work, without a bracket being drawn. Per U37 the expensive part of a knockout is
-the progression, not the drawing — and the round-by-round list is the narrow-screen rendering we need
-in any case, so nothing built here is thrown away.
-
-**Depends on:** Phase 7 (a bracket needs scheduling), and Phase 3's choke point, which is where
-progression actually lives.
-
-**Build:**
-
-1. **Bracket generation** — single elimination sized to the next power of two, byes to the top seeds;
-   optional third-place playoff fed by the losing semi-finalists.
-2. **Pools → knockout** — split into P pools (seeded or random), round-robin within each, then a
-   bracket seeded from pool finishers with crossover rules (A1 v B2), expressed as
-   `{ type: 'standing', poolKey: 'A', position: 1 }`. Pool membership lives on `stage_entrants`, so
-   "which pool is Northcliff in?" is a query.
-3. **Progression in the UI** — the participants filled by Phase 3 appear as real teams; the
-   placeholder rendering from Phase 2 covers the interval. Because the choke point already does the
-   work, this phase is mostly presentation, which is the payoff for Phase 3's exit criterion.
-4. **Plate / consolation (D28)** — losers of an early round route into a parallel bracket. Double
-   elimination stays deferred; the loser-routing primitive built here is what makes it reachable later
-   by firing every round instead of once.
-5. **Manual override of a fill (D26, D29)** — a withdrawal promotes the beaten semi-finalist by
-   writing the team and clearing the rule. Under the chosen model this is *the same edit* as filling a
-   TBC slot, which was the deciding argument for one placeholder entity rather than two — so make sure
-   it stays one code path.
-
-**Exit criterion:** run an 8-team `PoolsKnockout` from empty to a winner, including one three-way pool
-tie that a tiebreak factor has to separate, and one manual override promoting a losing semi-finalist.
-Confirm the standings, the progression and the fixture list all agree afterwards.
-
----
-
-## Phase 9 — The bracket graphic, and copy-a-tournament
-
-> **Parked 2026-10-13.** The bracket graphic goes with Phase 8 into `TOUR-1`, since it draws what
-> Phase 8 builds; copy-a-tournament does not depend on Phase 8 and is `TOUR-2` on its own.
-
-**Goal:** the last two pieces, both additive to an already-working feature.
-
-**Depends on:** Phase 8.
-
-**Build:**
-
-1. **The bracket on wide screens (U27, U37)** — computed from the rule chains, since geometry is
-   derived rather than stored. The narrow-screen round list from Phase 8 stays as the mobile rendering,
-   not as a fallback. This is the point at which the data model's "what would change my mind about
-   Option A" question becomes answerable from experience rather than prediction: if deriving positions
-   on every render proves uncomfortable, A → B is still available, and the rules already contain
-   everything a slots table would hold.
-2. **Copy an existing tournament (U18)** — the first question in the create wizard, with a
-   choose-what-to-copy step and a collection step for what cannot be copied, chiefly the new dates.
-   Last year's sports day is the best possible template for this year's.
-
-   **The copy step offers, it never assumes** (U18 as amended 2026-09-01). Everything carryable is a
-   choice with a sensible default, not a decision the wizard takes: structure and settings, divisions,
-   stages, entrants, facilities, participating organisations, and **the organiser and convenor
-   assignments from both tables in §0.1**. This is D8's "generate to save labour, never to remove
-   control" applied to setup rather than to fixtures — and the people are the case where the temptation
-   to assume is strongest and the assumption most annoying to undo by hand.
-
-   Three consequences for the build:
-
-   - **The choices have dependencies.** Entrants imply divisions; convenor assignments imply divisions.
-     Selecting a dependent element selects its parent and says so, rather than failing validation.
-   - **A copied grant is a new grant.** `granted_by_user_id` is whoever ran the copy, not the original
-     grantor. Copying access is a deliberate act by someone who already holds it, and any admin can
-     withdraw it afterwards as normal.
-   - **Never offered:** results, scores, standings, `division_adjustments`, scheduled times. Copying
-     those would be a falsehood rather than a convenience.
-   - **A `Festival`'s fixtures are offered**, settled 2026-09-01 (see
-     [tournaments-ui.md §17](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md)): the option appears for
-     `Festival` only — absent, not disabled, elsewhere — is **defaulted off**, and selecting it
-     selects entrants and therefore divisions, since a fixture between entrants that were not copied
-     is incoherent. A hand-arranged draw is real work no generator reproduces, which is why it is
-     offered; it also encodes last year's absences and arrives with no scheduled time, which is why
-     it is off by default.
-
-**In scope from `TODO.md`:** "Add the ability to make a copy of an event" — closed for tournaments;
-whether it closes for `SingleMatch` is a separate call, so rewrite rather than check off unless you
-make it. "Prevent saving duplicate events (i.e. events that are exactly the same)" — the same code
-path, and worth raising here: a copy wizard is a *duplicate factory*, so whatever rule prevents
-accidental duplicates has to know the difference between a copy and a mistake. Decide before building
-the wizard, not after.
-
-**Exit criterion:** copy the Phase 6 festival into new dates twice — once accepting the defaults, once
-with entrants and organisers deselected — and confirm each copy contains exactly what was ticked and
-nothing more. Confirm no copy carries a result, a standing, an adjustment or a stale scheduled time,
-and that deselecting divisions while entrants are ticked pulls divisions back in rather than erroring.
+- **`TOUR-1`** — Phase 8 (`Knockout` and `PoolsKnockout`: pools, progression on a round list, the
+  plate, the manual override of a fill) and the first half of Phase 9 (the bracket graphic on wide
+  screens).
+- **`TOUR-2`** — the second half of Phase 9: copy an existing tournament (U18). It does not depend on
+  `TOUR-1`.
 
 ---
 
@@ -1898,7 +1816,7 @@ Named so they are not built by accident, per
   athletics UI. Confirmed 2026-09-01: wanted, not yet designed. `SPORT-10` stays open until fixture
   creation and the scoring screens honour `MatchTopology` too; until then the sport editor labels
   both settings with what actually reads them.
-- **Double elimination and the bracket reset** (D28) — reachable via Phase 8's loser-routing primitive.
+- **Double elimination and the bracket reset** (D28) — reachable via the loser-routing primitive `TOUR-1` builds.
 - **Swiss** — the generator interface is "produce the next stage", which Phase 3's stage `status`
   already honours, so the shape is in place; the format is not built.
 - **A scheduling optimiser** (D14) — Phase 7's manual adjustment stands in for it, and the point of
@@ -1928,4 +1846,4 @@ these are part of the phase, not a follow-up:
 | 5 | `okf/client_routing.md`, `docs/design_spec.md` (the collapse rule), `TODO.md` |
 | 6 | `TODO.md` (`FIX-2`, batch subscriptions), `docs/reports.md` if standings appear there |
 | 7 | `TODO.md` (Venue Location — answer open question 3; `FIX-23`; `SPORT-3`; batch subscriptions); `okf/database.md` and `docs/database_structure.md` (`event_days`, the sport and division timing fields); `docs/tournaments-data-model.md` (replace `settings.schedule`) |
-| 8–9 | `docs/tournaments-ui.md` status; `TODO.md` (copy an event, duplicate events) |
+| 8–9 | Moved with the work to `TOUR-1` and `TOUR-2` |
