@@ -82,6 +82,12 @@ export async function enforceProfileAction(
   // Covers app admins too — `canManageOrgPeople` short-circuits on them.
   if (await accessManager.canManageOrgPeople(userId, orgId)) return;
 
+  // A coach looks after their own team's people (`PERM-5`): adds a new person to the organisation for
+  // the team (the org gate then lets the membership be a Member's only), and edits the details of the
+  // people on it. Never deleting a record, or linking an account.
+  if (type === SocketAction.ADD_ORG_PROFILE && !payload?.eventId && (await accessManager.coachesInOrg(userId, orgId))) return;
+  if (type === SocketAction.UPDATE_ORG_PROFILE && (await accessManager.coachesPerson(userId, payload?.id))) return;
+
   if (type === SocketAction.ADD_ORG_PROFILE && payload?.eventId) {
     const res = await pool.query('SELECT org_id FROM events WHERE id = $1', [payload.eventId]);
     const hostOrgId = res.rows[0]?.org_id;
@@ -102,7 +108,8 @@ export async function enforceProfileAction(
    */
   if (type === SocketAction.ADD_ORG_PROFILE) {
     const res = await pool.query('SELECT is_claimed FROM organizations WHERE id = $1', [orgId]);
-    if (res.rows.length && res.rows[0].is_claimed !== true) {
+    // Only somebody who may set up a game or tournament, which is when this happens (`PERM-11`).
+    if (res.rows.length && res.rows[0].is_claimed !== true && (await accessManager.maySetUpFixtures(userId))) {
       for (const key of Object.keys(payload)) {
         if (!['name', 'orgId', 'eventId'].includes(key)) delete payload[key];
       }
@@ -110,5 +117,5 @@ export async function enforceProfileAction(
     }
   }
 
-  throw new Error("Unauthorized: Only an organisation's admins and staff may change its people.");
+  throw new Error("Unauthorized: Only an organisation's admins and staff, or a coach for their own team, may change its people.");
 }

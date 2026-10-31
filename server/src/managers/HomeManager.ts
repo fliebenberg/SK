@@ -3,11 +3,13 @@ import {
   HomeNearby,
   HomeSearchResult,
   MyHome,
+  MyHomeRunEvent,
   NearbyOrganization,
   ViewerPosition,
   roundViewerPosition,
 } from '@sk/shared';
 import { BaseManager } from './BaseManager';
+import { accessManager } from './AccessManager';
 import { eventManager } from './EventManager';
 import { userManager } from './UserManager';
 import { PUBLIC_EVENT } from './eventVisibility';
@@ -264,6 +266,32 @@ export class HomeManager extends BaseManager {
    * organisation with how many games it has live, and each team with the game it is playing now or
    * plays next.
    */
+  /**
+   * The tournaments the caller runs by appointment (`PERM-8`): organiser, sport organiser or
+   * division convenor, each event once under the widest of its appointments. Not finished ones.
+   */
+  async getRuns(userId: string): Promise<MyHomeRunEvent[]> {
+    const ids = accessManager.PROFILE_IDS_FOR_USER;
+    const res = await this.query(`
+      WITH grants AS (
+        SELECT event_id, 1 AS rank FROM event_organizers WHERE org_profile_id IN (${ids})
+        UNION ALL
+        SELECT event_id, 2 FROM event_sport_organizers WHERE org_profile_id IN (${ids})
+        UNION ALL
+        SELECT d.event_id, 3 FROM division_organizers dor JOIN tournament_divisions d ON d.id = dor.division_id
+         WHERE dor.org_profile_id IN (${ids})
+      ), widest AS (SELECT event_id, MIN(rank) AS rank FROM grants GROUP BY event_id)
+      SELECT e.id, e.name, e.org_id AS "orgId", o.name AS "orgName",
+             e.start_date::text AS "startDate", e.end_date::text AS "endDate",
+             CASE w.rank WHEN 1 THEN 'event' WHEN 2 THEN 'sport' ELSE 'division' END AS scope
+        FROM widest w
+        JOIN events e ON e.id = w.event_id
+        JOIN organizations o ON o.id = e.org_id
+       WHERE COALESCE(e.end_date, e.start_date) IS NULL OR COALESCE(e.end_date, e.start_date) >= CURRENT_DATE
+       ORDER BY e.start_date NULLS LAST, e.name`, [userId]);
+    return res.rows;
+  }
+
   async getMine(userId: string): Promise<MyHome> {
     const [orgMemberships, teamMemberships] = await Promise.all([
       userManager.getUserOrgMemberships(userId),
@@ -274,7 +302,8 @@ export class HomeManager extends BaseManager {
     for (const m of orgMemberships) if (!orgRole.has(m.orgId)) orgRole.set(m.orgId, m.roleId);
     const teamRole = new Map<string, string>();
     for (const m of teamMemberships) if (!teamRole.has(m.teamId)) teamRole.set(m.teamId, m.roleId);
-    if (!orgRole.size && !teamRole.size) return { organizations: [], teams: [] };
+    const runs = await this.getRuns(userId);
+    if (!orgRole.size && !teamRole.size) return { runs, organizations: [], teams: [] };
 
     const [orgs, teams] = await Promise.all([
       this.query(`
@@ -305,6 +334,7 @@ export class HomeManager extends BaseManager {
     const games = await eventManager.getGameSummariesByIds(teams.rows.map((t: any) => t.gameId).filter(Boolean));
     const gameById = new Map(games.map(g => [g.id, g]));
     return {
+      runs,
       organizations: orgs.rows.map((o: any) => ({ ...o, roleId: orgRole.get(o.id)! })),
       teams: teams.rows.map(({ gameId, ...t }: any) => ({
         ...t,

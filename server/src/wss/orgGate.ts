@@ -3,6 +3,8 @@ import pool from '../db';
 import { accessManager } from '../managers/AccessManager';
 import { guardianManager } from '../managers/GuardianManager';
 
+const ROLE_MEMBER = 'role-org-member';
+
 /**
  * Who may write an organisation's things — its teams, sites, facilities, members, leagues and
  * events — and a handful of actions that were open to anybody at all.
@@ -60,14 +62,34 @@ type Rule =
   | { kind: 'admin-org'; org: OrgResolver }
   /** Manage-org; or, for an **unclaimed** org, anybody signed in, with the payload cut to `keep`. */
   | { kind: 'create-in-org'; org: OrgResolver; keep: string[] }
-  /** Manage-org to add or change a membership; admin to hand out the admin role. */
+  /**
+   * Adding a membership: admin for any role; staff only as a Member (docs/permissions.md §2.2 —
+   * who holds which org role is the admins' decision, `PERM-2`).
+   */
   | { kind: 'grant-role'; org: OrgResolver }
+  /** Removing a membership: admin for anyone; staff only a Member. */
+  | { kind: 'remove-member'; org: OrgResolver }
+  /** Manage-org; or, for a single match, a coach of one of the org's teams (`PERM-5`). */
+  | { kind: 'add-event'; org: OrgResolver }
+  /** Manage-org; or a coach of the team, for its record — not moving it or switching it off. */
+  | { kind: 'team-record'; org: OrgResolver }
+  /**
+   * Manage-org; or a coach of the team, for its roster — never the Coach role, and from an assistant
+   * coach never the assistant coach role either (`PERM-5`).
+   */
+  | { kind: 'team-roster'; org: OrgResolver }
+  /** Manage-org; or a coach of a team this person is on — their own team's people (`PERM-5`). */
+  | { kind: 'team-person'; org: OrgResolver; person: (payload: any) => string | null | Promise<string | null> }
+  /** A spreadsheet import: manage-org, with the role column ignored unless the caller is an admin. */
+  | { kind: 'import-people'; org: OrgResolver }
   /** Adding a fixture: an event organiser, or the convenor of the stage's division. */
   | { kind: 'organize-fixture' }
   /** Editing or deleting an event: `canEditEventOrGame` for the event. */
   | { kind: 'edit-event' }
   /** Editing or deleting a fixture: `canEditEventOrGame` for the fixture. */
   | { kind: 'edit-fixture' }
+  /** Appointing a game's officials: `canEditEventOrGame` for the game, from its own organisation. */
+  | { kind: 'appoint-official' }
   /**
    * Answering an event's invitation (`FIX-29`): the event's organisers, for any organisation, or the
    * invited organisation's own admins and staff, for theirs.
@@ -124,6 +146,7 @@ const orgMemberOrg: OrgResolver = p => one('SELECT org_id FROM org_memberships W
 const profileOrg: OrgResolver = p => one('SELECT org_id FROM org_profiles WHERE id = $1', p?.memberId);
 const playerProfileOrg: OrgResolver = p => one('SELECT org_id FROM org_profiles WHERE id = $1', p?.playerProfileId);
 const guardianLinkOrg: OrgResolver = p => one('SELECT org_id FROM profile_guardians WHERE id = $1', p?.id);
+const guardianLinkPlayer = (p: any) => one('SELECT player_profile_id FROM profile_guardians WHERE id = $1', p?.id);
 const leagueOrg = (field: string): OrgResolver => p =>
   one('SELECT org_id FROM leagues WHERE id = $1', p?.[field]);
 const seasonOrg = (field: string): OrgResolver => p =>
@@ -140,17 +163,20 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   [SocketAction.DELETE_ORG]: { kind: 'admin-org', org: orgById },
 
   // Who runs it.
+  // Who runs it is the admins' decision (`PERM-2`): staff add and remove Members, nothing more.
   [SocketAction.ADD_ORG_MEMBER]: { kind: 'grant-role', org: orgId },
-  [SocketAction.UPDATE_ORG_MEMBER]: { kind: 'grant-role', org: orgMemberOrg },
-  [SocketAction.REMOVE_ORG_MEMBER]: { kind: 'manage-org', org: orgMemberOrg },
-  [SocketAction.SEND_MEMBER_INVITE]: { kind: 'manage-org', org: profileOrg },
-  // Adds and updates people and their guardians. Never an Admin, so managing people is enough.
-  [SocketAction.IMPORT_ORG_PEOPLE]: { kind: 'manage-org', org: orgId },
+  // Its only change is the role.
+  [SocketAction.UPDATE_ORG_MEMBER]: { kind: 'admin-org', org: orgMemberOrg },
+  [SocketAction.REMOVE_ORG_MEMBER]: { kind: 'remove-member', org: orgMemberOrg },
+  [SocketAction.SEND_MEMBER_INVITE]: { kind: 'team-person', org: profileOrg, person: p => p?.memberId },
+  // Adds and updates people and their guardians. Never an Admin; and from staff, only as Members.
+  [SocketAction.IMPORT_ORG_PEOPLE]: { kind: 'import-people', org: orgId },
 
   // Guardians (`MEMBER-3`). Recording who answers for a player is managing the org's people.
-  [SocketAction.ADD_PROFILE_GUARDIAN]: { kind: 'manage-org', org: playerProfileOrg },
-  [SocketAction.UPDATE_PROFILE_GUARDIAN]: { kind: 'manage-org', org: guardianLinkOrg },
-  [SocketAction.END_PROFILE_GUARDIAN]: { kind: 'manage-org', org: guardianLinkOrg },
+  // A coach records the guardians of their own team's players (`PERM-5`).
+  [SocketAction.ADD_PROFILE_GUARDIAN]: { kind: 'team-person', org: playerProfileOrg, person: p => p?.playerProfileId },
+  [SocketAction.UPDATE_PROFILE_GUARDIAN]: { kind: 'team-person', org: guardianLinkOrg, person: guardianLinkPlayer },
+  [SocketAction.END_PROFILE_GUARDIAN]: { kind: 'team-person', org: guardianLinkOrg, person: guardianLinkPlayer },
   [SocketAction.SET_MINOR_ACCOUNT_ACCESS]: { kind: 'minor-access' },
   [SocketAction.SEND_DEPENDANT_INVITE]: { kind: 'guardian-of' },
   // Whether minors get a member's privileges at all is the admins' decision, not staff's.
@@ -160,11 +186,12 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
 
   // Its things.
   [SocketAction.ADD_TEAM]: { kind: 'create-in-org', org: orgId, keep: TEAM_MINIMUM },
-  [SocketAction.UPDATE_TEAM]: { kind: 'manage-org', org: teamOrg('id') },
+  // A coach runs their own team (`PERM-5`): its record and roster, but never deleting it.
+  [SocketAction.UPDATE_TEAM]: { kind: 'team-record', org: teamOrg('id') },
   [SocketAction.DELETE_TEAM]: { kind: 'manage-org', org: teamOrg('id') },
-  [SocketAction.ADD_TEAM_MEMBER]: { kind: 'manage-org', org: teamOrg('teamId') },
-  [SocketAction.UPDATE_TEAM_MEMBER]: { kind: 'manage-org', org: teamMemberOrg },
-  [SocketAction.REMOVE_TEAM_MEMBER]: { kind: 'manage-org', org: teamMemberOrg },
+  [SocketAction.ADD_TEAM_MEMBER]: { kind: 'team-roster', org: teamOrg('teamId') },
+  [SocketAction.UPDATE_TEAM_MEMBER]: { kind: 'team-roster', org: teamMemberOrg },
+  [SocketAction.REMOVE_TEAM_MEMBER]: { kind: 'team-roster', org: teamMemberOrg },
   [SocketAction.ADD_SITE]: { kind: 'manage-org', org: orgId },
   [SocketAction.UPDATE_SITE]: { kind: 'manage-org', org: siteOrg('id') },
   [SocketAction.DELETE_SITE]: { kind: 'manage-org', org: siteOrg('id') },
@@ -174,7 +201,8 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
 
   // Its competitions. A season belongs to the league's organisation, which is what decides who
   // may add a team to it — including a team from another organisation.
-  [SocketAction.ADD_EVENT]: { kind: 'manage-org', org: orgId },
+  // A coach may start a single match for their team (`PERM-5`); its game must then be theirs.
+  [SocketAction.ADD_EVENT]: { kind: 'add-event', org: orgId },
   [SocketAction.ADD_GAME]: { kind: 'organize-fixture' },
   // These five checked inside their own handlers until 2026-09-21. Moved so that no action is
   // authorised anywhere but a gate — which is what lets the coverage check in `org-permissions`
@@ -201,6 +229,9 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   [SocketAction.SAVE_GAME_ROSTER]: { kind: 'pick-side' },
   // Planning only since 2026-09-21 — the result is `RECORD_GAME_RESULT`'s, under the scoring gate.
   [SocketAction.UPDATE_GAME]: { kind: 'edit-fixture' },
+  // A game's officials (`PERM-7`): whoever may edit the fixture appoints them.
+  [SocketAction.ADD_GAME_OFFICIAL]: { kind: 'appoint-official' },
+  [SocketAction.REMOVE_GAME_OFFICIAL]: { kind: 'appoint-official' },
   [SocketAction.DELETE_GAME]: { kind: 'edit-fixture' },
   // Read-only, but it names other organisations' games at a facility: for whoever plans this
   // workspace's matches.
@@ -246,13 +277,108 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
 };
 
 /**
- * Who answers for a team on its organisation's side (`FIX-31`): the organisation's **admins**, for
- * any of its teams, and the team's **coach**, for their own. Staff do not — an answer commits the
- * team, as `answer-invitation` holds for the organisation.
+ * Who answers for a team on its organisation's side (`FIX-31`): the organisation's **admins and
+ * staff**, for any of its teams, and the team's **coach**, for their own. Staff were left out until
+ * 2026-10-31 (`PERM-2`), when the staff role became the org's day-to-day admin, tournaments included.
  */
 async function speaksForTeam(userId: string, orgId: string | null, teamId: string | null): Promise<boolean> {
-  if (orgId && (await accessManager.isOrganizationAdmin(userId, orgId))) return true;
+  if (orgId && (await accessManager.canManageOrgPeople(userId, orgId))) return true;
   return !!teamId && (await accessManager.isTeamCoach(userId, teamId));
+}
+
+/**
+ * Is this the first game of a single match in the coach's organisation, played by a team of that
+ * organisation they coach? The other half of `add-event` for a coach (`PERM-5`).
+ */
+async function coachStartsMatch(userId: string, payload: any): Promise<boolean> {
+  const res = await pool.query(
+    `SELECT e.org_id, e.type, (SELECT COUNT(*) FROM games g WHERE g.event_id = e.id)::int AS games
+       FROM events e WHERE e.id = $1`,
+    [payload.eventId]
+  );
+  const event = res.rows[0];
+  if (!event || event.type !== 'SingleMatch' || event.games > 0) return false;
+  const teamIds: string[] = (payload.participants || []).map((p: any) => p?.teamId).filter(Boolean);
+  if (!teamIds.length) return false;
+  const own = await pool.query('SELECT id FROM teams WHERE id = ANY($1) AND org_id = $2', [teamIds, event.org_id]);
+  for (const row of own.rows) {
+    if (await accessManager.teamCoachRole(userId, row.id)) return true;
+  }
+  return false;
+}
+
+const COACH = 'role-coach';
+const ASSISTANT_COACH = 'role-assistant-coach';
+
+/**
+ * What a coach may do in their organisation without running it (`PERM-5`, docs/permissions.md §2.2):
+ * an admin's rights over their own team, bar deleting it and changing its Coach; an assistant coach
+ * the same, bar appointing assistant coaches. Throws when a coach asks for one of those; returns
+ * false when the caller is not a coach of anything this action touches.
+ */
+async function coachMay(
+  userId: string,
+  rule: Rule,
+  type: SocketAction,
+  payload: any,
+  org: string,
+  refuse: (message: string) => GateRefusal,
+): Promise<boolean> {
+  switch (rule.kind) {
+    // A new person for their team joins the organisation as a Member.
+    case 'grant-role':
+      return type === SocketAction.ADD_ORG_MEMBER && payload?.roleId === ROLE_MEMBER
+        && accessManager.coachesInOrg(userId, org);
+
+    // An empty single match, for the game `organize-fixture` then holds to one of their teams.
+    case 'add-event':
+      return payload?.type === 'SingleMatch' && accessManager.coachesInOrg(userId, org);
+
+    case 'team-person': {
+      const person = await rule.person(payload);
+      return !!person && accessManager.coachesPerson(userId, person);
+    }
+
+    case 'team-record': {
+      if (!(await accessManager.teamCoachRole(userId, payload?.id))) return false;
+      const data = payload?.data || {};
+      if ('orgId' in data || 'isActive' in data) {
+        throw refuse("Unauthorized: Only an organisation's admins and staff may move a team or switch it off.");
+      }
+      return true;
+    }
+
+    case 'team-roster': {
+      let teamId: string | null = payload?.teamId ?? null;
+      let currentRole: string | null = null;
+      let newRole: string | null = payload?.roleId ?? null;
+      if (type !== SocketAction.ADD_TEAM_MEMBER) {
+        const res = await pool.query('SELECT team_id, role_id FROM team_memberships WHERE id = $1', [payload?.id]);
+        teamId = res.rows[0]?.team_id ?? null;
+        currentRole = res.rows[0]?.role_id ?? null;
+        if (type === SocketAction.UPDATE_TEAM_MEMBER) {
+          const data = payload?.data || {};
+          if (Object.keys(data).some(k => k !== 'roleId')) {
+            throw refuse("Unauthorized: A coach may change a team member's role, nothing else of the membership.");
+          }
+          newRole = data.roleId ?? currentRole;
+        }
+      }
+      const mine = teamId ? await accessManager.teamCoachRole(userId, teamId) : null;
+      if (!mine) return false;
+      const touches = [currentRole, newRole];
+      if (touches.includes(COACH)) {
+        throw refuse("Unauthorized: Only an organisation's admins and staff may change a team's Coach.");
+      }
+      if (mine === ASSISTANT_COACH && touches.includes(ASSISTANT_COACH)) {
+        throw refuse("Unauthorized: Only the Coach, or the organisation's admins and staff, may appoint assistant coaches.");
+      }
+      return true;
+    }
+
+    default:
+      return false;
+  }
 }
 
 export function isOrgAction(type: SocketAction): boolean {
@@ -327,6 +453,8 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
         const divisionId = res.rows[0]?.division_id;
         if (divisionId && (await accessManager.canOrganizeDivision(userId, divisionId))) return;
       }
+      // A coach's single match (`PERM-5`): its one game, which one of their own teams plays in.
+      if (payload?.eventId && (await coachStartsMatch(userId, payload))) return;
       throw refuse('Unauthorized: Only an organiser of this event may add a fixture to it.');
     }
 
@@ -352,9 +480,9 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
       // The organisers may set any answer — an answer heard another way, a change of mind, a
       // withdrawal confirmed or turned down.
       if (await accessManager.canEditEventOrGame(userId, requestingOrgId, payload.eventId, undefined)) return;
-      if (payload?.participantOrgId && (await accessManager.isOrganizationAdmin(userId, payload.participantOrgId))) {
-        // Admins only, not staff (`FIX-31`, 2026-10-08): an answer commits the organisation, and
-        // once given only a withdrawal undoes it.
+      if (payload?.participantOrgId && (await accessManager.canManageOrgPeople(userId, payload.participantOrgId))) {
+        // Admins and staff (`PERM-2`, 2026-10-31; admins only from `FIX-31`): an answer commits the
+        // organisation, and once given only a withdrawal undoes it.
         // The organisation itself answers its invitation once (`FIX-30`): Accept or Decline, while
         // it is still only invited. After that only the organisers change it — a place may have
         // gone. Asking to withdraw, and cancelling that, are its own; the manager checks the state.
@@ -367,7 +495,7 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
         throw refuse("Unauthorized: You have already answered. To change it, contact the tournament's organisers.");
       }
       throw refuse(
-        "Unauthorized: Only the event's organisers, or the invited organisation's admins, may answer its invitation."
+        "Unauthorized: Only the event's organisers, or the invited organisation's admins and staff, may answer its invitation."
       );
     }
 
@@ -383,8 +511,8 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
       if (rule.kind === 'answer-entrant' && (await accessManager.canOrganizeDivision(userId, payload.divisionId))) return;
       throw refuse(
         rule.kind === 'answer-entrant'
-          ? "Unauthorized: Only the team's organisation admins, its coach, or the division's organisers may answer for it."
-          : "Unauthorized: Only the team's organisation admins or its coach may do that."
+          ? "Unauthorized: Only the team's organisation admins and staff, its coach, or the division's organisers may answer for it."
+          : "Unauthorized: Only the team's organisation admins and staff, or its coach, may do that."
       );
     }
 
@@ -404,15 +532,15 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
       if (!place) throw refuse('Bad request: that place is not in this division.');
       if (place.team_id || place.org_profile_id || !place.org_id) throw refuse('Bad request: that place already has a team.');
       if (!place.team_org_id || place.team_org_id !== place.org_id) throw refuse("Bad request: name one of the organisation's own teams.");
-      if (await accessManager.isOrganizationAdmin(userId, place.org_id)) return;
-      throw refuse("Unauthorized: Only the organisation's admins may name its team.");
+      if (await accessManager.canManageOrgPeople(userId, place.org_id)) return;
+      throw refuse("Unauthorized: Only the organisation's admins and staff may name its team.");
     }
 
     case 'request-entry': {
       const res = await pool.query('SELECT org_id FROM teams WHERE id = $1', [payload?.teamId]);
       if (!res.rows.length) throw refuse('Bad request: that team does not exist.');
       if (await speaksForTeam(userId, res.rows[0].org_id, payload.teamId)) return;
-      throw refuse("Unauthorized: Only the team's organisation admins or its coach may ask to enter it.");
+      throw refuse("Unauthorized: Only the team's organisation admins and staff, or its coach, may ask to enter it.");
     }
 
     case 'minor-access': {
@@ -434,6 +562,15 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
       const player = payload?.playerProfileId;
       if (player && (await guardianManager.getCallersGuardianProfileId(userId, player))) return;
       throw refuse("Unauthorized: Only this player's guardians may do that.");
+    }
+
+    case 'appoint-official': {
+      const gameId = type === SocketAction.ADD_GAME_OFFICIAL
+        ? payload?.gameId
+        : await one('SELECT game_id FROM game_officials WHERE id = $1', payload?.id);
+      const gameOrg = gameId ? await accessManager.getGameOrgId(gameId) : null;
+      if (gameOrg && (await accessManager.canEditEventOrGame(userId, gameOrg, undefined, gameId))) return;
+      throw refuse("Unauthorized: Only the people who run this fixture may appoint its officials.");
     }
 
     case 'edit-fixture': {
@@ -458,17 +595,32 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
   }
 
   if (await accessManager.canManageOrgPeople(userId, org)) {
-    // Staff may add and change memberships, but not hand out the admin role: that is how a staff
-    // member would make themselves an admin.
-    if (rule.kind === 'grant-role' && payload?.roleId === 'role-org-admin') {
-      if (!(await accessManager.isOrganizationAdmin(userId, org))) {
-        throw refuse("Unauthorized: Only an organisation's admins may make somebody an admin.");
+    // Staff run the org's people but not its roles (`PERM-2`): they add and remove Members only.
+    // Otherwise a staff member could promote themselves, or demote the admins.
+    const roleRule = rule.kind === 'grant-role' || rule.kind === 'remove-member' || rule.kind === 'import-people';
+    if (roleRule && !(await accessManager.isOrganizationAdmin(userId, org))) {
+      if (rule.kind === 'grant-role' && payload?.roleId !== ROLE_MEMBER) {
+        throw refuse("Unauthorized: Only an organisation's admins may give somebody a role other than Member.");
+      }
+      if (rule.kind === 'remove-member') {
+        const res = await pool.query('SELECT role_id FROM org_memberships WHERE id = $1', [payload?.id]);
+        if (res.rows[0]?.role_id !== ROLE_MEMBER) {
+          throw refuse("Unauthorized: Only an organisation's admins may remove its staff or admins.");
+        }
+      }
+      // A staff import adds Members and changes nobody's role: the role column is not theirs to set.
+      if (rule.kind === 'import-people' && Array.isArray(payload?.rows)) {
+        for (const row of payload.rows) if (row && typeof row === 'object') delete row.role;
       }
     }
     return;
   }
 
-  if (rule.kind === 'create-in-org' && (await isUnclaimed(org))) {
+  if (await coachMay(userId, rule, type, payload, org, refuse)) return;
+
+  // Adding to an unclaimed organisation happens while setting up a game or tournament, so only
+  // somebody who may set those up may do it (`PERM-11`) — not anyone signed in.
+  if (rule.kind === 'create-in-org' && (await isUnclaimed(org)) && (await accessManager.maySetUpFixtures(userId))) {
     cutTo(payload, rule.keep);
     return;
   }

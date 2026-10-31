@@ -4,6 +4,7 @@ import { Organization, OrganizationType } from "../models/organization/Organizat
 import { OrgMembership } from "../models/organization/OrgMembership";
 import { Team } from "../models/team/Team";
 import { TeamMembership } from "../models/team/TeamMembership";
+import { GameOfficialEntry } from "../models/event/GameOfficial";
 import { Site } from "../models/venue/Site";
 import { AddressPayload } from "../models/Address";
 import { Facility } from "../models/venue/Facility";
@@ -503,6 +504,20 @@ export interface SendMemberInvitePayload {
 export interface RemoveSinBinPayload {
     gameId: string;
     sinBinId: string;
+}
+
+/** The kinds of game official (`PERM-7`): a match official has a scorer's rights, a timekeeper the clock's. */
+export type GameOfficialRole = 'SCORER' | 'REFEREE' | 'TIMEKEEPER';
+
+export interface AddGameOfficialPayload {
+    gameId: string;
+    /** A person of the organisation hosting the game. */
+    orgProfileId: string;
+    role: GameOfficialRole;
+}
+
+export interface RemoveGameOfficialPayload {
+    id: string;
 }
 
 export interface AddAgeGroupPayload {
@@ -1246,6 +1261,8 @@ export interface ProtocolMap {
     [SocketAction.SET_ORG_PRIVATE]: { payload: SetOrgPrivatePayload; response: Organization };
     [SocketAction.IMPORT_ORG_PEOPLE]: { payload: ImportOrgPeoplePayload; response: PeopleImportReport };
     [SocketAction.REMOVE_SIN_BIN]: { payload: RemoveSinBinPayload; response: unknown };
+    [SocketAction.ADD_GAME_OFFICIAL]: { payload: AddGameOfficialPayload; response: GameOfficialEntry };
+    [SocketAction.REMOVE_GAME_OFFICIAL]: { payload: RemoveGameOfficialPayload; response: void };
     [SocketAction.ADD_SEASON]: { payload: AddSeasonPayload; response: Season };
     [SocketAction.UPDATE_SEASON]: { payload: UpdateSeasonPayload; response: Season };
     [SocketAction.DELETE_SEASON]: { payload: DeleteSeasonPayload; response: void };
@@ -1380,6 +1397,7 @@ export type GetDataRequest =
   // Permissions (Phase 4). `event_capabilities` answers for the **caller** and nobody else — the
   // identity comes from the handshake, so the request names no user and one cannot be asked for.
   | { type: 'event_capabilities' | 'event_organizers'; eventId: string }
+  | { type: 'game_capabilities' | 'game_officials'; gameId: string }
   // One sport of one tournament (2026-09-20). Asked per sport rather than per event so that the
   // read is gated by exactly the grant that would let the caller change it — a sport's organiser
   // reads their own sport's list without being handed every other sport's people.

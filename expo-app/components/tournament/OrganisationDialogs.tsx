@@ -19,6 +19,7 @@ import { wsService } from '../../services/websocket';
 import { useAuthStore } from '../../store/authStore';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
+import { managesOrg } from '../../utils/orgAccess';
 
 /**
  * The dialogs around the organisations taking part in a tournament (`FIX-26`, agreed on
@@ -264,10 +265,10 @@ export function useCanWriteInto() {
   const memberships = useAuthStore((state: any) => state.orgMemberships) || [];
   return (org: { id: string; isClaimed?: boolean } | null | undefined, actingOrgId: string) => {
     if (!org) return false;
-    if (org.id === actingOrgId || user?.globalRole === 'admin') return true;
-    const runsIt = memberships.some(
-      (m: any) => m.orgId === org.id && (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff') && (!m.endDate || new Date(m.endDate) > new Date())
-    );
+    if (user?.globalRole === 'admin') return true;
+    // Its admins and staff — not anyone acting from its workspace, an organiser who is only a
+    // Member there included (`PERM-8`, B7): the server refuses them.
+    const runsIt = managesOrg(org.id, memberships);
     // Trusted only when it says false: an older payload without the field reads as claimed.
     return runsIt || org.isClaimed === false;
   };

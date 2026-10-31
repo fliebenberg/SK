@@ -185,10 +185,13 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
           onSelectPerson={pick}
         />
       </View>
-      <View className="gap-1.5">
-        <FieldLabel label="Role" help={ROLE_HELP} />
-        <SegmentedControl options={roleOptions(roles)} value={person.roleId} onChange={roleId => set({ roleId })} isCompact={false} />
-      </View>
+      {/* Only someone who may give more than one role gets the choice; anyone else adds a Member. */}
+      {roles.length > 1 ? (
+        <View className="gap-1.5">
+          <FieldLabel label="Role" help={ROLE_HELP} />
+          <SegmentedControl options={roleOptions(roles)} value={person.roleId} onChange={roleId => set({ roleId })} isCompact={false} />
+        </View>
+      ) : null}
       <View className="flex-row flex-wrap gap-3">
         <View className="flex-1 gap-1.5" style={{ minWidth: 200 }}>
           <FieldLabel label="Email" />

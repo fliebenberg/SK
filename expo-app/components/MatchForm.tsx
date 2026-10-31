@@ -45,6 +45,11 @@ interface MatchFormProps {
   isEdit?: boolean;
   initialData?: Partial<MatchFormData>;
   onChange: (data: MatchFormData) => void;
+  /**
+   * The host's teams this person may field, when not all of them: a coach sets up matches for the
+   * teams they coach (`PERM-5`), and the server holds the game to one of them.
+   */
+  ownTeamIds?: string[];
 }
 
 /** The match-status badge: a tint and its readable shade for each status (`UI-6`, `UI-24`). */
@@ -60,6 +65,7 @@ export default function MatchForm({
   isEdit = false,
   initialData,
   onChange,
+  ownTeamIds,
 }: MatchFormProps) {
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -392,8 +398,10 @@ export default function MatchForm({
 
   // Filter home teams by sport; an inactive team only if it is already the one chosen.
   const filteredHomeTeams = useMemo(() => {
-    return pickableTeams(homeTeams, [selectedHomeTeamId]).filter(t => !selectedSportId || t.sportId === selectedSportId);
-  }, [homeTeams, selectedSportId, selectedHomeTeamId]);
+    return pickableTeams(homeTeams, [selectedHomeTeamId])
+      .filter(t => !selectedSportId || t.sportId === selectedSportId)
+      .filter(t => !ownTeamIds || selectedHomeOrg?.id !== orgId || ownTeamIds.includes(t.id));
+  }, [homeTeams, selectedSportId, selectedHomeTeamId, ownTeamIds, selectedHomeOrg?.id, orgId]);
 
   // Filter away teams by sport; an inactive team only if it is already the one chosen.
   const filteredAwayTeams = useMemo(() => {

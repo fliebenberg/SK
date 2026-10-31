@@ -340,7 +340,7 @@ Say *organisations*, never *schools*: clubs take part too.
   - **The organisation answers once.** Its members see the invitation in their workspace (an
     *Answer needed* tag in the events list, from the members' room `org:{id}:invitations`, and a box at the top of that list — "1 invitation to answer" — naming each and opening it) and on
     the tournament page ("Valley Prep has invited you", *Accept* / *Decline*, the same card as on its
-    page); an admin answers — not staff (`FIX-31`). *Decline* asks first. After that only the organisers
+    page); its admins and staff answer (`FIX-31`; staff since `PERM-2`). *Decline* asks first. After that only the organisers
     change it: "To change this, contact Valley Prep." The card sits beside the tournament's banner
     and stays once answered: *Taking part* with *Withdraw from the tournament* after accepting
     (2026-10-17). In *Taking part* the organisation's own row opens its page; the other

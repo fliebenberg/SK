@@ -22,7 +22,6 @@ import { useSiteGames } from '../../../../hooks/useSiteGames';
 import { useOrgSummary } from '../../../../hooks/useOrgSummary';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
-import { useAuthStore } from '../../../../store/authStore';
 import { sendAction } from '../../../../services/actions';
 import { hasPin } from '../../../../services/places';
 import { timeZoneLabel, venueTimeZone, whenMs } from '../../../../utils/dates';
@@ -33,6 +32,7 @@ import { useTournamentLinks } from '../../../../components/tournament/tournament
 import { copyText, openDirections } from '../../../../utils/share';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
+import { useOrgAccess } from '../../../../hooks/useOrgAccess';
 
 type Dialog = 'name' | 'location' | 'facility' | 'deactivate' | 'delete' | null;
 type Section = 'facilities' | 'location' | 'games';
@@ -77,9 +77,8 @@ export default function SitePage() {
   const isWide = width >= 900;
   const isNarrow = width < 640;
 
-  const user = useAuthStore(state => state.user);
-  const viewerRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId && !m.restrictedReason)?.roleId);
-  const canEdit = !isPublic && (user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || viewerRole === 'role-org-staff');
+  const access = useOrgAccess(orgId);
+  const canEdit = !isPublic && access.canManage;
 
   const { sites, facilities: allFacilities, isLoading } = useOrgSites(orgId);
   const { org } = useOrgSummary(orgId);

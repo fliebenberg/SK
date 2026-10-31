@@ -240,6 +240,10 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // handshake and the request carries no user field, so "authenticated" is the whole rule — there
   // is no way to ask it about somebody else.
   event_capabilities:   { standalone: 'authenticated' },
+  // The same about one game (`PERM-6`, `PERM-7`): may they score it, keep its time, and as which official.
+  game_capabilities:    { standalone: 'authenticated' },
+  // Who officiates a game: named adults the host appointed, like a result's referee — signed in.
+  game_officials:       { standalone: 'authenticated' },
   my_event_grants:      { standalone: 'authenticated' },
   // Who runs this tournament is not spectator information: it is a list of named people, and
   // `event:{id}` is a public room, so it cannot defer to one.

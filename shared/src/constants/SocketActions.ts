@@ -459,6 +459,13 @@ export enum SocketAction {
      * Expects payload: { gameId: string, sinBinId: string }
      */
     REMOVE_SIN_BIN = 'REMOVE_SIN_BIN',
+    /**
+     * Appoint someone to a game as an official — scorer, match official or timekeeper (`PERM-7`).
+     * Expects payload: { gameId, orgProfileId, role }. Whoever may edit the fixture appoints.
+     */
+    ADD_GAME_OFFICIAL = 'ADD_GAME_OFFICIAL',
+    /** Withdraw a game official's appointment. Expects payload: { id }. */
+    REMOVE_GAME_OFFICIAL = 'REMOVE_GAME_OFFICIAL',
 
     // --- Tournaments: divisions, stages, entrants ---
     //

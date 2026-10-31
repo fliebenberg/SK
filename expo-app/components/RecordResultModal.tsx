@@ -11,6 +11,7 @@ import { useToastStore } from '../store/toastStore';
 import { GlassCard } from './GlassCard';
 import { Button } from './Button';
 import { themeColor } from '../constants/Colors';
+import { actingProfileId } from '../utils/actingProfile';
 
 
 interface RecordResultModalProps {
@@ -58,16 +59,8 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({ isOpen, on
   const sidesKnown = sides.length >= 2 && sides.every(p => p.teamId || p.orgProfileId || p.entrantId);
   const canSave = sidesKnown && (notProvided || scoresComplete);
 
-  // As the scoring panel credits a log entry: the caller's own profile, the system one for an app admin.
-  const initiatorId = (): string | undefined => {
-    const { user, orgMemberships = [] } = useAuthStore.getState() as any;
-    if (!user) return undefined;
-    if (user.globalRole === 'admin') {
-      const adminMem = orgMemberships.find((m: any) => m.orgId === 'org-system-admins');
-      if (adminMem?.orgProfileId) return adminMem.orgProfileId;
-    }
-    return orgMemberships[0]?.orgProfileId || undefined;
-  };
+  // As the scoring panel credits a log entry: the caller's own profile for this game (`PERM-12`).
+  const initiatorId = (): string | undefined => actingProfileId(game as any);
 
   const handleSave = async () => {
     if (!canSave) return;

@@ -11,7 +11,7 @@ import { OrgPrivacyCard } from '../../../components/org/OrgPrivacyCard';
 import { TimezoneDialog, TimezoneNote, addressTimeZoneNote } from '../../../components/org/TimezoneDialogs';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { useSafeBack } from '../../../hooks/useSafeBack';
-import { useAuthStore } from '../../../store/authStore';
+import { useOrgAccess } from '../../../hooks/useOrgAccess';
 import { timeZoneLabel } from '../../../utils/dates';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
@@ -23,7 +23,10 @@ import { PageBody } from '../../../components/PageBody';
  *
  * Split from the old org settings screen on 2026-10-01 — who the org *is* moved to the Profile
  * ([profile.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/profile.tsx)). New
- * settings join this page as further cards. Who may see and edit it is undecided (`ORG-13`).
+ * settings join this page as further cards.
+ *
+ * Everyone who opens the workspace sees it; only the org's admins change it, and nobody else is
+ * shown an Edit link or a switch (`ORG-13`, docs/permissions.md P2 and P3).
  */
 export default function OrgSettings() {
   const isDark = useActiveTheme() === 'dark';
@@ -32,11 +35,7 @@ export default function OrgSettings() {
   const { width } = useWindowDimensions();
   const { org, isLoading } = useOrgSummary(orgId);
   const [editingTimezone, setEditingTimezone] = useState(false);
-  // The minors and privacy settings are an Admin's alone — not Staff's (`MEMBER-3`, `ORG-14`).
-  const isOrgAdminViewer = useAuthStore(state =>
-    state.user?.globalRole === 'admin' ||
-    state.orgMemberships.some((m: any) => m.orgId === orgId && m.roleId === 'role-org-admin' && !m.restrictedReason)
-  );
+  const { isAdmin: isOrgAdminViewer } = useOrgAccess(orgId);
 
   const timezone = org?.timezone || DEFAULT_TIME_ZONE;
   const note = addressTimeZoneNote(org?.addressTimeZone, timezone);
@@ -59,7 +58,7 @@ export default function OrgSettings() {
             <ReadCard
               label="Timezone"
               help="Kick-offs are entered in this time at sites without a map pin. A site with a pin uses the timezone where it is."
-              onEdit={() => setEditingTimezone(true)}
+              onEdit={isOrgAdminViewer ? () => setEditingTimezone(true) : undefined}
             >
               <ReadRow label={timeZoneLabel(timezone)} sub={timezone} />
               {note ? <TimezoneNote text={note} /> : null}

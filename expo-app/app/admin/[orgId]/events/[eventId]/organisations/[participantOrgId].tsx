@@ -31,6 +31,7 @@ import { useAuthStore } from '../../../../../../store/authStore';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { wsService } from '../../../../../../services/websocket';
 import { PageBody } from '../../../../../../components/PageBody';
+import { managesOrg } from '../../../../../../utils/orgAccess';
 
 /**
  * One organisation in a tournament (`FIX-26`, agreed 2026-10-07/08 on
@@ -78,8 +79,9 @@ export default function OrganisationInTournamentScreen() {
   const memberships = useAuthStore((state: any) => state.orgMemberships) || [];
   const current = (m: any) => m.orgId === participantOrgId && (!m.endDate || new Date(m.endDate) > new Date());
   const isOwnOrg = memberships.some(current);
-  // Answering for it is an admin's, as the server's `answer-invitation` gate has it (`FIX-31`).
-  const adminsOwnOrg = memberships.some((m: any) => current(m) && m.roleId === 'role-org-admin');
+  // Answering for it is its admins' and staff's, as the server's `answer-invitation` gate has it
+  // (`FIX-31`, `PERM-2`).
+  const adminsOwnOrg = managesOrg(participantOrgId, memberships);
   // A team's coach answers for their own team (`FIX-31`): the teams this viewer coaches.
   const teamMemberships = useAuthStore((state: any) => state.teamMemberships) || [];
   const coachTeamIds = useMemo(

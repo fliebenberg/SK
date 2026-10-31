@@ -33,6 +33,7 @@ import { issueAssetToken, requireAssetToken } from './services/assetAccess';
 import { imageService } from './services/ImageService';
 import { userManager } from './managers/UserManager';
 import { accessManager } from './managers/AccessManager';
+import { addGameOfficial, listGameOfficials, removeGameOfficial } from './managers/gameOfficials';
 import { organizationManager } from './managers/OrganizationManager';
 import { sportManager } from './managers/SportManager';
 import { ageGroupManager, AgeGroupError } from './managers/AgeGroupManager';
@@ -1171,6 +1172,16 @@ const SCORING_ACTION_GAME_ID: Partial<Record<SocketAction, (payload: any) => str
 };
 
 /**
+ * The scoring actions that are timekeeping, which a game's appointed timekeeper may take as well as
+ * its scorers (`PERM-7`): the clock, starting and ending play, and sin-bins. Not cancelling a game.
+ */
+const TIMEKEEPING_ACTIONS = new Set<SocketAction>([
+  SocketAction.UPDATE_GAME_CLOCK,
+  SocketAction.UPDATE_GAME_STATUS,
+  SocketAction.REMOVE_SIN_BIN,
+]);
+
+/**
  * Tournament writes are gated in [wss/tournamentGate.ts](./wss/tournamentGate.ts).
  *
  * Both scope maps and the decision moved there in Phase 4, for the reason the module explains: a
@@ -1930,6 +1941,12 @@ io.on('connection', (socket) => {
             case 'my_event_grants':
                 callback(await dataManager.getMyGrants(socket.data?.userId));
                 break;
+            case 'game_officials':
+                callback(request.gameId ? await listGameOfficials(request.gameId) : []);
+                break;
+            case 'game_capabilities':
+                callback(request.gameId ? await accessManager.getGameCapabilities(socket.data?.userId, request.gameId) : null);
+                break;
             case 'event_capabilities':
                 callback(
                     request.eventId
@@ -2327,9 +2344,11 @@ io.on('connection', (socket) => {
             if (!targetGameId) {
                 throw new Error(`Bad request: ${action.type} requires a game id.`);
             }
-            if (!(await dataManager.canScoreGame(authUserId, targetGameId))) {
-                throw new Error('Unauthorized: You do not have permission to score this match.');
-            }
+            if (await dataManager.canScoreGame(authUserId, targetGameId)) return;
+            const timekeeping = TIMEKEEPING_ACTIONS.has(action.type)
+                && !(action.type === SocketAction.UPDATE_GAME_STATUS && action.payload?.status === 'Cancelled');
+            if (timekeeping && (await accessManager.canKeepTime(authUserId, targetGameId))) return;
+            throw new Error('Unauthorized: You do not have permission to score this match.');
         });
 
         // Tournament structure — event scope first, then the division a convenor holds.
@@ -2769,6 +2788,14 @@ io.on('connection', (socket) => {
                     await publishGameSummary(action.payload.gameId);
                 }
                 result = { gameId: action.payload.gameId, sinBinId: action.payload.sinBinId };
+                break;
+            case SocketAction.ADD_GAME_OFFICIAL:
+                // The gate checked the caller may edit this fixture (`PERM-7`).
+                result = await addGameOfficial(action.payload.gameId, action.payload.orgProfileId, action.payload.role);
+                break;
+            case SocketAction.REMOVE_GAME_OFFICIAL:
+                if (!(await removeGameOfficial(action.payload.id))) throw new Error('That appointment has already been withdrawn.');
+                result = undefined;
                 break;
             case SocketAction.RESET_GAME:
                 await dataManager.resetGame(action.payload.id);

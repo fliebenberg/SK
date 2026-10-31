@@ -13,7 +13,7 @@ export const USERS = {
   hostAdmin: 'johan.vandermerwe@doringkloof.test',
   /** St Aldric's admin — accepted. */
   sacAdmin: 'catherine.whitfield@staldrics.test',
-  /** St Aldric's staff — may not answer. */
+  /** St Aldric's staff — answers for the organisation (PERM-2), but changes no roles or settings. */
   sacStaff: 'graham.hendricks@staldrics.test',
   /** St Aldric's U16 A rugby coach. */
   sacCoach: 'brendan.oneill@staldrics.test',

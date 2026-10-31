@@ -24,6 +24,14 @@ export const ORG_ID_HELP = 'The number your organisation knows them by, such as 
 
 export interface OrgRole { id: string; name: string }
 
+/**
+ * The org roles a viewer may give: all three for an admin, Member alone for anyone else — who holds
+ * which role is the admins' decision (`PERM-2`, docs/permissions.md §2.2).
+ */
+export function rolesTheyMayGive(roles: OrgRole[], isAdmin: boolean): OrgRole[] {
+  return isAdmin ? roles : roles.filter(r => r.id === 'role-org-member');
+}
+
 /** Admin, Staff, Member — the order they are offered in, most powerful first. */
 export function roleOptions(roles: OrgRole[]) {
   const rank = (id: string) => (id === 'role-org-admin' ? 0 : id === 'role-org-staff' ? 1 : 2);
@@ -84,10 +92,13 @@ export function IdentityDialog({ member, roles, visible, onClose }: { member: Or
         <FieldLabel label="Name" />
         <TextInput value={name} onChangeText={setName} accessibilityLabel="Name" className={TEXT_INPUT} />
       </View>
-      <View className="gap-1.5">
-        <FieldLabel label="Role" help={ROLE_HELP} />
-        <SegmentedControl options={roleOptions(roles)} value={roleId} onChange={setRoleId} isCompact={false} />
-      </View>
+      {/* Only someone who may give more than one role gets the choice. */}
+      {roles.length > 1 ? (
+        <View className="gap-1.5">
+          <FieldLabel label="Role" help={ROLE_HELP} />
+          <SegmentedControl options={roleOptions(roles)} value={roleId} onChange={setRoleId} isCompact={false} />
+        </View>
+      ) : null}
       <View className="gap-1.5">
         <FieldLabel label="Org ID" help={ORG_ID_HELP} optional />
         <TextInput

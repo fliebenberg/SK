@@ -12,7 +12,7 @@ import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowM
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { InviteModal, isOnScoreKeeper, useInviteCooldownHours } from '../../../../components/InviteToScoreKeeper';
 import { AddPersonDialog } from '../../../../components/people/AddPersonDialog';
-import { OrgRole } from '../../../../components/people/PersonDialogs';
+import { OrgRole, rolesTheyMayGive } from '../../../../components/people/PersonDialogs';
 import { guardianshipOf } from '../../../../components/people/PersonBits';
 import { PLAYER_ROLE, TeamCrest, isUpcoming, staffRank, teamStatistics } from '../../../../components/teams/TeamBits';
 import { CardNote, FormChips, GameList, RecordStrip, RosterRow, SectionCard, ShowMore } from '../../../../components/teams/TeamCards';
@@ -33,11 +33,13 @@ import { useOrgGuardians } from '../../../../hooks/useOrgGuardians';
 import { useOrgMinorsSettings } from '../../../../hooks/useOrgMinorsSettings';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
-import { useAuthStore } from '../../../../store/authStore';
 import { sendAction } from '../../../../services/actions';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { themeColor } from '../../../../constants/Colors';
 import { PageBody } from '../../../../components/PageBody';
+import { useOrgAccess } from '../../../../hooks/useOrgAccess';
+import { useAuthStore } from '../../../../store/authStore';
+import { COACH_ROLES } from '../../../../utils/orgAccess';
 
 type Dialog = 'edit' | 'players' | 'staff' | 'deactivate' | 'delete' | null;
 type Tab = 'overview' | 'games' | 'results' | 'players' | 'competitions';
@@ -94,9 +96,18 @@ export default function TeamPage() {
   const isWide = width >= 900;
   const isNarrow = width < 640;
 
-  const user = useAuthStore(state => state.user);
-  const viewerRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId && !m.restrictedReason)?.roleId);
-  const canEdit = !isPublic && (user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || viewerRole === 'role-org-staff');
+  const access = useOrgAccess(orgId);
+  // A coach has an admin's rights over their own team, bar deleting or switching it off and changing
+  // its Coach; an assistant coach also not assistant coaches (`PERM-5`, docs/permissions.md §2.2).
+  const myTeamRole = useAuthStore((state: any) => (state.teamMemberships || [])
+    .filter((m: any) => m.teamId === teamId && COACH_ROLES.includes(m.roleId) && (!m.endDate || new Date(m.endDate) > new Date()))
+    .map((m: any) => m.roleId as string)
+    .sort((a: string, b: string) => COACH_ROLES.indexOf(a) - COACH_ROLES.indexOf(b))[0] as string | undefined);
+  const runsOrg = !isPublic && access.canManage;
+  const canEdit = runsOrg || (!isPublic && !!myTeamRole);
+  /** May they appoint or change someone holding this team role? */
+  const mayGiveRole = (roleId: string) =>
+    runsOrg || (roleId !== 'role-coach' && (myTeamRole === 'role-coach' || roleId !== 'role-assistant-coach'));
 
   const { teams, isLoading: isTeamsLoading } = useOrgTeams(orgId);
   const { roster: workspaceRoster } = useTeamRoster(isPublic ? null : teamId);
@@ -107,9 +118,8 @@ export default function TeamPage() {
   const { entries: workspaceEntries, refresh: refreshEntries } = useTeamEntries({ teamId: isPublic ? null : teamId });
   const publicEntries = useTeamCompetitions(isPublic ? teamId : null);
   const teamEntries = isPublic ? publicEntries : workspaceEntries;
-  const teamMemberships = useAuthStore((state: any) => state.teamMemberships) || [];
-  const coachesThis = teamMemberships.some((m: any) => m.teamId === teamId && (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach'));
-  const canAnswer = !isPublic && (user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || coachesThis);
+  const coachesThis = !!teamId && access.coachedTeamIds.includes(teamId);
+  const canAnswer = !isPublic && (access.canManage || coachesThis);
   const { org } = useOrgSummary(orgId);
   // The organisation's people are its members' business: the public page has the squad alone.
   const { members } = useOrgMembers(isPublic ? null : orgId);
@@ -119,8 +129,9 @@ export default function TeamPage() {
   const { data: rolesData } = useSocketQuery<any>('roles');
   const inviteCooldownHours = useInviteCooldownHours();
   const sports = sportsData || [];
-  const teamRoles: TeamRole[] = rolesData?.team || [];
-  const orgRoles: OrgRole[] = rolesData?.org || [];
+  const allTeamRoles: TeamRole[] = rolesData?.team || [];
+  const teamRoles: TeamRole[] = allTeamRoles.filter(r => mayGiveRole(r.id));
+  const orgRoles: OrgRole[] = rolesTheyMayGive(rolesData?.org || [], access.isAdmin);
 
   const [query, setQuery] = useState('');
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -143,7 +154,7 @@ export default function TeamPage() {
   // saves; the roster row is the fallback for anyone no longer a member.
   const memberOf = useMemo(() => new Map((members || []).map(m => [m.id, m] as [string, OrgMember])), [members]);
   const nameOf = (m: TeamMember) => memberOf.get(m.id)?.name || m.name;
-  const roleName = (roleId: string) => teamRoles.find(r => r.id === roleId)?.name || 'Staff';
+  const roleName = (roleId: string) => allTeamRoles.find(r => r.id === roleId)?.name || 'Staff';
 
   const players = useMemo(
     () => roster.filter(m => m.roleId === PLAYER_ROLE).sort((a, b) => nameOf(a).localeCompare(nameOf(b))),
@@ -179,7 +190,7 @@ export default function TeamPage() {
   const openPerson = (m: TeamMember) => {
     const membership = memberOf.get(m.id)?.membershipId;
     return membership
-      ? () => router.push({ pathname: '/admin/[orgId]/people/[membershipId]', params: { orgId: orgId!, membershipId: membership } })
+      ? () => router.push({ pathname: '/admin/[orgId]/people/[membershipId]', params: { orgId: orgId!, membershipId: membership, teamId: teamId! } })
       : undefined;
   };
   const openGame = (g: GameSummary) => router.push(links.event(g.eventId!, `/games/${g.id}`));
@@ -188,13 +199,15 @@ export default function TeamPage() {
   const rowMenu = (m: TeamMember): OverflowMenuItem[] | undefined => {
     if (!canEdit) return undefined;
     const items: OverflowMenuItem[] = [];
-    if (m.roleId !== PLAYER_ROLE) {
+    // The team's Coach, and for an assistant coach the other assistants, are not theirs to change.
+    const mayChange = mayGiveRole(m.roleId);
+    if (m.roleId !== PLAYER_ROLE && mayChange) {
       items.push({ label: 'Change role', description: `${roleName(m.roleId)} now.`, icon: 'swap-horizontal-outline', onPress: () => setRoleTarget(m) });
     }
     if (!isOnScoreKeeper(m)) {
       items.push({ label: 'Invite to ScoreKeeper', description: 'They are not on ScoreKeeper yet.', icon: 'mail-outline', onPress: () => setInviteTarget(m) });
     }
-    items.push({
+    if (mayChange) items.push({
       label: 'Remove from team',
       description: 'Takes them off this team only. They stay in the organisation.',
       icon: 'person-remove-outline',
@@ -275,7 +288,7 @@ export default function TeamPage() {
       <Text className="flex-1 font-inter text-sm text-warning-ink">
         This team is inactive. It cannot be picked for new games, leagues or tournaments.
       </Text>
-      {canEdit ? (
+      {runsOrg ? (
         <TouchableOpacity onPress={() => setActive(true)} disabled={isBusy} accessibilityRole="button">
           <Text className="font-inter-bold text-sm text-primary-ink">Reactivate</Text>
         </TouchableOpacity>
@@ -340,7 +353,7 @@ export default function TeamPage() {
       onAction={() => setDialog('staff')}
     >
       {!staff.length ? (
-        <CardNote text="No coach or manager yet." action={canEdit ? '＋ Add staff' : undefined} onAction={() => setDialog('staff')} />
+        <CardNote text="No coach yet." action={canEdit ? '＋ Add staff' : undefined} onAction={() => setDialog('staff')} />
       ) : !matchingStaff.length ? (
         <CardNote text={`No staff match “${query.trim()}”.`} />
       ) : (
@@ -554,7 +567,7 @@ export default function TeamPage() {
         title="Team"
         backLabel="Teams"
         onBack={back}
-        right={canEdit ? <OverflowMenu items={menu} accessibilityLabel="Team actions" title={team.name} /> : undefined}
+        right={runsOrg ? <OverflowMenu items={menu} accessibilityLabel="Team actions" title={team.name} /> : undefined}
       />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 60 }}>
         <View style={{ padding: isWide ? 24 : 12, paddingBottom: 0 }}>

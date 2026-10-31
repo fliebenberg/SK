@@ -54,6 +54,7 @@ import { useTournamentLinks } from './tournamentLinks';
 import { useEventStandings } from '../../hooks/useEventRooms';
 import { StandingsTable } from './StandingsTable';
 import { awardsPoints } from './standingsBits';
+import { managesOrg } from '../../utils/orgAccess';
 
 /**
  * The tournament page's first tab, *Overview* (docs/events.md §7; agreed 2026-10-09 on
@@ -344,7 +345,7 @@ export function TournamentHome({
   const scoring = event.settings?.scoring;
   const points = scoring?.mode === 'byResult' ? scoring : DEFAULT_SCORING_SYSTEM.mode === 'byResult' ? DEFAULT_SCORING_SYSTEM : null;
   const confirmScoring = () =>
-    sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { settings: { ...(event.settings || {}), scoring: DEFAULT_SCORING_SYSTEM } } });
+    sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId: event.orgId || orgId, data: { settings: { ...(event.settings || {}), scoring: DEFAULT_SCORING_SYSTEM } } });
   const pointsTiles = scoring?.mode === 'byPlacing' ? (
     <Text className="font-inter text-sm text-ink-soft">Points are awarded by finishing position.</Text>
   ) : scoring?.mode === 'winsDrawsLosses' ? (
@@ -969,8 +970,8 @@ export function TournamentHome({
    */
   const myUserId = useAuthStore((state: any) => state.user?.id);
   const myMemberships = useAuthStore((state: any) => state.orgMemberships) || [];
-  /** An admin of that organisation — who may answer for it; staff may not (`FIX-31`). */
-  const adminsOrg = (id: string) => myMemberships.some((m: any) => m.orgId === id && m.roleId === 'role-org-admin' && (!m.endDate || new Date(m.endDate) > new Date()));
+  /** An admin or staff of that organisation — who may answer for it (`FIX-31`, `PERM-2`). */
+  const adminsOrg = (id: string) => managesOrg(id, myMemberships);
   const myInvitations = canEdit ? [] : (event.participatingOrgs || []).filter(o => o.id !== event.orgId && viewerOrgIds.includes(o.id) && o.invitation !== 'not_invited');
   const invitationCards = myInvitations.map(o => (
     <OrganisationResponse

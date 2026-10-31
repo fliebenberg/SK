@@ -29,6 +29,41 @@ test.describe('My Organisations', () => {
     await expect(page.getByTestId(`my-org-${ORG.sac}`)).toContainText('Manage Workspace');
   });
 
+  // Each role opens its part of the workspace (PERM-4): a coach their teams and fixtures, not the org's.
+  test("a coach's workspace is their teams and fixtures, not the organisation's settings", async ({ page }) => {
+    await signIn(page, USERS.kscCoach);
+    await page.goto(`/admin/${ORG.ksc}`);
+    await expect(page.getByText('Teams & Divisions').first()).toBeVisible();
+    await expect(page.getByText('People & Roles')).toHaveCount(0);
+    // A page it does not open goes back to the Control Panel.
+    await page.goto(`/admin/${ORG.ksc}/settings`);
+    await expect(page).toHaveURL(new RegExp(`/admin/${ORG.ksc}$`));
+    await expect(page.getByText('Timezone')).toHaveCount(0);
+  });
+
+  // The Teams tab lists the teams they coach, each opening its team page in the workspace (PERM-5).
+  test('the Teams tab lists the teams a coach coaches, and Manage Team opens one', async ({ page }) => {
+    await signIn(page, USERS.kscCoach);
+    await page.goto('/teams');
+    await expect(page.getByText('My Coached Teams')).toBeVisible();
+    await page.getByRole('button', { name: 'Manage Team' }).first().click();
+    await expect(page).toHaveURL(new RegExp(`/admin/${ORG.ksc}/teams/`));
+  });
+
+  // Only an organisation's admins change its profile (ORG-13); staff read it with no Edit links.
+  test('staff read the profile, with nothing to edit; the admin edits it', async ({ page }) => {
+    await signIn(page, USERS.sacStaff);
+    await page.goto(`/admin/${ORG.sac}/profile`);
+    await expect(page.getByText('Address', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Edit$/ })).toHaveCount(0);
+  });
+
+  test('the admin sees Edit on the profile', async ({ page }) => {
+    await signIn(page, USERS.sacAdmin);
+    await page.goto(`/admin/${ORG.sac}/profile`);
+    await expect(page.getByRole('button', { name: /Edit$/ }).first()).toBeVisible();
+  });
+
   // The page's add action is in its header, as on every list page, so a long list cannot bury it (2026-10-31).
   test('Add organisation is in the header, on phone and desktop alike @phone', async ({ page }) => {
     await signIn(page, USERS.sacStaff);

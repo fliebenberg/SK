@@ -75,7 +75,7 @@ export function pickableTeams<T extends Pick<Team, 'id' | 'isActive'>>(teams: T[
 export const PLAYER_ROLE = 'role-player';
 
 /** The order staff are listed in — the coach first. */
-const STAFF_ORDER = ['role-coach', 'role-assistant-coach', 'role-manager', 'role-scorer', 'role-medic', 'role-staff'];
+const STAFF_ORDER = ['role-coach', 'role-assistant-coach', 'role-scorer', 'role-medic'];
 export const staffRank = (roleId: string) => {
   const i = STAFF_ORDER.indexOf(roleId);
   return i === -1 ? STAFF_ORDER.length : i;

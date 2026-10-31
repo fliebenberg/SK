@@ -218,6 +218,80 @@ export class AccessManager extends BaseManager {
     return res.rows.length > 0;
   }
 
+  /**
+   * The coaching role they hold on this team — `role-coach` over `role-assistant-coach` — or null.
+   * A coach has an admin's rights over their own team, bar deleting it and changing its Coach; an
+   * assistant coach the same, bar appointing assistant coaches (`PERM-5`, docs/permissions.md §2.2).
+   */
+  async teamCoachRole(userId: string, teamId: string): Promise<'role-coach' | 'role-assistant-coach' | null> {
+    if (!userId || !teamId) return null;
+    const res = await this.query(`
+      SELECT role_id FROM team_memberships
+       WHERE team_id = $2 AND role_id IN ('role-coach', 'role-assistant-coach')
+         AND org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+         AND (end_date IS NULL OR end_date > NOW())
+       ORDER BY CASE role_id WHEN 'role-coach' THEN 0 ELSE 1 END
+       LIMIT 1
+    `, [userId, teamId]);
+    return res.rows[0]?.role_id ?? null;
+  }
+
+  /**
+   * May they set up games or tournaments anywhere — Admin or Staff of an organisation, a coach, or an
+   * appointed organiser or convenor? Only such a person may add a team or a person to an unclaimed
+   * organisation, which happens while setting one up (`PERM-11`, docs/permissions.md C10).
+   */
+  async maySetUpFixtures(userId: string): Promise<boolean> {
+    if (!userId) return false;
+    if (await this.isAppAdmin(userId)) return true;
+    const ids = this.PROFILE_IDS_FOR_USER;
+    const res = await this.query(`
+      SELECT 1 FROM org_memberships om JOIN org_profiles op ON op.id = om.org_profile_id
+       WHERE om.org_profile_id IN (${ids}) AND om.role_id IN ('role-org-admin', 'role-org-staff')
+         AND (om.end_date IS NULL OR om.end_date > NOW()) AND ${memberPrivilegedSql('op', 'om.org_id')}
+      UNION ALL
+      SELECT 1 FROM team_memberships tm
+       WHERE tm.org_profile_id IN (${ids}) AND tm.role_id IN ('role-coach', 'role-assistant-coach')
+         AND (tm.end_date IS NULL OR tm.end_date > NOW())
+      UNION ALL SELECT 1 FROM event_organizers WHERE org_profile_id IN (${ids})
+      UNION ALL SELECT 1 FROM event_sport_organizers WHERE org_profile_id IN (${ids})
+      UNION ALL SELECT 1 FROM division_organizers WHERE org_profile_id IN (${ids})
+      LIMIT 1
+    `, [userId]);
+    return res.rows.length > 0;
+  }
+
+  /** Do they coach any team in this organisation? Such a coach may add people to it, as Members. */
+  async coachesInOrg(userId: string, orgId: string): Promise<boolean> {
+    if (!userId || !orgId) return false;
+    const res = await this.query(`
+      SELECT 1 FROM team_memberships tm JOIN teams t ON t.id = tm.team_id
+       WHERE t.org_id = $2 AND tm.role_id IN ('role-coach', 'role-assistant-coach')
+         AND tm.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+         AND (tm.end_date IS NULL OR tm.end_date > NOW())
+       LIMIT 1
+    `, [userId, orgId]);
+    return res.rows.length > 0;
+  }
+
+  /**
+   * Is this person currently on a team they coach? A coach looks after their own team's people —
+   * details, invites, guardians — and nobody else's (`PERM-5`).
+   */
+  async coachesPerson(userId: string, profileId: string): Promise<boolean> {
+    if (!userId || !profileId) return false;
+    const res = await this.query(`
+      SELECT 1 FROM team_memberships mine
+        JOIN team_memberships theirs ON theirs.team_id = mine.team_id
+       WHERE theirs.org_profile_id = $2 AND (theirs.end_date IS NULL OR theirs.end_date > NOW())
+         AND mine.role_id IN ('role-coach', 'role-assistant-coach')
+         AND mine.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+         AND (mine.end_date IS NULL OR mine.end_date > NOW())
+       LIMIT 1
+    `, [userId, profileId]);
+    return res.rows.length > 0;
+  }
+
   async canManageTeam(userId: string, teamId: string): Promise<boolean> {
     if (await this.isAppAdmin(userId)) return true;
     
@@ -266,13 +340,37 @@ export class AccessManager extends BaseManager {
     // anywhere, so there is no workspace for them to act from and requiring one would make an
     // external convenor permanently unable to do the job they were appointed to.
     if (targetEventId && (await this.getEventGrants(userId, targetEventId)).isEventOrganizer) return true;
+    // A fixture is also its division's convenors' and its sport's organisers' (`PERM-6`): everything
+    // in the division is theirs, the fixture's planning included.
+    if (gameId && (await this.runsGameDivision(userId, gameId))) return true;
 
     if (requestingOrgId !== eventOrgId) return false;
 
     if (await this.isAppAdmin(userId)) return true;
 
     const role = await this.getOrganizationRole(userId, eventOrgId);
-    return role === 'role-org-admin' || role === 'role-org-staff';
+    if (role === 'role-org-admin' || role === 'role-org-staff') return true;
+
+    // A coach runs their own team's single matches (`PERM-5`): a match their team, of this
+    // organisation, plays in. Not a tournament's fixtures — those are its organisers'.
+    return !!targetEventId && this.coachesSingleMatch(userId, targetEventId);
+  }
+
+  /** Is this a single match one of the user's teams plays in, its team being the host organisation's? */
+  async coachesSingleMatch(userId: string, eventId: string): Promise<boolean> {
+    const res = await this.query(`
+      SELECT 1 FROM events e
+        JOIN games g ON g.event_id = e.id
+        JOIN game_participants gp ON gp.game_id = g.id
+        JOIN teams t ON t.id = gp.team_id AND t.org_id = e.org_id
+        JOIN team_memberships tm ON tm.team_id = t.id
+       WHERE e.id = $2 AND e.type = 'SingleMatch'
+         AND tm.role_id IN ('role-coach', 'role-assistant-coach')
+         AND tm.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+         AND (tm.end_date IS NULL OR tm.end_date > NOW())
+       LIMIT 1
+    `, [userId, eventId]);
+    return res.rows.length > 0;
   }
 
   // --- Tournament organiser grants (D33) ---------------------------------------------------
@@ -400,6 +498,16 @@ export class AccessManager extends BaseManager {
     return this.hasSportGrant(userId, eventId, sportId);
   }
 
+  /**
+   * Is this user named on this game's division, or on its sport at the tournament? A division
+   * convenor and a sport organiser hold the same rights over a fixture (`PERM-6`).
+   */
+  async runsGameDivision(userId: string, gameId: string): Promise<boolean> {
+    const divisionId = await this.getGameDivisionId(gameId);
+    if (!divisionId) return false;
+    return (await this.hasDivisionGrant(userId, divisionId)) || this.hasDivisionSportGrant(userId, divisionId);
+  }
+
   /** Is this user named on this division? The narrow question, without the event-wide checks. */
   async hasDivisionGrant(userId: string, divisionId: string): Promise<boolean> {
     if (!userId || !divisionId) return false;
@@ -486,8 +594,8 @@ export class AccessManager extends BaseManager {
    * The team duties this user holds — the third way into a `member` room, after membership and
    * tournament grants (`MEMBER-3` plan §0.3).
    *
-   * A coach or assistant coach may read their own team's record, roster and games; an appointed
-   * scorer may read the game they score. Until now that came from the org membership, which is why
+   * A coach, assistant coach or team scorer may read their own team's record, roster and games; an
+   * appointed official (scorer, match official, timekeeper) the game they officiate (`PERM-6`, `PERM-7`). Until now that came from the org membership, which is why
    * it was never needed. It is needed now because a restricted minor's membership opens nothing, and
    * a pupil appointed to coach or score must still be able to do the job — for that team or game
    * and nothing else. For everybody else it changes nothing: their membership already opens the
@@ -501,12 +609,12 @@ export class AccessManager extends BaseManager {
       SELECT 'team' AS scope, tm.team_id AS id
         FROM team_memberships tm
        WHERE tm.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
-         AND tm.role_id IN ('role-coach', 'role-assistant-coach')
+         AND tm.role_id IN ('role-coach', 'role-assistant-coach', 'role-scorer')
          AND (tm.end_date IS NULL OR tm.end_date > NOW())
       UNION ALL
       SELECT 'game' AS scope, go.game_id AS id
         FROM game_officials go
-       WHERE go.role = 'SCORER' AND go.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+       WHERE go.role IN ('SCORER', 'REFEREE', 'TIMEKEEPER') AND go.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
     `, [userId]);
 
     const teamIds = new Set<string>();
@@ -826,12 +934,46 @@ export class AccessManager extends BaseManager {
     };
     if (side.type !== 'SingleMatch') {
       if ((await this.getEventGrants(userId, side.eventId)).isEventOrganizer) return true;
-      const divisionId = await this.getGameDivisionId(gameId);
-      if (divisionId && (await this.hasDivisionGrant(userId, divisionId))) return true;
+      if (await this.runsGameDivision(userId, gameId)) return true;
       if (await managesOrg(side.hostOrgId)) return true;
     }
     if (side.teamId && (await this.isTeamCoach(userId, side.teamId))) return true;
     return managesOrg(side.teamOrgId);
+  }
+
+  /**
+   * May they keep this game's time — the clock, starting and ending play, and sin-bins? Everyone
+   * who may score it, and its appointed timekeeper, who may do nothing else (`PERM-7`).
+   */
+  async canKeepTime(userId: string, gameId: string): Promise<boolean> {
+    if (await this.canScoreGame(userId, gameId)) return true;
+    return this.holdsGameOfficial(userId, gameId, ['TIMEKEEPER']);
+  }
+
+  /** Is the user appointed to this game in one of these official roles? */
+  async holdsGameOfficial(userId: string, gameId: string, roles: string[]): Promise<boolean> {
+    if (!userId || !gameId) return false;
+    const res = await this.query(
+      `SELECT 1 FROM game_officials
+        WHERE game_id = $2 AND role = ANY($3) AND org_profile_id IN (${this.PROFILE_IDS_FOR_USER}) LIMIT 1`,
+      [userId, gameId, roles]
+    );
+    return res.rows.length > 0;
+  }
+
+  /**
+   * What this user may do at this game — its own read, like `getEventCapabilities`, so one viewer's
+   * answer is never published to the game's room. The scoring screen opens on `canScore`, or in
+   * timekeeping-only mode on `canKeepTime` alone (`PERM-6`, `PERM-7`).
+   */
+  async getGameCapabilities(userId: string | undefined, gameId: string): Promise<{ gameId: string; canScore: boolean; canKeepTime: boolean; officialRoles: string[] }> {
+    if (!userId) return { gameId, canScore: false, canKeepTime: false, officialRoles: [] };
+    const roles = (await this.query(
+      `SELECT DISTINCT role FROM game_officials WHERE game_id = $2 AND org_profile_id IN (${this.PROFILE_IDS_FOR_USER})`,
+      [userId, gameId]
+    )).rows.map((r: any) => r.role);
+    const canScore = await this.canScoreGame(userId, gameId);
+    return { gameId, canScore, canKeepTime: canScore || roles.includes('TIMEKEEPER'), officialRoles: roles };
   }
 
   async canScoreGame(userId: string, gameId: string): Promise<boolean> {
@@ -846,8 +988,7 @@ export class AccessManager extends BaseManager {
     // here as well as on the tournament writes. Event scope covers every fixture in the
     // tournament; division scope covers the fixtures of that division and no others.
     if ((await this.getEventGrants(userId, eventId)).isEventOrganizer) return true;
-    const gameDivisionId = await this.getGameDivisionId(gameId);
-    if (gameDivisionId && (await this.hasDivisionGrant(userId, gameDivisionId))) return true;
+    if (await this.runsGameDivision(userId, gameId)) return true;
 
     const eventRes = await this.query('SELECT org_id FROM events WHERE id = $1', [eventId]);
     if (eventRes.rows[0]) {
@@ -863,9 +1004,11 @@ export class AccessManager extends BaseManager {
     // match the user's profiles by identity (`PROFILE_IDS_FOR_USER` — user id or verified email),
     // not by `user_id` alone, which missed everyone linked by email; and they ignore the minors
     // restriction on org privileges, because a pupil appointed to score must be able to (`MEMBER-3`).
+    // A match official (`REFEREE`) has a scorer's rights for now (`PERM-7`); a timekeeper has only
+    // the clock's, which `canKeepTime` answers.
     const scorerRes = await this.query(`
       SELECT 1 FROM game_officials
-      WHERE game_id = $2 AND role = 'SCORER' AND org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+      WHERE game_id = $2 AND role IN ('SCORER', 'REFEREE') AND org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
     `, [userId, gameId]);
     if (scorerRes.rows[0]) return true;
 
@@ -876,9 +1019,10 @@ export class AccessManager extends BaseManager {
 
     for (const row of participantsRes.rows) {
       const teamId = row.team_id;
+      // The team's coaches, and its scorer, who scores every game the team plays (`PERM-6`).
       const coachRes = await this.query(`
         SELECT 1 FROM team_memberships
-        WHERE team_id = $2 AND role_id IN ('role-coach', 'role-assistant-coach')
+        WHERE team_id = $2 AND role_id IN ('role-coach', 'role-assistant-coach', 'role-scorer')
           AND org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
           AND (end_date IS NULL OR end_date > NOW())
       `, [userId, teamId]);

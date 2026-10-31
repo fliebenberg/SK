@@ -118,7 +118,7 @@ export interface FixtureTeamStaff {
     team: string;
     /** A person already listed in this organisation. */
     name: string;
-    role: 'role-assistant-coach' | 'role-manager' | 'role-scorer' | 'role-medic' | 'role-staff';
+    role: 'role-assistant-coach' | 'role-scorer' | 'role-medic';
 }
 
 /**
@@ -326,7 +326,7 @@ export const TEST_ORGS: FixtureOrg[] = [
         ],
         // U16 A's staff beyond its coach, from people already listed.
         teamStaff: [
-            { team: 'rugby-u16a', name: 'Annelie Botha', role: 'role-manager' },
+            { team: 'rugby-u16a', name: 'Annelie Botha', role: 'role-scorer' },
             { team: 'rugby-u16a', name: 'Marelize Coetzee', role: 'role-assistant-coach' },
         ],
         // U16 A's season, for the team page's Games card: wins, a draw, a loss, a result recorded

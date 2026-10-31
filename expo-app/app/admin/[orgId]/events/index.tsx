@@ -1,5 +1,6 @@
 import { useTeamEntries } from '../../../../hooks/useTeamEntries';
 import { useMineAll } from '../../../../hooks/useMineAll';
+import { useOrgAccess } from '../../../../hooks/useOrgAccess';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -74,7 +75,6 @@ const VIEW_KEY = 'eventsListView';
 /** Per organisation, since the sports on offer differ between them. */
 const filtersKey = (orgId?: string) => `eventsListFilters:${orgId}`;
 
-const ADMIN_ROLES = ['role-org-admin', 'role-org-staff'];
 
 /** The day a game is on: its kick-off's, or its event's first day while it has none. */
 const gameDay = (game: GameSummary, event?: Event) =>
@@ -115,13 +115,13 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
 
-  const user = useAuthStore((state: any) => state.user);
-  const orgMemberships = useAuthStore((state: any) => state.orgMemberships);
   const teamMemberships = useAuthStore((state: any) => state.teamMemberships);
   const dependants = useAuthStore((state: any) => state.dependants);
-  const viewerRole = (orgMemberships || []).find((m: any) => m.orgId === orgId)?.roleId;
   /** Creating an event is a manage-org action: Admin and Staff. */
-  const canCreate = !publicView && (user?.globalRole === 'admin' || ADMIN_ROLES.includes(viewerRole));
+  const access = useOrgAccess(orgId);
+  const canCreate = !publicView && access.canManage;
+  // A coach sets up matches for their own teams (`PERM-5`); tournaments and Head to Head are the org's.
+  const canCreateMatch = canCreate || (!publicView && access.coachedTeamIds.length > 0);
 
   /* Mine / All and Events / All games are remembered on this device. Until someone chooses, Admin
      and Staff see everything the organisation has on, and everyone else what is theirs. */
@@ -466,7 +466,8 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
    * own invitation above covers the rest). A coach's line opens the team; an admin's, the
    * organisation's page in that tournament, where every team is answered.
    */
-  const isAdmin = user?.globalRole === 'admin' || viewerRole === 'role-org-admin';
+  // Its admins and staff answer the organisation's invitations (`FIX-31`, `PERM-2`).
+  const isAdmin = access.canManage;
   const coachTeamIds = useMemo(
     () => new Set<string>((teamMemberships || []).filter((m: any) => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach').map((m: any) => m.teamId)),
     [teamMemberships]
@@ -566,6 +567,16 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
         </TouchableOpacity>
       )}
     />
+  ) : canCreateMatch ? (
+    <TouchableOpacity
+      onPress={() => router.push(`/admin/${orgId}/events/create`)}
+      accessibilityRole="button"
+      accessibilityLabel="New match"
+      className={`flex-row items-center gap-1.5 rounded-xl bg-primary ${isWide ? 'px-3.5 py-2' : 'w-9 h-9 justify-center'}`}
+    >
+      <Ionicons name="add" size={18} color={themeColor(isDark, 'on-primary')} />
+      {isWide ? <Text className="font-inter-bold text-sm text-on-primary">New match</Text> : null}
+    </TouchableOpacity>
   ) : undefined;
 
   /* A search term narrows the list like a filter does, so while there is one the box wears the same

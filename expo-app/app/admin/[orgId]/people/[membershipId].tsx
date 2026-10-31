@@ -13,7 +13,7 @@ import { InviteModal, InviteStatusCard, isOnScoreKeeper, useInviteCooldownHours 
 import { AddGuardianDialog, GuardiansCard } from '../../../../components/guardians/GuardiansCard';
 import { MinorAccessCard } from '../../../../components/guardians/MinorAccessCard';
 import { PersonBanner } from '../../../../components/people/PersonBanner';
-import { ContactDialog, IdentityDialog, OrgRole, PersonalDialog } from '../../../../components/people/PersonDialogs';
+import { ContactDialog, IdentityDialog, OrgRole, PersonalDialog, rolesTheyMayGive } from '../../../../components/people/PersonDialogs';
 import { guardianshipOf, parseImageConfig } from '../../../../components/people/PersonBits';
 import { useOrgMembers } from '../../../../hooks/useOrgMembers';
 import { useOrgGuardians } from '../../../../hooks/useOrgGuardians';
@@ -28,6 +28,8 @@ import { formatCellphone } from '../../../../utils/phone';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { themeColor } from '../../../../constants/Colors';
 import { PageBody } from '../../../../components/PageBody';
+import { useOrgAccess } from '../../../../hooks/useOrgAccess';
+import { useTeamRoster } from '../../../../hooks/useTeamRoster';
 
 type Dialog = 'identity' | 'contact' | 'personal' | 'photo' | 'guardian' | 'remove' | null;
 
@@ -46,7 +48,8 @@ type Dialog = 'identity' | 'contact' | 'personal' | 'photo' | 'guardian' | 'remo
  */
 export default function PersonPage() {
   const isDark = useActiveTheme() === 'dark';
-  const { orgId, membershipId } = useLocalSearchParams<{ orgId: string; membershipId: string }>();
+  // `teamId` when opened from a team's roster: a coach of that team looks after its people (`PERM-5`).
+  const { orgId, membershipId, teamId } = useLocalSearchParams<{ orgId: string; membershipId: string; teamId?: string }>();
   const safeBack = useSafeBack();
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
@@ -54,15 +57,16 @@ export default function PersonPage() {
 
   const { members, isLoading: isMembersLoading } = useOrgMembers(orgId);
   const { data: rolesData, isLoading: isRolesLoading } = useSocketQuery<any>('roles');
-  const roles: OrgRole[] = rolesData?.org || [];
+  const orgAccessOf = useOrgAccess(orgId);
+  const isOrgAdmin = orgAccessOf.isAdmin;
+  const coachesTeam = !!teamId && orgAccessOf.coachedTeamIds.includes(teamId);
+  const { roster: teamRoster } = useTeamRoster(coachesTeam ? teamId : null);
+  const roles: OrgRole[] = rolesTheyMayGive(rolesData?.org || [], isOrgAdmin);
   const { byPlayer: guardiansByPlayer } = useOrgGuardians(orgId);
   const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
   const inviteCooldownHours = useInviteCooldownHours();
 
   const viewer = useAuthStore(state => state.user);
-  const viewerRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId && !m.restrictedReason)?.roleId);
-  const isOrgAdmin = viewer?.globalRole === 'admin' || viewerRole === 'role-org-admin';
-  const canEdit = isOrgAdmin || viewerRole === 'role-org-staff';
 
   const [dialog, setDialog] = useState<Dialog>(null);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -70,6 +74,8 @@ export default function PersonPage() {
   const [removeError, setRemoveError] = useState<string | null>(null);
 
   const member = useMemo(() => members?.find(m => m.membershipId === membershipId) || null, [members, membershipId]);
+  // Admin or Staff; or a coach, for someone on their team (`PERM-5`).
+  const canEdit = orgAccessOf.canManage || (!!member && teamRoster.some(r => r.id === member.id));
   const guardians = member ? guardiansByPlayer.get(member.id) || [] : [];
   const guardianship = member ? guardianshipOf(member.birthdate, minorsSettings, guardians.length > 0) : null;
   const close = () => setDialog(null);
@@ -118,13 +124,16 @@ export default function PersonPage() {
     ...(guardians.length === 0
       ? [{ label: 'Add guardian', description: 'Record a parent or other adult who answers for them.', icon: 'people-outline' as const, onPress: () => setDialog('guardian') }]
       : []),
-    {
-      label: 'Remove from organisation',
-      description: 'Ends their membership and takes them off every team in this organisation.',
-      icon: 'person-remove-outline',
-      destructive: true,
-      onPress: () => { setRemoveError(null); setDialog('remove'); },
-    },
+    // Staff remove Members; removing staff or an admin is the admins' (`PERM-2`).
+    ...(orgAccessOf.canManage && (isOrgAdmin || member.roleId === 'role-org-member')
+      ? [{
+        label: 'Remove from organisation',
+        description: 'Ends their membership and takes them off every team in this organisation.',
+        icon: 'person-remove-outline' as const,
+        destructive: true,
+        onPress: () => { setRemoveError(null); setDialog('remove'); },
+      }]
+      : []),
   ];
 
   const age = ageInYears(member.birthdate);

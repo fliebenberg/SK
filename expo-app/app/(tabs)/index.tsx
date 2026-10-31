@@ -37,7 +37,7 @@ export default function Home() {
 
   const searching = query.trim().length > 0;
   const hasLocation = !!location;
-  const hasMine = !!mine && (mine.organizations.length > 0 || mine.teams.length > 0);
+  const hasMine = !!mine && ((mine.runs?.length ?? 0) > 0 || mine.organizations.length > 0 || mine.teams.length > 0);
 
   // Still finding out where to look counts as loading, so a card never says "nothing" too early.
   const loading = isLoading || resolving;

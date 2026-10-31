@@ -11,6 +11,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { evaluateUndoWindow, getScoreImpact, getUndoNowMs } from '../../../utils/undoWindow';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
+import { actingProfileId } from '../../../utils/actingProfile';
 
 interface EventLogFeedProps {
   gameId: string;
@@ -189,19 +190,9 @@ export function EventLogFeed({ gameId, game, canManage = false, plain = false }:
   const resolveInitiatorId = () => {
     if (!user) return undefined;
     const orgMemberships = useAuthStore.getState().orgMemberships || [];
-    if (user.globalRole === 'admin') {
-      const adminMem = orgMemberships.find((m: any) => m.orgId === 'org-system-admins');
-      if (adminMem?.orgProfileId) return adminMem.orgProfileId;
-    }
-    if (game?.id && (game as any).officials) {
-      const matchedOfficial = (game as any).officials?.find((o: any) =>
-        orgMemberships.some((m: any) => m.orgProfileId === o.orgProfileId)
-      );
-      if (matchedOfficial?.orgProfileId) return matchedOfficial.orgProfileId;
-    }
     // No fallback to user.id — a scorer without an org profile cannot be attributed,
-    // and the server would reject the action anyway.
-    return orgMemberships[0]?.orgProfileId;
+    // and the server would reject the action anyway. Which profile: `actingProfileId` (`PERM-12`).
+    return actingProfileId(game as any);
   };
 
   const handleConfirmUndo = () => {

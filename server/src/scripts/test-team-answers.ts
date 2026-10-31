@@ -13,7 +13,7 @@ import { fixtureIds } from './setup/fixtures/testOrgs';
  *  - A team the organisers enter starts **invited**; the host's own team and a placeholder start
  *    accepted.
  *  - **Who answers for a team**: its organisation's admins (any team), its coach (their own), or the
- *    division's organisers. Staff and strangers are refused.
+ *    division's organisers. Staff may too (`PERM-2`); strangers are refused.
  *  - **The organisers** may decline at any time, but accept only once the team's organisation has
  *    accepted (rule 6). Its own people may accept before then (rule 1).
  *  - **The lock**: refused while a team is still invited, a request waits, or a team's organisation
@@ -114,7 +114,7 @@ async function run() {
   const answer = (entrantId: string, ans = 'accepted') => ({ divisionId: division.id, entrantId, orgId: SAC, answer: ans });
   check(!(await as(SAC_ADMIN, SocketAction.SET_ENTRANT_ANSWER, answer(id(T.sac)))), "its organisation's admin may answer for a team");
   check(!(await as(SAC_COACH, SocketAction.SET_ENTRANT_ANSWER, answer(id(T.sac)))), 'its coach may answer for their own team');
-  check(await as(SAC_STAFF, SocketAction.SET_ENTRANT_ANSWER, answer(id(T.sac))), "its organisation's staff may not");
+  check(!(await as(SAC_STAFF, SocketAction.SET_ENTRANT_ANSWER, answer(id(T.sac)))), "its organisation's staff may (PERM-2)");
   check(await as(RBH_COACH, SocketAction.SET_ENTRANT_ANSWER, answer(id(T.sac))), "another team's coach may not");
   check(await as(SAC_ADMIN, SocketAction.SET_ENTRANT_ANSWER, answer(id(T.rbh))), "another organisation's admin may not");
   check(!(await as(DKL_ADMIN, SocketAction.SET_ENTRANT_ANSWER, answer(id(T.rbh)))), "the tournament's organisers may");
@@ -194,7 +194,7 @@ async function run() {
   const entry = (teamId: string) => ({ divisionId: division.id, teamId, orgId: SAC });
   check(!(await as(SAC_ADMIN, SocketAction.REQUEST_ENTRY, entry(T.sacXv))), "an organisation's admin may ask to enter any of its teams");
   check(await as(SAC_COACH, SocketAction.REQUEST_ENTRY, entry(T.sacXv)), 'a coach may not ask for a team they do not coach');
-  check(await as(SAC_STAFF, SocketAction.REQUEST_ENTRY, entry(T.sacXv)), 'staff may not ask');
+  check(!(await as(SAC_STAFF, SocketAction.REQUEST_ENTRY, entry(T.sacXv))), 'staff may ask (PERM-2)');
   const late = await tournamentManager.requestEntry(division.id, T.sacXv, { userId: SAC_ADMIN }, 'Squad back');
   check(late.status === 'requested', 'after the lock a team can be asked for late, whatever the setting');
   check(

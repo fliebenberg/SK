@@ -149,8 +149,27 @@ export interface MyHomeTeam {
   game?: GameSummary | null;
 }
 
+/**
+ * A tournament the viewer runs by appointment — as its organiser, one of its sport organisers or a
+ * division convenor (`PERM-8`). Listed first on Home, because for someone who belongs to no
+ * organisation it is the only way in to the tournament's workspace.
+ */
+export interface MyHomeRunEvent {
+  id: string;
+  name: string;
+  /** The host, whose workspace the tournament's pages are in. */
+  orgId: string;
+  orgName: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  /** The widest of their appointments there. */
+  scope: 'event' | 'sport' | 'division';
+}
+
 /** `get_data { type: 'home_mine' }`: answered for the caller and nobody else. */
 export interface MyHome {
+  /** Tournaments they run by appointment, soonest first; current and upcoming only. */
+  runs: MyHomeRunEvent[];
   organizations: MyHomeOrganization[];
   teams: MyHomeTeam[];
 }

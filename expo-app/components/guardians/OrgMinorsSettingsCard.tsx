@@ -111,20 +111,17 @@ export function OrgMinorsSettingsCard({ orgId, isOrgAdmin }: OrgMinorsSettingsCa
           sub={settings.accountsAllowed
             ? 'Each minor has access unless their guardian switches it off'
             : 'No minor has member access, whatever their guardians say'}
-          right={
+          right={isOrgAdmin ? (
             <Switch
               value={settings.accountsAllowed}
-              disabled={!isOrgAdmin || isSaving}
+              disabled={isSaving}
               onValueChange={askToggle}
               accessibilityLabel="Minors may have member access"
             />
-          }
+          ) : undefined}
         />
       </View>
 
-      {!isOrgAdmin ? (
-        <Text className="font-inter text-xs text-ink-muted">Only an organisation admin can change these.</Text>
-      ) : null}
       {error && !editingAge ? <Text className="font-inter text-xs text-danger-ink">{error}</Text> : null}
 
       <EditDialog

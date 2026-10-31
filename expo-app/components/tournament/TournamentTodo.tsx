@@ -15,6 +15,7 @@ import { themeColor } from '../../constants/Colors';
 import { wsService } from '../../services/websocket';
 import { useWsStore } from '../../store/wsStore';
 import { formatInstantDate, formatKickoffTime } from '../../utils/dates';
+import { managesOrg } from '../../utils/orgAccess';
 
 /**
  * **To do** — what a taking-part organisation still owes a tournament (`FIX-24`, agreed 2026-10-18 on
@@ -119,7 +120,8 @@ export function useTournamentTodo({ event, divisions, entrants, canEdit, sports,
   const { teams } = useOrgTeams(canEdit ? null : orgId);
   const listed = useMemo(() => {
     if (canEdit) return { tasks: [], rows: [] };
-    const adminsOrg = (id?: string) => !!id && orgMemberships.some((m: any) => m.orgId === id && m.roleId === 'role-org-admin' && ACTIVE(m));
+    // Its admins and staff answer and name its places (`FIX-31`, `PERM-2`).
+    const adminsOrg = (id?: string) => managesOrg(id, orgMemberships);
     const coachTeamIds = new Set<string>(teamMemberships
       .filter((m: any) => (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach') && ACTIVE(m))
       .map((m: any) => m.teamId));
@@ -132,7 +134,7 @@ export function useTournamentTodo({ event, divisions, entrants, canEdit, sports,
     const takenTeamIds = entrants.filter(e => !!e.teamId && entrantTakesAPlace(e.status)).map(e => e.teamId!);
     for (const e of entrants) {
       const division = divisionOf(e.divisionId);
-      // A place kept for the organisation, its team still to name (`FIX-32`): its admins name it.
+      // A place kept for the organisation, its team still to name (`FIX-32`): its admins and staff name it.
       if (division && !e.teamId && !e.orgProfileId && e.orgId && e.status === 'accepted' && adminsOrg(e.orgId)
           && !hasLeft(invitationOf(e.orgId) || 'accepted')) {
         tasks.push({

@@ -1,5 +1,6 @@
-import { Event, EventCapabilities, OrgMembership, TeamMembership, resolveEventType } from '@sk/shared';
+import { Event, EventCapabilities, GameCapabilities, OrgMembership, TeamMembership, resolveEventType } from '@sk/shared';
 import { User } from '../store/authStore';
+import { COACH_ROLES, managesOrg } from './orgAccess';
 
 /**
  * Only the participants decide a match permission, so this takes the shape
@@ -10,6 +11,8 @@ export type MatchPermissionsGame = {
   participants?: { teamId?: string; orgId?: string }[];
   /** Which division's fixture this is, where the screen knows. Null on a single match. */
   divisionId?: string;
+  /** Its sport, for a sport organiser's reach (`PERM-6`). */
+  sportId?: string;
 };
 
 export interface MatchPermissions {
@@ -41,6 +44,11 @@ export function getMatchPermissions(params: {
    * invisible.
    */
   capabilities?: EventCapabilities | null;
+  /**
+   * What the server says this user may do at this game (`get_data { type: 'game_capabilities' }`):
+   * the appointed officials no membership shows (`PERM-6`, `PERM-7`). Only ever widens.
+   */
+  gameCapabilities?: GameCapabilities | null;
 }): MatchPermissions {
   const {
     game,
@@ -51,6 +59,7 @@ export function getMatchPermissions(params: {
     teamMemberships,
     teamsMap,
     capabilities,
+    gameCapabilities,
   } = params;
 
   // View is accessible to everyone
@@ -66,10 +75,12 @@ export function getMatchPermissions(params: {
    * permit when the write arrives.
    */
   const organisesEvent = !!capabilities?.canEditEvent && capabilities.eventId === event?.id;
+  // A sport organiser holds a convenor's rights in every division of their sport (`PERM-6`).
   const convenesThisDivision = !!(
     game?.divisionId &&
     capabilities?.eventId === event?.id &&
-    capabilities?.convenesDivisionIds?.includes(game.divisionId)
+    (capabilities?.convenesDivisionIds?.includes(game.divisionId) ||
+      (!!game.sportId && capabilities?.convenesSportIds?.includes(game.sportId)))
   );
   const hasTournamentGrant = organisesEvent || convenesThisDivision;
 
@@ -91,29 +102,13 @@ export function getMatchPermissions(params: {
     };
   }
 
-  // Check if user is an Org Admin / Staff of the current active org or event host org
-  const isAdminOfCurrentOrg = !!(
-    currentOrgId &&
-    orgMemberships?.some(
-      (m) =>
-        m.orgId === currentOrgId &&
-        (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff')
-    )
-  );
+  // Admin or Staff of the host. Not of whatever workspace is in the address bar: an org that neither
+  // hosts nor plays the game has no say in it (`PERM-6`, B6), as the server's `canScoreGame` has it.
+  const isAdminOfEventOrg = managesOrg(event?.orgId, orgMemberships);
+  const isSingleMatch = resolveEventType(event).kind === 'SingleMatch';
 
-  const isAdminOfEventOrg = !!(
-    event?.orgId &&
-    orgMemberships?.some(
-      (m) =>
-        m.orgId === event.orgId &&
-        (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff')
-    )
-  );
-
-  const isEventOwner = isAdminOfCurrentOrg || isAdminOfEventOrg;
-
-  const canEdit = (isEventOrgWorkspace && isAdminOfEventOrg) || hasTournamentGrant;
-  let canScore = isEventOwner || hasTournamentGrant;
+  let canEdit = (isEventOrgWorkspace && isAdminOfEventOrg) || hasTournamentGrant;
+  let canScore = isAdminOfEventOrg || hasTournamentGrant || !!gameCapabilities?.canScore;
 
   /*
    * Who picks a team (agreed 2026-10-14, stage 3): **each organisation picks its own.** In a single
@@ -123,7 +118,6 @@ export function getMatchPermissions(params: {
    * rule as the server's `AccessManager.canPickSide` (`SCORE-19`, 2026-10-22): an admin of a guest
    * organisation, acting from its own workspace, picks only its own teams.
    */
-  const isSingleMatch = resolveEventType(event).kind === 'SingleMatch';
   const picksEveryTeam = !isSingleMatch && (isAdminOfEventOrg || hasTournamentGrant);
   let canEditTeam1Lineup = picksEveryTeam;
   let canEditTeam2Lineup = picksEveryTeam;
@@ -132,22 +126,13 @@ export function getMatchPermissions(params: {
     const homeTeamId = game.participants?.[0]?.teamId;
     const awayTeamId = game.participants?.[1]?.teamId;
 
-    const isCoachOfHome = !!(
-      homeTeamId &&
-      teamMemberships?.some(
-        (m) =>
-          m.teamId === homeTeamId &&
-          (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach')
-      )
+    const holds = (teamId: string | undefined, roles: string[]) => !!(
+      teamId && teamMemberships?.some(m => m.teamId === teamId && roles.includes(m.roleId))
     );
-    const isCoachOfAway = !!(
-      awayTeamId &&
-      teamMemberships?.some(
-        (m) =>
-          m.teamId === awayTeamId &&
-          (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach')
-      )
-    );
+    const isCoachOfHome = holds(homeTeamId, COACH_ROLES);
+    const isCoachOfAway = holds(awayTeamId, COACH_ROLES);
+    // The team's scorer scores every game it plays (`PERM-6`).
+    if (holds(homeTeamId, ['role-scorer']) || holds(awayTeamId, ['role-scorer'])) canScore = true;
 
     // A summary names each participant's org directly; a raw `Game` does not,
     // so fall back to the caller's team lookup.
@@ -158,22 +143,13 @@ export function getMatchPermissions(params: {
       game.participants?.[1]?.orgId ||
       (awayTeamId ? teamsMap?.[awayTeamId]?.orgId : undefined);
 
-    const isAdminOfHomeOrg = !!(
-      homeOrgId &&
-      orgMemberships?.some(
-        (m) =>
-          m.orgId === homeOrgId &&
-          (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff')
-      )
-    );
-    const isAdminOfAwayOrg = !!(
-      awayOrgId &&
-      orgMemberships?.some(
-        (m) =>
-          m.orgId === awayOrgId &&
-          (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff')
-      )
-    );
+    const isAdminOfHomeOrg = managesOrg(homeOrgId, orgMemberships);
+    const isAdminOfAwayOrg = managesOrg(awayOrgId, orgMemberships);
+
+    // A coach runs their own team's single matches (`PERM-5`): one their team, of the host, plays in.
+    if (isSingleMatch && isEventOrgWorkspace && (
+      (isCoachOfHome && homeOrgId === event?.orgId) || (isCoachOfAway && awayOrgId === event?.orgId)
+    )) canEdit = true;
 
     if (isCoachOfHome || isAdminOfHomeOrg) {
       canEditTeam1Lineup = true;

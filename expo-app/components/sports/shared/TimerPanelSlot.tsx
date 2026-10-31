@@ -11,10 +11,13 @@ import { GameStatusIndicator } from './GameStatusIndicator';
 import { LiveClockText } from './LiveClockText';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
+import { actingProfileId } from '../../../utils/actingProfile';
 
 interface TimerPanelSlotProps {
   game: Game;
   canEdit?: boolean;
+  /** An appointed timekeeper (`PERM-7`): the clock, but not resetting or cancelling the game. */
+  timekeeperOnly?: boolean;
 }
 
 const ClockDisplay = memo(function ClockDisplay({
@@ -48,7 +51,7 @@ const ClockDisplay = memo(function ClockDisplay({
   );
 });
 
-export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
+export function TimerPanelSlot({ game, canEdit = false, timekeeperOnly = false }: TimerPanelSlotProps) {
   const isDark = useActiveTheme() === 'dark';
   const clock = game.liveState?.clock;
   const { isRunning, currentMS } = useGameTimer(clock, game.startTime, game.finishTime);
@@ -95,11 +98,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
     const user = useAuthStore.getState().user;
     const orgMemberships = useAuthStore.getState().orgMemberships || [];
     if (!user) return undefined;
-    if (user.globalRole === 'admin') {
-      const adminMem = orgMemberships.find((m: any) => m.orgId === 'org-system-admins');
-      if (adminMem?.orgProfileId) return adminMem.orgProfileId;
-    }
-    return orgMemberships[0]?.orgProfileId || undefined;
+    return actingProfileId(game as any);
   };
 
   // These are fire-and-forget: the clock and status on screen come from the server's broadcast,
@@ -299,7 +298,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
               )}
 
               {/* RESET GAME BUTTON */}
-              {game.status !== 'Scheduled' && (
+              {!timekeeperOnly && game.status !== 'Scheduled' && (
                 <TouchableOpacity
                   onPress={() => setShowResetModal(true)}
                   accessibilityLabel="Reset Game Data"
@@ -311,7 +310,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
               )}
 
               {/* CANCEL GAME BUTTON */}
-              {(game.status === 'Scheduled' ||
+              {!timekeeperOnly && (game.status === 'Scheduled' ||
                 (game.status === 'Live' && !isPeriodActive && !isLastPeriod) ||
                 game.status === 'Finished') && (
                 <TouchableOpacity

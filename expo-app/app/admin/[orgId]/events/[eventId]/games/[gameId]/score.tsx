@@ -8,6 +8,7 @@ import { useWsStore } from '../../../../../../../store/wsStore';
 import { SocketAction, Event, Game } from '@sk/shared';
 
 import { useAuthStore } from '../../../../../../../store/authStore';
+import { useGameCapabilities } from '../../../../../../../hooks/useGameCapabilities';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { DynamicScoringProvider } from '../../../../../../../components/sports/shared/DynamicScoringContext';
@@ -31,6 +32,7 @@ export default function ScoreGameScreen() {
   const safeBack = useSafeBack();
   const { orgId, eventId, gameId } = useLocalSearchParams<{ orgId: string; eventId: string; gameId: string }>();
   const { capabilities } = useEventCapabilities(eventId);
+  const { capabilities: gameCapabilities } = useGameCapabilities(gameId);
   const isConnected = useWsStore((state: any) => state.isConnected);
 
   const user = useAuthStore((state: any) => state.user);
@@ -111,17 +113,21 @@ export default function ScoreGameScreen() {
     // Without this the screen would hide the controls from an appointed organiser or a
     // division convenor, neither of whom holds an org membership that says so (D33).
     capabilities,
+    // And from an appointed scorer or match official, whom no membership names (`PERM-6`).
+    gameCapabilities,
   });
+  // An appointed timekeeper gets the timekeeping section alone (`PERM-7`).
+  const timekeeperOnly = !permissions.canScore && !!gameCapabilities?.canKeepTime;
 
   // Being signed into the workspace is not enough to score: the control room is
   // for org admins/staff and coaches of a participating team. Everyone else is
   // sent to the read-only match view.
-  if (!permissions.canScore) {
+  if (!permissions.canScore && !timekeeperOnly) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <AccessDenied
           title="Scoring Restricted"
-          message="You do not have permission to score this match. Org admins and staff, or a coach of one of the participating teams, can open the control room."
+          message="You do not have permission to score this match. Org admins and staff, its teams' coaches and scorers, and its appointed officials can open the control room."
           actionLabel="Open Match View"
           onAction={() => router.replace(`/admin/${orgId}/events/${eventId}/games/${gameId}` as any)}
         />
@@ -158,16 +164,20 @@ export default function ScoreGameScreen() {
             {/* MAIN SCORING COLUMN (TIMER, SCOREBOARD, DISPUTES & SCORER PANELS) */}
             <View className="w-full flex-1 max-w-3xl">
               {/* TIMER SLOT */}
-              <TimerPanelSlot game={game} canEdit={true} />
+              <TimerPanelSlot game={game} canEdit={true} timekeeperOnly={timekeeperOnly} />
 
-              {/* SCOREBOARD SLOT */}
-              {ScoreboardComponent && <ScoreboardComponent game={game} role="SCORER" />}
+              {/* SCOREBOARD SLOT — with its sin-bins, which are timekeeping too */}
+              {ScoreboardComponent && <ScoreboardComponent game={game} role={timekeeperOnly ? 'TIMEKEEPER' : 'SCORER'} />}
 
-              {/* DISPUTES PANEL */}
-              <ActiveDisputesPanel gameId={game.id} />
+              {timekeeperOnly ? null : (
+                <>
+                  {/* DISPUTES PANEL */}
+                  <ActiveDisputesPanel gameId={game.id} game={game as any} />
 
-              {/* SCORING PANELS — one per section the sport declares, in its own order */}
-              <DynamicScoringPanels role="SCORER" />
+                  {/* SCORING PANELS — one per section the sport declares, in its own order */}
+                  <DynamicScoringPanels role="SCORER" />
+                </>
+              )}
             </View>
 
             {/* EVENTS & DRAWER TABS PANEL (LOG FEED / ROSTERS / STATS - SHOWN ON RIGHT ON LARGE SCREENS) */}
@@ -187,7 +197,7 @@ export default function ScoreGameScreen() {
                 />
 
                 <View className="min-h-[280px]">
-                  {activeTab === 'feed' && <EventLogFeed gameId={game.id} game={game} canManage={true} />}
+                  {activeTab === 'feed' && <EventLogFeed gameId={game.id} game={game} canManage={!timekeeperOnly} />}
                   {activeTab === 'team1' && p1 && <TeamRosterPanel gameId={game.id} participantId={p1.id} teamId={p1.teamId} />}
                   {activeTab === 'team2' && p2 && <TeamRosterPanel gameId={game.id} participantId={p2.id} teamId={p2.teamId} />}
                   {activeTab === 'stats' && <RugbyGameStats game={game} />}

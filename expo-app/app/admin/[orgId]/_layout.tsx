@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { orgColors } from '@sk/shared';
-import { Stack, useGlobalSearchParams, useRouter, useSegments } from 'expo-router';
+import { Redirect, Stack, useGlobalSearchParams, useRouter, useSegments } from 'expo-router';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { useWindowDimensions, View, TouchableOpacity, Text, Alert } from 'react-native';
 import { LeftNavigationRail } from '../../../components/LeftNavigationRail';
@@ -16,7 +16,10 @@ import { UnclaimedOrgBanner } from '../../../components/UnclaimedOrgBanner';
 
 import { inkOnBrand } from '../../../utils/colorUtils';
 import { themeColor } from '../../../constants/Colors';
-import { getWorkspaceNavItems, currentWorkspacePage } from '../../../constants/workspaceNav';
+import { getWorkspaceNavItems, currentWorkspacePage, mayOpenWorkspacePage } from '../../../constants/workspaceNav';
+import { useOrgAccess } from '../../../hooks/useOrgAccess';
+import { useEventCapabilities } from '../../../hooks/useEventCapabilities';
+import { useGameCapabilities } from '../../../hooks/useGameCapabilities';
 
 /**
  * Every screen in the org workspace — including the scoring control room — is
@@ -24,16 +27,22 @@ import { getWorkspaceNavItems, currentWorkspacePage } from '../../../constants/w
  * it: unauthorized visitors never mount the workspace or its data subscriptions.
  */
 export default function OrgAdminLayout() {
-  const { orgId } = useGlobalSearchParams<{ orgId?: string }>();
+  const { orgId, eventId, gameId } = useGlobalSearchParams<{ orgId?: string; eventId?: string; gameId?: string }>();
+  // Someone with no role in this org may still run one of its tournaments, or officiate one of its
+  // games (`PERM-8`): the server says so, and that opens those pages and nothing else of it.
+  const { capabilities: eventCaps, isLoading: eventLoading } = useEventCapabilities(eventId);
+  const { capabilities: gameCaps, isLoading: gameLoading } = useGameCapabilities(gameId);
+  const grant = !!(eventCaps?.canEditEvent || eventCaps?.convenesDivisionIds?.length || eventCaps?.convenesSportIds?.length)
+    || !!(gameCaps?.canScore || gameCaps?.canKeepTime);
 
   return (
-    <AuthGuard orgId={orgId}>
-      <OrgAdminWorkspace />
+    <AuthGuard orgId={orgId} admitted={grant} admitting={(!!eventId && eventLoading) || (!!gameId && gameLoading)}>
+      <OrgAdminWorkspace grant={grant} />
     </AuthGuard>
   );
 }
 
-function OrgAdminWorkspace() {
+function OrgAdminWorkspace({ grant }: { grant: boolean }) {
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
   const { width } = useWindowDimensions();
@@ -44,6 +53,10 @@ function OrgAdminWorkspace() {
   const { orgId } = useGlobalSearchParams<{ orgId?: string }>();
   const { org: orgData } = useOrgSummary(orgId);
   const currentPage = currentWorkspacePage(segments);
+  // Each role opens only its part of the workspace (`PERM-4`): a coach gets their teams and fixtures.
+  const { workspace } = useOrgAccess(orgId);
+  // A grant opens the tournament or game it names, which are under Fixtures & Events.
+  const mayOpenPage = mayOpenWorkspacePage(workspace, currentPage, segments[3]) || (grant && currentPage === 'events');
   const [workspaceMenuVisible, setWorkspaceMenuVisible] = useState(false);
   const isConnected = useWsStore(state => state.isConnected);
   const { isDirty, onDiscard, clear, triggerDiscardPrompt } = useUnsavedChangesStore();
@@ -92,7 +105,8 @@ function OrgAdminWorkspace() {
     <View className="flex-1 bg-canvas relative">
       {/* While the org has no administrator, on every workspace page (docs/nomination-process.md §4). */}
       <UnclaimedOrgBanner org={orgData} />
-      {stackContent}
+      {/* A page their role does not open goes to the Control Panel, which lists the ones it does. */}
+      {mayOpenPage ? stackContent : <Redirect href={`/admin/${orgId}` as any} />}
 
       {/* Floating Workspace Hub Button (Mobile Only) - Positioned higher to clear the bottom menu */}
       {!isLargeScreen && orgId && (
@@ -180,7 +194,7 @@ function OrgAdminWorkspace() {
             {/* List of administration modules */}
             {/* The same list as the sidebar, the current page marked the same way (UI-27). */}
             <View className="gap-0.5">
-              {getWorkspaceNavItems(orgId, orgData?.isClaimed).map((item) => {
+              {getWorkspaceNavItems(orgId, orgData?.isClaimed, workspace).map((item) => {
                 const isCurrent = item.name === currentPage;
                 // Tapping the page already on screen just closes the menu.
                 const onPress = isCurrent

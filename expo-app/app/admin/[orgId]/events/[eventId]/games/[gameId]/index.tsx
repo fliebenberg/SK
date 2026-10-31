@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Event, Facility, Game, GameSummary, Site, SocketAction, resolveEventType, timeOfDay } from '@sk/shared';
 import { ScreenHeader } from '../../../../../../../components/ScreenHeader';
 import { PageBody } from '../../../../../../../components/PageBody';
+import { GameOfficialsCard } from '../../../../../../../components/game/GameOfficialsCard';
 import { Tabs } from '../../../../../../../components/Tabs';
 import { OverflowMenu, OverflowMenuItem } from '../../../../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../../../../components/ConfirmationModal';
@@ -20,6 +21,7 @@ import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { useGameSummary } from '../../../../../../../hooks/useGameSummary';
 import { useGameLineups, useLineupProposals } from '../../../../../../../hooks/useGameLineups';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
+import { useGameCapabilities } from '../../../../../../../hooks/useGameCapabilities';
 import { useEventDivisions, useEventFacilityIds, useEventFixtures, useEventRecord, useSports } from '../../../../../../../hooks/useEventRooms';
 import { awardsPoints } from '../../../../../../../components/tournament/standingsBits';
 import { useOrgSites } from '../../../../../../../hooks/useOrgSites';
@@ -72,6 +74,8 @@ export default function GamePage() {
   const sports = useSports();
   const sport = sports.find(s => s.id === summary?.sportId);
   const { capabilities } = useEventCapabilities(eventId);
+  // Appointed officials, whom no membership names (`PERM-6`); not asked on the public page.
+  const { capabilities: gameCapabilities } = useGameCapabilities(links.isPublic ? null : gameId);
   const user = useAuthStore((s: any) => s.user);
   const orgMemberships = useAuthStore((s: any) => s.orgMemberships);
   const teamMemberships = useAuthStore((s: any) => s.teamMemberships);
@@ -113,7 +117,7 @@ export default function GamePage() {
   // The public page is read-only whoever is looking: a coach picks their team in their workspace.
   const permissions = getMatchPermissions(links.isPublic
     ? { game: summary || null, event, user: null, orgMemberships: [], teamMemberships: [], capabilities: null }
-    : { game: summary || null, event, currentOrgId: orgId, user, orgMemberships, teamMemberships, capabilities });
+    : { game: summary || null, event, currentOrgId: orgId, user, orgMemberships, teamMemberships, capabilities, gameCapabilities });
   const canEdit = permissions.canEdit;
   // The viewer's own sides' proposed teams (`FIX-32`); another side's is not theirs to see as picked.
   const mySideIds = sides.filter((p, i) => (i === 0 ? permissions.canEditTeam1Lineup : permissions.canEditTeam2Lineup)).map(p => p.id);
@@ -188,6 +192,9 @@ export default function GamePage() {
         actions.push({ label: 'Start scoring', onPress: score, primary: next === 'start' });
         if (game) actions.push({ label: 'Record result', onPress: () => setDialog('result') });
       }
+    } else if (gameCapabilities?.canKeepTime && moment !== 'done') {
+      // An appointed timekeeper opens the control room to its clock alone (`PERM-7`).
+      actions.push({ label: 'Keep time', onPress: score, primary: true });
     }
   }
 
@@ -289,6 +296,11 @@ export default function GamePage() {
   // record, so they go by the summary, which carries what the feed needs — its id, sides and sport.
   const feedGame = game || (links.isPublic ? (summary as unknown as Game) : null);
 
+  // Who officiates it: for the people who run the fixture, who appoint them (`PERM-7`).
+  const officialsCard = canEdit && !links.isPublic && event?.orgId
+    ? <GameOfficialsCard gameId={gameId!} hostOrgId={event.orgId} />
+    : null;
+
   let body: React.ReactNode;
   if (isWide) {
     body = (
@@ -300,6 +312,7 @@ export default function GamePage() {
         <View className="gap-3.5" style={{ width: 340 }}>
           {started && feedGame ? <MatchEventsCard game={feedGame} height={260} spectator={links.isPublic} /> : null}
           {whereCard}
+          {officialsCard}
         </View>
       </View>
     );
@@ -317,6 +330,7 @@ export default function GamePage() {
             <TeamsCard summary={summary} lineups={lineups} proposals={proposals} homeSides={homeSides} started={started || moment === 'cancelled'} compact onOpen={() => setTab('teams')} />
             {started && feedGame ? <MatchEventsCard game={feedGame} height={280} spectator={links.isPublic} /> : null}
             {whereCard}
+            {officialsCard}
             {divisionCard}
           </>
         ) : null}

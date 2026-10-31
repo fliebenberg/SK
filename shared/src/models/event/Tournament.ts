@@ -541,6 +541,21 @@ export interface EventCapabilities {
 }
 
 /**
+ * What one user may do at one game, from `get_data { type: 'game_capabilities', gameId }` — its own
+ * read for the same reason as `EventCapabilities`. Covers what the client cannot work out from
+ * memberships: appointed officials (`PERM-6`, `PERM-7`).
+ */
+export interface GameCapabilities {
+  gameId: string;
+  /** Score it, record or correct its result — the server's `canScoreGame`. */
+  canScore: boolean;
+  /** Keep its time — the clock, starting and ending play, sin-bins. True whenever `canScore` is. */
+  canKeepTime: boolean;
+  /** Their appointments to this game: `SCORER`, `REFEREE` (match official), `TIMEKEEPER`. */
+  officialRoles: string[];
+}
+
+/**
  * The stages a division starts life with, given the format its tournament was created under.
  *
  * D11 says every division has at least one stage, and Phase 5 makes that true from the moment a

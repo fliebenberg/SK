@@ -18,6 +18,7 @@ import { ImageEditor } from '../../../components/ImageEditor';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../hooks/useSafeBack';
+import { useOrgAccess } from '../../../hooks/useOrgAccess';
 import { sendAction } from '../../../services/actions';
 import { getOrgLogoUrl } from '../../../services/assets';
 import { hasPin } from '../../../services/places';
@@ -36,8 +37,10 @@ type Dialog = 'identity' | 'about' | 'sports' | 'address' | null;
  * save anywhere — here or on another device — shows up without a refetch.
  *
  * Split from the old org settings screen on 2026-10-01; how the org *runs* (timezone, minors) is on
- * [settings.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/settings.tsx). Who may edit
- * what is undecided (`ORG-13`): everyone who reaches the workspace can, as on the old screen.
+ * [settings.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/settings.tsx).
+ *
+ * Everyone who opens the workspace sees it; only the org's admins change it, and nobody else is
+ * shown an Edit link or an empty card's action (`ORG-13`, docs/permissions.md P2 and P3).
  */
 export default function OrgProfile() {
   const isDark = useActiveTheme() === 'dark';
@@ -48,6 +51,7 @@ export default function OrgProfile() {
   const isWide = width >= 900;
   const { org, isLoading } = useOrgSummary(orgId);
   const { data: sports } = useSocketQuery<any[]>('sports');
+  const { isAdmin: canEdit } = useOrgAccess(orgId);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [isEditingLogo, setIsEditingLogo] = useState(false);
   /** The org as just saved with a new address, while asking whether the timezone should follow it. */
@@ -63,10 +67,9 @@ export default function OrgProfile() {
 
   const close = () => setDialog(null);
 
-  const applyLogo = (uri: string, config: { scale: number; x: number; y: number }) => {
+  const applyLogo = async (uri: string, config: { scale: number; x: number; y: number }) => {
     if (!org) return;
-    setIsEditingLogo(false);
-    sendAction(SocketAction.UPDATE_ORG, {
+    const result = await sendAction(SocketAction.UPDATE_ORG, {
       id: org.id,
       data: {
         // Sent only when it changed, so moving the logo inside its frame does not re-upload it.
@@ -74,6 +77,8 @@ export default function OrgProfile() {
         settings: { ...(org.settings || {}), logoConfig: config },
       },
     });
+    // On failure the editor stays open with the new logo, and sendAction has said why.
+    if (result.ok) setIsEditingLogo(false);
   };
 
   const afterAddressSaved = (saved: Organization) => {
@@ -96,11 +101,11 @@ export default function OrgProfile() {
   }
 
   const about = (
-    <ReadCard label="About" onEdit={org.description ? () => setDialog('about') : undefined}>
+    <ReadCard label="About" onEdit={canEdit && org.description ? () => setDialog('about') : undefined}>
       {org.description ? (
         <Text className="font-inter text-sm leading-relaxed text-ink">{org.description}</Text>
       ) : (
-        <ReadCardEmpty text="No description yet. It shows on the public profile." action="Add one" onPress={() => setDialog('about')} />
+        <ReadCardEmpty text="No description yet. It shows on the public profile." action={canEdit ? 'Add one' : undefined} onPress={() => setDialog('about')} />
       )}
     </ReadCard>
   );
@@ -109,7 +114,7 @@ export default function OrgProfile() {
     <ReadCard
       label="Sports"
       help="The sports this organisation plays. Teams and fixtures can only be created for these. Removing a sport deactivates its teams."
-      onEdit={sportNames.length ? () => setDialog('sports') : undefined}
+      onEdit={canEdit && sportNames.length ? () => setDialog('sports') : undefined}
     >
       {sportNames.length ? (
         <View className="flex-row flex-wrap gap-2">
@@ -120,14 +125,14 @@ export default function OrgProfile() {
           ))}
         </View>
       ) : (
-        <ReadCardEmpty text="No sports yet." action="Add sports" onPress={() => setDialog('sports')} />
+        <ReadCardEmpty text="No sports yet." action={canEdit ? 'Add sports' : undefined} onPress={() => setDialog('sports')} />
       )}
     </ReadCard>
   );
 
   const pinned = hasPin(org.address) ? org.address : null;
   const addressCard = (
-    <ReadCard label="Address" onEdit={org.address ? () => setDialog('address') : undefined}>
+    <ReadCard label="Address" onEdit={canEdit && org.address ? () => setDialog('address') : undefined}>
       {org.address ? (
         isWide ? (
           <View className="gap-2.5">
@@ -151,7 +156,7 @@ export default function OrgProfile() {
           </View>
         )
       ) : (
-        <ReadCardEmpty text="No address yet." action="Add address" onPress={() => setDialog('address')} />
+        <ReadCardEmpty text="No address yet." action={canEdit ? 'Add address' : undefined} onPress={() => setDialog('address')} />
       )}
     </ReadCard>
   );
@@ -161,7 +166,11 @@ export default function OrgProfile() {
       <ScreenHeader title="Profile" onBack={() => safeBack(`/admin/${orgId}`)} />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}>
         <PageBody className="gap-4">
-          <OrgProfileBanner org={org} onEdit={() => setDialog('identity')} onEditLogo={() => setIsEditingLogo(true)} />
+          <OrgProfileBanner
+            org={org}
+            onEdit={canEdit ? () => setDialog('identity') : undefined}
+            onEditLogo={canEdit ? () => setIsEditingLogo(true) : undefined}
+          />
           {isWide ? (
             <View className="flex-row gap-4 items-start">
               <View className="gap-4" style={{ flex: 1.6 }}>{about}{sportsCard}</View>

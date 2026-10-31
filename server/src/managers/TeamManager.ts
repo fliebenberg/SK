@@ -9,9 +9,9 @@ export class TeamManager extends BaseManager {
     { id: "role-player", name: "Player" },
     { id: "role-coach", name: "Coach" },
     { id: "role-assistant-coach", name: "Assistant Coach" },
-    { id: "role-manager", name: "Manager" },
+    // Scores every game the team plays (`PERM-6`). Manager and Staff went 2026-10-31 (`PERM-10`):
+    // they carried no rights.
     { id: "role-scorer", name: "Scorer" },
-    { id: "role-staff", name: "Staff" },
     { id: "role-medic", name: "Medic" },
   ];
 

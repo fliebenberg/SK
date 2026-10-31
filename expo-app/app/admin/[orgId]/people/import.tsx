@@ -17,7 +17,6 @@ import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { SegmentedControl } from '../../../../components/SegmentedControl';
 import { PaginatedList } from '../../../../components/PaginatedList';
 import { useActiveTheme } from '../../../../store/settingsStore';
-import { useAuthStore } from '../../../../store/authStore';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useRequestScope } from '../../../../hooks/useRequestScope';
@@ -29,6 +28,7 @@ import {
   saveWorkbook,
 } from '../../../../utils/peopleSpreadsheet';
 import { themeColor } from '../../../../constants/Colors';
+import { useOrgAccess } from '../../../../hooks/useOrgAccess';
 
 /**
  * Importing people and their guardians from a spreadsheet (docs/identity_structure.md §8).
@@ -59,13 +59,7 @@ export default function ImportPeople() {
   const safeBack = useSafeBack();
   const scope = useRequestScope();
 
-  const user = useAuthStore(state => state.user);
-  const orgMemberships = useAuthStore(state => state.orgMemberships || []);
-  const membership = orgMemberships.find(m => m.orgId === orgId);
-  const canImport = Boolean(
-    user?.globalRole === 'admin' ||
-    (membership && (membership.roleId === 'role-org-admin' || membership.roleId === 'role-org-staff'))
-  );
+  const { canManage: canImport } = useOrgAccess(orgId);
 
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [done, setDone] = useState<PeopleImportReport | null>(null);

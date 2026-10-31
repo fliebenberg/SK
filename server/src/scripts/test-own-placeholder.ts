@@ -9,7 +9,7 @@ import { enforceOrgAction } from '../wss/orgGate';
  * for it — "Guest second team, TBC" — through `NAME_OWN_PLACEHOLDER`.
  *
  * - **Who may** (the org gate's `own-placeholder`): the place's organisation's admins, with one of
- *   its own teams. Not its staff, not another organisation's admin, not a team of somebody else's,
+ *   its own teams. Its staff too (`PERM-2`). Not another organisation's admin, not a team of somebody else's,
  *   and not a place that already has a team.
  * - **What it does**: the team takes the place — the same entrant, so a fixture drawn against the
  *   place now names the team — and goes in accepted, answered by the organisation; a team already
@@ -114,7 +114,7 @@ async function run() {
 
     // --- Who may.
     check(await gateAllows(guestAdmin, payload(guestTeam)), "the guest's admin may name its own place with its own team");
-    check(!(await gateAllows(guestStaff, payload(guestTeam))), '…not its staff');
+    check(await gateAllows(guestStaff, payload(guestTeam)), '…and its staff (PERM-2)');
     check(!(await gateAllows(otherAdmin, payload(otherTeam))), "…not another organisation's admin");
     check(!(await gateAllows(guestAdmin, payload(otherTeam))), "…and not with another organisation's team");
     check(!(await gateAllows(guestAdmin, payload(guestTeam, hostEntrant.id))), '…nor for a place that already has a team');

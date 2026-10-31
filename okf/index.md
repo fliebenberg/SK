@@ -23,6 +23,7 @@ Below are the key concept files in this bundle. AI agents should read these to g
 - **[Codebase Architecture](file:///c:/Fred/Coding/SK/okf/architecture.md)** (`type: concept`): The three packages and the rules that bind them.
 - **[Client Routing & Pages](file:///c:/Fred/Coding/SK/okf/client_routing.md)** (`type: concept`): Who can open each part of the app, how navigation works, notes on routes that need them, and navigation guard requirements. Not a route list — the `expo-app/app/` folder is that.
 - **[Authentication & Roles](file:///c:/Fred/Coding/SK/okf/auth_control.md)** (`type: concept`): Authentication strategy, JWT tokens, membership roles, and permission hierarchies.
+  - **[Permissions: who can see and do what](file:///c:/Fred/Coding/SK/docs/permissions.md)**: the product view — what each role may see and do on each page today, decided directions and open questions (draft, 2026-10-31).
 - **[Design System](file:///c:/Fred/Coding/SK/okf/design_system.md)** (`type: concept`): Visual/styling rules, colors, typography, and Light Mode AAA accessibility requirements.
 - **[Database & Persistence](file:///c:/Fred/Coding/SK/okf/database.md)** (`type: concept`): Persistence engines, PostgreSQL configurations, schema details, and migration steps.
 - **[API & WebSockets](file:///c:/Fred/Coding/SK/okf/api_comms.md)** (`type: concept`): Real-time communications framework, subscription models, REST fallbacks, and sport scoring registries.

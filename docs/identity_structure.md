@@ -45,7 +45,7 @@ External entities that operate across multiple organizations (like centralized r
 > 2026-09-11) both showed that for a **minor** player, availability decisions, transport
 > arrangements and essentially all communication happen with an adult, not with the player; for an
 > **adult** player the same decisions are made by the player. Still open: Trusted Contacts (§5.5,
-> `MEMBER-5`), guardians acting for a child (§5.4, `MEMBER-6`), and a Guardians view on the People
+> `MEMBER-5`), guardians answering for a child (§5.4, `MEMBER-6`), and a Guardians view on the People
 > screen (`PEOPLE-9`).
 
 ### 5.1 A guardian is an ordinary org profile — and holds no membership
@@ -123,10 +123,12 @@ or game only. What they lose is every org-wide privilege check. The rule is `mem
     fixtures room.
 *   **Decide** (built): the child's own-account setting (§5.3), and inviting the child once allowed
     (`SEND_DEPENDANT_INVITE`).
-*   **Act** (not built — `MEMBER-6`): respond to availability, acknowledge selection, receive the
+*   **Answer for** (not built — `MEMBER-6`): respond to availability, acknowledge selection, receive the
     messages meant for whoever answers for the player; and hold the name and photo consent flags
     (`PEOPLE-4`).
-*   **Never:** anything about another child, or any org-wide administration. A guardian is not a
+*   **Never:** act *as* the child — a guardian never inherits the child's roles, so the guardian of
+    a team's scorer cannot score ([permissions.md](file:///c:/Fred/Coding/SK/docs/permissions.md) P5).
+    Nor anything about another child, or any org-wide administration. A guardian is not a
     member of the organisation in the administrative sense — they answer for one person in it.
 
 Admins and staff record guardians on the player's profile and when adding a player, and a minor's
@@ -378,7 +380,8 @@ Each of these would let a spreadsheet move somebody's access, or undo a decision
 
 *   **Remove nobody.** A person missing from the sheet is left alone; so is a guardian link.
 *   **Make nobody an Admin, and change no Admin's role.** Those decide who runs the organisation, and
-    are made one at a time.
+    are made one at a time. **From staff, set no role at all** (`PERM-2`): the gate drops the Role
+    column, so a staff import adds Members and changes nobody's role — org roles are the admins'.
 *   **Leave a blank cell alone.** Clearing a value is done on the person's profile.
 *   **Not change the email of someone on ScoreKeeper.** Access is matched by email (§1), so a new
     address would hand their access to whoever owns it.

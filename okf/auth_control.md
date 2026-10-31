@@ -8,12 +8,15 @@ tags:
   - roles
   - permissions
   - security
-timestamp: 2026-09-27T00:00:00Z
+timestamp: 2026-10-31T00:00:00Z
 ---
 
 # Authentication & Authorization Levels
 
 ScoreKeeper secures routes and resources using JWT tokens and membership-based permission levels.
+
+What each role may see and do, page by page — and the permission questions still open — is in
+[docs/permissions.md](file:///c:/Fred/Coding/SK/docs/permissions.md). This file is how the server enforces it.
 
 ## Authentication Strategy
 
@@ -31,10 +34,15 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
     - Manage their own profiles, save user preferences, and follow teams.
 3.  **Organization/Team Member**:
     - Permissions are granted at the **Membership** level, not the User level. A single User can have different roles across different organizations.
-    - **Admin**: Full administrative control over the Organization. There is no separate owner role: the org's creator (`creator_id`) is a record of who created it, not a permission or a label (`ORG-11`).
-    - **Manager**: Manage event schedules, add teams, and edit rosters.
-    - **Scorekeeper / Official**: Authorized to open the scoring console and update game states in real-time.
-    - **Coach**: Manage team lineups and view restricted rosters.
+    - **What each role is for, and what it may do page by page, is
+      [docs/permissions.md](file:///c:/Fred/Coding/SK/docs/permissions.md)** (decided and built
+      2026-10-31). In short:
+    - **Admin**: the organisation itself — its profile, settings and who holds which org role. There is no separate owner role: the org's creator (`creator_id`) is a record of who created it, not a permission or a label (`ORG-11`).
+    - **Staff**: its day-to-day admin — people (as Members), teams, sites, fixtures, tournaments, leagues, scoring, answering invitations. No org-role decisions (`PERM-2`).
+    - **Member**: belongs to it; no workspace (`PERM-4`).
+    - **Coach** (team role): an admin's rights over their own team, bar deleting it and changing its Coach; an **Assistant Coach** the same, bar appointing assistant coaches (`PERM-5`). Checked by `AccessManager.teamCoachRole`, `coachesPerson` and `coachesInOrg`, used by the org gate's `team-record`, `team-roster`, `team-person`, `add-event` and the profile gate. A coach also runs their team's **single matches** (`coachesSingleMatch`, inside `canEditEventOrGame`), creating one through `add-event` plus `organize-fixture`, which holds its game to one of their teams.
+    - **Team Scorer** (team role): scores every game the team plays (`PERM-6`).
+    - **Game officials** (`game_officials`, per game): `SCORER` and `REFEREE` (*Match official*) score; `TIMEKEEPER` keeps time only — `UPDATE_GAME_CLOCK`, `UPDATE_GAME_STATUS` (not cancelling) and `REMOVE_SIN_BIN`, through `canKeepTime` in the scoring gate (`PERM-7`). Appointed by whoever may edit the fixture (`ADD_GAME_OFFICIAL`, the org gate's `appoint-official`), from the host's people.
     - **Who picks a side's team for a game** (`SCORE-19`, 2026-10-22; `AccessManager.canPickSide`, org
       gate `pick-side`): each organisation its own — the side's coach, or its organisation's admins and
       staff. In a tournament the people who run it — organisers, the division's convenors, the host's
@@ -79,6 +87,9 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
           `granted_by_org_profile_id`). Not the division's own record (name, sport, age group,
           weighting), not the event's settings, not another division, and never an event-scope
           appointment.
+    - **A sport organiser and a division convenor edit, score and pick sides for their divisions'
+      fixtures** (`PERM-6`): `runsGameDivision` — a division grant, or a sport grant covering the
+      division — is checked in `canEditEventOrGame`, `canScoreGame` and `canPickSide`.
     - **The workspace constraint does not apply to a grant.** `canEditEventOrGame` normally requires
       the caller to be acting from the event's own org, which stops a membership-derived right
       leaking across workspaces. An appointee may hold no membership anywhere — that is the point of
@@ -101,6 +112,8 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
       write-side half. Both match the user's profiles by **identity** (`PROFILE_IDS_FOR_USER`: user
       id or verified email) — until 2026-09-26 `canScoreGame` matched `user_id` only, which missed
       everyone linked by email.
+    - Team scorers (`role-scorer`) and every kind of game official count as duties too (`PERM-6`,
+      `PERM-7`), in `getDutySnapshot` and `canScoreGame`.
     - It changes nothing for an ordinary member, whose membership already opens the same rooms. It
       exists for a **restricted minor** (below) appointed to coach or score. There are no outside
       coaches: everyone on a team is a Member of its organisation at least (`MEMBER-4`, decided
@@ -118,11 +131,15 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
       [minorAccess.ts](file:///c:/Fred/Coding/SK/server/src/managers/minorAccess.ts) that must match
       `memberAccess` in `@sk/shared`. Identity checks (`ownsOrgProfile`, `PROFILE_IDS_FOR_USER`,
       organiser grants) and team duties are untouched.
-    - The app's `AuthGuard` keeps a restricted member out of the org workspace unless they hold a
-      coaching duty there. The rule is `orgAccess` in
-      [orgAccess.ts](file:///c:/Fred/Coding/SK/expo-app/utils/orgAccess.ts), which the Organisations
-      list and an org's public page use too, so a workspace button shows only where the guard lets
-      them in: *Manage Workspace* for Admin and Staff, *Open Workspace* for a Member.
+    - **The app's workspace follows the role** (`PERM-4`). `orgAccess` in
+      [orgAccess.ts](file:///c:/Fred/Coding/SK/expo-app/utils/orgAccess.ts) (`useOrgAccess` on a
+      screen) says how much is the viewer's: `full` for Admin and Staff, `team` for a team duty
+      (coach, assistant coach, team scorer — restricted minors included), nothing for a plain Member.
+      `AuthGuard` admits on it, or on an appointment the server reports (`event_capabilities`,
+      `game_capabilities`) for that tournament's or game's pages; the workspace menu and Control
+      Panel list only the pages the scope opens (`mayOpenWorkspacePage`), and any other page goes back
+      to the Control Panel. The Organisations list and an org's public page use the same rule:
+      *Manage Workspace* for Admin and Staff, *Open Workspace* for a team duty.
     - **Guardians hold no membership.** Being a guardian is derived from an active
       `profile_guardians` link, so a guardian reads nothing org-wide; what they see of their child
       arrives as `dependants` in their own `USER_MEMBERSHIPS_UPDATED`.
@@ -193,11 +210,17 @@ make anybody an admin of any organisation, `DELETE_ORG` and `DELETE_TEAM` acted 
 
 - **Admin or staff** manage the organisation's things — the same pair `canManageOrgPeople`,
   `canEditEventOrGame` and `canScoreGame` use.
-- **Admin only** for its identity and who runs it: renaming or deleting it, and **handing out the
-  admin role**. Staff may add an ordinary member, but granting admin is how a staff member would
-  otherwise promote themselves, so it has a check of its own. **Answering a tournament invitation**
-  for the organisation — accepting, declining, asking to withdraw — is admin only too (the
-  `answer-invitation` gate, `FIX-31`): it commits the organisation.
+- **Admin only** for its identity, its settings and who runs it: its profile, timezone, privacy and
+  minors settings, deleting it, and **every org-role decision** (`PERM-2`, 2026-10-31). Staff add
+  and remove **Members** only: `ADD_ORG_MEMBER` from staff must give `role-org-member`,
+  `UPDATE_ORG_MEMBER` (whose only change is the role) is admin-only, `REMOVE_ORG_MEMBER` from staff
+  must name a Member, and a staff spreadsheet import has its role column dropped by the gate, so it
+  adds Members and changes nobody's role. Otherwise a staff member could promote themselves or
+  demote the admins.
+- **Answering a tournament invitation** for the organisation or one of its teams — accepting,
+  declining, asking to withdraw or to enter, naming its own place — is its **admins and staff**
+  (the `answer-invitation`, `answer-entrant`, `request-entry` and `own-placeholder` gates; admins
+  only from `FIX-31` until `PERM-2`), plus a team's coach for their own team.
 - **App administrators** for the operator's levers — the cache resets that broadcast a refresh to
   every connected client. (The direct `CLAIM_ORG` was removed 2026-10-03, `ORG-12`: an app admin is
   never an org's admin, so it could only mark an org claimed with nobody running it.)
@@ -227,10 +250,11 @@ signed-in user.
 The one exception is creation: somebody who may organise an event may create a profile in the org
 **hosting that event**, so an organiser can appoint a convenor who is not on the app yet (U12).
 
-**Unclaimed organisations accept a minimum from anybody signed in** (2026-09-21). Nobody owns an
-unclaimed organisation, so nobody else can add its teams or people — and an outsider doing so is an
-incentive for somebody from it to claim it. So any signed-in user may create a team (name, sport and
-age group) or a person (a name) in one, with the gate **cutting the payload down** to those fields
+**Unclaimed organisations accept a minimum from somebody setting up a game or tournament** (2026-09-21;
+narrowed 2026-10-31, `PERM-11`). Nobody owns an unclaimed organisation, so nobody else can add its teams
+or people — and an outsider doing so is an incentive for somebody from it to claim it. So anyone who
+may set up fixtures (`AccessManager.maySetUpFixtures`: Admin or Staff somewhere, a coach, or an
+appointed organiser) may create a team (name, sport and age group) or a person (a name) in one, with the gate **cutting the payload down** to those fields
 rather than trusting the client to have sent less. A person's email is the field that matters most
 to leave behind: `AccessManager` matches users to profiles by verified email, so a profile carrying
 somebody's address is one that can be matched to them. Once the organisation is claimed, none of

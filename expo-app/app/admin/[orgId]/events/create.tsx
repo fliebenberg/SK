@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import { useOrgAccess } from '../../../../hooks/useOrgAccess';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,6 +38,8 @@ export default function CreateEvent() {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [form, setForm] = useState<MatchFormData | null>(null);
+  // Admin and Staff field any team; a coach their own (`PERM-5`).
+  const access = useOrgAccess(orgId);
 
   const isFormValid = () =>
     !!form?.homeTeamId && !!form?.awayTeamId && !!form?.sportId && !!form?.siteId && !!form?.timeZone;
@@ -158,7 +161,7 @@ export default function CreateEvent() {
       </View>
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
-        <MatchForm orgId={orgId} onChange={setForm} />
+        <MatchForm orgId={orgId} onChange={setForm} ownTeamIds={access.canManage ? undefined : access.coachedTeamIds} />
       </ScrollView>
     </SafeAreaView>
   );

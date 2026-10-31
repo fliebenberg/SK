@@ -14,14 +14,7 @@ import { themeColor } from '../../constants/Colors';
 import { useOrgSites } from '../../hooks/useOrgSites';
 import { useOrgSummary } from '../../hooks/useOrgSummary';
 import { instantToVenueInputs, venueInputsToInstant, venueTimeZone } from '../../utils/dates';
-
-/** The caller's own profile, which a change to a fixture's side is credited to, as a result entry is. */
-function initiatorProfileId(): string | undefined {
-  const { user, orgMemberships = [] } = useAuthStore.getState() as any;
-  return user?.globalRole === 'admin'
-    ? orgMemberships.find((m: any) => m.orgId === 'org-system-admins')?.orgProfileId
-    : orgMemberships[0]?.orgProfileId;
-}
+import { actingProfileId } from '../../utils/actingProfile';
 
 /** A clash warning: the amber line, only when there is something to say (no news is no message). */
 export function ClashWarning({ warnings, verb = 'save' }: { warnings: string[]; verb?: string }) {
@@ -107,7 +100,7 @@ export function WhoPlayedDialog({ visible, side, summary, orgId, eventId, divisi
     setError(null);
     const res = await sendAction(
       SocketAction.CHANGE_FIXTURE_SIDE,
-      { gameParticipantId: side.id, orgId, teamId, initiatorOrgProfileId: initiatorProfileId() },
+      { gameParticipantId: side.id, orgId, teamId, initiatorOrgProfileId: actingProfileId(summary) },
       { suppressToast: true },
     );
     setSaving(false);

@@ -41,7 +41,7 @@ Full description, including where Exit sits: [design_spec.md §2](file:///c:/Fre
 | `app/leagues/` | `/leagues/[leagueId]` | Anyone: a league's public page. |
 | `app/(tabs)/events/` | `/events/[eventId]` and the pages under it | Anyone, signed in or not: a tournament as the public sees it — read-only for everyone, an organiser included (`FIX-25`). |
 | `app/(tabs)/admin/` | `/admin`, `/admin/users`, `/admin/reports`, `/admin/sports` | **System admins only** (`AuthGuard requireGlobalAdmin` on the layout). `/admin/reports` is user moderation, not analytics, and still a mockup on hardcoded data ([reports.md](file:///c:/Fred/Coding/SK/docs/reports.md)). |
-| `app/admin/[orgId]/` | the org workspace, below | **Anyone with a role in that org** (`AuthGuard orgId` on the layout); what they may change depends on the role. A guardian holds no membership, so it refuses them. |
+| `app/admin/[orgId]/` | the org workspace, below | **Whoever runs the org or something in it** (`AuthGuard orgId` on the layout, `PERM-4`): Admin and Staff all of it, a coach or team scorer their teams and fixtures, an appointed organiser or official their tournament or game. Not a plain Member, nor a guardian. [permissions.md](file:///c:/Fred/Coding/SK/docs/permissions.md). |
 
 Every guard is a UX gate only: each action behind it is authorized again on the server, which is the
 real boundary ([auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md)).
@@ -86,10 +86,13 @@ The login screen's **Back to Home** goes to Home (`dismissTo`), not back into a 
 The workspace menu's pages are listed once, in
 [constants/workspaceNav.ts](file:///c:/Fred/Coding/SK/expo-app/constants/workspaceNav.ts), which both
 the sidebar and the phone's workspace menu map over (`UI-27`): a new workspace page goes there, and
-`currentWorkspacePage` names the one on screen.
+`currentWorkspacePage` names the one on screen. **Which pages a viewer may open** is
+`mayOpenWorkspacePage` there, from `useOrgAccess(orgId).workspace` (`PERM-4`): the menu, the Control
+Panel's modules and the layout all ask it, and a page the viewer's role does not open redirects to the
+Control Panel. A new page decides there whether a coach's workspace includes it.
 
 *   `/admin/[orgId]`: Organization console.
-*   `/admin/[orgId]/teams`, `/admin/[orgId]/teams/[teamId]`: The Teams list and one read-first team page — read-only for anyone but Admin and Staff (there is no separate view route; Add team is a dialog). [teams.md](file:///c:/Fred/Coding/SK/docs/teams.md).
+*   `/admin/[orgId]/teams`, `/admin/[orgId]/teams/[teamId]`: The Teams list and one read-first team page — editable by Admin and Staff, and by a coach for their own team (`PERM-5`); a coach's list shows only their teams (there is no separate view route; Add team is a dialog). [teams.md](file:///c:/Fred/Coding/SK/docs/teams.md).
 *   `/admin/[orgId]/people`, `/admin/[orgId]/people/[membershipId]`: The People list and one read-first person page — read-only for anyone but Admin and Staff (there is no separate view route). [people.md](file:///c:/Fred/Coding/SK/docs/people.md).
 *   `/admin/[orgId]/people/import`: Import people and their guardians from a spreadsheet — admin or staff, opened from the People screen's `⋯` menu. Rules: [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §8.
 *   `/admin/[orgId]/sites`, `/admin/[orgId]/sites/[siteId]`: The Sites list and one read-first site page, its facilities edited in dialogs on it — read-only for anyone but Admin and Staff (there is no separate view route, and facilities have no route of their own; Add site is a dialog). [sites.md](file:///c:/Fred/Coding/SK/docs/sites.md).

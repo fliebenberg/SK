@@ -3,7 +3,9 @@ import { View, Text, ScrollView, TextInput, TouchableOpacity, useWindowDimension
 import { GlassCard } from '../../../components/GlassCard';
 import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../../store/authStore';
+import { COACH_ROLES } from '../../../utils/orgAccess';
 
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
@@ -14,19 +16,19 @@ export default function TeamsPage() {
   const isLargeScreen = width >= 768;
   const { isAuthenticated, user } = useAuthStore();
 
-  const coachedTeams = [
-    {
-      id: 'coached-1',
-      name: 'Cape Town RFC (Development)',
-      sport: 'Rugby Union',
-      record: '6-2-1',
-      rank: '#2 in Western Dev Cup',
-      abbreviation: 'CTD',
-      color: 'bg-primary',
-      label: 'text-on-primary',
-      role: 'Head Coach',
-    },
-  ];
+  // The teams they coach, from their own memberships (`PERM-5`, B12): each opens its team page in
+  // the organisation's workspace, where a coach runs it.
+  const router = useRouter();
+  const teamMemberships = useAuthStore(state => state.teamMemberships);
+  const coachedTeams = (teamMemberships || [])
+    .filter((m: any) => COACH_ROLES.includes(m.roleId) && (!m.endDate || new Date(m.endDate) > new Date()))
+    .map((m: any) => ({
+      id: m.teamId as string,
+      orgId: m.orgId as string,
+      name: (m.teamName as string) || 'Team',
+      abbreviation: ((m.teamName as string) || 'T').split(/\s+/).map((w: string) => w[0]).join('').slice(0, 3).toUpperCase(),
+      role: m.roleId === 'role-coach' ? 'Coach' : 'Assistant coach',
+    }));
 
   const teams = [
     {
@@ -94,7 +96,7 @@ export default function TeamsPage() {
         </View>
 
         {/* COACHED TEAMS SECTION */}
-        {isAuthenticated && (user?.globalRole === 'admin' || user?.isAdminOrCoach) && (
+        {isAuthenticated && coachedTeams.length > 0 && (
           <View className="mb-8">
             <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-4">
               My Coached Teams
@@ -107,7 +109,7 @@ export default function TeamsPage() {
 
                   <View className="flex-row items-center justify-between pl-1.5">
                     <View className="flex-row items-center gap-3.5 flex-1">
-                      <View className={`w-11 h-11 rounded-xl ${team.color} items-center justify-center shadow-inner`}>
+                      <View className="w-11 h-11 rounded-xl bg-primary items-center justify-center shadow-inner">
                         <Text className="font-orbitron-bold text-sm text-on-primary">{team.abbreviation}</Text>
                       </View>
                       <View className="flex-1">
@@ -121,14 +123,12 @@ export default function TeamsPage() {
                             </Text>
                           </View>
                         </View>
-                        <Text className="font-inter text-[11px] text-ink-muted mt-1 uppercase tracking-wider">
-                          {team.sport} • {team.record} ({team.rank})
-                        </Text>
                       </View>
                     </View>
 
                     <TouchableOpacity
-                      onPress={() => {}}
+                      onPress={() => router.push(`/admin/${team.orgId}/teams/${team.id}` as any)}
+                      accessibilityRole="button"
                       className="px-4 py-2.5 rounded-xl bg-sunken border border-line active:opacity-85 shadow-sm"
                     >
                       <Text className="font-inter-bold text-xs text-ink-soft">

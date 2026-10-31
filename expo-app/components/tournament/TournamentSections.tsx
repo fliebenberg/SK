@@ -104,7 +104,7 @@ export function useSportsSection({ event, orgId, sports, divisions, games, entra
      and remove sports — the shape of the tournament — never. */
   const runsSport = (sportId: string) => canEdit || mySportIds.includes(sportId);
   const removeSport = (sportId: string) =>
-    sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { sportIds: (event.sportIds || []).filter(id => id !== sportId) } });
+    sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId: event.orgId || orgId, data: { sportIds: (event.sportIds || []).filter(id => id !== sportId) } });
   /** The ⋯ stays after setup for *Sport organisers*; *Remove sport* is the tournament's, while setting up. */
   const sportMenu = (sportId: string) => {
     if (!runsSport(sportId)) return null;
@@ -347,7 +347,7 @@ export function useOrganisationsSection({ event, orgId, sports, divisions, entra
       busy={savingAdding}
       onChange={async allow => {
         setSavingAdding(true);
-        const result = await sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { orgsMayAddTeams: allow } });
+        const result = await sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId: event.orgId || orgId, data: { orgsMayAddTeams: allow } });
         setSavingAdding(false);
         return result.ok;
       }}

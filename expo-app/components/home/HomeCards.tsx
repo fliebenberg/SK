@@ -12,7 +12,7 @@ import { homeLinks } from './homeLinks';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
 import { formatDistance } from '../../utils/distance';
-import { fixtureDateParts } from '../../utils/dates';
+import { fixtureDateParts, formatDateRange } from '../../utils/dates';
 
 /** Organisations shown before *Show more*. */
 const FIRST_ORGS = 5;
@@ -157,6 +157,7 @@ export function SearchResultsCard({ query, results, isSearching, sports }: {
 const TEAM_ROLE_LABELS: Record<string, string> = {
   'role-coach': 'Coach',
   'role-assistant-coach': 'Assistant coach',
+  'role-scorer': 'Scorer',
 };
 
 /**
@@ -164,6 +165,13 @@ const TEAM_ROLE_LABELS: Record<string, string> = {
  * memberships, until following exists (`FIX-37`). An organisation shows how many of its games are
  * live; a team shows the game it is playing now, or its next one.
  */
+/** What an appointment to a tournament is called on Home. */
+const RUN_SCOPE_LABELS: Record<string, string> = {
+  event: 'Organiser',
+  sport: 'Sport organiser',
+  division: 'Convenor',
+};
+
 export function MyHomeCard({ mine, sports }: { mine: MyHome; sports: Sport[] }) {
   const router = useRouter();
   const sportName = (id: string) => sports.find(s => s.id === id)?.name || '';
@@ -214,13 +222,29 @@ export function MyHomeCard({ mine, sports }: { mine: MyHome; sports: Sport[] }) 
     );
   });
 
-  const both = orgRows.length > 0 && teamRows.length > 0;
+  // Tournaments they run by appointment come first (`PERM-8`): for an organiser or convenor from
+  // outside the host this is the way in to the tournament's workspace.
+  const runRows = (mine.runs || []).map((run, i) => (
+    <HomeRow
+      key={run.id}
+      first={i === 0}
+      lead={<IconMark name="trophy" />}
+      title={run.name}
+      subtitle={[run.orgName, RUN_SCOPE_LABELS[run.scope]].filter(Boolean).join(' · ')}
+      end={run.startDate ? <Text className="font-inter-semibold text-[13px] text-ink">{formatDateRange(run.startDate, run.endDate, { compact: true })}</Text> : undefined}
+      onPress={() => router.push(`/admin/${run.orgId}/events/${run.id}` as any)}
+    />
+  ));
+
+  const groups = [runRows, orgRows, teamRows].filter(rows => rows.length > 0).length;
   return (
-    <TournamentCard title="My organisations & teams">
+    <TournamentCard title={runRows.length ? 'My tournaments, organisations & teams' : 'My organisations & teams'}>
       <View>
-        {both ? <GroupHeading label="Organisations" first /> : null}
+        {groups > 1 && runRows.length ? <GroupHeading label="Tournaments I run" first /> : null}
+        {runRows}
+        {groups > 1 && orgRows.length ? <GroupHeading label="Organisations" first={!runRows.length} /> : null}
         {orgRows}
-        {both ? <GroupHeading label="Teams" first={false} /> : null}
+        {groups > 1 && teamRows.length ? <GroupHeading label="Teams" first={false} /> : null}
         {teamRows}
       </View>
     </TournamentCard>

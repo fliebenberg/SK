@@ -16,6 +16,14 @@ interface AuthGuardProps {
   requireGlobalAdmin?: boolean;
   /** Copy shown when the user is signed in but lacks the required role. */
   deniedMessage?: string;
+  /**
+   * Let them in to `orgId`'s workspace without a role there: an appointed tournament organiser or
+   * convenor on that tournament's pages, an appointed official on that game's (`PERM-8`). The server
+   * decided it, and checks every read and write again.
+   */
+  admitted?: boolean;
+  /** Still asking whether `admitted` holds. */
+  admitting?: boolean;
 }
 
 const SessionResolving = () => {
@@ -39,7 +47,7 @@ const SessionResolving = () => {
  * This is a UX gate only — every action behind it must still be authorized on
  * the server, which is the actual security boundary.
  */
-export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage }: AuthGuardProps) {
+export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage, admitted = false, admitting = false }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -53,8 +61,9 @@ export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage }
   const teamMemberships = useAuthStore((state) => state.teamMemberships);
 
   const isGlobalAdmin = user?.globalRole === 'admin';
-  const { membership, isRestricted } = orgAccess(orgId, isGlobalAdmin, orgMemberships, teamMemberships);
-  const isOrgMember = !!membership && !isRestricted;
+  const { membership, isRestricted, canOpenWorkspace } = orgAccess(orgId, isGlobalAdmin, orgMemberships, teamMemberships);
+  // The workspace is for running the org, or a team in it (`PERM-4`); a plain Member has none.
+  const isOrgMember = canOpenWorkspace || admitted;
 
   // A persisted session is only trustworthy once storage has rehydrated and any
   // stored token has been checked against the server. Redirecting before that
@@ -64,7 +73,7 @@ export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage }
   // Memberships arrive over the socket after authentication, so an empty list
   // means "not fetched yet" rather than "no access".
   const isResolvingAccess =
-    isAuthenticated && !!orgId && !isGlobalAdmin && !isOrgMember && !membershipsLoaded;
+    isAuthenticated && !!orgId && !isGlobalAdmin && !isOrgMember && (!membershipsLoaded || admitting);
 
   const isResolving = isResolvingSession || isResolvingAccess;
 
@@ -102,7 +111,9 @@ export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage }
               ? 'This organisation does not give members under its minor age access to its workspace.'
               : 'Your guardian has not allowed access to this organisation’s workspace yet.'
             : deniedMessage ||
-              'You do not have a role in this organisation, so its admin workspace is not available to you.'
+              (membership
+                ? 'The workspace is for the people who run this organisation or one of its teams.'
+                : 'You do not have a role in this organisation, so its admin workspace is not available to you.')
         }
         actionLabel="Back to Organisations"
         onAction={() => router.replace('/(tabs)/organizations' as any)}

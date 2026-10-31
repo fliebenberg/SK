@@ -177,6 +177,8 @@ until you do.
 #### `UPDATE_TEAM`
 *   **Payload**: `{ id, data }` (where `data` is `Partial<Team>`)
 *   **Logic**: Updates the specified team's properties.
+*   **Gate** (`team-record`, `PERM-5`): admin or staff; or a coach of the team, but not `orgId` or
+    `isActive` — a coach does not move or switch off a team.
 *   **Broadcasts**:
     1.  **Topic**: `org:{orgId}:teams`
         *   **Event**: `TEAM_UPDATED`
@@ -233,6 +235,11 @@ The admin operations are REST, under `requireAdmin`, and each answers with the s
 #### `ADD_TEAM_MEMBER`
 *   **Payload**: `{ orgProfileId, teamId, roleId }`
 *   **Logic**: Links a person to a team.
+*   **Gate** (`team-roster`, `PERM-5`; the same for `UPDATE_TEAM_MEMBER` and `REMOVE_TEAM_MEMBER`):
+    admin or staff; or a coach of the team, never touching the `role-coach` role, and from an
+    assistant coach never `role-assistant-coach` either. A coach's `UPDATE_TEAM_MEMBER` may change
+    `roleId` only. The team roles are Player, Coach, Assistant Coach, Scorer and Medic (Manager and
+    team Staff removed, `PERM-10`).
 *   **Broadcasts**:
     1.  **Topic**: `team:{teamId}:members`
         *   **Event**: `TEAM_MEMBERS_SYNC`
@@ -441,6 +448,17 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
     *   **Event**: `GAME_UPDATED`
     *   **Data**: Result of update.
 
+#### `ADD_GAME_OFFICIAL` / `REMOVE_GAME_OFFICIAL` (`PERM-7`)
+*   **Payload**: `{ gameId, orgProfileId, role: 'SCORER' | 'REFEREE' | 'TIMEKEEPER' }` / `{ id }`.
+*   **Gate** (`appoint-official`): whoever may edit the fixture — `canEditEventOrGame` for the game,
+    from its own organisation, which includes a coach's single match and a convenor's fixture.
+*   **Logic** ([gameOfficials.ts](file:///c:/Fred/Coding/SK/server/src/managers/gameOfficials.ts)):
+    the person must belong to the host organisation, and is appointed to each role once. A scorer
+    and a match official (`REFEREE`) may score the game; a timekeeper may take only the timekeeping
+    scoring actions — `UPDATE_GAME_CLOCK`, `UPDATE_GAME_STATUS` other than cancelling, `REMOVE_SIN_BIN`.
+*   **Reply**: the new `GameOfficialEntry`; nothing for a removal. No broadcast — the game page reads
+    `game_officials` again after a change.
+
 ### 5. Organizations
 
 #### `ADD_ORG`
@@ -592,7 +610,9 @@ spreadsheet. The rules — what an import will and will not do — are
     `rows` are `PeopleImportRow`s — every value **text as typed**, with a `rowNumber` for messages —
     as `readPeopleSheet` in `@sk/shared` reads them from a sheet. The server never takes a file, so
     another source (an external system's API) only has to produce the same rows. At most 2,000.
-*   **Gate**: `manage-org` on `orgId` (admin or staff). No exception for an unclaimed organisation.
+*   **Gate**: `import-people` on `orgId`: admin or staff, and from staff the gate drops every row's
+    `role`, so a staff import adds Members and changes nobody's role (`PERM-2`). No exception for an
+    unclaimed organisation.
 *   **Reply**: `PeopleImportReport` — one result per row (`new`, `update`, `unchanged` or `error`,
     with the changed fields, each guardian's outcome, errors and warnings) and the counts.
 *   **`preview`** writes nothing. **`apply`** plans again inside one transaction, holding the
@@ -614,6 +634,9 @@ spreadsheet. The rules — what an import will and will not do — are
 #### `ADD_ORG_MEMBER`
 *   **Payload**: `{ orgProfileId, organizationId, roleId }`
 *   **Logic**: Adds a member to an organization.
+*   **Gate** (`PERM-2`): `grant-role` — an admin gives any role, staff only `role-org-member`.
+    `UPDATE_ORG_MEMBER` (`{ id, roleId }`, a role change) is admin-only; `REMOVE_ORG_MEMBER` is admin,
+    or staff removing a Member.
 *   **Broadcasts**:
     *   **Topic**: `org_memberships` (To be scoped)
     *   **Event**: `ORG_MEMBERSHIPS_UPDATED`
@@ -729,8 +752,10 @@ server's loggers redact and nothing stores; a `near` that is not two numbers in 
 
 #### `get_data` — `{ type: 'home_mine' }`
 *   **Access**: signed in; answers for the caller only.
-*   **Returns**: `MyHome` — the caller's organisations, each with its live game count, and teams,
-    each with the game it is playing now or plays next.
+*   **Returns**: `MyHome` — the tournaments the caller runs by appointment (`runs`, `PERM-8`: current
+    and upcoming, each under the widest of organiser / sport organiser / convenor), the caller's
+    organisations, each with its live game count, and teams, each with the game it is playing now or
+    plays next.
 
 ### 10. Tournaments
 
@@ -778,7 +803,7 @@ may hold no membership anywhere and so act from no workspace at all.
 | `SET_EVENT_FACILITIES` / `SET_DIVISION_FACILITIES` | `{ …Id, orgId, facilityIds }` — a division's facilities new to the tournament are added to it too | no | `EVENT_FACILITIES_SYNC` / `DIVISION_FACILITIES_SYNC`, plus `EVENT_FACILITIES_SYNC` when a division's added to the tournament's |
 | `ADD_EVENT_ORGS` | `{ eventId, orgId, participantOrgIds, invite }` | no | `EVENT_UPDATED` to the event room and to each organisation that can see it; when inviting, the fixtures go out again to their new audience (`FIX-29`) |
 | `INVITE_EVENT_ORGS` | `{ eventId, orgId, participantOrgIds }` | no | as `ADD_EVENT_ORGS`. Ones already invited are left as they are |
-| `SET_EVENT_ORG_ANSWER` | `{ eventId, orgId, participantOrgId, answer: 'invited' \| 'accepted' \| 'declined' \| 'withdrawn', acceptTeams? }` | no | `EVENT_UPDATED`; `EVENT_INVITATIONS_SYNC` to `org:{id}:invitations`. `invited` clears an answer; `withdrawn` confirms a withdrawal; declining or withdrawing answers for its teams — kept as the record, `declined` / `withdrawn` (`FIX-31`) — and `accepted` with `acceptTeams` accepts every team still invited (rosters published). The **org gate's** (`answer-invitation`): the organisers set any answer; the organisation's admins (not staff) answer only while invited, with `accepted` or `declined` |
+| `SET_EVENT_ORG_ANSWER` | `{ eventId, orgId, participantOrgId, answer: 'invited' \| 'accepted' \| 'declined' \| 'withdrawn', acceptTeams? }` | no | `EVENT_UPDATED`; `EVENT_INVITATIONS_SYNC` to `org:{id}:invitations`. `invited` clears an answer; `withdrawn` confirms a withdrawal; declining or withdrawing answers for its teams — kept as the record, `declined` / `withdrawn` (`FIX-31`) — and `accepted` with `acceptTeams` accepts every team still invited (rosters published). The **org gate's** (`answer-invitation`): the organisers set any answer; the organisation's admins and staff (`PERM-2`; admins only until 2026-10-31) answer only while invited, with `accepted` or `declined` |
 | `REMOVE_EVENT_ORG` | `{ eventId, orgId, participantOrgId }` | no | `EVENT_UPDATED`, `EVENT_DELETED` to the organisation's public list, and for each division it had entrants in: `DIVISION_ENTRANTS_SYNC`, standings, a summary per fixture. Refused once its teams have played, and for one that declined or withdrew (its row is the record) |
 | `REQUEST_EVENT_WITHDRAWAL` | `{ eventId, orgId, participantOrgId, reason }` | no | `EVENT_UPDATED`, `EVENT_INVITATIONS_SYNC`. Accepted organisations only; nothing changes for its teams until the organisers confirm (`FIX-30`) |
 | `CANCEL_EVENT_WITHDRAWAL` | `{ eventId, orgId, participantOrgId }` | no | as above; back to `accepted` |
@@ -852,6 +877,8 @@ names people, so it is read through `get_data` at the organiser tier instead:
 | Request | Who may read it |
 | --- | --- |
 | `{ type: 'event_capabilities', eventId }` | any signed-in user — it answers about **the caller** and there is no way to ask about anybody else |
+| `{ type: 'game_capabilities', gameId }` | the same, about one game (`PERM-6`, `PERM-7`): `{ gameId, canScore, canKeepTime, officialRoles }`. The scoring screen opens in timekeeping-only mode on `canKeepTime` alone |
+| `{ type: 'game_officials', gameId }` | any signed-in user: `GameOfficialEntry[]`, the game's scorers, match officials and timekeepers with their names |
 | `{ type: 'event_organizers', eventId }` | whoever may organise that event |
 | `{ type: 'sport_organizers', eventId, sportId }` | whoever may organise that sport of that tournament |
 | `{ type: 'division_organizers', divisionId }` | whoever may organise that division |

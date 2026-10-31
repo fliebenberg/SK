@@ -12,7 +12,8 @@ import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { OrgLogo } from '@/components/OrgLogo';
 import { inkOnBrand } from '@/utils/colorUtils';
-import { useAuthStore } from '@/store/authStore';
+import { useOrgAccess } from '@/hooks/useOrgAccess';
+import { mayOpenWorkspacePage } from '@/constants/workspaceNav';
 import { themeColor } from '../../../constants/Colors';
 
 
@@ -20,7 +21,7 @@ export default function OrgControlDashboard() {
   const router = useRouter();
   const { orgId } = useGlobalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
-  const { user, orgMemberships } = useAuthStore();
+  const access = useOrgAccess(orgId);
 
   const { data: sportsList } = useSocketQuery('sports');
   const { org: orgData, isLoading: isOrgLoading } = useOrgSummary(orgId);
@@ -67,18 +68,11 @@ export default function OrgControlDashboard() {
   const badgeBgColor = ink.badge;
   const borderColor = ink.border;
 
-  const userMembership = orgMemberships.find(m => m.orgId === orgId);
-  let role: string | null = null;
-  if (userMembership) {
-    if (userMembership.roleId === 'role-org-admin') role = 'Admin';
-    else if (userMembership.roleId === 'role-org-staff') role = 'Staff';
-    else if (userMembership.roleId === 'role-org-member') role = 'Member';
-  } else if (user?.globalRole === 'admin') {
-    role = 'Admin';
-  }
+  const { role } = access;
 
-  const modules = [
+  const allModules = [
     {
+      page: 'profile',
       title: 'Profile',
       description: 'Name, logo, colours, about, address and sports',
       icon: 'business-outline' as const,
@@ -87,6 +81,7 @@ export default function OrgControlDashboard() {
       bgColor: 'bg-primary-soft',
     },
     {
+      page: 'settings',
       title: 'Settings',
       description: 'Timezone, minors and how the organisation runs',
       icon: 'settings-outline' as const,
@@ -95,6 +90,7 @@ export default function OrgControlDashboard() {
       bgColor: 'bg-primary-soft',
     },
     {
+      page: 'people',
       title: 'People & Roles',
       description: 'Manage coaches, team staff, and athletes',
       icon: 'people-outline' as const,
@@ -103,6 +99,7 @@ export default function OrgControlDashboard() {
       bgColor: 'bg-success-soft',
     },
     {
+      page: 'teams',
       title: 'Teams & Divisions',
       description: 'Create sports squads and assign managers',
       icon: 'trophy-outline' as const,
@@ -111,6 +108,7 @@ export default function OrgControlDashboard() {
       bgColor: 'bg-accent-soft',
     },
     {
+      page: 'sites',
       title: 'Sites and Facilities',
       description: 'Configure facilities, playgrounds, and arenas',
       icon: 'location-outline' as const,
@@ -119,6 +117,7 @@ export default function OrgControlDashboard() {
       bgColor: 'bg-special-soft',
     },
     {
+      page: 'events',
       title: 'Fixtures & Events',
       description: 'Generate schedules, pools, and score games',
       icon: 'calendar-outline' as const,
@@ -127,6 +126,7 @@ export default function OrgControlDashboard() {
       bgColor: 'bg-warning-soft',
     },
     {
+      page: 'leagues',
       title: 'Leagues & Seasons',
       description: 'Configure standings rules, league rosters, and view leaderboards',
       icon: 'list-outline' as const,
@@ -135,6 +135,8 @@ export default function OrgControlDashboard() {
       bgColor: 'bg-info-soft',
     },
   ];
+  // Only the parts of the workspace this viewer's role opens (`PERM-4`).
+  const modules = allModules.filter(m => mayOpenWorkspacePage(access.workspace, m.page));
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>

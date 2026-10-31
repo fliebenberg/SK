@@ -4,18 +4,17 @@ import { DIVISION, ORG, USERS, divisionUrl, orgPageUrl, signIn } from './support
 /**
  * An organisation answers on its own page in the tournament (FIX-30, FIX-31, FIX-33): team cards with
  * their buttons, the Outstanding filter, Accept with its teams, a team declined and accepted again, a
- * locked team asked to withdraw, a team added for approval — and staff, who answer for nothing.
+ * locked team asked to withdraw, a team added for approval — and staff, who answer for it too (`PERM-2`).
  * Runs after the coach (03), who accepted Riverbend's U16 A rugby team.
  */
 const card = (division: string, org: string, team: string) => `team-card-fx-ent-spring-${division}-${org}-${team}`;
 
 test.describe.serial("an organisation's own page", () => {
-  test('staff see the teams and answer for none @phone', async ({ page }) => {
+  test('staff see the teams, and may answer for them (PERM-2) @phone', async ({ page }) => {
     await signIn(page, USERS.sacStaff);
     await page.goto(orgPageUrl(ORG.sac, ORG.sac));
     await expect(page.getByTestId(card('rugby-u16', 'sac', 'rugby-u16a'))).toBeVisible();
-    await expect(page.getByRole('button', { name: '✓ Accept' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '✕ Decline' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '✓ Accept' }).first()).toBeVisible();
   });
 
   test('Riverbend: Outstanding narrows to the teams to answer, then Accept takes its invited teams with it', async ({ page }) => {

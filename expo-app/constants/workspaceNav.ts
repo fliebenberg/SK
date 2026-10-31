@@ -16,7 +16,32 @@ export interface WorkspaceNavItem {
   attention?: boolean;
 }
 
-export function getWorkspaceNavItems(orgId: string, isClaimed: boolean | undefined): WorkspaceNavItem[] {
+/**
+ * The pages a team duty opens (`PERM-4`, docs/permissions.md P1): a coach or team scorer gets their
+ * teams and those teams' fixtures and tournaments, and nothing else of the org.
+ */
+export const TEAM_WORKSPACE_PAGES = ['dashboard', 'teams', 'events'];
+
+/**
+ * May someone with this much of the workspace open this page of it? `subPage` is the segment below
+ * it: a coach opens a person from their team's roster (`people/<id>`), though not the People list
+ * or its import.
+ */
+export function mayOpenWorkspacePage(workspace: 'full' | 'team' | null, page: string, subPage?: string): boolean {
+  if (workspace === 'full') return true;
+  if (workspace !== 'team') return false;
+  return TEAM_WORKSPACE_PAGES.includes(page) || (page === 'people' && !!subPage && subPage !== 'import');
+}
+
+export function getWorkspaceNavItems(
+  orgId: string,
+  isClaimed: boolean | undefined,
+  workspace: 'full' | 'team' | null = 'full',
+): WorkspaceNavItem[] {
+  return allWorkspaceNavItems(orgId, isClaimed).filter(item => mayOpenWorkspacePage(workspace, item.name));
+}
+
+function allWorkspaceNavItems(orgId: string, isClaimed: boolean | undefined): WorkspaceNavItem[] {
   return [
     // While the org has no administrator: a temporary task, set apart above the rest and gone
     // once it is done (docs/org-profile.md §6).

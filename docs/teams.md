@@ -157,8 +157,18 @@ Both reads are at the `org:{id}:teams` level, public with the team
 ([hooks/usePublicTeam.ts](file:///c:/Fred/Coding/SK/expo-app/hooks/usePublicTeam.ts),
 `TeamManager.getTeamSquad`, `TournamentManager.getPublicTeamEntries`).
 
-## 7. Not settled here
+## 7. Who may change a team
 
-- Who may read a team's roster (`PEOPLE-8`) — today any member can open the page read-only.
+Settled 2026-10-31 ([permissions.md](file:///c:/Fred/Coding/SK/docs/permissions.md) §4.4): Admin and
+Staff, and **the team's coach** (`PERM-5`) — its record, roster and team roles, the people on it (their
+page opens from the roster, `?teamId=`), and Pick team on its games. A coach does not switch the team
+off or delete it (the ⋯ menu is Admin and Staff's), and does not change its Coach; an assistant coach
+also not other assistant coaches. The team roles are Player, Coach, Assistant Coach, Scorer and Medic
+(`PERM-10`); the Scorer scores every game the team plays.
+
+## 8. Not settled here
+
+- Who may read a team's roster through the server (`PEOPLE-8`) — a plain Member no longer reaches the
+  workspace page, but the member room still admits them.
 - Picking players for a match from the team page itself; Pick team opens the existing selection
   screen.

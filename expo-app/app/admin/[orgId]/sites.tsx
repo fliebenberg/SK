@@ -10,10 +10,10 @@ import { SiteDialog } from '../../../components/sites/SiteDialogs';
 import { useOrgSites } from '../../../hooks/useOrgSites';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../hooks/useSafeBack';
-import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
 import { PageBody } from '../../../components/PageBody';
+import { useOrgAccess } from '../../../hooks/useOrgAccess';
 
 /**
  * The organisation's sites (docs/sites.md). A row is the site at a glance — its name, its street
@@ -32,9 +32,7 @@ export default function OrgSites() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
 
-  const user = useAuthStore(state => state.user);
-  const viewerRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId)?.roleId);
-  const canEdit = user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || viewerRole === 'role-org-staff';
+  const { canManage: canEdit } = useOrgAccess(orgId);
 
   const { sites, facilities, isLoading } = useOrgSites(orgId);
   const { data: sportsData } = useSocketQuery<Sport[]>('sports');

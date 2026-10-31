@@ -13,10 +13,10 @@ import { useOrgTeams } from '../../../hooks/useOrgTeams';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../hooks/useSafeBack';
-import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
 import { PageBody } from '../../../components/PageBody';
+import { useOrgAccess } from '../../../hooks/useOrgAccess';
 
 const ALL = 'all';
 
@@ -36,11 +36,15 @@ export default function OrgTeams() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
 
-  const user = useAuthStore(state => state.user);
-  const viewerRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId)?.roleId);
-  const canEdit = user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || viewerRole === 'role-org-staff';
+  const access = useOrgAccess(orgId);
+  const canEdit = access.canManage;
 
-  const { teams, isLoading } = useOrgTeams(orgId);
+  const { teams: orgTeams, isLoading } = useOrgTeams(orgId);
+  // A coach's or team scorer's workspace is their own teams (`PERM-4`).
+  const teams = useMemo(
+    () => (access.workspace === 'team' ? orgTeams.filter(t => access.dutyTeamIds.includes(t.id)) : orgTeams),
+    [orgTeams, access.workspace, access.dutyTeamIds.join(',')]
+  );
   const { org } = useOrgSummary(orgId);
   const { data: sportsData } = useSocketQuery<Sport[]>('sports');
   const sports = sportsData || [];

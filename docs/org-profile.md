@@ -154,8 +154,11 @@ Every edit is an `UPDATE_ORG` patch carrying only the fields its dialog owns; th
 keep their own action, `SET_ORG_MINORS_SETTINGS`, and so does privacy, `SET_ORG_PRIVATE`. `UPDATE_ORG` with `address: null` removes the
 address.
 
-## 8. Not settled here
+## 8. Who may see and edit them
 
-Who may see and edit Profile and Settings is a separate permissions exercise (`ORG-13`). Until then
-the pages behave as the old screen did: anyone who reaches the workspace can edit the profile, and
-only an org admin can change the minors and privacy settings.
+Settled 2026-10-31 (`ORG-13`, [permissions.md](file:///c:/Fred/Coding/SK/docs/permissions.md) §4.2):
+**only the organisation's admins change Profile and Settings** — every card, the logo, the timezone,
+privacy and minors. Staff open both and read them exactly as an admin sees them, but with no Edit
+links, no empty-state actions and no switches, and nothing saying why (permissions.md P2, P3). Members
+have no workspace, so they reach neither; a coach's workspace does not list them. The server's gates
+already matched: `UPDATE_ORG`, `SET_ORG_PRIVATE` and `SET_ORG_MINORS_SETTINGS` are admin only.

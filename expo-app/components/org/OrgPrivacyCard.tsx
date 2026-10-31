@@ -52,19 +52,16 @@ export function OrgPrivacyCard({ org, isOrgAdmin }: OrgPrivacyCardProps) {
       <ReadRow
         label="Private"
         sub={isPrivate ? 'Only members can see this organisation' : 'Anyone can see this organisation'}
-        right={
+        right={isOrgAdmin ? (
           <Switch
             value={isPrivate}
-            disabled={!isOrgAdmin || isSaving}
+            disabled={isSaving}
             onValueChange={(value) => { setError(null); setPending(value); }}
             accessibilityLabel="Private"
           />
-        }
+        ) : undefined}
       />
 
-      {!isOrgAdmin ? (
-        <Text className="font-inter text-xs text-ink-muted">Only an organisation admin can change this.</Text>
-      ) : null}
       {error ? <Text className="font-inter text-xs text-danger-ink">{error}</Text> : null}
 
       <ConfirmationModal

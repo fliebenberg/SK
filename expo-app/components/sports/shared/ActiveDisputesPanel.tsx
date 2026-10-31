@@ -10,8 +10,11 @@ import { useAuthStore } from '../../../store/authStore';
 
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
+import { actingProfileId } from '../../../utils/actingProfile';
 interface ActiveDisputesPanelProps {
   gameId: string;
+  /** The game, so a vote is cast as the caller's profile for it (`PERM-12`). */
+  game?: { orgId?: string | null; participants?: { teamId?: string | null; orgId?: string | null }[] } | null;
 }
 
 function DisputeActionButton({
@@ -91,7 +94,7 @@ function DisputeActionButton({
   );
 }
 
-export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
+export function ActiveDisputesPanel({ gameId, game }: ActiveDisputesPanelProps) {
   const isDark = useActiveTheme() === 'dark';
   const scoringCtx = useOptionalSharedDynamicScoring();
   const disputes = scoringCtx?.disputes || [];
@@ -124,8 +127,7 @@ export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
   if (gameDisputes.length === 0) return null;
 
   const handleCastVote = (dispute: GameDispute, vote: 'APPROVE' | 'REJECT') => {
-    const orgMemberships = useAuthStore.getState().orgMemberships || [];
-    const officialId = orgMemberships[0]?.orgProfileId;
+    const officialId = actingProfileId(game);
 
     if (!officialId) {
       setErrorMessage('Registered Profile Required: You must be logged in with a valid organisation profile to vote.');

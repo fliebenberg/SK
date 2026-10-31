@@ -8,6 +8,7 @@ import { useAuthStore } from '../store/authStore';
 import { getAvatarUrl } from '../services/assets';
 import { OrgLogo } from './OrgLogo';
 import { EditLink } from './ReadCard';
+import { useOrgAccess } from '../hooks/useOrgAccess';
 import { useOrgSummary } from '../hooks/useOrgSummary';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 import { AnimatedBox } from './AnimatedBox';
@@ -96,6 +97,7 @@ export function LeftNavigationRail() {
   const isOrgAdmin = segments[0] === 'admin';
   const orgSubTab = isOrgAdmin ? currentWorkspacePage(segments) : '';
   const { org: orgData } = useOrgSummary(isOrgAdmin ? orgId : null);
+  const { workspace } = useOrgAccess(isOrgAdmin ? orgId : undefined);
 
   const showAdminPortal = isAuthenticated && user?.globalRole === 'admin';
 
@@ -128,7 +130,7 @@ export function LeftNavigationRail() {
   // Nav Items list construction
   const getNavItemsList = () => {
     if (isOrgAdmin && orgId) {
-      return { isOrg: true, items: getWorkspaceNavItems(orgId, orgData?.isClaimed) };
+      return { isOrg: true, items: getWorkspaceNavItems(orgId, orgData?.isClaimed, workspace) };
     }
 
     const items = [];

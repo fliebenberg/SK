@@ -133,8 +133,8 @@ async function run() {
     // --- Answers.
     const history0 = await eventManager.getEventOrgHistory(event.id, guest);
     check(history0?.invitedBy?.userId === hostAdmin && history0?.invitedBy?.orgName === `${P} host` && !history0?.answeredBy, 'who invited is recorded, with the organisation they acted from');
-    check(await rejects(() => enforceOrgAction(guestStaff, SocketAction.SET_EVENT_ORG_ANSWER, { eventId: event.id, orgId: guest, participantOrgId: guest, answer: 'accepted' }), /admins/), "an invited organisation's staff may not answer for it (FIX-31)");
-    check(await rejects(() => enforceOrgAction(guestStaff, SocketAction.REQUEST_EVENT_WITHDRAWAL, { eventId: event.id, orgId: guest, participantOrgId: guest, reason: 'x' }), /admins/), '…nor ask to withdraw');
+    check(!(await rejects(() => enforceOrgAction(guestStaff, SocketAction.SET_EVENT_ORG_ANSWER, { eventId: event.id, orgId: guest, participantOrgId: guest, answer: 'accepted' }))), "an invited organisation's staff may answer for it (PERM-2)");
+    check(!(await rejects(() => enforceOrgAction(guestStaff, SocketAction.REQUEST_EVENT_WITHDRAWAL, { eventId: event.id, orgId: guest, participantOrgId: guest, reason: 'x' }))), '…and ask to withdraw');
     check(!(await rejects(() => enforceOrgAction(guestAdmin, SocketAction.SET_EVENT_ORG_ANSWER, { eventId: event.id, orgId: guest, participantOrgId: guest, answer: 'accepted' }))), 'an invited organisation\'s admin may answer for it');
     const accepted = await eventManager.setEventOrgAnswer(event.id, guest, 'accepted', { userId: guestAdmin, orgId: guest });
     const history1 = await eventManager.getEventOrgHistory(event.id, guest);

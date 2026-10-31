@@ -238,10 +238,10 @@ export default function EventDetails() {
 
   const handleCancelEvent = () => {
     setIsProcessing(true);
-    // `orgId`: the server checks it against the event's. The status follows the event room; a refusal is toasted.
+    // `orgId`: the host's, whichever workspace this is open in (`PERM-8`). The status follows the event room; a refusal is toasted.
     sendAction(SocketAction.UPDATE_EVENT, {
       id: eventId,
-      orgId,
+      orgId: event?.orgId || orgId,
       data: { status: 'Cancelled' },
     }).then(() => {
       setIsProcessing(false);
@@ -253,7 +253,7 @@ export default function EventDetails() {
     setIsProcessing(true);
     sendAction(SocketAction.DELETE_EVENT, {
       id: eventId,
-      orgId,
+      orgId: event?.orgId || orgId,
     }).then(result => {
       setIsProcessing(false);
       setIsDeleting(false);

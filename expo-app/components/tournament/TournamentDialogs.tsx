@@ -75,7 +75,8 @@ export function EditTournamentDialog({ visible, event, orgId, onClose }: {
     setSaving(true);
     const result = await sendAction(SocketAction.UPDATE_EVENT, {
       id: event.id,
-      orgId,
+      // The host's, whichever workspace this page is open in: the event is edited as its host (`PERM-8`).
+      orgId: event.orgId || orgId,
       data: fromDays ? { name: name.trim() } : { name: name.trim(), startDate: start, endDate: multiDay ? end : null },
     });
     setSaving(false);
@@ -147,7 +148,7 @@ export function WhereDialog({ visible, event, orgId, sites, facilities, facility
   const save = async () => {
     setSaving(true);
     if (siteDirty) {
-      const result = await sendAction(SocketAction.UPDATE_EVENT, { id: event.id, orgId, data: { siteId: siteId || null } });
+      const result = await sendAction(SocketAction.UPDATE_EVENT, { id: event.id, orgId: event.orgId || orgId, data: { siteId: siteId || null } });
       if (!result.ok) { setSaving(false); return; }
     }
     if (facilitiesDirty) {
@@ -229,7 +230,7 @@ export function ScoringDialog({ visible, event, orgId, onClose }: {
       pointsPerLoss: parseInt(loss, 10) || 0,
     };
     setSaving(true);
-    const result = await sendAction(SocketAction.UPDATE_EVENT, { id: event.id, orgId, data: { settings: { ...(event.settings || {}), scoring } } });
+    const result = await sendAction(SocketAction.UPDATE_EVENT, { id: event.id, orgId: event.orgId || orgId, data: { settings: { ...(event.settings || {}), scoring } } });
     setSaving(false);
     if (result.ok) onClose();
   };
@@ -314,7 +315,8 @@ export function SportsDialog({ visible, event, orgId, sports, divisionCount, onC
     const adding = !chosen.includes(sportId);
     const result = await sendAction(SocketAction.UPDATE_EVENT, {
       id: event.id,
-      orgId,
+      // The host's, whichever workspace this page is open in: the event is edited as its host (`PERM-8`).
+      orgId: event.orgId || orgId,
       data: { sportIds: adding ? [...chosen, sportId] : chosen.filter(id => id !== sportId) },
     });
     setBusy(false);

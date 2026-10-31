@@ -9,18 +9,18 @@ import { OverflowMenu } from '../../../components/OverflowMenu';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { PaginatedList } from '../../../components/PaginatedList';
 import { AddPersonDialog } from '../../../components/people/AddPersonDialog';
-import { OrgRole } from '../../../components/people/PersonDialogs';
+import { OrgRole, rolesTheyMayGive } from '../../../components/people/PersonDialogs';
 import { GuardianshipTag, PersonAvatar, RoleBadge, guardianshipOf } from '../../../components/people/PersonBits';
 import { useOrgMembers } from '../../../hooks/useOrgMembers';
 import { useOrgGuardians, guardianSummary } from '../../../hooks/useOrgGuardians';
 import { useOrgMinorsSettings } from '../../../hooks/useOrgMinorsSettings';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../hooks/useSafeBack';
-import { useAuthStore } from '../../../store/authStore';
 import { formatCellphone } from '../../../utils/phone';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
 import { PageBody } from '../../../components/PageBody';
+import { useOrgAccess } from '../../../hooks/useOrgAccess';
 
 const PAGE_SIZE = 50;
 type RoleFilter = 'all' | 'role-org-admin' | 'role-org-staff' | 'role-org-member';
@@ -44,13 +44,11 @@ export default function OrgPeople() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
 
-  const user = useAuthStore(state => state.user);
-  const viewerRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId)?.roleId);
-  const canEdit = user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || viewerRole === 'role-org-staff';
 
   const { members, isLoading: isMembersLoading } = useOrgMembers(orgId);
   const { data: rolesData, isLoading: isRolesLoading } = useSocketQuery<any>('roles');
-  const roles: OrgRole[] = rolesData?.org || [];
+  const { canManage: canEdit, isAdmin } = useOrgAccess(orgId);
+  const roles: OrgRole[] = rolesTheyMayGive(rolesData?.org || [], isAdmin);
   const { byPlayer: guardiansByPlayer } = useOrgGuardians(orgId);
   const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
 

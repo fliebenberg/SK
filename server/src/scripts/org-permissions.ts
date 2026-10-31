@@ -21,9 +21,9 @@ import { dataManager } from '../DataManager';
  * Three kinds of check:
  *
  *  - **Refusals.** A stranger and an anonymous socket are turned away from another organisation's
- *    things, a plain member from its writes, and staff from its identity and from handing out the
- *    admin role — the last being how a staff member would otherwise promote themselves.
- *  - **The unclaimed exception.** A stranger *may* create a team or a person in an unclaimed
+ *    things, a plain member from its writes, and staff from its identity and from its roles: staff
+ *    add and remove Members only (`PERM-2`), or a staff member could promote themselves.
+ *  - **The unclaimed exception.** Somebody who sets up games (`PERM-11`) *may* create a team or a person in an unclaimed
  *    organisation, and the payload is cut to the minimum on the way — checked by looking at what is
  *    left of it, since "allowed" alone would pass a gate that forgot to strip.
  *  - **Coverage.** Every action the server handles must be named by a gate — the tournament,
@@ -213,6 +213,41 @@ async function main() {
     [false, false, false],
     "but not the organisation's identity, and not the admin role — how staff would promote themselves"
   );
+  // Who holds which role is the admins' (`PERM-2`): staff add and remove Members, and nothing more.
+  const membershipOf = (slug: string) => `mem-op-${slug}-${stamp}`;
+  expect(
+    [
+      await allows(staff, SocketAction.ADD_ORG_MEMBER, { orgId: claimed, orgProfileId: 'x', roleId: 'role-org-staff' }),
+      await allows(staff, SocketAction.UPDATE_ORG_MEMBER, { id: membershipOf('member'), roleId: 'role-org-staff' }),
+      await allows(staff, SocketAction.UPDATE_ORG_MEMBER, { id: membershipOf('admin'), roleId: 'role-org-member' }),
+      await allows(staff, SocketAction.REMOVE_ORG_MEMBER, { id: membershipOf('admin') }),
+      await allows(staff, SocketAction.REMOVE_ORG_MEMBER, { id: membershipOf('staff') }),
+      await allows(staff, SocketAction.REMOVE_ORG_MEMBER, { id: membershipOf('member') }),
+    ],
+    [false, false, false, false, false, true],
+    'staff make nobody Staff, change no role, and remove only a Member (PERM-2)'
+  );
+  expect(
+    [
+      await allows(admin, SocketAction.UPDATE_ORG_MEMBER, { id: membershipOf('member'), roleId: 'role-org-staff' }),
+      await allows(admin, SocketAction.REMOVE_ORG_MEMBER, { id: membershipOf('staff') }),
+    ],
+    [true, true],
+    'an admin changes roles and removes staff'
+  );
+  const importRows = [{ rowNumber: 2, name: 'X', role: 'Staff' }];
+  const staffImport = { orgId: claimed, mode: 'preview', rows: importRows.map(r => ({ ...r })) };
+  const adminImport = { orgId: claimed, mode: 'preview', rows: importRows.map(r => ({ ...r })) };
+  expect(
+    [
+      await allows(staff, SocketAction.IMPORT_ORG_PEOPLE, staffImport),
+      'role' in staffImport.rows[0],
+      await allows(admin, SocketAction.IMPORT_ORG_PEOPLE, adminImport),
+      adminImport.rows[0].role,
+    ],
+    [true, false, true, 'Staff'],
+    "a staff import keeps no role column; an admin's does"
+  );
 
   // ------------------------------------------------------------------------------------------
   // 4. The unclaimed exception, and what it leaves of the payload
@@ -225,12 +260,22 @@ async function main() {
     ageGroupId: null,
     isActive: true,
     logo: 'data:image/png;base64,planted',
-    creatorId: stranger,
+    creatorId: staff,
   };
+  // Only somebody who may set up a game or tournament (`PERM-11`): another organisation's staff
+  // may; a stranger who runs nothing may not.
   expect(
-    await allows(stranger, SocketAction.ADD_TEAM, teamPayload),
+    [
+      await allows(stranger, SocketAction.ADD_TEAM, { name: 'X', orgId: unclaimed, sportId: sport.id }),
+      await allows(stranger, SocketAction.ADD_ORG_PROFILE, { name: 'X', orgId: unclaimed }),
+    ],
+    [false, false],
+    'a stranger who sets nothing up may not add to an unclaimed organisation (PERM-11)'
+  );
+  expect(
+    await allows(staff, SocketAction.ADD_TEAM, teamPayload),
     true,
-    'a stranger may create a team in an unclaimed organisation — nobody else can'
+    "another organisation's staff may create a team in an unclaimed organisation, setting up a game"
   );
   expect(
     Object.keys(teamPayload).sort(),
@@ -240,9 +285,9 @@ async function main() {
 
   const profilePayload: any = { name: 'A Runner', orgId: unclaimed, email: 'somebody@example.test', cellphone: '0800' };
   expect(
-    await allows(stranger, SocketAction.ADD_ORG_PROFILE, profilePayload),
+    await allows(staff, SocketAction.ADD_ORG_PROFILE, profilePayload),
     true,
-    'a stranger may create a person in an unclaimed organisation'
+    "…and a person"
   );
   expect(
     Object.keys(profilePayload).sort(),

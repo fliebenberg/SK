@@ -8,7 +8,8 @@ import { fixtureIds } from './setup/fixtures/testOrgs';
  * Importing people and their guardians (`IMPORT_ORG_PEOPLE`), end to end over a real socket against
  * the test organisations (Doringkloof).
  *
- *  - Who may import: Admin or Staff of the org, and nobody else.
+ *  - Who may import: Admin or Staff of the org, and nobody else. Staff import Members only: the role
+ *    column is the admins' (`PERM-2`).
  *  - A preview writes nothing, and says per row what an apply would do: new, update, unchanged, or
  *    refused, with the reasons.
  *  - An apply with a refused row writes nothing at all.
@@ -173,8 +174,8 @@ async function main() {
     expect((await send(staff, SocketAction.IMPORT_ORG_PEOPLE, { orgId: DKL, rows: GOOD_ROWS, mode: 'write' }))?.status, 'error', 'an unknown mode is refused');
 
     // --- Preview ---------------------------------------------------------------------------------
-    const preview = await importPeople(staff, SHEET, 'preview');
-    expect(preview?.status, 'ok', 'staff can preview');
+    const preview = await importPeople(admin, SHEET, 'preview');
+    expect(preview?.status, 'ok', 'an admin can preview');
     const report: PeopleImportReport = preview.data;
     expect(outcomes(report), ['new', 'new', 'update', 'unchanged', 'unchanged', 'error', 'error'], 'each row says what it would do');
     expect(report.counts, { new: 2, update: 1, unchanged: 2, error: 2, newGuardians: 2, newGuardianLinks: 3 }, 'the preview counts');
@@ -190,7 +191,13 @@ async function main() {
     expect((await importedProfileIds()).length, 0, 'a preview writes nothing');
 
     // --- An apply with a refused row writes nothing ---------------------------------------------
-    const refused = await importPeople(staff, SHEET, 'apply');
+    const refused = await importPeople(admin, SHEET, 'apply');
+
+    // --- Staff import Members, and change nobody's role (`PERM-2`) -----------------------------
+    const staffPreview = await importPeople(staff, SHEET, 'preview');
+    expect(staffPreview?.status, 'ok', 'staff can preview');
+    expect(staffPreview?.data?.rows?.[2]?.changes?.map((c: any) => c.field), ['Cellphone'], "staff: Hennie's role column is ignored");
+    expect(staffPreview?.data?.rows?.[5]?.outcome, 'new', 'staff: an Admin row becomes a new Member, not an error');
     expect(refused?.status, 'error', 'an apply with refused rows is refused');
     expect(typeof refused?.message === 'string' && refused.message.startsWith('2 rows have problems, so nothing was imported.'), true, 'and says so');
     expect((await importedProfileIds()).length, 0, 'and writes nothing');
@@ -201,8 +208,8 @@ async function main() {
     await joined; // the join's own snapshot
     const membersBroadcast = nextMessage(admin, `org:${DKL}:members`, 'ORG_MEMBERS_SYNC');
 
-    const applied = await importPeople(staff, GOOD_ROWS, 'apply', `${RUN}-1`);
-    expect(applied?.status, 'ok', 'staff can apply');
+    const applied = await importPeople(admin, GOOD_ROWS, 'apply', `${RUN}-1`);
+    expect(applied?.status, 'ok', 'an admin can apply');
     expect(applied?.data?.counts, { new: 2, update: 1, unchanged: 2, error: 0, newGuardians: 2, newGuardianLinks: 3 }, 'the apply counts');
     const members = await membersBroadcast;
     expect(Array.isArray(members) && members.some((m: any) => m.name === 'PI Test Kid One'), true, 'the People screens get the whole new list, once');
@@ -242,7 +249,7 @@ async function main() {
     expect(johan, [{ role_id: 'role-org-admin' }], 'the Admin is still an Admin');
 
     // --- Retrying, and importing the same sheet again -------------------------------------------
-    const replay = await importPeople(staff, GOOD_ROWS, 'apply', `${RUN}-1`);
+    const replay = await importPeople(admin, GOOD_ROWS, 'apply', `${RUN}-1`);
     expect(replay?.data?.replayed, true, 'a retry with the same key is a replay');
     expect((await importedProfileIds()).length, 4, 'and writes nothing twice (two kids, two guardians)');
 

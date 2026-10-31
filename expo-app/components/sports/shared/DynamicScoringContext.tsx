@@ -7,32 +7,15 @@ import { useAuthStore } from '../../../store/authStore';
 import { useSportStore } from '../../../store/sportStore';
 import { ConfirmationModal } from '../../ConfirmationModal';
 import { getUndoExpiryMs, getUndoNowMs } from '../../../utils/undoWindow';
+import { actingProfileId } from '../../../utils/actingProfile';
 
 const resolveOrgProfileId = (game: Game): string | null => {
   const user = useAuthStore.getState().user;
   const orgMemberships = useAuthStore.getState().orgMemberships || [];
   if (!user) return null;
 
-  // 1. If global admin, look for System Admin org profile
-  if (user.globalRole === 'admin') {
-    const adminMem = orgMemberships.find((m: any) => m.orgId === 'org-system-admins');
-    if (adminMem?.orgProfileId) return adminMem.orgProfileId;
-  }
-
-  // 2. Look for official assignment in game_officials
-  if (game?.id) {
-    const matchedOfficial = (game as any).officials?.find((o: any) => 
-      orgMemberships.some((m: any) => m.orgProfileId === o.orgProfileId)
-    );
-    if (matchedOfficial?.orgProfileId) return matchedOfficial.orgProfileId;
-  }
-
-  // 3. Look for membership in user's orgs
-  if (orgMemberships.length > 0) {
-    return orgMemberships[0].orgProfileId || null;
-  }
-
-  return null;
+  // The caller's own profile for this game: system, official, team, organisation (`PERM-12`).
+  return actingProfileId(game as any) || null;
 };
 
 /**
