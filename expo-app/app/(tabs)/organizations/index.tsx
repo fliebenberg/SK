@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, useWindowDimensions, Modal, Image } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { GlassCard } from '../../../components/GlassCard';
 import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,7 @@ import { ORG_SHORT_CODE_MAX_LENGTH, SocketAction, OrganizationType, orgColors, D
 import { BrandColorsField, brandColorsProblem } from '../../../components/org/BrandColorsField';
 import { useOrgShortCode } from '../../../hooks/useOrgShortCode';
 import { OrgLogo } from '../../../components/OrgLogo';
+import { SignInPrompt } from '../../../components/SignInPrompt';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { inkOnBrand } from '@/utils/colorUtils';
 import { deviceTimeZone } from '@/utils/dates';
@@ -34,6 +35,7 @@ export default function OrganizationsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [signInPromptVisible, setSignInPromptVisible] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
   const [newOrgSport, setNewOrgSport] = useState('Football');
   const [newOrgType, setNewOrgType] = useState<OrganizationType | null>(null);
@@ -191,18 +193,41 @@ export default function OrganizationsPage() {
   // Anyone signed in may belong to an org, or set one up.
   const showTabs = isAuthenticated;
 
+  // The page's add action sits in its header, as on every list page — never at the end of the list.
+  // A signed-out visitor sees it too, and is told to sign in, so they know it is there.
+  const addButton = (
+    <TouchableOpacity
+      onPress={() => (isAuthenticated ? setModalVisible(true) : setSignInPromptVisible(true))}
+      accessibilityRole="button"
+      accessibilityLabel="Add organisation"
+      className={`flex-row items-center gap-1.5 rounded-xl bg-primary ${isLargeScreen ? 'px-3.5 py-2' : 'w-9 h-9 justify-center mr-4'}`}
+    >
+      <Ionicons name="add" size={18} color={themeColor(isDark, 'on-primary')} />
+      {isLargeScreen ? <Text className="font-inter-bold text-sm text-on-primary">Add organisation</Text> : null}
+    </TouchableOpacity>
+  );
+
+  // On a phone the header is the tab navigator's, one level up from this page's stack.
+  const navigation = useNavigation();
+  useLayoutEffect(() => {
+    navigation.getParent()?.setOptions({ headerRight: isLargeScreen ? undefined : () => addButton });
+  }, [navigation, isAuthenticated, isLargeScreen, isDark]);
+
   return (
     <View className="flex-1 bg-canvas">
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* HEADER SECTION */}
         {isLargeScreen && (
-          <View className="mb-6">
-            <Text className="font-orbitron-bold text-2xl tracking-widest text-ink uppercase mb-2">
-              Organisations
-            </Text>
-            <Text className="font-inter text-sm text-ink-muted">
-              Browse and search active sports clubs, schools, and leagues on ScoreKeeper.
-            </Text>
+          <View className="mb-6 flex-row items-start gap-4">
+            <View className="flex-1">
+              <Text className="font-orbitron-bold text-2xl tracking-widest text-ink uppercase mb-2">
+                Organisations
+              </Text>
+              <Text className="font-inter text-sm text-ink-muted">
+                Browse and search active sports clubs, schools, and leagues on ScoreKeeper.
+              </Text>
+            </View>
+            {addButton}
           </View>
         )}
 
@@ -265,7 +290,7 @@ export default function OrganizationsPage() {
                   <Text className="font-inter text-xs text-ink-muted text-center mb-5 leading-4">
                     {searchQuery.trim()
                       ? `None of your organisations match "${searchQuery}".`
-                      : "You're not part of any organisations yet. Create one to get started."
+                      : "You're not part of any organisations yet. Set one up with Add organisation."
                     }
                   </Text>
                 </GlassCard>
@@ -362,12 +387,6 @@ export default function OrganizationsPage() {
                 })
               )}
 
-              <Button
-                title="+ Add Organisation"
-                variant="primary"
-                onPress={() => setModalVisible(true)}
-                className="w-full shadow-sm py-2.5"
-              />
             </View>
           </View>
         ) : (
@@ -510,6 +529,13 @@ export default function OrganizationsPage() {
           </View>
         )}
       </ScrollView>
+
+      <SignInPrompt
+        isOpen={signInPromptVisible}
+        onClose={() => setSignInPromptVisible(false)}
+        title="Sign in to add an organisation"
+        description="Set up your school, club or league on ScoreKeeper, and run its teams, fixtures and results."
+      />
 
       {/* QUICK CREATION MODAL */}
       <Modal
