@@ -97,6 +97,14 @@ To maintain a consistent, premium live-sports aesthetic and prevent silent failu
 
 *   **An organisation with no administrator**: Ask about it only through [`<NominateAdminModal>`](file:///c:/Fred/Coding/SK/expo-app/components/NominateAdminModal.tsx), opened from the workspace's one-line [`<UnclaimedOrgBanner>`](file:///c:/Fred/Coding/SK/expo-app/components/UnclaimedOrgBanner.tsx), the [`<UnclaimedOrgBadge>`](file:///c:/Fred/Coding/SK/expo-app/components/UnclaimedOrgBadge.tsx) icon on an org chip, or the workspace's Nominate admin page (`/admin/[orgId]/nominate`) — never an inline card or an email field held until a form saves (`ORG-6`). Amber means *you* have not nominated anyone for it, green that you have. The process: [nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md) §4.
 
+*   **A private organisation** (`ORG-14`): mark it *Private*, with a lock, wherever it is listed or
+    opened — [`<PrivateOrgTag>`](file:///c:/Fred/Coding/SK/expo-app/components/org/PrivateOrgTag.tsx)
+    on the app's own rows (before a role badge), `<PrivateOrgChip>` on a card in the org's colours, and
+    a *Private* fact in `OrgProfileBanner`'s footer. Only its members ever see one. **A page that names
+    a private org asks [`useCanOpenOrg`](file:///c:/Fred/Coding/SK/expo-app/hooks/useCanOpenOrg.ts)
+    before linking to it**: someone who played in one of its games and has since left still reads the
+    game, so the name stays and the link goes.
+
 *   **An organisation's colours**: Take them from `orgColors(org)` in `@sk/shared`, never `org.primaryColor || '#…'`. **A new organisation starts in the app's two colours**, orange and electric blue, until an admin sets its own, so banners show two colours from the start. **After that, each colour falls back to the one before it**: an admin may clear the secondary, and the org is then painted in its primary alone; the primary is required on every organisation (`20261003_org_primary_color_required.ts`), falling back to the app's orange only for data that predates that. Decided 2026-10-01 and 2026-10-03; it replaced over thirty hand-written fallbacks.
 
 *   **A side of a fixture**: Render it with [`<FixtureSide>`](file:///c:/Fred/Coding/SK/expo-app/components/FixtureSide.tsx), never with ad-hoc text. A side is in one of three states — a known competitor, an entrant awaiting confirmation ("TBC — awaiting confirmation"), or a slot awaiting a result ("Winner QF1") — and the fixtures list, the schedule, the bracket, the game screen, the standings and anything printed all show them. Five independent renderings of "TBC" is a guaranteed inconsistency. The wording itself is derived in [`shared/src/utils/fixtureSide.ts`](file:///c:/Fred/Coding/SK/shared/src/utils/fixtureSide.ts), so the server and print paths say the same thing the screen does; a placeholder is drawn in secondary text (AAA in Light Mode) rather than at a lower opacity, so it stays legible.

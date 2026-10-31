@@ -571,6 +571,11 @@ cached access so a restriction takes effect at once.
     Publishes `ORG_MEMBERS_SYNC` on `org:{orgId}:members`, `USER_MEMBERSHIPS_UPDATED` to every
     minor and guardian account in the org (under the wider of the old and new minor age), and
     `ORGANIZATION_UPDATED` on the summary room.
+*   **`SET_ORG_PRIVATE`** `{ orgId, isPrivate }` → `Organization` (`ORG-14`). Gate: `admin-org`.
+    Going private is refused for an unclaimed org and for one that has ever shared a game, tournament
+    or season with another organisation. Going private first drops non-members from the org's public
+    rooms they already hold (`ROOM_ACCESS_REVOKED`), then publishes `ORGANIZATION_UPDATED` on the
+    summary room.
 *   **`get_data profile_guardians`** `{ orgId, playerProfileId? }` → `ProfileGuardian[]`, active
     links only, primary first. Authorized on `org:{orgId}:guardians` (the member list's tier), and
     held to that org: naming a player from another org returns nothing. Screens use the room instead

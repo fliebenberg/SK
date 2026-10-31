@@ -44,6 +44,14 @@ not also query for the same data.
 
 `npm run verify:rooms` checks every row of the `Join push` column against a running server.
 
+**A `public` room is public only while its subject's organisation is** (`ORG-14`): every public room
+below whose subject belongs to a private organisation — its org rooms, sites, facilities, leagues,
+seasons, events, divisions and games — admits only that org's current members and app admins, plus
+anyone who played in the game for the rooms a game page needs: the game's summary and scoring feed,
+its event's record, and its venue and field (`RoomPolicy.keptByPlayers`). The owner is the event's host, since a private org's events
+involve no one else (`RoomPolicy.subject` in
+[roomAccess.ts](file:///c:/Fred/Coding/SK/server/src/wss/roomAccess.ts)).
+
 ### Organisation
 
 | Room | Access | Join push | Published afterwards |

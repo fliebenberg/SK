@@ -1,3 +1,5 @@
+import { HOST_IS_PUBLIC } from './privateOrgs';
+
 /**
  * Who sees a tournament, by where each organisation's invitation stands (`FIX-29`, `FIX-30`).
  *
@@ -25,11 +27,12 @@
 
 /** Statuses whose tournaments an organisation's public lists show. */
 /**
- * Whether an event may be shown to the public on Home (`HOME-1`) — **a stand-in that passes every
- * event** until the organisers can make a tournament public (`FIX-38`). Replace the body with the
- * real check then; every public list that should honour it already calls this.
+ * Whether an event may be shown to the public on Home (`HOME-1`). Today one condition: its host is
+ * not a private organisation (`ORG-14`) — a private org's events involve nobody else, so the host
+ * decides. When the organisers can make a tournament public (`FIX-38`), that check joins this one;
+ * every public list that should honour it already calls this.
  */
-export const PUBLIC_EVENT = (_eventAlias: string) => `TRUE`;
+export const PUBLIC_EVENT = (eventAlias: string) => HOST_IS_PUBLIC(eventAlias);
 
 export const LISTED =`('accepted', 'withdrawal_pending')`;
 

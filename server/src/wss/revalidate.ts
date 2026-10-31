@@ -1,5 +1,5 @@
 import { getIo } from './sockets';
-import { canJoinRoom } from './roomAccess';
+import { canJoinRoom, classifyRoom } from './roomAccess';
 
 /**
  * Re-apply room access to sockets that are *already* joined.
@@ -40,5 +40,45 @@ export async function revalidateUserRooms(userId: string): Promise<number> {
       console.warn(`[Socket] Revoked room=${room} user=${userId} socket=${socket.id}`);
     }
   }
+  return revoked;
+}
+
+/**
+ * Re-apply room access to **every** connected socket after an organisation goes private
+ * (`ORG-14`), so its public rooms stop feeding people who no longer belong there at once — not at
+ * their next reconnect.
+ *
+ * Only rooms whose subject could have changed are asked about — public rooms with a `subject` —
+ * and each room's answer is worked out once for the whole pass, not once per socket holding it.
+ */
+export async function revalidateRoomsForPrivateOrg(): Promise<number> {
+  const io = getIo();
+  if (!io) return 0;
+
+  const decisions = new Map<string, boolean>();
+  let revoked = 0;
+  const sockets = await io.fetchSockets();
+
+  for (const socket of sockets) {
+    const userId: string = socket.data?.userId || 'anonymous';
+    for (const room of socket.rooms) {
+      if (room === socket.id) continue;
+      const policy = classifyRoom(room);
+      if (policy?.access !== 'public' || !policy.subject) continue;
+
+      const key = `${userId}|${room}`;
+      let allowed = decisions.get(key);
+      if (allowed === undefined) {
+        allowed = await canJoinRoom(userId, room);
+        decisions.set(key, allowed);
+      }
+      if (allowed) continue;
+
+      socket.leave(room);
+      socket.emit('update', { topic: room, type: 'ROOM_ACCESS_REVOKED', data: { room } });
+      revoked++;
+    }
+  }
+  if (revoked) console.warn(`[Socket] Private organisation: revoked ${revoked} room subscription(s)`);
   return revoked;
 }

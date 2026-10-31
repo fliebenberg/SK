@@ -74,6 +74,8 @@ export function OrgProfileBanner({ org, onEdit, onEditLogo, action }: {
       <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1.5">
         {type ? <Fact icon={orgTypeIcon(org.type)} text={type} color={ink} /> : null}
         {location ? <Fact icon="location-outline" text={location} color={ink} /> : null}
+        {/* Only its members ever see a private org, so this tells them why nobody else can (`ORG-14`). */}
+        {org.isPrivate ? <Fact icon="lock-closed-outline" text="Private" color={ink} /> : null}
         {onEdit ? (
           <TouchableOpacity
             onPress={onEdit}

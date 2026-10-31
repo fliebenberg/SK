@@ -301,6 +301,11 @@ export enum SocketAction {
     SEND_DEPENDANT_INVITE = 'SEND_DEPENDANT_INVITE',
     /** The organisation's minors settings (`settings.minors`). Org Admin only. */
     SET_ORG_MINORS_SETTINGS = 'SET_ORG_MINORS_SETTINGS',
+    /**
+     * Make an organisation private or public again (`ORG-14`). Org Admin only. Refused for an
+     * unclaimed org, and — going private — for one that has ever played another organisation.
+     */
+    SET_ORG_PRIVATE = 'SET_ORG_PRIVATE',
 
     // --- Importing people ---
     /**

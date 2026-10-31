@@ -218,7 +218,11 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
 
   if (!form) return null;
   const set = (patch: Partial<typeof form>) => setForm({ ...form, ...patch });
-  const orgOptions = orgs.map(o => ({ value: o.id, label: o.name }));
+  // A private organisation's games are among its own teams; a public one never plays a private one
+  // (`ORG-14`). The server refuses either; the options do not offer it.
+  const orgOptions = orgs
+    .filter(o => (hostOrg?.isPrivate ? o.id === hostOrgId : !o.isPrivate))
+    .map(o => ({ value: o.id, label: o.name }));
   const teamOptions = (i: 0 | 1) => (teamsByOrg[form.orgIds[i]] || [])
     .filter(t => !game.sportId || t.sportId === game.sportId)
     .map(t => ({ value: t.id, label: t.name }));

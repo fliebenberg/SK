@@ -1,4 +1,5 @@
 import { accessManager } from '../managers/AccessManager';
+import { PlayedSubject, PrivateSubject, privateOwnerOf, canSeePrivateOrg, playedIn } from '../managers/privateOrgs';
 
 /**
  * Who may subscribe to a room.
@@ -15,6 +16,9 @@ import { accessManager } from '../managers/AccessManager';
  *  - `member` — carries a person's data (member lists, rosters) or an org's
  *    internal state. Requires a current membership of a related org.
  *  - `self`  — the socket's own user.
+ *
+ * A `public` room whose subject belongs to a **private organisation** is that org's members' only
+ * (`ORG-14`, `RoomPolicy.subject`).
  *
  * An unrecognised room shape is denied. Adding a room means adding it here.
  */
@@ -43,6 +47,18 @@ export interface RoomPolicy {
   dutiesFor?: (id: string) => Promise<{ teamIds?: string[]; gameId?: string | null } | null>;
   /** The user id that must match the socket, for `self` rooms. */
   selfId?: string;
+  /**
+   * For a `public` room: what its subject is, so that a subject belonging to a private organisation
+   * closes the room to everyone but that org's members and app admins (`ORG-14`). Rooms with no
+   * owner here (none today) stay open whatever owns them.
+   */
+  subject?: PrivateSubject;
+  /**
+   * For such a room: it stays open to someone who played in the game it is about — or in a game of
+   * the event, or at the venue — so a former member can still read a game they played in, with its
+   * event's name and its venue. Set only on the rooms a game page needs.
+   */
+  keptByPlayers?: PlayedSubject;
 }
 
 /**
@@ -90,7 +106,7 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
         case 'sites':
         case 'facilities':
         case 'leagues':
-          return { access: 'public' };
+          return { access: 'public', subject: 'org' };
         default:
           return null;
       }
@@ -113,13 +129,13 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
       switch (sub) {
         // The summary tier is the spectator view: score, clock, status, teams.
         case 'summary':
-          return { access: 'public' };
+          return { access: 'public', subject: 'game', keptByPlayers: 'game' };
         // The scoring feed — tries, goals, cards, each naming its player — is public since
         // 2026-10-22 (`FIX-39`): players are shown until `PEOPLE-4` gives a way to hide them, and
         // that switch belongs here, at the read boundary. It carries ids and the sport's words, no
         // contact or identity details.
         case 'events':
-          return { access: 'public' };
+          return { access: 'public', subject: 'game', keptByPlayers: 'game' };
         // The base room carries the full game and `:disputes` the open disputes; both are
         // internal. `:detail` was a second name for the base room and was removed 2026-09-11 under
         // rule 4 — one dataset, one room, one name.
@@ -152,7 +168,7 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
 
     case 'event':
       // The event itself is public — fixtures, results and the divisions they sit in.
-      if (!sub) return { access: 'public' };
+      if (!sub) return { access: 'public', subject: 'event', keptByPlayers: 'event' };
       // The tournament's whole roster, at the same tier as one division's (U21). An entrant may be
       // a person rather than a team, and an unresolved one carries a label somebody wrote about a
       // school that has not confirmed yet; neither is spectator information. A convenor holds no
@@ -161,11 +177,11 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
       // The event room used to carry five datasets. These four are the public ones, split out by
       // rule 4; the roster below is `member` and was already separate.
       if (sub === 'fixtures' || sub === 'divisions' || sub === 'facilities' || sub === 'standings') {
-        return { access: 'public' };
+        return { access: 'public', subject: 'event' };
       }
       // The teams taking part, as the public sees them (`FIX-25`): team entrants only, with nothing
       // a fixture does not already say — no people, no placeholder labels, no answers.
-      if (sub === 'teams') return { access: 'public' };
+      if (sub === 'teams') return { access: 'public', subject: 'event' };
       if (sub === 'entrants') {
         return {
           access: 'member',
@@ -180,13 +196,13 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
 
     case 'site':
     case 'facility':
-      return sub ? null : { access: 'public' };
+      return sub ? null : { access: 'public', subject: kind as 'site' | 'facility', keptByPlayers: kind as 'site' | 'facility' };
 
     case 'league':
-      return sub === 'seasons' ? { access: 'public' } : null;
+      return sub === 'seasons' ? { access: 'public', subject: 'league' } : null;
 
     case 'season':
-      return sub === 'standings' ? { access: 'public' } : null;
+      return sub === 'standings' ? { access: 'public', subject: 'season' } : null;
 
     // A tournament division. Rooms follow the screen's data needs, never the viewer's role (U33):
     // a convenor looking at the whole event needs its data exactly as the host does, so the split
@@ -203,7 +219,7 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
         // spectator information, and so are the stages they sit in and the venues they use.
         case 'stages':
         case 'facilities':
-          return { access: 'public' };
+          return { access: 'public', subject: 'division' };
         // The base room is the organiser's tier: the roster, pool membership, and the manual
         // points adjustments — which carry a reason written by a person ("ineligible player") and
         // the author's id. An entrant may also *be* a person rather than a team, so a roster here
@@ -214,7 +230,7 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
         // it at `member` would have taken the division's name away from the spectator reading its
         // draw.
         case undefined:
-          return { access: 'public' };
+          return { access: 'public', subject: 'division' };
         // The roster, the pool membership and the manual adjustments: three datasets that shared the
         // base room, now one room each (rule 4). All `member` for the reason the base room was — an
         // entrant may be a person, and an adjustment carries a reason somebody wrote and their id.
@@ -331,7 +347,17 @@ export async function canJoinRoom(userId: string, room: unknown): Promise<boolea
   const policy = classifyRoom(room);
   if (!policy) return false;
 
-  if (policy.access === 'public') return true;
+  if (policy.access === 'public') {
+    if (!policy.subject) return true;
+    // A public room stays public unless its subject belongs to a private organisation (`ORG-14`).
+    // Then it is that org's members' (and app admins') — and, for what a game page needs, also
+    // anyone who played in the game, so a former member keeps the games they played (2026-10-31).
+    const subjectId = room.split(':')[1];
+    const privateOrgId = await privateOwnerOf(policy.subject, subjectId);
+    if (!privateOrgId) return true;
+    if (await canSeePrivateOrg(userId, privateOrgId)) return true;
+    return !!policy.keptByPlayers && (await playedIn(userId, policy.keptByPlayers, subjectId));
+  }
 
   const isAuthenticated = !!userId && userId !== 'anonymous' && userId !== 'invalid-token';
   if (!isAuthenticated) return false;

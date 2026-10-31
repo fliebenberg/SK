@@ -111,7 +111,8 @@ export function AddOrganisationsDialog({ visible, event, orgId, onClose, onRegis
     const timer = setTimeout(() => {
       wsService.emit('get_data', { type: 'search_similar_orgs', name: text }, (res: any) => {
         setSearching(false);
-        if (Array.isArray(res)) setFound(res.slice(0, 12));
+        // A private organisation takes part in nobody else's tournament (`ORG-14`).
+        if (Array.isArray(res)) setFound(res.filter((o: Organization) => !o.isPrivate).slice(0, 12));
       });
     }, 350);
     return () => clearTimeout(timer);

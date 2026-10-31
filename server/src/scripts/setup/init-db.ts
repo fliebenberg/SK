@@ -88,7 +88,9 @@ const createTables = async () => {
                 -- The About text on the org's profile (20261001_org_description.ts).
                 description TEXT,
                 -- IANA name; set from the creator's device, changeable in settings (20260926_venue_timezones.ts).
-                timezone TEXT NOT NULL DEFAULT 'Africa/Johannesburg'
+                timezone TEXT NOT NULL DEFAULT 'Africa/Johannesburg',
+                -- Seen only by its members (ORG-14, 20261031_org_private.ts).
+                is_private BOOLEAN NOT NULL DEFAULT false
                 -- Team/member/site counts are computed live by the org queries, not stored here.
                 -- See migration 20260814_derive_org_counts.ts.
             );

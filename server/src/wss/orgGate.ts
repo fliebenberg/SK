@@ -155,6 +155,8 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   [SocketAction.SEND_DEPENDANT_INVITE]: { kind: 'guardian-of' },
   // Whether minors get a member's privileges at all is the admins' decision, not staff's.
   [SocketAction.SET_ORG_MINORS_SETTINGS]: { kind: 'admin-org', org: orgId },
+  // Who may see the organisation at all (`ORG-14`): the admins' decision, as the minors settings are.
+  [SocketAction.SET_ORG_PRIVATE]: { kind: 'admin-org', org: orgId },
 
   // Its things.
   [SocketAction.ADD_TEAM]: { kind: 'create-in-org', org: orgId, keep: TEAM_MINIMUM },

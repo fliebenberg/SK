@@ -3,6 +3,7 @@ import { BaseManager } from "./BaseManager";
 import { imageService } from "../services/ImageService";
 import { addressManager } from "./AddressManager";
 import { timeZoneAt } from "../utils/timeZoneLookup";
+import { ORG_VISIBLE, viewerOf, hasExternalHistory } from "./privateOrgs";
 
 /**
  * Live-computed organization counts, exposed as `c.team_count` / `c.site_count` / `c.member_count`.
@@ -33,7 +34,14 @@ export class OrganizationManager extends BaseManager {
     { id: "role-org-member", name: "Member" },
   ];
 
-  async getOrganizations(params?: PaginationParams): Promise<PaginatedResponse<Organization>> {
+  /**
+   * The organisation directory, a page at a time.
+   *
+   * @param viewerId The caller proven by the handshake — never a field of `params`, which arrive
+   *   from the socket. Private organisations are left out unless the viewer belongs to them or is an
+   *   app admin (`ORG-14`); with no viewer, every private one is.
+   */
+  async getOrganizations(params?: PaginationParams, viewerId: string | null = null): Promise<PaginatedResponse<Organization>> {
     const page = params?.page || 1;
     const limit = Math.min(params?.limit || 100, 100);
     const offset = (page - 1) * limit;
@@ -58,6 +66,7 @@ export class OrganizationManager extends BaseManager {
         o.custom_type as "customType",
         o.description,
         o.timezone,
+        o.is_private as "isPrivate",
         o.address_id as "addressId",
         a.full_address as "fullAddress",
         a.building,
@@ -77,8 +86,8 @@ export class OrganizationManager extends BaseManager {
       LEFT JOIN addresses a ON o.address_id = a.id${ORG_COUNTS_JOIN}
     `;
 
-    const queryParams: any[] = [];
-    const whereClauses: string[] = [];
+    const queryParams: any[] = [viewerOf(viewerId)];
+    const whereClauses: string[] = [ORG_VISIBLE('o', '$1')];
 
     if (search) {
         whereClauses.push(`(o.name ILIKE $${queryParams.length + 1} OR o.short_name ILIKE $${queryParams.length + 1})`);
@@ -181,6 +190,7 @@ export class OrganizationManager extends BaseManager {
         o.custom_type as "customType",
         o.description,
         o.timezone,
+        o.is_private as "isPrivate",
         o.address_id as "addressId",
         a.full_address as "fullAddress",
         a.building,
@@ -203,6 +213,10 @@ export class OrganizationManager extends BaseManager {
 
     const org = res.rows[0] ? this.mapOrg(res.rows[0]) : undefined;
     if (org) {
+        // For the Settings page, which leaves the private setting out once it can never apply. A
+        // cached `false` can go stale when a first game against another org is added; the setter
+        // checks again, so the worst case is a refusal that explains itself.
+        org.hasExternalHistory = await hasExternalHistory(org.id);
         this.organizationCache.set(org.id, org);
     }
     return org;
@@ -319,6 +333,33 @@ export class OrganizationManager extends BaseManager {
     if (!res.rowCount) throw new Error('That organisation does not exist.');
     this.invalidateCache();
     return minorsSettingsOf(res.rows[0].settings);
+  }
+
+  /**
+   * Make the organisation private, or public again (`ORG-14`). The only writer of `is_private`.
+   *
+   * Going private is refused for an org with no admin — only an admin may change it, so an
+   * unclaimed org cannot — and for one that has ever shared a game, tournament or season with
+   * another organisation, which is checked under a lock on the org row so the answer cannot change
+   * while it is written. Going public is always allowed.
+   */
+  async setPrivate(orgId: string, isPrivate: boolean): Promise<void> {
+    if (typeof isPrivate !== 'boolean') throw new Error('Say whether the organisation is private.');
+    await this.transaction(async (tx) => {
+      const org = (await tx('SELECT is_claimed, is_private FROM organizations WHERE id = $1 FOR UPDATE', [orgId])).rows[0];
+      if (!org) throw new Error('That organisation does not exist.');
+      if (org.is_private === isPrivate) return;
+      if (isPrivate) {
+        if (!org.is_claimed) {
+          throw new Error('Only an organisation with an admin can be made private.');
+        }
+        if (await hasExternalHistory(orgId, tx)) {
+          throw new Error('This organisation has played other organisations, so it cannot be made private.');
+        }
+      }
+      await tx('UPDATE organizations SET is_private = $2 WHERE id = $1', [orgId, isPrivate]);
+    });
+    this.organizationCache.delete(orgId);
   }
 
   async updateOrganization(id: string, data: UpdateOrgPayload["data"]): Promise<Organization | null> {
@@ -453,12 +494,12 @@ export class OrganizationManager extends BaseManager {
     return this.organizationRoles.find(r => r.id === id);
   }
 
-  async searchSimilarOrganizations(name: string): Promise<Organization[]> {
+  async searchSimilarOrganizations(name: string, viewerId: string | null = null): Promise<Organization[]> {
     const query = name.trim().toLowerCase();
     if (!query) return [];
 
     const queryParts = query.split(/\s+/).filter(p => p.length > 0);
-    const paginated = await this.getOrganizations({ page: 1, limit: 1000, search: name });
+    const paginated = await this.getOrganizations({ page: 1, limit: 1000, search: name }, viewerId);
     const allOrgs: Organization[] = paginated.items;
 
     const scored = allOrgs.map((org: Organization) => {

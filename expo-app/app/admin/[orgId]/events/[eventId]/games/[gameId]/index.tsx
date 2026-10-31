@@ -34,6 +34,7 @@ import { themeColor } from '../../../../../../../constants/Colors';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { formatInstantDate, formatKickoffTime, venueInputsToInstant } from '../../../../../../../utils/dates';
 import { useTournamentLinks } from '../../../../../../../components/tournament/tournamentLinks';
+import { useCanOpenOrg } from '../../../../../../../hooks/useCanOpenOrg';
 
 type Dialog = null | 'edit' | 'move' | 'who' | 'result' | 'cancel' | 'reinstate' | 'delete';
 type PhoneTab = 'overview' | 'teams' | 'events';
@@ -94,6 +95,9 @@ export default function GamePage() {
   }, [isConnected, summary?.siteId, summary?.facilityId]);
 
   const sides = useMemo(() => (summary?.participants || []).slice(0, 2), [summary]);
+  // A private organisation's game, read by someone who played in it and has since left (`ORG-14`):
+  // its names stay, but nothing links to its tournament or division, which would refuse them.
+  const canOpenOrg = useCanOpenOrg(event?.orgId, sides.some(p => p.orgIsPrivate));
   // The team sheets — public too, by decision until `PEOPLE-4` gives a way to hide players.
   const { lineups, reload: reloadLineups } = useGameLineups(sides.map(p => p.id));
   const homeSides = useMemo(() => new Set(sides.filter(p => site?.orgId && p.orgId === site.orgId).map(p => p.id)), [sides, site]);
@@ -115,7 +119,7 @@ export default function GamePage() {
   const mySideIds = sides.filter((p, i) => (i === 0 ? permissions.canEditTeam1Lineup : permissions.canEditTeam2Lineup)).map(p => p.id);
   const { proposals, reload: reloadProposals } = useLineupProposals(isFixture ? mySideIds : []);
 
-  const backHref = isMatch ? links.home() : links.event(eventId);
+  const backHref = !canOpenOrg ? '/' : isMatch ? links.home() : links.event(eventId);
   const goBack = () => safeBack(backHref);
 
   if (accessDenied) {
@@ -195,8 +199,10 @@ export default function GamePage() {
     <Text className="font-inter-semibold text-[13px] text-ink-muted">{sportName ? `${sportName} · ` : ''}Match</Text>
   ) : (
     <Text className="font-inter-semibold text-[13px] text-ink-muted" numberOfLines={2}>
-      <Text className="text-primary-ink" onPress={() => router.push(links.event(eventId) as any)}>{event.name}</Text>
-      {division ? <Text>{' · '}<Text className="text-primary-ink" onPress={openDivision}>{divisionName}</Text></Text> : null}
+      {canOpenOrg
+        ? <Text className="text-primary-ink" onPress={() => router.push(links.event(eventId) as any)}>{event.name}</Text>
+        : <Text>{event.name}</Text>}
+      {division ? <Text>{' · '}{canOpenOrg ? <Text className="text-primary-ink" onPress={openDivision}>{divisionName}</Text> : divisionName}</Text> : null}
       {summary.round ? ` · Round ${summary.round}` : ''}
     </Text>
   );
@@ -254,7 +260,7 @@ export default function GamePage() {
       onPlace={edit && (moment === 'tbc' || moment === 'notPlaced') ? edit : undefined}
     />
   );
-  const divisionCard = isFixture && summary.divisionId && division ? (
+  const divisionCard = isFixture && summary.divisionId && division && canOpenOrg ? (
     <DivisionCard divisionId={summary.divisionId} title={divisionName} summary={summary} showPoints={awardsPoints(event)} onOpen={openDivision} />
   ) : null;
   const cancelledStrip = moment === 'cancelled' && canEdit ? (

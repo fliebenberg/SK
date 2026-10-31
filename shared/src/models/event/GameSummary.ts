@@ -34,6 +34,12 @@ export interface GameSummaryParticipant {
   orgLogoConfig?: { scale?: number; x?: number; y?: number } | null;
   /** Tints the shield drawn for an organisation with no logo (most of them). */
   orgPrimaryColor?: string;
+  /**
+   * The side's organisation is private (`ORG-14`). Someone who played in the game may read it after
+   * leaving that organisation; a page then names the organisation without linking to its pages,
+   * which would refuse them (`useCanOpenOrg`).
+   */
+  orgIsPrivate?: boolean;
 
   // --- A tournament side that nobody is playing yet (data model §2.0) --------------------------
   //

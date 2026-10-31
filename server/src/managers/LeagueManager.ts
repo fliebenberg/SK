@@ -1,4 +1,5 @@
 import { BaseManager } from "./BaseManager";
+import { assertSeasonKeepsPrivateOrgsApart } from "./privateOrgs";
 import { League, Season, SeasonTeam, LeagueStandingRow, Game, Team, ScoringSystem, calculateStandings, assertCalendarDates } from "@sk/shared";
 
 import { v4 as uuidv4 } from "uuid";
@@ -238,10 +239,14 @@ export class LeagueManager extends BaseManager {
       throw new Error(`Team's sport does not match the league's sport (${league.sportId})`);
     }
 
-    await this.query(
-      `INSERT INTO season_teams (season_id, team_id, status) VALUES ($1, $2, $3) ON CONFLICT (season_id, team_id) DO UPDATE SET status = EXCLUDED.status`,
-      [seasonId, teamId, status]
-    );
+    await this.transaction(async (tx) => {
+      await tx(
+        `INSERT INTO season_teams (season_id, team_id, status) VALUES ($1, $2, $3) ON CONFLICT (season_id, team_id) DO UPDATE SET status = EXCLUDED.status`,
+        [seasonId, teamId, status]
+      );
+      // A private organisation's seasons hold only its own teams, and its teams join no one else's (`ORG-14`).
+      await assertSeasonKeepsPrivateOrgsApart(tx, seasonId);
+    });
 
     // Recalculate standings because a new team has been registered
     await this.recalculateSeasonStandings(seasonId);

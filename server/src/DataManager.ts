@@ -59,9 +59,9 @@ export class DataManager {
   getSport = (id: string) => sportManager.getSport(id);
 
   // Organizations
-  getOrganizations = (params?: any) => organizationManager.getOrganizations(params);
+  getOrganizations = (params?: any, viewerId?: string | null) => organizationManager.getOrganizations(params, viewerId ?? null);
   getOrganization = (id?: string) => organizationManager.getOrganization(id);
-  searchSimilarOrganizations = (name: string) => organizationManager.searchSimilarOrganizations(name);
+  searchSimilarOrganizations = (name: string, viewerId?: string | null) => organizationManager.searchSimilarOrganizations(name, viewerId ?? null);
   addOrganization = async (org: AddOrgPayload): Promise<Organization> => {
     const newOrg = await organizationManager.addOrganization(org);
     if (!org.creatorId) return newOrg;

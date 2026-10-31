@@ -24,6 +24,9 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
 
 1.  **Public (Unauthenticated)**:
     - View landing page, directories, search, and watch live scoreboards.
+    - **Except a private organisation** (`ORG-14`): it and everything it owns are seen only by its
+      current members and app admins, at the read boundary (lists filter with `ORG_VISIBLE`, public
+      rooms close) — never by hiding in the app. Rules: [org-profile.md](file:///c:/Fred/Coding/SK/docs/org-profile.md) §5.3.
 2.  **Authenticated User**:
     - Manage their own profiles, save user preferences, and follow teams.
 3.  **Organization/Team Member**:

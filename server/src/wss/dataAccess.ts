@@ -88,9 +88,11 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // --- Organizations -------------------------------------------------------
   // The directory is browsable logged out; this is the same data the org list
   // screen shows to anonymous visitors.
+  // The list and the search leave out private organisations the caller does not belong to, in the
+  // query itself (`ORG-14`). A single organisation is its summary room's, which a private org closes.
   organizations:        { standalone: 'public-directory' },
-  organization:         { standalone: 'public-directory' },
-  org_summary:          { standalone: 'public-directory' },
+  organization:         { room: (req: any) => ((req.id || req.orgId) ? `org:${req.id || req.orgId}:summary` : null) },
+  org_summary:          { room: (req: any) => ((req.id || req.orgId) ? `org:${req.id || req.orgId}:summary` : null) },
   search_similar_orgs:  { standalone: 'public-directory' },
 
   // People. The reason this whole module exists.

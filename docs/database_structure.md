@@ -108,6 +108,9 @@ High-level entities like schools, clubs, or federations.
 - `timezone` (TEXT): NOT NULL, DEFAULT `'Africa/Johannesburg'`. IANA name; the timezone kick-offs are
   typed in at a venue without its own (`DATE-2`). Set from the creator's device on create, changeable in
   the org's settings; the server refuses a name `Intl` does not know.
+- `is_private` (BOOLEAN): NOT NULL, DEFAULT `false`. Seen only by current members (`ORG-14`,
+  [org-profile.md](file:///c:/Fred/Coding/SK/docs/org-profile.md) §5.3). Written only by
+  `OrganizationManager.setPrivate`; every org list and search filters on it.
 
 > `supported_sport_ids` and `supported_role_ids` are **not columns**, though the `Organization` API
 > model presents them as arrays. They are the `organization_sports` and `organization_roles` join

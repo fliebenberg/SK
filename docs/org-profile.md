@@ -99,8 +99,41 @@ offline lookup sites use); it is never stored. The org's own `timezone` is a sep
 How the org runs. [settings.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/settings.tsx)
 One card per setting or group of related settings, **each saving itself**: a switch saves when it is
 flipped (after a confirmation where the change is far-reaching, as for minors' member access); any
-other value has an Edit that opens its dialog. Today: **Timezone** and **Minors** (minor age, and
-whether minors may have member access). New org settings join as further cards.
+other value has an Edit that opens its dialog. Today: **Visibility** (§5.3), **Minors** (minor age,
+and whether minors may have member access) and **Timezone**. New org settings join as further cards.
+
+### 5.3 Private organisations (`ORG-14`, built 2026-10-31)
+
+An org admin can make the organisation **private**; every org is public by default. Decided with the
+user on 2026-10-31, kept as simple as possible:
+
+*   **Who sees it: current members only**, and app admins. Not guardians, Trusted Contacts or people the
+    org only has a profile for. To everyone else it does not exist: it is left out of the directory,
+    the org searches, Home and the map, and its page reads *could not be found* rather than locked.
+*   **Former members keep the games they played in** (they are on a team sheet), with the event's name
+    and the venue the game needs, but not the org: the game page names the organisations and the
+    tournament as plain text instead of links, and Back goes Home (`useCanOpenOrg`; each side in a game
+    summary carries `orgIsPrivate`).
+*   **Members see it marked *Private*** — in the directory, on its page header and on Home — so they
+    know why nobody else can see it.
+*   **It plays only among itself.** No game, tournament, Head to Head or league season of it may involve
+    another organisation. The server refuses any write that would mix them; the pickers do not offer it.
+*   **No going private with a history.** An org that has ever shared a game, tournament or season with
+    another organisation (a declined invitation does not count) can never be made private, and the card
+    is not shown at all. Nor is it on an unclaimed org, which has no admin to decide. In practice it
+    appears on new organisations and on private ones.
+*   **Joining is by the existing invite**: an admin adds the person and sends the invite.
+*   **Either change asks first.** Going private says who will no longer see it and that it cannot play
+    other organisations; going public says everything becomes visible — members' names on team sheets
+    included, until people can choose (`PEOPLE-4`) — and that it cannot go back once it has played
+    another organisation.
+
+The rules live in [privateOrgs.ts](file:///c:/Fred/Coding/SK/server/src/managers/privateOrgs.ts):
+`ORG_VISIBLE` for every list and search, a `subject` on each public room in
+[roomAccess.ts](file:///c:/Fred/Coding/SK/server/src/wss/roomAccess.ts) so a private owner closes it,
+and one invariant checked inside each write's transaction — *an event or season with a private org in
+it has no other org* — rather than a check per screen. Going private also pushes non-members out of
+rooms they already hold. Card: [OrgPrivacyCard.tsx](file:///c:/Fred/Coding/SK/expo-app/components/org/OrgPrivacyCard.tsx).
 
 ## 6. Nominate admin — `/admin/[orgId]/nominate`
 
@@ -118,11 +151,11 @@ All three pages read the org through `useOrgSummary(orgId)`, which only joins th
 org, so nothing refetches after a save. The workspace layout, left rail and Control Panel read the
 org the same way (`LIVE-12`), so an edit here shows everywhere at once.
 Every edit is an `UPDATE_ORG` patch carrying only the fields its dialog owns; the minors settings
-keep their own action, `SET_ORG_MINORS_SETTINGS`. `UPDATE_ORG` with `address: null` removes the
+keep their own action, `SET_ORG_MINORS_SETTINGS`, and so does privacy, `SET_ORG_PRIVATE`. `UPDATE_ORG` with `address: null` removes the
 address.
 
 ## 8. Not settled here
 
 Who may see and edit Profile and Settings is a separate permissions exercise (`ORG-13`). Until then
 the pages behave as the old screen did: anyone who reaches the workspace can edit the profile, and
-only an org admin can change the minors settings.
+only an org admin can change the minors and privacy settings.

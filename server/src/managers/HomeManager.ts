@@ -11,6 +11,7 @@ import { BaseManager } from './BaseManager';
 import { eventManager } from './EventManager';
 import { userManager } from './UserManager';
 import { PUBLIC_EVENT } from './eventVisibility';
+import { ORG_VISIBLE, viewerOf } from './privateOrgs';
 
 /**
  * What the Home page reads (`HOME-1`, docs/home.md): what is on near the viewer, one search across
@@ -62,7 +63,7 @@ const EVENT_PIN_JOINS = `
 /** The organisation fields Home lists, from `organizations o` and `addresses a`. */
 const ORG_FIELDS = `
   o.id, o.name, o.short_name AS "shortName", o.logo, o.settings->'logoConfig' AS "logoConfig",
-  o.primary_color AS "primaryColor",
+  o.primary_color AS "primaryColor", o.is_private AS "isPrivate",
   COALESCE(NULLIF(a.address_line_2, ''), NULLIF(a.city, '')) AS locality,
   ARRAY(SELECT sport_id FROM organization_sports WHERE org_id = o.id) AS "sportIds",
   (SELECT COUNT(*)::int FROM teams t WHERE t.org_id = o.id AND t.is_active = true) AS "teamCount"`;
@@ -95,9 +96,12 @@ export class HomeManager extends BaseManager {
    * the app trims it. A match whose kick-off passed less than three hours ago and has not started
    * is still shown: it is late, not gone.
    */
-  async getNearby(nearInput: unknown): Promise<HomeNearby> {
+  async getNearby(nearInput: unknown, viewerId?: string | null): Promise<HomeNearby> {
     const near = readViewerPosition(nearInput);
     const params = [near?.lat ?? null, near?.lng ?? null];
+    // A private organisation is listed only for those who belong to it (`ORG-14`); its games and
+    // tournaments are not public events at all (`PUBLIC_EVENT`).
+    const orgParams = [...params, viewerOf(viewerId)];
 
     const gamesRes = await this.query(`
       SELECT g.id, ${KM('pin.lat', 'pin.lng')} AS km
@@ -143,10 +147,11 @@ export class HomeManager extends BaseManager {
         FROM organizations o
         LEFT JOIN addresses a ON a.id = o.address_id
        WHERE o.is_active IS DISTINCT FROM false
+         AND ${ORG_VISIBLE('o', '$3')}
          AND ($1::float8 IS NULL OR a.latitude IS NOT NULL)
        ORDER BY km NULLS LAST, "teamCount" DESC, o.name
        LIMIT ${ORGS_LIMIT}
-    `, params);
+    `, orgParams);
 
     // One list of events, closest first, decides together whether anything is within the radius.
     const candidates = [
@@ -202,13 +207,14 @@ export class HomeManager extends BaseManager {
    * A team matches on its organisation's name too, so "doringkloof u14" finds Doringkloof's U14
    * teams; a site the same way. Inactive teams and sites are left out.
    */
-  async search(query: unknown, nearInput: unknown): Promise<HomeSearchResult> {
+  async search(query: unknown, nearInput: unknown, viewerId?: string | null): Promise<HomeSearchResult> {
     const words = typeof query === 'string'
       ? query.trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6).map(w => `%${w.replace(/[\\%_]/g, '\\$&')}%`)
       : [];
     if (!words.length) return { organizations: [], teams: [], sites: [] };
     const near = readViewerPosition(nearInput);
-    const params = [near?.lat ?? null, near?.lng ?? null, words];
+    // A private organisation, and its teams and sites, only for those who belong to it (`ORG-14`).
+    const params = [near?.lat ?? null, near?.lng ?? null, words, viewerOf(viewerId)];
     const matches = (haystack: string) =>
       `NOT EXISTS (SELECT 1 FROM unnest($3::text[]) w WHERE NOT (${haystack}) ILIKE w)`;
 
@@ -218,6 +224,7 @@ export class HomeManager extends BaseManager {
           FROM organizations o
           LEFT JOIN addresses a ON a.id = o.address_id
          WHERE o.is_active IS DISTINCT FROM false
+           AND ${ORG_VISIBLE('o', '$4')}
            AND ${matches(`o.name || ' ' || o.short_name || ' ' || COALESCE(a.address_line_2, '') || ' ' || COALESCE(a.city, '')`)}
          ORDER BY km NULLS LAST, o.name
          LIMIT ${SEARCH_LIMIT}`, params),
@@ -230,6 +237,7 @@ export class HomeManager extends BaseManager {
           LEFT JOIN sports sp ON sp.id = t.sport_id
           LEFT JOIN sport_age_groups ag ON ag.sport_id = t.sport_id AND ag.id = t.age_group_id
          WHERE t.is_active = true
+           AND ${ORG_VISIBLE('o', '$4')}
            AND ${matches(`o.name || ' ' || o.short_name || ' ' || t.name || ' ' || COALESCE(t.short_name, '') || ' ' || COALESCE(sp.name, '') || ' ' || COALESCE(ag.name, '')`)}
          ORDER BY km NULLS LAST, o.name, t.name
          LIMIT ${SEARCH_LIMIT}`, params),
@@ -241,6 +249,7 @@ export class HomeManager extends BaseManager {
           LEFT JOIN addresses sa ON sa.id = s.address_id
           LEFT JOIN addresses a ON a.id = o.address_id
          WHERE s.is_active IS DISTINCT FROM false
+           AND ${ORG_VISIBLE('o', '$4')}
            AND ${matches(`o.name || ' ' || o.short_name || ' ' || s.name || ' ' || COALESCE(sa.address_line_2, '') || ' ' || COALESCE(sa.city, '')`)}
          ORDER BY km NULLS LAST, s.name
          LIMIT ${SEARCH_LIMIT}`, params),
@@ -270,7 +279,7 @@ export class HomeManager extends BaseManager {
     const [orgs, teams] = await Promise.all([
       this.query(`
         SELECT o.id, o.name, o.short_name AS "shortName", o.logo, o.settings->'logoConfig' AS "logoConfig",
-               o.primary_color AS "primaryColor",
+               o.primary_color AS "primaryColor", o.is_private AS "isPrivate",
                (SELECT COUNT(DISTINCT g.id)::int FROM games g JOIN events e ON e.id = g.event_id
                  WHERE g.status = 'Live'
                    AND (e.org_id = o.id

@@ -470,6 +470,11 @@ export interface SetOrgMinorsSettingsPayload {
     minorAge: number;
 }
 
+export interface SetOrgPrivatePayload {
+    orgId: string;
+    isPrivate: boolean;
+}
+
 export interface ImportOrgPeoplePayload {
     orgId: string;
     /** As read by `readPeopleSheet`, or produced by any other source. At most `PEOPLE_IMPORT_MAX_ROWS`. */
@@ -1238,6 +1243,7 @@ export interface ProtocolMap {
     [SocketAction.SET_MINOR_ACCOUNT_ACCESS]: { payload: SetMinorAccountAccessPayload; response: OrgProfile };
     [SocketAction.SEND_DEPENDANT_INVITE]: { payload: SendDependantInvitePayload; response: OrgProfile };
     [SocketAction.SET_ORG_MINORS_SETTINGS]: { payload: SetOrgMinorsSettingsPayload; response: Organization };
+    [SocketAction.SET_ORG_PRIVATE]: { payload: SetOrgPrivatePayload; response: Organization };
     [SocketAction.IMPORT_ORG_PEOPLE]: { payload: ImportOrgPeoplePayload; response: PeopleImportReport };
     [SocketAction.REMOVE_SIN_BIN]: { payload: RemoveSinBinPayload; response: unknown };
     [SocketAction.ADD_SEASON]: { payload: AddSeasonPayload; response: Season };

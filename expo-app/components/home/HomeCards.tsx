@@ -5,6 +5,7 @@ import { HOME_RADIUS_KM, HomeNearby, HomeSearchResult, MyHome, NearbyOrganizatio
 import { TournamentCard } from '../tournament/TournamentBits';
 import { RowTag } from '../events/EventBits';
 import { RoleBadge } from '../people/PersonBits';
+import { PrivateOrgTag } from '../org/PrivateOrgTag';
 import { opponentOf, scoresFor } from '../teams/TeamBits';
 import { GroupHeading, HomeRow, IconMark, OrgMark, ShowMore } from './HomeBits';
 import { homeLinks } from './homeLinks';
@@ -32,6 +33,7 @@ function OrgRow({ org, first, sportName }: { org: NearbyOrganization; first: boo
       first={first}
       lead={<OrgMark logo={org.logo} logoConfig={org.logoConfig} primaryColor={org.primaryColor} />}
       title={org.name}
+      tags={org.isPrivate ? <PrivateOrgTag /> : undefined}
       subtitle={orgLine(org, sportName)}
       end={<Distance km={org.km} />}
       onPress={() => router.push(homeLinks.organization(org.id) as any)}
@@ -172,7 +174,7 @@ export function MyHomeCard({ mine, sports }: { mine: MyHome; sports: Sport[] }) 
       first={i === 0}
       lead={<OrgMark logo={org.logo} logoConfig={org.logoConfig} primaryColor={org.primaryColor} />}
       title={org.name}
-      tags={<RoleBadge roleId={org.roleId} />}
+      tags={<>{org.isPrivate ? <PrivateOrgTag /> : null}<RoleBadge roleId={org.roleId} /></>}
       end={org.liveCount ? <RowTag tone="live" label={`● ${org.liveCount} live`} /> : undefined}
       onPress={() => router.push(homeLinks.organization(org.id) as any)}
     />

@@ -99,5 +99,18 @@ export interface Organization {
    * `DEFAULT_TIME_ZONE` without one.
    */
   timezone?: TimeZone;
+  /**
+   * Seen only by its current members (and app admins); hidden from everyone else — absent from
+   * lists, searches, Home and the map, and its public rooms closed (`ORG-14`, docs/org-profile.md
+   * §5.3). A private org plays only among itself. Always present on a record read from the
+   * database; changed only by `SET_ORG_PRIVATE`.
+   */
+  isPrivate?: boolean;
+  /**
+   * Whether it has ever shared a game, tournament or season with another organisation. Such an org
+   * can never be made private, so the Settings page leaves the setting out. Computed on single-org
+   * reads (`organization`, `org_summary`); absent from lists.
+   */
+  hasExternalHistory?: boolean;
 }
 

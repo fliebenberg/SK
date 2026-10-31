@@ -13,6 +13,7 @@ import { ORG_SHORT_CODE_MAX_LENGTH, SocketAction, OrganizationType, orgColors, D
 import { BrandColorsField, brandColorsProblem } from '../../../components/org/BrandColorsField';
 import { useOrgShortCode } from '../../../hooks/useOrgShortCode';
 import { OrgLogo } from '../../../components/OrgLogo';
+import { PrivateOrgChip } from '../../../components/org/PrivateOrgTag';
 import { SignInPrompt } from '../../../components/SignInPrompt';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { inkOnBrand } from '@/utils/colorUtils';
@@ -329,11 +330,14 @@ export default function OrganizationsPage() {
                               {org.name}
                             </Text>
                           </View>
-                          <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
-                            <Ionicons name="shield-checkmark" size={12} color={textColor} />
-                            <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
-                              {org.role}
-                            </Text>
+                          <View className="flex-row items-center gap-1.5">
+                            {org.isPrivate ? <PrivateOrgChip textColor={textColor} chipColor={ink.chip} borderColor={borderColor} /> : null}
+                            <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
+                              <Ionicons name="shield-checkmark" size={12} color={textColor} />
+                              <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
+                                {org.role}
+                              </Text>
+                            </View>
                           </View>
                         </View>
 
@@ -440,6 +444,7 @@ export default function OrganizationsPage() {
                         </Text>
                       </View>
                       
+                      {org.isPrivate ? <PrivateOrgChip textColor={textColor} chipColor={ink.chip} borderColor={borderColor} /> : null}
                       {org.isMine ? (
                         <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
                           <Ionicons name="shield-checkmark" size={12} color={textColor} />

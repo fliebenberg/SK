@@ -539,13 +539,14 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
           icon: 'football-outline',
           onPress: () => router.push(`/admin/${orgId}/events/create`),
         },
-        {
-          // Second: simpler than a tournament, which is the most involved and so comes last (`H2H-1`).
+        // Second: simpler than a tournament, which is the most involved and so comes last (`H2H-1`).
+        // Not for a private organisation, which plays nobody else (`ORG-14`).
+        ...(hostSummary?.isPrivate ? [] : [{
           label: 'Head to Head',
           description: "Your teams against one other organisation's, A v A, B v B, across one or more sports",
-          icon: 'swap-horizontal-outline',
+          icon: 'swap-horizontal-outline' as const,
           onPress: () => setNamingHeadToHead(true),
-        },
+        }]),
         {
           label: 'Tournament',
           description: 'A festival, league or knockout. Name it and pick a date; the rest is set up on the tournament',

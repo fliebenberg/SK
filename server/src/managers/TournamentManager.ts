@@ -43,6 +43,7 @@ import {
 } from "@sk/shared";
 import { BaseManager, Tx } from "./BaseManager";
 import { PUBLIC_TEAMS } from "./eventVisibility";
+import { assertDivisionKeepsPrivateOrgsApart } from "./privateOrgs";
 import { eventManager } from "./EventManager";
 
 /**
@@ -962,6 +963,8 @@ export class TournamentManager extends BaseManager {
         keptIds.length ? [divisionId, keptIds] : [divisionId]
       );
       const retired = await this.retireEntrants(tx, omitted.rows.map((r: any) => r.id));
+      // No entrant may bring another organisation into a private org's tournament (`ORG-14`).
+      await assertDivisionKeepsPrivateOrgsApart(tx, divisionId);
 
       return {
         removedIds: retired.deletedIds,
@@ -1303,6 +1306,7 @@ export class TournamentManager extends BaseManager {
       }
       await tx(`UPDATE division_entrants SET status = 'withdrawn', updated_at = NOW() WHERE id = $1`, [entrantId]);
       await this.transferPlace(tx, entrantId, replacementId, teamId, orgProfileId, unplayed.rows.map((r: any) => r.id));
+      await assertDivisionKeepsPrivateOrgsApart(tx, divisionId);
       return { entrantId: replacementId, inPlace: false, movedFixtures: unplayed.rows.length, keptResults, games: unplayed.rows };
     });
 

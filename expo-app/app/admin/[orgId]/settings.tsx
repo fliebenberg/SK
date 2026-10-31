@@ -7,6 +7,7 @@ import { ScreenHeader } from '../../../components/ScreenHeader';
 import { ReadCard } from '../../../components/ReadCard';
 import { ReadRow } from '../../../components/EditDialog';
 import { OrgMinorsSettingsCard } from '../../../components/guardians/OrgMinorsSettingsCard';
+import { OrgPrivacyCard } from '../../../components/org/OrgPrivacyCard';
 import { TimezoneDialog, TimezoneNote, addressTimeZoneNote } from '../../../components/org/TimezoneDialogs';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { useSafeBack } from '../../../hooks/useSafeBack';
@@ -31,7 +32,7 @@ export default function OrgSettings() {
   const { width } = useWindowDimensions();
   const { org, isLoading } = useOrgSummary(orgId);
   const [editingTimezone, setEditingTimezone] = useState(false);
-  // The minors settings are an Admin's alone — not Staff's (`MEMBER-3`).
+  // The minors and privacy settings are an Admin's alone — not Staff's (`MEMBER-3`, `ORG-14`).
   const isOrgAdminViewer = useAuthStore(state =>
     state.user?.globalRole === 'admin' ||
     state.orgMemberships.some((m: any) => m.orgId === orgId && m.roleId === 'role-org-admin' && !m.restrictedReason)
@@ -52,6 +53,7 @@ export default function OrgSettings() {
       ) : (
         <ScrollView contentContainerStyle={{ padding: width >= 768 ? 24 : 12, paddingBottom: 60 }}>
           <PageBody form className="gap-4">
+            <OrgPrivacyCard org={org} isOrgAdmin={isOrgAdminViewer} />
             <OrgMinorsSettingsCard orgId={org.id} isOrgAdmin={isOrgAdminViewer} />
 
             <ReadCard

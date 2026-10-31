@@ -253,6 +253,18 @@ export default function MatchForm({
     return () => clearTimeout(delayDebounce);
   }, [isConnected, homeOrgSearchText, awayOrgSearchText, isCreatingHomeOrg]);
 
+  // A private organisation plays only among itself (`ORG-14`): both sides are its own teams, and no
+  // other organisation is offered. A public one is never offered a private one. The server refuses
+  // either anyway; this keeps the form from suggesting what it would refuse.
+  const hostIsPrivate = !!hostOrg?.isPrivate;
+  const pickableOrgs = useMemo(
+    () => searchedOrgs.filter(o => (hostIsPrivate ? o.id === orgId : !o.isPrivate)),
+    [searchedOrgs, hostIsPrivate, orgId]
+  );
+  useEffect(() => {
+    if (hostIsPrivate && hostOrg && !isEdit && !selectedAwayOrg) setSelectedAwayOrg(hostOrg);
+  }, [hostIsPrivate, hostOrg, isEdit, selectedAwayOrg]);
+
   // Resolve Organization details for edit mode or initialData on load
   useEffect(() => {
     if (orgsList.length === 0) return;
@@ -578,7 +590,7 @@ export default function MatchForm({
                         <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} className="absolute right-4 top-3.5" />
                       )}
 
-                      {(searchedOrgs.length > 0 || (isCreatingHomeOrg && homeOrgSearchText.trim().length >= 3)) && (
+                      {(pickableOrgs.length > 0 || (!hostIsPrivate && isCreatingHomeOrg && homeOrgSearchText.trim().length >= 3)) && (
                         <View 
                           className="absolute left-0 right-0 border border-line rounded-xl shadow-lg"
                           style={{
@@ -588,7 +600,7 @@ export default function MatchForm({
                             backgroundColor: themeColor(isDark, 'card'),
                           }}
                         >
-                          {searchedOrgs.length > 0 ? (
+                          {pickableOrgs.length > 0 ? (
                             <ScrollView 
                               style={{ flex: 1, maxHeight: 150 }}
                               nestedScrollEnabled={true}
@@ -599,7 +611,7 @@ export default function MatchForm({
                                   Existing Organisations
                                 </Text>
                               </View>
-                              {searchedOrgs.map(orgItem => (
+                              {pickableOrgs.map(orgItem => (
                                 <TouchableOpacity
                                   key={orgItem.id}
                                   onPress={() => {
@@ -617,7 +629,7 @@ export default function MatchForm({
                             </ScrollView>
                           ) : null}
 
-                          {homeOrgSearchText.trim().length >= 3 && (
+                          {!hostIsPrivate && homeOrgSearchText.trim().length >= 3 && (
                             <View className="border-t border-line bg-card" style={{ backgroundColor: themeColor(isDark, 'card') }}>
                               <View className="bg-sunken px-3 py-1 border-b border-line-soft">
                                 <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-wider">
@@ -693,6 +705,11 @@ export default function MatchForm({
                   <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Organisation
                   </Text>
+                  {hostIsPrivate ? (
+                    <Text className="font-inter text-xs text-ink-muted">
+                      {hostOrg?.name} is private, so it plays only among its own teams.
+                    </Text>
+                  ) : null}
 
                   {selectedAwayOrg ? (
                     <View className="gap-2">
@@ -734,7 +751,7 @@ export default function MatchForm({
                         <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} className="absolute right-4 top-3.5" />
                       )}
 
-                      {(searchedOrgs.length > 0 || (!isCreatingHomeOrg && awayOrgSearchText.trim().length >= 3)) && (
+                      {(pickableOrgs.length > 0 || (!hostIsPrivate && !isCreatingHomeOrg && awayOrgSearchText.trim().length >= 3)) && (
                         <View 
                           className="absolute left-0 right-0 border border-line rounded-xl shadow-lg"
                           style={{
@@ -744,7 +761,7 @@ export default function MatchForm({
                             backgroundColor: themeColor(isDark, 'card'),
                           }}
                         >
-                          {searchedOrgs.length > 0 ? (
+                          {pickableOrgs.length > 0 ? (
                             <ScrollView 
                               style={{ flex: 1, maxHeight: 150 }}
                               nestedScrollEnabled={true}
@@ -755,7 +772,7 @@ export default function MatchForm({
                                   Existing Organisations
                                 </Text>
                               </View>
-                              {searchedOrgs.map(orgItem => (
+                              {pickableOrgs.map(orgItem => (
                                 <TouchableOpacity
                                   key={orgItem.id}
                                   onPress={() => {
@@ -773,7 +790,7 @@ export default function MatchForm({
                             </ScrollView>
                           ) : null}
 
-                          {awayOrgSearchText.trim().length >= 3 && (
+                          {!hostIsPrivate && awayOrgSearchText.trim().length >= 3 && (
                             <View className="border-t border-line bg-card" style={{ backgroundColor: themeColor(isDark, 'card') }}>
                               <View className="bg-sunken px-3 py-1 border-b border-line-soft">
                                 <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-wider">

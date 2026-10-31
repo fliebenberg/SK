@@ -53,6 +53,8 @@ export interface NearbyOrganization {
   sportIds: string[];
   teamCount: number;
   km: number | null;
+  /** Listed only to its members (`ORG-14`), who see it marked so. */
+  isPrivate?: boolean;
 }
 
 /** `get_data { type: 'home_nearby', near? }`. */
@@ -131,6 +133,8 @@ export interface MyHomeOrganization {
   roleId: string;
   /** Games live now that the organisation has a stake in. */
   liveCount: number;
+  /** Seen only by its members (`ORG-14`), who see it marked so. */
+  isPrivate?: boolean;
 }
 
 /** One of the signed-in viewer's teams, with the game it is playing now or plays next. */

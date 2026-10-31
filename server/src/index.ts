@@ -37,6 +37,7 @@ import { organizationManager } from './managers/OrganizationManager';
 import { sportManager } from './managers/SportManager';
 import { ageGroupManager, AgeGroupError } from './managers/AgeGroupManager';
 import { canJoinRoom } from './wss/roomAccess';
+import { revalidateRoomsForPrivateOrg } from './wss/revalidate';
 import { broadcast, pushToSocket, setBroadcastIo } from './wss/broadcast';
 import { publishGameSummary, publishGameRemoved, captureFixtureRooms, publishEventToOrgs } from './wss/fixtures';
 import { tournamentManager } from './managers/TournamentManager';
@@ -1571,7 +1572,9 @@ io.on('connection', (socket) => {
       try {
         switch(type) {
             case 'organizations':
-                callback(await dataManager.getOrganizations(request));
+                // Private organisations only for those who belong to them (`ORG-14`): the viewer is
+                // the handshake's, never the request's.
+                callback(await dataManager.getOrganizations(request, socket.data?.userId));
                 break;
             case 'reports':
                 // Check if user is app admin
@@ -1737,10 +1740,10 @@ io.on('connection', (socket) => {
             // Home (`HOME-1`). The viewer's position arrives as `near`; it is used for this answer
             // and not kept, and the log lines above redact it.
             case 'home_nearby':
-                callback(await homeManager.getNearby(request.near));
+                callback(await homeManager.getNearby(request.near, socket.data?.userId));
                 break;
             case 'home_search':
-                callback(await homeManager.search(request.query, request.near));
+                callback(await homeManager.search(request.query, request.near, socket.data?.userId));
                 break;
             case 'approximate_location':
                 callback(await approximateLocation(clientAddress(socket.handshake.headers['x-forwarded-for'], socket.handshake.address)));
@@ -1760,7 +1763,7 @@ io.on('connection', (socket) => {
             }
             case 'search_similar_orgs':
                 if (request.name) {
-                    callback(await dataManager.searchSimilarOrganizations(request.name));
+                    callback(await dataManager.searchSimilarOrganizations(request.name, socket.data?.userId));
                 } else {
                     callback([]);
                 }
@@ -3157,6 +3160,18 @@ io.on('connection', (socket) => {
                 result = await dataManager.getOrganization(minorsOrgId);
                 await publishOrgMinorsChange(minorsOrgId, Math.max(before.minorAge, after.minorAge));
                 await broadcastOrgSummaries([minorsOrgId]);
+                break;
+            }
+            case SocketAction.SET_ORG_PRIVATE: {
+                // Private or public again (`ORG-14`). The gate checked the caller is an org admin; the
+                // manager refuses an unclaimed org, and going private with a history of other orgs.
+                const { orgId: privacyOrgId, isPrivate } = action.payload;
+                await organizationManager.setPrivate(privacyOrgId, isPrivate);
+                result = await dataManager.getOrganization(privacyOrgId);
+                // Going private closes its public rooms to non-members, including any already in them —
+                // before the new summary goes out, so it reaches members only.
+                if (isPrivate) await revalidateRoomsForPrivateOrg();
+                await broadcastOrgSummaries([privacyOrgId]);
                 break;
             }
             case SocketAction.IMPORT_ORG_PEOPLE: {

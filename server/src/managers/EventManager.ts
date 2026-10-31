@@ -4,6 +4,7 @@ import { getPeriodLabel, assertCalendarDates, hasLeft, isDualEvent } from "@sk/s
 import { BaseManager, Tx } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 import { INVITATION_LIST, LISTED, NOT_LISTED } from "./eventVisibility";
+import { assertEventKeepsPrivateOrgsApart } from "./privateOrgs";
 import { sportManager } from "./SportManager";
 
 const EVENT_DATE_FIELDS = { startDate: 'Start date', endDate: 'End date' };
@@ -60,6 +61,9 @@ export class EventManager extends BaseManager {
           'orgLogo', o.logo,
           'orgLogoConfig', o.settings->'logoConfig',
           'orgPrimaryColor', o.primary_color,
+          -- So a page can name a private organisation to someone who played in the game without
+          -- linking to pages that would refuse them (ORG-14).
+          'orgIsPrivate', o.is_private,
           'status', p.status,
           'sortOrder', p.sort_order,
           -- A tournament side nobody is playing yet (data model §2.0). All null on a single
@@ -239,6 +243,7 @@ export class EventManager extends BaseManager {
                 [id, orgId]
             );
         }
+        await assertEventKeepsPrivateOrgsApart(tx, id);
     });
 
     organizationManager.invalidateCache();
@@ -308,6 +313,8 @@ export class EventManager extends BaseManager {
                   );
               }
           }
+          // A changed host or organisations list may not put a private org beside another (`ORG-14`).
+          await assertEventKeepsPrivateOrgsApart(tx, id);
      });
 
      organizationManager.invalidateCache();
@@ -358,6 +365,7 @@ export class EventManager extends BaseManager {
           [eventId, orgId, invitation, actor?.userId ?? null, actor?.orgId ?? null]
         );
       }
+      await assertEventKeepsPrivateOrgsApart(tx, eventId);
     });
     organizationManager.invalidateCache();
     return (await this.getEvent(eventId))!;
@@ -402,19 +410,23 @@ export class EventManager extends BaseManager {
       throw new Error(`${row.name} is not taking part, so it cannot withdraw.`);
     }
 
-    await this.query(
-      `UPDATE event_organizations
-          SET invitation = $3,
-              answered_at = CASE WHEN $3 = 'invited' THEN NULL ELSE NOW() END,
-              answered_by_user_id = CASE WHEN $3 = 'invited' THEN NULL ELSE $4 END,
-              answered_by_org_id = CASE WHEN $3 = 'invited' THEN NULL ELSE $5 END,
-              -- A request to withdraw is kept as the record once confirmed, and dropped otherwise.
-              withdrawal_reason = CASE WHEN $3 = 'withdrawn' THEN withdrawal_reason END,
-              withdrawal_requested_at = CASE WHEN $3 = 'withdrawn' THEN withdrawal_requested_at END,
-              withdrawal_requested_by_user_id = CASE WHEN $3 = 'withdrawn' THEN withdrawal_requested_by_user_id END
-        WHERE event_id = $1 AND org_id = $2`,
-      [eventId, orgId, answer, actor?.userId ?? null, actor?.orgId ?? null]
-    );
+    await this.transaction(async (tx) => {
+      await tx(
+        `UPDATE event_organizations
+            SET invitation = $3,
+                answered_at = CASE WHEN $3 = 'invited' THEN NULL ELSE NOW() END,
+                answered_by_user_id = CASE WHEN $3 = 'invited' THEN NULL ELSE $4 END,
+                answered_by_org_id = CASE WHEN $3 = 'invited' THEN NULL ELSE $5 END,
+                -- A request to withdraw is kept as the record once confirmed, and dropped otherwise.
+                withdrawal_reason = CASE WHEN $3 = 'withdrawn' THEN withdrawal_reason END,
+                withdrawal_requested_at = CASE WHEN $3 = 'withdrawn' THEN withdrawal_requested_at END,
+                withdrawal_requested_by_user_id = CASE WHEN $3 = 'withdrawn' THEN withdrawal_requested_by_user_id END
+          WHERE event_id = $1 AND org_id = $2`,
+        [eventId, orgId, answer, actor?.userId ?? null, actor?.orgId ?? null]
+      );
+      // An organisation that declined, then went private, cannot be brought back in (`ORG-14`).
+      await assertEventKeepsPrivateOrgsApart(tx, eventId);
+    });
     return (await this.getEvent(eventId))!;
   }
 
@@ -599,8 +611,11 @@ export class EventManager extends BaseManager {
     const res = await this.query(`
         SELECT ${selectClause}
         FROM games g
-        WHERE status = 'Live' 
-           OR (status = 'Scheduled' AND start_time > (NOW() - INTERVAL '24 hours') AND start_time < (NOW() + INTERVAL '7 days'))
+        WHERE (status = 'Live'
+           OR (status = 'Scheduled' AND start_time > (NOW() - INTERVAL '24 hours') AND start_time < (NOW() + INTERVAL '7 days')))
+          -- Answered to anybody, signed in or not: a private organisation's games are not theirs (ORG-14).
+          AND NOT EXISTS (SELECT 1 FROM events pe JOIN organizations po ON po.id = pe.org_id
+                           WHERE pe.id = g.event_id AND po.is_private)
         ORDER BY status DESC, start_time ASC
     `);
     return res.rows;
@@ -1138,6 +1153,9 @@ export class EventManager extends BaseManager {
               [eventId, orgId]
           );
       }
+      // Every game write ends here, so this is where a game between a private organisation and
+      // another is refused — and the caller's transaction rolled back (`ORG-14`).
+      await assertEventKeepsPrivateOrgsApart(q, eventId);
   }
 }
 

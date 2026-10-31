@@ -136,7 +136,8 @@ export function NewHeadToHeadDialog({ visible, orgId, hostName, onClose, onCreat
     const timer = setTimeout(() => {
       wsService.emit('get_data', { type: 'search_similar_orgs', name: text }, (res: any) => {
         setSearching(false);
-        if (Array.isArray(res)) setFound(res.filter((o: Organization) => o.id !== orgId).slice(0, 8));
+        // A private organisation plays nobody else (`ORG-14`).
+        if (Array.isArray(res)) setFound(res.filter((o: Organization) => o.id !== orgId && !o.isPrivate).slice(0, 8));
       });
     }, 350);
     return () => clearTimeout(timer);
