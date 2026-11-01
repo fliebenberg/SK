@@ -34,6 +34,8 @@ export const orgReferralsRoom = (orgId: string) => `org:${orgId}:referrals`;
 // --- Team, site, facility ---
 export const teamRoom = (teamId: string) => `team:${teamId}`;
 export const teamMembersRoom = (teamId: string) => `team:${teamId}:members`;
+/** The guardians of a team's players, for its coach, who cannot read the org-wide room (`PEOPLE-8`). */
+export const teamGuardiansRoom = (teamId: string) => `team:${teamId}:guardians`;
 export const siteRoom = (siteId: string) => `site:${siteId}`;
 export const facilityRoom = (facilityId: string) => `facility:${facilityId}`;
 

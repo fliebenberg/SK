@@ -13,8 +13,11 @@ import { PlayedSubject, PrivateSubject, privateOwnerOf, canSeePrivateOrg, played
  *  - `public` — anything a spectator may legitimately see: fixtures, results,
  *    venues, team names, league tables. The org directory is browsable while
  *    logged out, so `public` deliberately includes anonymous sockets.
- *  - `member` — carries a person's data (member lists, rosters) or an org's
- *    internal state. Requires a current membership of a related org.
+ *  - `staff` — carries a person's data (member lists, rosters) or an org's
+ *    internal state. Requires being Admin or Staff of a related org, or a tournament
+ *    grant or team duty the room names. A plain Member reads what the public reads
+ *    (`PEOPLE-8`, 2026-11-01): `role-org-member` is the catch-all for pupils, parents and
+ *    casual helpers, and approving someone's application must not hand them everyone's details.
  *  - `self`  — the socket's own user.
  *
  * A `public` room whose subject belongs to a **private organisation** is that org's members' only
@@ -22,14 +25,14 @@ import { PlayedSubject, PrivateSubject, privateOwnerOf, canSeePrivateOrg, played
  *
  * An unrecognised room shape is denied. Adding a room means adding it here.
  */
-export type RoomAccess = 'public' | 'member' | 'self';
+export type RoomAccess = 'public' | 'staff' | 'self';
 
 export interface RoomPolicy {
   access: RoomAccess;
-  /** Orgs whose membership grants access, for `member` rooms. */
+  /** Orgs whose Admin and Staff have access, for `staff` rooms. */
   orgsFor?: (id: string) => Promise<string[] | null>;
   /**
-   * The tournament grants that also open this `member` room (D33).
+   * The tournament grants that also open this `staff` room (D33).
    *
    * A membership is not the only way to have business here. An appointed convenor may hold no
    * membership anywhere — that is the whole point of being able to appoint an external specialist
@@ -39,7 +42,7 @@ export interface RoomPolicy {
    */
   grantsFor?: (id: string) => Promise<{ eventId?: string | null; divisionId?: string | null } | null>;
   /**
-   * The team duties that also open this `member` room (`MEMBER-3` plan §0.3): a coach of one of
+   * The team duties that also open this `staff` room (`MEMBER-3` plan §0.3): a coach of one of
    * `teamIds`, or the appointed scorer of `gameId`. The same reasoning as `grantsFor` — a duty is
    * business here without a membership — and needed because a restricted minor's membership opens
    * nothing while their coaching or scoring must still work, for that team or game only.
@@ -95,7 +98,12 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
         // Invitations to answer, and tournaments it declined or withdrew from (`FIX-30`): its own
         // business, not the public's — eventVisibility.ts.
         case 'invitations':
-          return { access: 'member', orgsFor: async () => [id] };
+          return {
+            access: 'staff',
+            orgsFor: async () => [id],
+            // A coach answers invitations for their own team, from their part of the workspace.
+            ...(sub === 'invitations' ? { dutiesFor: async () => ({ teamIds: await accessManager.getTeamIdsOfOrgs([id]) }) } : {}),
+          };
         // Fixtures, venues, teams and competitions are public information.
         case 'summary':
         case 'events':
@@ -114,9 +122,10 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
     case 'team':
       // The roster is personal data, and often a minor's — so it is `member` like the team record,
       // but a separate room (rule 4), because a team picker wants the name and not the children.
-      if (sub && sub !== 'members') return null;
+      // Its guardians are for the coach's page too: the org-wide room is Admin and Staff's (`PEOPLE-8`).
+      if (sub && sub !== 'members' && sub !== 'guardians') return null;
       return {
-        access: 'member',
+        access: 'staff',
         orgsFor: async () => {
           const orgId = await accessManager.getTeamOrgId(id);
           return orgId ? [orgId] : null;
@@ -144,7 +153,7 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
         // A dispute names who raised it.
         case 'disputes':
           return {
-            access: 'member',
+            access: 'staff',
             orgsFor: async () => {
               const orgIds = await accessManager.getGameOrgIds(id);
               return orgIds.length ? orgIds : null;
@@ -184,12 +193,14 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
       if (sub === 'teams') return { access: 'public', subject: 'event' };
       if (sub === 'entrants') {
         return {
-          access: 'member',
+          access: 'staff',
           orgsFor: async () => {
             const orgIds = await accessManager.getEventOrgIds(id);
             return orgIds.length ? orgIds : null;
           },
           grantsFor: async () => ({ eventId: id, divisionId: null }),
+          // The coach of a team of a taking-part organisation enters and answers for it (`PERM-5`).
+          dutiesFor: async () => ({ teamIds: await accessManager.getTeamIdsOfOrgs(await accessManager.getEventOrgIds(id)) }),
         };
       }
       return null;
@@ -240,7 +251,7 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
         case 'adjustments':
         case 'stage_entrants':
           return {
-            access: 'member',
+            access: 'staff',
             orgsFor: async () => {
               const orgIds = await accessManager.getDivisionOrgIds(id);
               return orgIds.length ? orgIds : null;
@@ -249,6 +260,7 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
               eventId: await accessManager.getDivisionEventId(id),
               divisionId: id,
             }),
+            dutiesFor: async () => ({ teamIds: await accessManager.getTeamIdsOfOrgs(await accessManager.getDivisionOrgIds(id)) }),
           };
         default:
           return null;
@@ -280,7 +292,7 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
 const MEMBERSHIP_TTL_MS = 30_000;
 
 interface CachedMembership {
-  orgIds: Set<string>;
+  staffOrgIds: Set<string>;
   isAppAdmin: boolean;
   /** Tournament grants, resolved in the same burst and under the same TTL. */
   grantedEventIds: Set<string>;
@@ -306,7 +318,8 @@ async function getMembership(userId: string): Promise<CachedMembership> {
     accessManager.getDutySnapshot(userId),
   ]);
   const entry: CachedMembership = {
-    ...snapshot,
+    staffOrgIds: snapshot.staffOrgIds,
+    isAppAdmin: snapshot.isAppAdmin,
     grantedEventIds: grants.eventIds,
     grantedDivisionIds: grants.divisionIds,
     dutyTeamIds: duties.teamIds,
@@ -371,7 +384,7 @@ export async function canJoinRoom(userId: string, room: unknown): Promise<boolea
   // needs the lookup, and a stranger is rejected without it either way.
   const subjectId = room.split(':')[1];
   const orgIds = policy.orgsFor ? await policy.orgsFor(subjectId) : null;
-  if (orgIds && orgIds.some(orgId => membership.orgIds.has(orgId))) return true;
+  if (orgIds && orgIds.some(orgId => membership.staffOrgIds.has(orgId))) return true;
 
   // A grant is the other way in, and it is checked second because membership is the ordinary case
   // and costs nothing extra. Someone with neither is refused exactly as before.

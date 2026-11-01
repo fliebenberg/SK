@@ -105,7 +105,7 @@ What each role may see and do, page by page — and the permission questions sti
       room?", and the answer is the same whichever scope supplies it.
 
 5.  **Team duty (coach, assistant coach, appointed scorer)** — added 2026-09-26 (`MEMBER-3`):
-    - **A third way into a `member` room**, after membership and tournament grants. An active
+    - **A third way into a `staff` room**, after membership and tournament grants. An active
       `role-coach` / `role-assistant-coach` team membership opens that team's `team:{id}` and
       `team:{id}:members` rooms and the `game:*` rooms of games it plays; a `game_officials`
       `SCORER` entry opens that game's rooms. `canScoreGame`'s coach and scorer checks are the
@@ -264,7 +264,7 @@ this applies and the rest waits for its owners.
 by that organisation and belongs to it in no way that confers anything — which is exactly what an
 external tournament convenor is. "External" is a *derived* label, never a stored role: a
 `role-org-external` membership row would be counted by `getMembershipSnapshot` like any other and
-would open the org's member-tier rooms. See `MEMBER-1` and `MEMBER-2` in `TODO.md` for the
+would have opened the org's insider rooms when this was written, and a plain Member now reads only what the public reads (`PEOPLE-8`). See `MEMBER-1` and `MEMBER-2` in `TODO.md` for the
 invite/apply membership model and the reserved home for unaffiliated people.
 
 **Capability flags are computed from the user and the event, never from the `orgId` in the route**,

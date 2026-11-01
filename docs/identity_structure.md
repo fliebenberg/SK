@@ -64,9 +64,10 @@ Three existing properties do real work:
 `org_memberships` row.** The original design (2026-09-12) gave guardians a `Guardian` membership
 role; it was changed before building, for three reasons found in the code:
 
-*   **A membership row is a permission.** Any active membership opens the org's member list (every
-    person's contact and identity details), every roster and every game's internals, and the admin
-    area in the app (`PEOPLE-8`). A parent would have seen every other child in the school.
+*   **A membership row was a permission.** Any active membership then opened the org's member list
+    (every person's contact and identity details), every roster and every game's internals. A parent
+    would have seen every other child in the school. Since 2026-11-01 a plain Member reads only what
+    the public reads (`PEOPLE-8`), but a guardian still holds no membership: they answer for one person.
 *   **A person holds one active org role at a time.** `addOrganizationMember` replaces the role, so a
     teacher who is also a parent would have lost `Staff`.
 *   **Every role check would have needed an exception**, and a missed one is a data leak.

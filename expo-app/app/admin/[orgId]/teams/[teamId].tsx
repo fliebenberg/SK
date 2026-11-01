@@ -29,7 +29,7 @@ import { useTeamRoster } from '../../../../hooks/useTeamRoster';
 import { useTeamGames } from '../../../../hooks/useTeamGames';
 import { useOrgSummary } from '../../../../hooks/useOrgSummary';
 import { useOrgMembers } from '../../../../hooks/useOrgMembers';
-import { useOrgGuardians } from '../../../../hooks/useOrgGuardians';
+import { useOrgGuardians, useTeamGuardians } from '../../../../hooks/useOrgGuardians';
 import { useOrgMinorsSettings } from '../../../../hooks/useOrgMinorsSettings';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
@@ -121,9 +121,15 @@ export default function TeamPage() {
   const coachesThis = !!teamId && access.coachedTeamIds.includes(teamId);
   const canAnswer = !isPublic && (access.canManage || coachesThis);
   const { org } = useOrgSummary(orgId);
-  // The organisation's people are its members' business: the public page has the squad alone.
-  const { members } = useOrgMembers(isPublic ? null : orgId);
-  const { byPlayer: guardiansByPlayer } = useOrgGuardians(isPublic ? null : orgId);
+  // The organisation's people are its Admin and Staff's business (`PEOPLE-8`). A coach has the team's
+  // own people from its roster and guardians, and everyone else's names to pick from; the public
+  // page has the squad alone.
+  const { members } = useOrgMembers(runsOrg ? orgId : null);
+  const { data: peopleNames } = useSocketQuery<OrgMember[]>('org_people_names', { orgId }, { enabled: !isPublic && !runsOrg && !!myTeamRole && !!orgId });
+  const toPickFrom = runsOrg ? members : peopleNames;
+  const { byPlayer: orgGuardians } = useOrgGuardians(runsOrg ? orgId : null);
+  const { byPlayer: teamGuardians } = useTeamGuardians(!isPublic && !runsOrg ? teamId : null);
+  const guardiansByPlayer = runsOrg ? orgGuardians : teamGuardians;
   const { settings: minorsSettings } = useOrgMinorsSettings(isPublic ? null : orgId);
   const { data: sportsData } = useSocketQuery<Sport[]>('sports');
   const { data: rolesData } = useSocketQuery<any>('roles');
@@ -188,7 +194,7 @@ export default function TeamPage() {
   const close = () => setDialog(null);
 
   const openPerson = (m: TeamMember) => {
-    const membership = memberOf.get(m.id)?.membershipId;
+    const membership = m.orgMembershipId ?? memberOf.get(m.id)?.membershipId;
     return membership
       ? () => router.push({ pathname: '/admin/[orgId]/people/[membershipId]', params: { orgId: orgId!, membershipId: membership, teamId: teamId! } })
       : undefined;
@@ -328,7 +334,7 @@ export default function TeamPage() {
                 name={nameOf(m)}
                 image={person ? person.image : m.image}
                 guardianship={guardianshipOf(person?.birthdate ?? m.birthdate, minorsSettings, !!guardiansByPlayer.get(m.id)?.length)}
-                orgPersonId={person?.personOrgId}
+                orgPersonId={person?.personOrgId ?? (m as any).personOrgId}
                 role={seasonLine(m.id)}
                 first={i === 0}
                 onPress={openPerson(m)}
@@ -603,7 +609,7 @@ export default function TeamPage() {
             visible={dialog === 'players'}
             onClose={close}
             teamId={team.id}
-            members={members || []}
+            members={toPickFrom || []}
             playerProfileIds={new Set(players.map(m => m.id))}
             minorsSettings={minorsSettings}
             guardiansByPlayer={guardiansByPlayer}
@@ -613,7 +619,7 @@ export default function TeamPage() {
             visible={dialog === 'staff'}
             onClose={close}
             teamId={team.id}
-            members={members || []}
+            members={toPickFrom || []}
             staffProfileIds={new Set(staff.map(m => m.id))}
             roles={teamRoles}
             onAddNew={roleId => { close(); setNewPersonRole(roleId); }}

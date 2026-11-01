@@ -263,6 +263,16 @@ export class TeamManager extends BaseManager {
     return res.rows.map((row: any) => ({ ...row, roleName: this.getTeamRole(row.roleId)?.name }));
   }
 
+  /**
+   * A roster as someone sees it who is not this team's to look after — the other side's scorer, say:
+   * the names on a scoring screen, and what a public team sheet shows, nothing more (`PEOPLE-8`).
+   */
+  async getTeamMemberNames(teamId: string) {
+    return (await this.getTeamMembers(teamId)).map(m => ({
+      id: m.id, name: m.name, membershipId: m.membershipId, teamId: m.teamId, roleId: m.roleId, roleName: m.roleName, startDate: m.startDate,
+    }));
+  }
+
   async getTeamMembers(teamId: string): Promise<TeamMember[]> {
     const res = await this.query(`
         SELECT 
@@ -271,7 +281,8 @@ export class TeamManager extends BaseManager {
             p.identifier as "personOrgId",
             p.org_id as "orgId", p.user_id as "userId", p.image, p.primary_role_id as "primaryRoleId",
             p.last_invite_sent_at as "lastInviteSentAt", p.last_invite_email as "lastInviteEmail",
-            p.own_account_allowed as "ownAccountAllowed",
+            p.own_account_allowed as "ownAccountAllowed", p.own_account_set_at as "ownAccountSetAt", p.own_account_set_by as "ownAccountSetBy",
+            om.id as "orgMembershipId", om.role_id as "orgRoleId",
             ${restrictedReasonSql('p', 't.org_id')} as "restrictedReason",
             (
               p.user_id IS NOT NULL
@@ -282,6 +293,7 @@ export class TeamManager extends BaseManager {
         FROM team_memberships tm
         JOIN org_profiles p ON tm.org_profile_id = p.id
         JOIN teams t ON t.id = tm.team_id
+        LEFT JOIN org_memberships om ON om.org_profile_id = p.id AND om.org_id = t.org_id AND (om.end_date IS NULL OR om.end_date > NOW())
         WHERE tm.team_id = $1 AND (tm.end_date IS NULL OR tm.end_date > NOW())
     `, [teamId]);
 

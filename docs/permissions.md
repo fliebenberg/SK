@@ -183,7 +183,7 @@ Private org: everything above is "—" for anyone who is not a current member (o
 
 | | Member | Staff | Admin | Coach | App admin |
 | --- | --- | --- | --- | --- | --- |
-| See the people list and contact details | — (`PEOPLE-8`: the server still lets them read it) | View | View | Their team's people, from the roster | View |
+| See the people list and contact details | — | View | View | Their team's people, from the roster; everyone else's name and photo, to add them to the team | View |
 | Add, edit, import a person | — | Edit, as Members only | Edit | Add a Member for their team; edit their team's people | Edit |
 | Make someone Staff, or change anyone's org role | — | — | Edit | — | Edit |
 | Make someone an Admin | — | — | Edit | — | Edit |
@@ -303,6 +303,3 @@ What the survey found and the decisions changed, each with the to-do that carrie
 **Left, and why:**
 
 - **Substitution timing** for a timekeeper: the scoring screen has no substitution event yet.
-- **A plain Member can still read their organisation's people through the server** — the app no
-  longer shows them, but the member rooms admit any membership. That is `PEOPLE-8`, and the same
-  member tier lets a participating org's Members read every division's roster.

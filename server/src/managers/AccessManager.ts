@@ -87,9 +87,9 @@ export class AccessManager extends BaseManager {
    *  - app-admin matches by `user_id` only, exactly as `isAppAdmin` does, so an
    *    unclaimed profile carrying an admin's email never confers it.
    */
-  async getMembershipSnapshot(userId: string): Promise<{ orgIds: Set<string>; isAppAdmin: boolean }> {
+  async getMembershipSnapshot(userId: string): Promise<{ orgIds: Set<string>; staffOrgIds: Set<string>; isAppAdmin: boolean }> {
     const res = await this.query(`
-      SELECT DISTINCT om.org_id as "orgId", (op.user_id = $1) as "byUserId"
+      SELECT DISTINCT om.org_id as "orgId", om.role_id as "roleId", (op.user_id = $1) as "byUserId"
       FROM org_memberships om
       JOIN org_profiles op ON om.org_profile_id = op.id
       WHERE (
@@ -105,12 +105,14 @@ export class AccessManager extends BaseManager {
     `, [userId]);
 
     const orgIds = new Set<string>();
+    const staffOrgIds = new Set<string>();
     let isAppAdmin = false;
     for (const row of res.rows) {
       orgIds.add(row.orgId);
+      if (row.roleId === 'role-org-admin' || row.roleId === 'role-org-staff') staffOrgIds.add(row.orgId);
       if (row.orgId === 'org-system-admins' && row.byUserId) isAppAdmin = true;
     }
-    return { orgIds, isAppAdmin };
+    return { orgIds, staffOrgIds, isAppAdmin };
   }
 
 
@@ -259,6 +261,18 @@ export class AccessManager extends BaseManager {
       LIMIT 1
     `, [userId]);
     return res.rows.length > 0;
+  }
+
+  /** Every team of these organisations, for a room that a coach of any of them may read. */
+  async getTeamIdsOfOrgs(orgIds: string[]): Promise<string[]> {
+    if (!orgIds.length) return [];
+    const res = await this.query('SELECT id FROM teams WHERE org_id = ANY($1)', [orgIds]);
+    return res.rows.map((r: any) => r.id);
+  }
+
+  /** Admin or Staff there, or a coach of one of its teams: those with its business to look after (`PEOPLE-8`). */
+  async runsOrCoachesIn(userId: string, orgId: string): Promise<boolean> {
+    return (await this.canManageOrgPeople(userId, orgId)) || (await this.coachesInOrg(userId, orgId));
   }
 
   /** Do they coach any team in this organisation? Such a coach may add people to it, as Members. */

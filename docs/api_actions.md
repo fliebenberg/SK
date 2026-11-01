@@ -23,7 +23,7 @@ socket handshake, and refuses any room name not declared in
 [wss/roomAccess.ts](file:///c:/Fred/Coding/SK/server/src/wss/roomAccess.ts). A refusal is
 answered with `ROOM_ACCESS_DENIED`. Three levels: `public` (fixtures, results, sites and facilities, team
 names — anonymous sockets included, since the org directory is browsable logged out),
-`member` (personal data and org internals — `org:*:members`, `team:*`, `game:*`,
+`staff` (personal data and org internals: Admin and Staff, plus any grant or duty the room names; a plain Member reads what the public reads — `org:*:members`, `team:*`, `game:*`,
 `game:*:events`), and `self` (`user:*`). The identity is resolved once per user in a single
 query behind a 30-second TTL, so joining several rooms costs one lookup; that cache is
 read-path only and never authorizes a write. Access is checked at **join** time and again on
@@ -605,6 +605,12 @@ cached access so a restriction takes effect at once.
     links only, primary first. Authorized on `org:{orgId}:guardians` (the member list's tier), and
     held to that org: naming a player from another org returns nothing. Screens use the room instead
     (`useOrgGuardians`); this is for one-off reads.
+*   **`get_data org_people_names`** `{ orgId }` → `{ id, membershipId, name, image }[]`, for Admin, Staff and
+    the organisation's coaches: who a coach may pick for their team, with nothing else about them. A
+    coach reads their own team's people from `team:{id}:members`, and those people's guardians from
+    `team:{id}:guardians`, not from the org-wide rooms (`PEOPLE-8`).
+*   **`get_data team_members`** through a game (`gameId`) answers in names alone unless the caller
+    may also join the team's own room: the other side's scorer sees who is playing, not their details.
 *   **`UPDATE_ORG_PROFILE`** refuses an email that would make a guardian and a child they are linked
     to share an address, in either direction, and republishes the guardian lists a changed guardian
     appears in — their name and contact details travel in the links.

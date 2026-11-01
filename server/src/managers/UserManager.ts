@@ -375,6 +375,16 @@ export class UserManager extends BaseManager {
     return members;
   }
 
+  /** Who is in the organisation, by name and photo: enough for a coach to pick someone (`PEOPLE-8`). */
+  async getOrgPeopleNames(orgId: string): Promise<Array<Pick<OrgMember, 'id' | 'membershipId' | 'name' | 'image'>>> {
+    const res = await this.query(`
+        SELECT op.id, om.id as "membershipId", op.name, op.image
+        FROM org_memberships om JOIN org_profiles op ON om.org_profile_id = op.id
+        WHERE om.org_id = $1 AND (om.end_date IS NULL OR om.end_date > NOW())
+    `, [orgId]);
+    return res.rows;
+  }
+
   async getOrgMembership(id: string): Promise<OrgMembership | undefined> {
     const res = await this.query('SELECT id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate" FROM org_memberships WHERE id = $1', [id]);
     return res.rows[0];

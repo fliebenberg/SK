@@ -9,6 +9,11 @@ export interface TeamMember {
   teamId: string;
   roleId: string;
   roleName?: string;
+  /** Their membership of the team's organisation, and its role: a coach's way to their page. */
+  orgMembershipId?: string;
+  orgRoleId?: string;
+  ownAccountSetAt?: string;
+  ownAccountSetBy?: string;
   startDate: string; // ISO UTC
   endDate?: string; // ISO UTC
   email?: string;

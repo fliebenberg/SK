@@ -1382,6 +1382,7 @@ export type GetDataRequest =
   | { type: 'organization' | 'team' | 'site' | 'facility' | 'event' | 'game' | 'league' | 'season' | 'sport' | 'game_roster' | 'roster' | 'season_standings' | 'user_memberships'; id: string }
   | { type: 'organizations' | 'teams' | 'games' | 'events' | 'sites' | 'leagues'; orgId: string }
   | { type: 'org_members'; orgId: string }
+  | { type: 'org_people_names'; orgId: string }
   | { type: 'possible_duplicate_orgs'; name: string }
   | { type: 'team_members'; teamId: string }
   | { type: 'seasons'; leagueId: string }

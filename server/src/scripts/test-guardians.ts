@@ -284,24 +284,24 @@ async function main() {
     expect((await setOrg(admin, true, 18))?.status, 'ok', 'an admin can switch minors on');
 
     expect((await memberships(minor, MINOR_USER))?.orgs?.[0]?.restrictedReason, 'minor-off', 'the guardian’s no still holds once the org allows minors');
-    expect(await join(minor, `org:${DKL}:members`), 'denied', 'so the minor still cannot read the member list');
+    expect(await accessManager.getOrganizationRole(MINOR_USER, DKL), null, 'so the minor still has no org role');
 
     expect((await setMinor(parent, ANIKA, null))?.status, 'ok', 'the guardian can clear their no');
     expect((await memberships(minor, MINOR_USER))?.orgs?.[0]?.restrictedReason, null, 'and the minor has full access by default');
-    expect(await join(minor, `org:${DKL}:members`), 'joined', 'at once, without reconnecting');
+    expect(await join(minor, `org:${DKL}:members`), 'denied', 'though a plain Member never reads the member list (PEOPLE-8)');
     expect(await accessManager.getOrganizationRole(MINOR_USER, DKL), 'role-org-member', 'with their org role back');
 
     expect((await setMinor(parent, ANIKA, false))?.status, 'ok', 'a guardian can switch it off again');
-    expect(await join(minor, `org:${DKL}:members`), 'denied', 'which takes effect at once');
+    expect(await accessManager.getOrganizationRole(MINOR_USER, DKL), null, 'which takes effect at once');
 
     // --- The minor age moves the line --------------------------------------------------------
     expect((await setOrg(admin, false, 18))?.status, 'ok', 'minors switched back off');
-    expect(await join(member, `org:${DKL}:members`), 'joined', 'an 18-year-old is an adult at the default age');
+    expect(await accessManager.getOrganizationRole(MEMBER, DKL), 'role-org-member', 'an 18-year-old is an adult at the default age');
     expect((await setOrg(admin, false, 19))?.status, 'ok', 'the minor age can be raised');
     expect((await memberships(member, MEMBER))?.orgs?.[0]?.restrictedReason, 'org-off', 'which makes the 18-year-old a restricted minor');
-    expect(await join(member, `org:${DKL}:members`), 'denied', 'at once');
+    expect(await accessManager.getOrganizationRole(MEMBER, DKL), null, 'at once');
     expect((await setOrg(admin, false, 18))?.status, 'ok', 'and lowered again');
-    expect(await join(member, `org:${DKL}:members`), 'joined', 'which restores them');
+    expect(await accessManager.getOrganizationRole(MEMBER, DKL), 'role-org-member', 'which restores them');
 
     // --- My Family: what a guardian sees, and inviting their own child ------------------------
     const seen = (await memberships(parent, PARENT_USER))?.dependants?.[0];

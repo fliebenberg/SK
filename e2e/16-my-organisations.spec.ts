@@ -50,6 +50,30 @@ test.describe('My Organisations', () => {
     await expect(page).toHaveURL(new RegExp(`/admin/${ORG.ksc}/teams/`));
   });
 
+  // A coach has the organisation's people by name alone, and their own team's in full (PEOPLE-8, 2026-11-01).
+  test("a coach opens a player on their team, and picks others by name", async ({ page }) => {
+    await signIn(page, USERS.kscCoach);
+    await page.goto('/teams');
+    await page.getByRole('button', { name: 'Manage Team' }).first().click();
+    await expect(page).toHaveURL(new RegExp(`/admin/${ORG.ksc}/teams/`));
+    const teamUrl = page.url();
+
+    await page.getByText('Players', { exact: true }).filter({ visible: true }).first().click();
+    await page.getByRole('button', { name: /Add$/ }).filter({ visible: true }).first().click();
+    await expect(page.getByLabel("Search the organisation's people")).toBeVisible();
+    await expect(page.getByRole('checkbox').first()).toBeVisible();
+    await page.goto(teamUrl);
+    await page.getByText('Players', { exact: true }).filter({ visible: true }).first().click();
+
+    const actions = page.getByLabel(/^Actions for /).filter({ visible: true }).first();
+    await expect(actions).toBeVisible();
+    const name = (await actions.getAttribute('aria-label'))!.replace('Actions for ', '');
+    await page.getByRole('link', { name }).filter({ visible: true }).first().click();
+    await expect(page).toHaveURL(new RegExp(`/admin/${ORG.ksc}/people/`));
+    await expect(page.getByText('Contact', { exact: true })).toBeVisible();
+    await expect(page.getByText('not a member of the organisation any more')).toHaveCount(0);
+  });
+
   // Only an organisation's admins change its profile (ORG-13); staff read it with no Edit links.
   test('staff read the profile, with nothing to edit; the admin edits it', async ({ page }) => {
     await signIn(page, USERS.sacStaff);

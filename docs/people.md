@@ -89,7 +89,5 @@ values behind its own copy of the fields.
 
 ## 6. Not settled here
 
-- Who may read people's contact and identity details (`PEOPLE-8`) — today any member can open the
-  page read-only.
 - Finding guardians who hold no membership (`PEOPLE-9`).
 - Adding someone whose org ID is already on record (`PEOPLE-7`).

@@ -33,6 +33,7 @@ import { assetBaseUrl, assetStorage, localAssetMountPath } from './services/asse
 import { issueAssetToken, requireAssetToken } from './services/assetAccess';
 import { imageService, isImageFolder, UploadError, UPLOAD_RULES } from './services/ImageService';
 import { userManager } from './managers/UserManager';
+import { teamManager } from './managers/TeamManager';
 import { accessManager } from './managers/AccessManager';
 import { addGameOfficial, listGameOfficials, removeGameOfficial } from './managers/gameOfficials';
 import { organizationManager } from './managers/OrganizationManager';
@@ -66,7 +67,7 @@ import {
 } from './wss/tournaments';
 import { canReadData } from './wss/dataAccess';
 import { publishUserMemberships, getUserMemberships } from './wss/memberships';
-import { publishPlayerChange, publishOrgMinorsChange, publishGuardianProfileChange } from './wss/guardians';
+import { publishPlayerChange, publishOrgMinorsChange, publishGuardianProfileChange, publishProfileToRosters, teamGuardians } from './wss/guardians';
 import { sendMemberInvite } from './wss/memberInvite';
 import { guardianManager } from './managers/GuardianManager';
 import { peopleImportManager, PeopleImportEffects } from './managers/PeopleImportManager';
@@ -83,6 +84,8 @@ import {
   gameDisputesRoom,
   teamMembersRoom,
   userNotificationsRoom,
+  teamGuardiansRoom,
+  teamRoom,
 } from './wss/rooms';
 
 dotenv.config();
@@ -1767,6 +1770,9 @@ io.on('connection', (socket) => {
                     callback([]);
                 }
                 break;
+            case 'org_people_names':
+                callback(orgId ? await userManager.getOrgPeopleNames(orgId) : []);
+                break;
             case 'profile_guardians': {
                 // `MEMBER-3`. Authorized on `org:{orgId}:members`, so the answer is held to that org:
                 // naming a player from another one returns nothing rather than their guardians.
@@ -1780,7 +1786,11 @@ io.on('connection', (socket) => {
             case 'team_members':
                 // Fetch members for a specific team strictly via teamId
                 if (teamId) {
-                    callback(await dataManager.getTeamMembers(teamId));
+                    // Through a game (`dataAccess.ts`) the caller may be anyone with a part in it, so
+                    // the details go only to those the team's own room admits (`PEOPLE-8`).
+                    callback(await canJoinRoom(socket.data?.userId, teamRoom(teamId))
+                        ? await dataManager.getTeamMembers(teamId)
+                        : await teamManager.getTeamMemberNames(teamId));
                 } else {
                     console.warn("Server: team_members requested without teamId");
                     callback([]);
@@ -1839,21 +1849,25 @@ io.on('connection', (socket) => {
             case 'search_people':
                 if (request.query) {
                     // `PEOPLE-1`. Contact and identity fields come back only when the search is
-                    // scoped to an org **and the caller belongs to it** — which is what the three
+                    // scoped to an org **and the caller is its Admin or Staff** (`PEOPLE-8`) — which is what the three
                     // screens using this are doing when they pre-fill a member form from an
                     // existing profile. Every other search, including the unscoped one that finds
                     // a person to invite, gets name, organisation and image.
                     const searchScopeOrgId = request.orgId;
                     const searchLean =
                         !searchScopeOrgId ||
-                        !(await dataManager.isOrgMember(socket.data?.userId, searchScopeOrgId));
+                        !(await accessManager.canManageOrgPeople(socket.data?.userId, searchScopeOrgId));
                     callback(await dataManager.searchPeople(request.query, searchScopeOrgId, { lean: searchLean }));
                 } else {
                     callback([]);
                 }
                 break;
             case 'find_matching_user':
-                callback(await dataManager.findMatchingUser(request.email, request.name, request.birthdate));
+                {
+                    // Any signed-in user may ask, so the answer is who it is and nothing about them (`PEOPLE-8`).
+                    const matched = await dataManager.findMatchingUser(request.email, request.name, request.birthdate);
+                    callback(matched ? { id: matched.id } : null);
+                }
                 break;
             case 'pending_claims':
                 // Check for pending claims for the user's email(s)
@@ -2138,6 +2152,10 @@ io.on('connection', (socket) => {
 
         } else if (kind === 'team' && sub === 'members') {
             pushToSocket(socket, room, 'TEAM_MEMBERS_SYNC', await dataManager.getTeamMembers(id));
+
+        } else if (kind === 'team' && sub === 'guardians') {
+            const orgOfTeam = await accessManager.getTeamOrgId(id);
+            if (orgOfTeam) pushToSocket(socket, room, 'GUARDIANS_SYNC', await teamGuardians(id, orgOfTeam));
 
         } else if (kind === 'team') {
             const team = await dataManager.getTeam(id);
@@ -3040,6 +3058,15 @@ io.on('connection', (socket) => {
                     data: await dataManager.getTeamMembers(result.teamId),
                 });
                 
+                {
+                    const addedToOrg = await accessManager.getTeamOrgId(result.teamId);
+                    if (addedToOrg) additionalBroadcasts.push({
+                        topic: teamGuardiansRoom(result.teamId),
+                        type: 'GUARDIANS_SYNC',
+                        data: await teamGuardians(result.teamId, addedToOrg),
+                    });
+                }
+
                 // ALSO Broadcast to the Org Team List (to update counts)
                 // We need to fetch the team to get the orgId.
                 const teamForAdd = await dataManager.getTeam(result.teamId);
@@ -3098,7 +3125,16 @@ io.on('connection', (socket) => {
                         data: await dataManager.getTeamMembers(result.teamId),
                     });
 
-                    // ALSO Broadcast to the Org Team List (to update counts)
+                    {
+                    const addedToOrg = await accessManager.getTeamOrgId(result.teamId);
+                    if (addedToOrg) additionalBroadcasts.push({
+                        topic: teamGuardiansRoom(result.teamId),
+                        type: 'GUARDIANS_SYNC',
+                        data: await teamGuardians(result.teamId, addedToOrg),
+                    });
+                }
+
+                // ALSO Broadcast to the Org Team List (to update counts)
                     const teamForRem = await dataManager.getTeam(result.teamId);
                     if (teamForRem) {
                          additionalBroadcasts.push({ 
@@ -3322,6 +3358,8 @@ io.on('connection', (socket) => {
                     updateType = 'ORG_MEMBER_UPDATED';
                     // A guardian's name and contact details travel in their links (`MEMBER-3`).
                     await publishGuardianProfileChange(result.id);
+                    // Their coaches read them from the roster, not the member list (`PEOPLE-8`).
+                    await publishProfileToRosters(result.id);
                     // The member row, not the bare profile: the People screens read the org ID as
                     // `personOrgId`, and `hasAccount` and `restrictedReason` follow from the email and
                     // birthdate just saved. A profile with no membership (a guardian) has no row.

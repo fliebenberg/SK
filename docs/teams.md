@@ -168,7 +168,5 @@ also not other assistant coaches. The team roles are Player, Coach, Assistant Co
 
 ## 8. Not settled here
 
-- Who may read a team's roster through the server (`PEOPLE-8`) — a plain Member no longer reaches the
-  workspace page, but the member room still admits them.
 - Picking players for a match from the team page itself; Pick team opens the existing selection
   screen.

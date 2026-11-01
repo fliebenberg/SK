@@ -48,7 +48,7 @@ For the full details on client page layouts and user authentication, see the OKF
     tournament convenor, a visiting official — is given an `org_profile` with **no
     `org_memberships` row**. "External" is a derived label, never a stored role: a
     `role-org-external` membership would be counted like any other by `getMembershipSnapshot` and
-    would open the organisation's member-tier rooms. See
+    would add a role nobody decided on. See
     [auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md) and `MEMBER-2`.
 - **Organization**: The top-level administrative container representing a league, school, club, or pub tournament.
 - **Event**: One of exactly two things — a **SingleMatch** wrapping one game, or a **Tournament**

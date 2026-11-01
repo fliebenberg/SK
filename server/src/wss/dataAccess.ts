@@ -34,10 +34,12 @@ export type StandaloneAccess =
    */
   | 'tournament-organiser'
   /**
-   * May organise the tournament, **or** belongs to the organisation the request names in
+   * May organise the tournament, **or** runs or coaches in the organisation the request names in
    * `participantOrgId` — an invited organisation reading its own invitation (`FIX-30`).
    */
   | 'tournament-organiser-or-participant'
+  /** Admin or Staff of the `orgId` in the request, or a coach of one of its teams (`PEOPLE-8`). */
+  | 'runs-or-coaches-org'
   /** The `id` in the request must be the caller. */
   | 'self'
   /** App admins only. */
@@ -103,6 +105,8 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // Any signed-in user may add an org to an event, so any signed-in user may ask; what comes back
   // is a boolean plus the caller's own nominations, never another nominator's email.
   org_claim_status:     { standalone: 'authenticated' },
+  // Names and photos, to pick someone for a team: all a coach needs of the organisation (`PEOPLE-8`).
+  org_people_names:     { standalone: 'runs-or-coaches-org' },
   // Returns [] today, but classify by what it is, not by what it currently does,
   // or filling it in later silently reopens the hole.
   org_profiles:         { room: orgRoom('members') },
@@ -137,7 +141,8 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
                             const orgId = req.teamId ? await accessManager.getTeamOrgId(req.teamId) : null;
                             return orgId ? `org:${orgId}:teams` : null;
                           } },
-  // Rosters are personal data, often a minor's — the `team:{id}` room's level.
+  // Rosters are personal data, often a minor's — the `team:{id}` room's level. Through a game the
+  // answer is cut to names (`index.ts`): the other side's staff have no business with the details.
   //
   // A scoring screen is the exception, and it is why `gameId` is honoured: it shows both
   // sides' players while the scorer belongs to only one of the two orgs. Naming the game
@@ -367,6 +372,10 @@ export async function canReadData(userId: string, request: any): Promise<DataAcc
           ? { allowed: true, reason: 'self' }
           : { allowed: false, reason: `only the subject may read this (asked for ${subject})` };
       }
+      case 'runs-or-coaches-org':
+        return isAuthenticated && request.orgId && (await accessManager.runsOrCoachesIn(userId, request.orgId))
+          ? { allowed: true, reason: `runs or coaches in ${request.orgId}` }
+          : { allowed: false, reason: 'neither running nor coaching in that organisation' };
       case 'app-admin':
         return isAuthenticated && (await accessManager.isAppAdmin(userId))
           ? { allowed: true, reason: 'app admin' }
@@ -376,9 +385,9 @@ export async function canReadData(userId: string, request: any): Promise<DataAcc
         if (request.eventId && (await accessManager.canOrganizeEvent(userId, request.eventId))) {
           return { allowed: true, reason: `organises event ${request.eventId}` };
         }
-        return request.participantOrgId && (await accessManager.isOrgMember(userId, request.participantOrgId))
-          ? { allowed: true, reason: `member of ${request.participantOrgId}` }
-          : { allowed: false, reason: 'neither an organiser nor a member of that organisation' };
+        return request.participantOrgId && (await accessManager.runsOrCoachesIn(userId, request.participantOrgId))
+          ? { allowed: true, reason: `runs or coaches in ${request.participantOrgId}` }
+          : { allowed: false, reason: 'neither an organiser nor running or coaching in that organisation' };
       }
       case 'tournament-organiser': {
         if (!isAuthenticated) return { allowed: false, reason: 'requires a signed-in user' };

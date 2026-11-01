@@ -51,7 +51,7 @@ async function one(sql: string): Promise<any | null> {
 
 async function resolveIds() {
   // The ids have to be *coherent*, not merely present: a user and an unrelated org makes every
-  // `member`-tier room report REFUSED, which is indistinguishable from the room not being declared.
+  // `staff`-tier room report REFUSED, which is indistinguishable from the room not being declared.
   // So the org is the one this user actually administers, and the rest hang off it.
   const seed = await one(
     process.env.VERIFY_USER_EMAIL
@@ -95,7 +95,7 @@ async function resolveIds() {
   // chosen above - otherwise a dev database whose richest org happens to have no fixtures reports
   // six rooms SKIPPED and proves nothing about them. Still scoped to the user, so a REFUSED here
   // still means the room, not the membership.
-  // *Any* current membership, not just an admin one: `member` tier asks for a membership, not a
+  // *Any* current membership, as a starting point: `staff` tier may refuse a plain Member, not a
   // role, so this is the widest set for which a REFUSED still means the room rather than the user.
   const memberOrgs = `SELECT m.org_id FROM org_memberships m
                         JOIN org_profiles p ON p.id = m.org_profile_id
@@ -110,7 +110,7 @@ async function resolveIds() {
 
   // Last resort: any game or league at all. Reporting four rooms as SKIPPED proves nothing about
   // them, and the public tiers (`game:{id}:summary`) are testable regardless of who owns the row.
-  // Recorded in `unscoped` so the report can say that a REFUSED on a `member`-tier room here may be
+  // Recorded in `unscoped` so the report can say that a REFUSED on a `staff`-tier room here may be
   // the membership rather than the room.
   const unscoped: string[] = [];
   let gameRow = game;
@@ -165,6 +165,7 @@ function buildProbes(ids: Awaited<ReturnType<typeof resolveIds>>): Probe[] {
 
     { label: 'team:{id}', room: teamId ? `team:${teamId}` : null, expect: 'TEAM_UPDATED' },
     { label: 'team:{id}:members', room: teamId ? `team:${teamId}:members` : null, expect: 'TEAM_MEMBERS_SYNC' },
+    { label: 'team:{id}:guardians', room: teamId ? `team:${teamId}:guardians` : null, expect: 'GUARDIANS_SYNC' },
     { label: 'site:{id}', room: siteId ? `site:${siteId}` : null, expect: 'SITE_UPDATED' },
     { label: 'facility:{id}', room: facilityId ? `facility:${facilityId}` : null, expect: 'FACILITY_UPDATED' },
 

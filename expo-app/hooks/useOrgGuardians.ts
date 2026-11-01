@@ -10,11 +10,20 @@ import { useLiveRoom } from './useLiveRoom';
  * `PROFILE_GUARDIANS_UPDATED` with one player's whole current list, which replaces that player's
  * slice — a merge would keep a link the change ended.
  *
- * The room is the member list's tier: pass `enabled: false` for a viewer who cannot join it.
+ * The room is the member list's tier, Admin and Staff: pass `enabled: false` for a viewer who cannot join it.
  */
 export function useOrgGuardians(orgId?: string | null, enabled = true) {
+  return useGuardiansRoom(orgId ? `org:${orgId}:guardians` : null, enabled);
+}
+
+/** The same for one team's players, from `team:{id}:guardians`: a coach's view (`PEOPLE-8`). */
+export function useTeamGuardians(teamId?: string | null) {
+  return useGuardiansRoom(teamId ? `team:${teamId}:guardians` : null, true);
+}
+
+function useGuardiansRoom(room: string | null, enabled: boolean) {
   const { items, isLoading, accessDenied } = useLiveRoom<ProfileGuardian>(
-    orgId ? `org:${orgId}:guardians` : null,
+    room,
     {
       enabled,
       reduce: (message) => {

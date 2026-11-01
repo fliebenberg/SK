@@ -81,7 +81,7 @@ with one of three access levels:
 | Access | Meaning | Examples |
 | --- | --- | --- |
 | `public` | A spectator may legitimately see this. Includes anonymous sockets, because the org directory is browsable logged out. | `org:*:events`, `org:*:teams`, `org:*:sites`, `event:*`, `game:*:summary`, `game:*:events` (players public until `PEOPLE-4`), `season:*:standings` |
-| `member` | Personal data, or an org's internal state. Requires a current membership of a related org. | `org:*:members`, `team:*` (rosters), `game:*`, `game:*:disputes` |
+| `staff` | Personal data, or an org's internal state. Requires being Admin or Staff of a related org, or a grant or duty the room names; a plain Member reads what the public reads (`PEOPLE-8`). | `org:*:members`, `team:*` (rosters), `game:*`, `game:*:disputes` |
 | `self` | The socket's own user. | `user:*` |
 
 The identity is `socket.userId`, proven by the handshake — never anything in a payload. It is

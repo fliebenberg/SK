@@ -3,7 +3,7 @@ import { ActivityIndicator, ScrollView, Text, useWindowDimensions, View } from '
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { SocketAction } from '@sk/shared';
+import { OrgMember, SocketAction } from '@sk/shared';
 import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { ReadCard } from '../../../../components/ReadCard';
 import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowMenu';
@@ -15,7 +15,7 @@ import { PersonBanner } from '../../../../components/people/PersonBanner';
 import { ContactDialog, IdentityDialog, OrgRole, PersonalDialog, rolesTheyMayGive } from '../../../../components/people/PersonDialogs';
 import { guardianshipOf } from '../../../../components/people/PersonBits';
 import { useOrgMembers } from '../../../../hooks/useOrgMembers';
-import { useOrgGuardians } from '../../../../hooks/useOrgGuardians';
+import { useOrgGuardians, useTeamGuardians } from '../../../../hooks/useOrgGuardians';
 import { useOrgMinorsSettings } from '../../../../hooks/useOrgMinorsSettings';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
@@ -55,14 +55,19 @@ export default function PersonPage() {
   const isWide = width >= 900;
   const isNarrow = width < 640;
 
-  const { members, isLoading: isMembersLoading } = useOrgMembers(orgId);
   const { data: rolesData, isLoading: isRolesLoading } = useSocketQuery<any>('roles');
   const orgAccessOf = useOrgAccess(orgId);
   const isOrgAdmin = orgAccessOf.isAdmin;
   const coachesTeam = !!teamId && orgAccessOf.coachedTeamIds.includes(teamId);
-  const { roster: teamRoster } = useTeamRoster(coachesTeam ? teamId : null);
+  // Admin and Staff read the organisation's people; someone with a duty on the team opened from, that
+  // team's alone (`PEOPLE-8`).
+  const fromTeam = !orgAccessOf.canManage && !!teamId && orgAccessOf.dutyTeamIds.includes(teamId) ? teamId : null;
+  const { members, isLoading: isMembersLoading } = useOrgMembers(orgAccessOf.canManage ? orgId : null);
+  const { roster: teamRoster, isLoading: isRosterLoading } = useTeamRoster(coachesTeam || fromTeam ? teamId : null);
   const roles: OrgRole[] = rolesTheyMayGive(rolesData?.org || [], isOrgAdmin);
-  const { byPlayer: guardiansByPlayer } = useOrgGuardians(orgId);
+  const { byPlayer: orgGuardians } = useOrgGuardians(orgAccessOf.canManage ? orgId : null);
+  const { byPlayer: teamGuardians } = useTeamGuardians(fromTeam);
+  const guardiansByPlayer = fromTeam ? teamGuardians : orgGuardians;
   const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
   const inviteCooldownHours = useInviteCooldownHours();
 
@@ -73,7 +78,11 @@ export default function PersonPage() {
   const [isRemoving, setIsRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
-  const member = useMemo(() => members?.find(m => m.membershipId === membershipId) || null, [members, membershipId]);
+  const member = useMemo((): OrgMember | null => {
+    if (!fromTeam) return members?.find(m => m.membershipId === membershipId) || null;
+    const row = teamRoster.find(r => r.orgMembershipId === membershipId);
+    return row ? { ...row, membershipId: row.orgMembershipId!, roleId: row.orgRoleId || 'role-org-member', roleName: undefined } as unknown as OrgMember : null;
+  }, [members, teamRoster, fromTeam, membershipId]);
   // Admin or Staff; or a coach, for someone on their team (`PERM-5`).
   const canEdit = orgAccessOf.canManage || (!!member && teamRoster.some(r => r.id === member.id));
   const guardians = member ? guardiansByPlayer.get(member.id) || [] : [];
@@ -96,12 +105,13 @@ export default function PersonPage() {
     onRemove: () => savePhoto(''),
   });
 
-  if (isMembersLoading || isRolesLoading || !member) {
+  const isLoadingPerson = isMembersLoading || isRolesLoading || (!!fromTeam && isRosterLoading);
+  if (isLoadingPerson || !member) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Person" backLabel="People" onBack={back} />
         <View className="flex-1 items-center justify-center px-6">
-          {isMembersLoading || isRolesLoading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+          {isLoadingPerson ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
             <Text className="font-inter text-sm text-ink-muted text-center">
               This person is not a member of the organisation any more.
             </Text>
