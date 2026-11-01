@@ -46,7 +46,6 @@ export interface NearbyOrganization {
   name: string;
   shortName: string;
   logo?: string | null;
-  logoConfig?: { scale?: number; x?: number; y?: number } | null;
   primaryColor?: string | null;
   /** The suburb, or the town when there is none. */
   locality?: string | null;
@@ -128,7 +127,6 @@ export interface MyHomeOrganization {
   name: string;
   shortName: string;
   logo?: string | null;
-  logoConfig?: { scale?: number; x?: number; y?: number } | null;
   primaryColor?: string | null;
   roleId: string;
   /** Games live now that the organisation has a stake in. */

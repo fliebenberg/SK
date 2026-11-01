@@ -220,7 +220,6 @@ export function LeftNavigationRail() {
                     <View className="z-10 flex-shrink-0">
                       <OrgLogo 
                         logo={orgData?.logo} 
-                        settings={orgData?.settings} 
                         size={44} 
                         className={isDarkBg ? 'border border-on-fill/20' : 'border border-on-bright/10'}
                         primaryColor={textColor}
@@ -410,7 +409,6 @@ export function LeftNavigationRail() {
               >
                 <OrgLogo 
                   logo={orgData?.logo} 
-                  settings={orgData?.settings} 
                   size={36} 
                   className="rounded-lg shadow-sm"
                 />

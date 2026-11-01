@@ -168,7 +168,7 @@ export function NewHeadToHeadDialog({ visible, orgId, hostName, onClose, onCreat
   };
 
   const crest = (org: Organization) => (
-    <FixtureCrest participant={{ id: org.id, orgId: org.id, orgLogo: org.logo, orgLogoConfig: (org.settings as any)?.logoConfig, orgPrimaryColor: org.primaryColor }} size={26} />
+    <FixtureCrest participant={{ id: org.id, orgId: org.id, orgLogo: org.logo, orgPrimaryColor: org.primaryColor }} size={26} />
   );
 
   return (

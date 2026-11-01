@@ -34,7 +34,6 @@ export interface ProfileGuardian {
   guardianEmail?: string;
   guardianCellphone?: string;
   guardianImage?: string;
-  guardianImageConfig?: { scale: number; x: number; y: number };
   guardianLastInviteSentAt?: string;
   guardianLastInviteEmail?: string;
   /** Whether the guardian has a ScoreKeeper account (derived, like `OrgMember.hasAccount`). */
@@ -52,7 +51,6 @@ export interface Dependant {
   orgName: string;
   name: string;
   image?: string | null;
-  imageConfig?: { scale: number; x: number; y: number } | null;
   birthdate?: CalendarDate | null;
   relationship: GuardianRelationship;
   isPrimary: boolean;

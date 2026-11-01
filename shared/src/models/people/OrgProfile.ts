@@ -20,7 +20,6 @@ export interface OrgProfile {
   lastInviteSentAt?: string;
   /** The address `lastInviteSentAt`'s invite went to — what the resend cooldown is keyed on. */
   lastInviteEmail?: string;
-  imageConfig?: { scale: number; x: number; y: number };
   /**
    * A minor's own say in whether their membership carries a member's privileges (`MEMBER-3`).
    * **Tri-state**: `null` means nobody has said, so the organisation's setting decides; `false` is

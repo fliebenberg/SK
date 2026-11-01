@@ -41,7 +41,7 @@ export function OrganisationBanner({ org, isHost, eventName, entries, divisions,
 }) {
   return (
     <View className="flex-1 rounded-2xl border border-line bg-card p-4 flex-row items-center gap-3.5">
-      <FixtureCrest participant={{ id: org.id, orgId: org.id, orgLogo: org.logo, orgLogoConfig: org.logoConfig, orgPrimaryColor: org.primaryColor }} size={isWide ? 60 : 50} />
+      <FixtureCrest participant={{ id: org.id, orgId: org.id, orgLogo: org.logo, orgPrimaryColor: org.primaryColor }} size={isWide ? 60 : 50} />
       <View className="flex-1 min-w-0 gap-1">
         <View className="flex-row flex-wrap items-center gap-2">
           <Text className="font-inter-bold text-ink" style={{ fontSize: isWide ? 22 : 19 }}>{org.name}</Text>

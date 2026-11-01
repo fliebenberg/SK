@@ -7,6 +7,10 @@
  * screens used to, which is how a stored name ended up used as a URL and a picture never showed.
  * Use `getOrgLogoUrl` / `getAvatarUrl` from services/assets.ts.
  *
+ * Also fails on a picture built as a `data:` URI: pictures are cropped, then uploaded on their own
+ * with hooks/useImageUpload.tsx, and the server refuses one sent inline. (An SVG drawn in code, such
+ * as a map marker, is not a picture upload and is allowed.)
+ *
  * Run: `npm run check:images` (from expo-app/). Exit code 1 lists each offending line.
  */
 const fs = require('fs');
@@ -16,8 +20,11 @@ const ROOT = path.resolve(__dirname, '..');
 const SCAN = ['app', 'components', 'hooks', 'store', 'services', 'utils'];
 const ALLOWED = new Set(['services/assets.ts']);
 const PATTERNS = [
-  { re: /\/uploads\b/g, what: "'/uploads' path" },
+  // `/api/uploads` is where pictures are sent, not where they are served from.
+  { re: /(?<!\/api)\/uploads\b/g, what: "'/uploads' path" },
   { re: /_(?:large|medium|thumb)\.webp/g, what: 'image tier file name' },
+  // The crop dialog asks the browser whether it can encode WebP by reading one back.
+  { re: /data:image\/(?:png|jpe?g|webp|gif)/g, what: 'inline picture (upload it with useImageUpload)', allow: ['components/images/renderCrop.web.ts'] },
 ];
 
 function walk(dir, out) {
@@ -37,7 +44,8 @@ for (const top of SCAN) {
     const rel = path.relative(ROOT, file).split(path.sep).join('/');
     if (ALLOWED.has(rel)) continue;
     const text = fs.readFileSync(file, 'utf8');
-    for (const { re, what } of PATTERNS) {
+    for (const { re, what, allow } of PATTERNS) {
+      if (allow && allow.includes(rel)) continue;
       re.lastIndex = 0;
       let match;
       while ((match = re.exec(text))) {

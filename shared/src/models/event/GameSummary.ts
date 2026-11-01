@@ -31,7 +31,6 @@ export interface GameSummaryParticipant {
   /** The organisation's full name, for a wide row ("Menlopark U15A"). */
   orgName?: string;
   orgLogo?: string;
-  orgLogoConfig?: { scale?: number; x?: number; y?: number } | null;
   /** Tints the shield drawn for an organisation with no logo (most of them). */
   orgPrimaryColor?: string;
   /**

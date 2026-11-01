@@ -74,10 +74,9 @@ export function ShowMore({ label, onPress }: { label: string; onPress: () => voi
  * own actions (design_system.md rule 15). A player shows the Minor or Dependant tag and org ID the
  * People list shows (rule 14); a staff member shows their role.
  */
-export function RosterRow({ name, image, imageConfig, guardianship, orgPersonId, role, first, onPress, menu }: {
+export function RosterRow({ name, image, guardianship, orgPersonId, role, first, onPress, menu }: {
   name: string;
   image?: string | null;
-  imageConfig?: any;
   guardianship?: Guardianship;
   orgPersonId?: string;
   role?: string;
@@ -95,7 +94,7 @@ export function RosterRow({ name, image, imageConfig, guardianship, orgPersonId,
         accessibilityRole={onPress ? 'link' : undefined}
         className="flex-1 flex-row items-center gap-2.5 py-2 min-w-0"
       >
-        <PersonAvatar name={name} image={image} imageConfig={imageConfig} size={32} />
+        <PersonAvatar name={name} image={image} size={32} />
         <View className="flex-1 min-w-0">
           <View className="flex-row items-center gap-1.5">
             <Text className="font-inter-semibold text-sm text-ink flex-shrink" numberOfLines={1}>{name}</Text>

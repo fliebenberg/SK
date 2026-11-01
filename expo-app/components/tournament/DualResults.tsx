@@ -33,7 +33,7 @@ import { useTournamentLinks } from './tournamentLinks';
  * the primary colour with a ring in the secondary (agreed 2026-10-13), grey for a draw.
  */
 
-type Side = { id: string; name: string; logo?: string; logoConfig?: any; primaryColor?: string | null; secondaryColor?: string | null };
+type Side = { id: string; name: string; logo?: string; primaryColor?: string | null; secondaryColor?: string | null };
 
 /** The two sides: the host, and the organisation it plays. */
 export function dualSides(event: Event, hostOrg: Organization | null): { host: Side; guest: Side | null } {
@@ -42,18 +42,17 @@ export function dualSides(event: Event, hostOrg: Organization | null): { host: S
     id: event.orgId,
     name: hostOrg?.name || hostBadge?.name || 'Host',
     logo: hostOrg?.logo || hostBadge?.logo,
-    logoConfig: (hostOrg?.settings as any)?.logoConfig ?? hostBadge?.logoConfig,
     primaryColor: hostOrg?.primaryColor || hostBadge?.primaryColor,
     secondaryColor: hostOrg?.secondaryColor ?? hostBadge?.secondaryColor,
   };
   const g = (event.participatingOrgs || []).find(o => o.id !== event.orgId && o.invitation !== 'declined' && o.invitation !== 'withdrawn');
-  return { host, guest: g ? { id: g.id, name: g.name, logo: g.logo, logoConfig: g.logoConfig, primaryColor: g.primaryColor, secondaryColor: g.secondaryColor } : null };
+  return { host, guest: g ? { id: g.id, name: g.name, logo: g.logo, primaryColor: g.primaryColor, secondaryColor: g.secondaryColor } : null };
 }
 
 export function SideCrest({ side, size = 26 }: { side: Side; size?: number }) {
   return (
     <FixtureCrest
-      participant={{ id: side.id, orgId: side.id, orgLogo: side.logo, orgLogoConfig: side.logoConfig, orgPrimaryColor: side.primaryColor || undefined }}
+      participant={{ id: side.id, orgId: side.id, orgLogo: side.logo, orgPrimaryColor: side.primaryColor || undefined }}
       size={size}
     />
   );

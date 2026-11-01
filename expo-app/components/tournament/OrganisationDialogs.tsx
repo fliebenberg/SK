@@ -40,14 +40,14 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** A row of a dialog list: crest, name, a line under it, and whatever goes at the end. */
 function OrgLine({ org, sub, right, onPress }: {
-  org: { id: string; name: string; logo?: string; logoConfig?: any; primaryColor?: string };
+  org: { id: string; name: string; logo?: string; primaryColor?: string };
   sub?: string;
   right?: React.ReactNode;
   onPress?: () => void;
 }) {
   const body = (
     <>
-      <FixtureCrest participant={{ id: org.id, orgId: org.id, orgLogo: org.logo, orgLogoConfig: org.logoConfig, orgPrimaryColor: org.primaryColor }} size={26} />
+      <FixtureCrest participant={{ id: org.id, orgId: org.id, orgLogo: org.logo, orgPrimaryColor: org.primaryColor }} size={26} />
       <View className="flex-1 min-w-0">
         <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{org.name}</Text>
         {sub ? <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{sub}</Text> : null}
@@ -176,7 +176,7 @@ export function AddOrganisationsDialog({ visible, event, orgId, onClose, onRegis
             return (
               <OrgLine
                 key={org.id}
-                org={{ ...org, logoConfig: (org.settings as any)?.logoConfig }}
+                org={org}
                 sub={org.shortName}
                 onPress={already ? undefined : () => toggle(org)}
                 right={already ? <Text className="font-inter text-xs text-ink-muted">Taking part</Text> : <Tick on={isChosen(org.id)} />}
@@ -244,7 +244,7 @@ export function InviteOrganisationsDialog({ visible, event, orgId, onClose, onNo
       </Text>
       {unmanaged.map(org => (
         <View key={org.id} className="flex-row items-center gap-2.5 rounded-xl bg-sunken px-3 py-2">
-          <FixtureCrest participant={{ id: org.id, orgId: org.id, orgLogo: org.logo, orgLogoConfig: org.logoConfig, orgPrimaryColor: org.primaryColor }} size={22} />
+          <FixtureCrest participant={{ id: org.id, orgId: org.id, orgLogo: org.logo, orgPrimaryColor: org.primaryColor }} size={22} />
           <Text className="flex-1 font-inter text-[13px] text-ink-soft">Nobody manages {org.name} on ScoreKeeper yet, so nobody there can see it.</Text>
           <TouchableOpacity onPress={() => onNominate(org)} accessibilityRole="button">
             <Text className="font-inter-bold text-[13px] text-primary-ink">Nominate a contact</Text>

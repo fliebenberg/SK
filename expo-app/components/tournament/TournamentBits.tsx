@@ -629,7 +629,7 @@ export function FittedLine({ versions, className = 'font-inter text-xs text-ink-
 
 /** An organisation taking part, as the step and the Overview list it. */
 export interface OrgRow {
-  org: Pick<OrgBadge, 'id' | 'name'> & Partial<Pick<OrgBadge, 'logo' | 'logoConfig' | 'primaryColor' | 'isClaimed'>>;
+  org: Pick<OrgBadge, 'id' | 'name'> & Partial<Pick<OrgBadge, 'logo' | 'primaryColor' | 'isClaimed'>>;
   isHost: boolean;
   /** Absent for the host, whose row is not an invitation. */
   invitation?: EventOrgInvitation;
@@ -716,7 +716,7 @@ export function OrgsList({ rows, isWide, showInvitations, onOpen, openOnly, high
         const content = (
           <>
             <FixtureCrest
-              participant={{ id: row.org.id, orgId: row.org.id, orgLogo: row.org.logo, orgLogoConfig: row.org.logoConfig, orgPrimaryColor: row.org.primaryColor }}
+              participant={{ id: row.org.id, orgId: row.org.id, orgLogo: row.org.logo, orgPrimaryColor: row.org.primaryColor }}
               size={26}
             />
             <View className="flex-1 min-w-0 gap-0.5">

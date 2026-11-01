@@ -266,7 +266,6 @@ export default function OrganizationsPage() {
                           <View className="flex-row items-center gap-3 flex-1">
                             <OrgLogo 
                               logo={org.logo} 
-                              settings={org.settings} 
                               size={40} 
                               className="border bg-logo-plate rounded-full" 
                               style={{ borderColor: borderColor }}
@@ -379,7 +378,6 @@ export default function OrganizationsPage() {
                       <View className="flex-row items-center gap-3 flex-1">
                         <OrgLogo 
                           logo={org.logo} 
-                          settings={org.settings} 
                           size={40} 
                           className="border bg-logo-plate rounded-full" 
                           style={{ borderColor: borderColor }}

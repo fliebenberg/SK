@@ -14,7 +14,6 @@ export interface TeamMember {
   email?: string;
   cellphone?: string;
   image?: string;
-  imageConfig?: any;
   birthdate?: CalendarDate;
   lastInviteSentAt?: string;
   /** See `OrgProfile.lastInviteEmail`. */

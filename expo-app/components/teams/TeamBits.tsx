@@ -41,7 +41,7 @@ export function TeamCrest({ team, org, size, inactive }: {
     >
       <View className="items-center justify-center" style={{ height: art }}>
         {org?.logo ? (
-          <OrgLogo logo={org.logo} settings={org.settings} size={Math.round(art * 0.86)} />
+          <OrgLogo logo={org.logo} size={Math.round(art * 0.86)} />
         ) : (
           <Ionicons name="shield" size={Math.round(art * 0.72)} color={primary} />
         )}

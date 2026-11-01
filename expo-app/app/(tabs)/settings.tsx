@@ -21,10 +21,9 @@ import { useAuthStore } from "../../store/authStore";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect } from "react";
-import * as ImagePicker from "expo-image-picker";
-import * as ImageManipulator from "expo-image-manipulator";
 import { apiService } from "../../services/api";
 import { getAvatarUrl } from "../../services/assets";
+import { useImageUpload } from "../../hooks/useImageUpload";
 import { CONSTANTS } from '../../constants';
 import { themeColor } from '../../constants/Colors';
 
@@ -203,76 +202,32 @@ export default function SettingsScreen() {
     }
   };
 
-  // Image upload handler
-  const handlePickAvatar = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "Permission Denied",
-        "We need camera roll permissions to change your avatar.",
-      );
-      return;
-    }
-
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets?.[0]) {
-        setIsSaving(true);
-        const asset = result.assets[0];
-        const minDim = Math.min(asset.width, asset.height);
-
-        const actions: any[] = [
-          {
-            crop: {
-              originX: Math.round((asset.width - minDim) / 2),
-              originY: Math.round((asset.height - minDim) / 2),
-              width: minDim,
-              height: minDim,
-            },
-          },
-        ];
-
-        if (minDim > 1024) {
-          actions.push({
-            resize: {
-              width: 1024,
-              height: 1024,
-            },
-          });
-        }
-
-        const manipulateResult = await ImageManipulator.manipulateAsync(
-          asset.uri,
-          actions,
-          { compress: 0.8, format: ImageManipulator.SaveFormat.PNG, base64: true }
-        );
-
-        const base64Str = `data:image/png;base64,${manipulateResult.base64}`;
-
+  // A new photo is saved as soon as it is uploaded: the photo has no Save button of its own.
+  const avatarUpload = useImageUpload({
+    kind: "profiles",
+    title: "Profile photo",
+    onUploaded: async (name) => {
+      setIsSaving(true);
+      try {
         const response = await apiService.updateProfile(token!, {
-          customImage: base64Str,
+          customImage: name,
           avatarSource: "custom",
         });
-
         if (response.success) {
+          avatarUpload.saved();
           setCustomImage(response.user.customImage || "");
           setAvatarSource("custom");
           updateUser(response.user);
-          Alert.alert("Success", "Profile image uploaded successfully!");
+          Alert.alert("Success", "Profile photo updated.");
         }
+      } catch {
+        // apiFetch has shown why. The upload stays unsaved, and is deleted when the page closes.
+      } finally {
+        setIsSaving(false);
       }
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to process avatar upload");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+    },
+  });
+  const handlePickAvatar = avatarUpload.open;
 
   // Password verification
   const handleVerifyPassword = async () => {
@@ -485,6 +440,8 @@ export default function SettingsScreen() {
                   </View>
                   <TouchableOpacity
                     onPress={handlePickAvatar}
+                    accessibilityRole="button"
+                    accessibilityLabel="Change your photo"
                     className="absolute bottom-0 right-0 bg-primary w-8 h-8 rounded-full items-center justify-center border-2 border-card active:scale-95"
                   >
                     <Ionicons name="camera" size={16} color={themeColor(activeTheme === 'dark', 'on-primary')} />
@@ -1041,6 +998,7 @@ export default function SettingsScreen() {
           </GlassCard>
         </View>
       )}
+      {avatarUpload.element}
     </KeyboardAvoidingView>
   );
 }

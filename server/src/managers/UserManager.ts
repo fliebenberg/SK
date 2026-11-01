@@ -34,7 +34,7 @@ export class UserManager extends BaseManager {
   // --- Account Management (Users Table) ---
   private USER_COLUMNS = 'id, name, email, email_verified as "emailVerified", image, password_hash as "passwordHash", global_role as "globalRole", created_at as "createdAt", updated_at as "updatedAt", preferences, force_password_reset as "forcePasswordReset"';
   private USER_EMAIL_COLUMNS = 'id, user_id as "userId", email, is_primary as "isPrimary", verified_at as "verifiedAt", created_at as "createdAt"';
-  private ORG_PROFILE_COLUMNS = 'id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig", own_account_allowed as "ownAccountAllowed", own_account_set_at as "ownAccountSetAt", own_account_set_by as "ownAccountSetBy"';
+  private ORG_PROFILE_COLUMNS = 'id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", own_account_allowed as "ownAccountAllowed", own_account_set_at as "ownAccountSetAt", own_account_set_by as "ownAccountSetBy"';
   private ORG_MEMBERSHIP_COLUMNS = 'id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate"';
 
   async getUser(id: string): Promise<User | undefined> {
@@ -232,7 +232,7 @@ export class UserManager extends BaseManager {
   // --- Org Profiles (Replacement for Persons) ---
   
   async getOrgProfile(id: string): Promise<OrgProfile | undefined> {
-    const res = await this.query('SELECT id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig", own_account_allowed as "ownAccountAllowed", own_account_set_at as "ownAccountSetAt", own_account_set_by as "ownAccountSetBy" FROM org_profiles WHERE id = $1', [id]);
+    const res = await this.query('SELECT id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", own_account_allowed as "ownAccountAllowed", own_account_set_at as "ownAccountSetAt", own_account_set_by as "ownAccountSetBy" FROM org_profiles WHERE id = $1', [id]);
     return res.rows[0];
   }
 
@@ -245,14 +245,14 @@ export class UserManager extends BaseManager {
       'SELECT image FROM org_profiles WHERE org_id = $1 AND identifier = $2',
       [profile.orgId, profile.identifier]
     )).rows[0]?.image;
-    const image = await imageService.stage('profiles', profile.image || undefined, id);
+    const image = await imageService.stage('profiles', profile.image || undefined);
     const processedImage = image.value ?? null;
 
     let res;
     try {
       res = await this.query(
-        `INSERT INTO org_profiles (id, org_id, user_id, name, email, cellphone, birthdate, national_id, identifier, image, primary_role_id, image_config)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `INSERT INTO org_profiles (id, org_id, user_id, name, email, cellphone, birthdate, national_id, identifier, image, primary_role_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (org_id, identifier) DO UPDATE SET
            user_id = EXCLUDED.user_id,
            name = EXCLUDED.name,
@@ -261,9 +261,8 @@ export class UserManager extends BaseManager {
            birthdate = COALESCE(org_profiles.birthdate, EXCLUDED.birthdate),
            national_id = COALESCE(org_profiles.national_id, EXCLUDED.national_id),
            image = COALESCE(EXCLUDED.image, org_profiles.image),
-           primary_role_id = COALESCE(EXCLUDED.primary_role_id, org_profiles.primary_role_id),
-           image_config = COALESCE(EXCLUDED.image_config, org_profiles.image_config)
-         RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig", own_account_allowed as "ownAccountAllowed", own_account_set_at as "ownAccountSetAt", own_account_set_by as "ownAccountSetBy"`,
+           primary_role_id = COALESCE(EXCLUDED.primary_role_id, org_profiles.primary_role_id)
+         RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", own_account_allowed as "ownAccountAllowed", own_account_set_at as "ownAccountSetAt", own_account_set_by as "ownAccountSetBy"`,
         [
           id,
           profile.orgId,
@@ -275,8 +274,7 @@ export class UserManager extends BaseManager {
           profile.nationalId,
           profile.identifier,
           processedImage,
-          profile.primaryRoleId,
-          profile.imageConfig ? JSON.stringify(profile.imageConfig) : null
+          profile.primaryRoleId
         ]
       );
     } catch (error) {
@@ -309,8 +307,7 @@ export class UserManager extends BaseManager {
       image: 'image',
       primaryRoleId: 'primary_role_id',
       lastInviteSentAt: 'last_invite_sent_at',
-      lastInviteEmail: 'last_invite_email',
-      imageConfig: 'image_config'
+      lastInviteEmail: 'last_invite_email'
     };
 
     const clauses: string[] = [];
@@ -320,7 +317,7 @@ export class UserManager extends BaseManager {
     const previousImage = data.image !== undefined
       ? (await this.query('SELECT image FROM org_profiles WHERE id = $1', [id])).rows[0]?.image
       : undefined;
-    const image = await imageService.stage('profiles', data.image, id);
+    const image = await imageService.stage('profiles', data.image);
 
     keys.forEach(key => {
       if (map[key]) {
@@ -328,8 +325,6 @@ export class UserManager extends BaseManager {
         let val = (data as any)[key];
         if (key === 'image') {
           val = image.value;
-        } else if (key === 'imageConfig' && val !== undefined) {
-          val = val ? JSON.stringify(val) : null;
         }
         values.push(val);
         idx++;
@@ -342,7 +337,7 @@ export class UserManager extends BaseManager {
     let res;
     try {
       res = await this.query(
-        `UPDATE org_profiles SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig", own_account_allowed as "ownAccountAllowed", own_account_set_at as "ownAccountSetAt", own_account_set_by as "ownAccountSetBy"`,
+        `UPDATE org_profiles SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", own_account_allowed as "ownAccountAllowed", own_account_set_at as "ownAccountSetAt", own_account_set_by as "ownAccountSetBy"`,
         values
       );
     } catch (error) {
@@ -360,7 +355,7 @@ export class UserManager extends BaseManager {
             op.id, op.name, op.email, op.cellphone, op.birthdate, op.national_id as "nationalId",
             op.identifier as "personOrgId",
             op.org_id as "orgId", op.user_id as "userId", op.image, op.primary_role_id as "primaryRoleId",
-            op.last_invite_sent_at as "lastInviteSentAt", op.last_invite_email as "lastInviteEmail", op.image_config as "imageConfig",
+            op.last_invite_sent_at as "lastInviteSentAt", op.last_invite_email as "lastInviteEmail",
             op.own_account_allowed as "ownAccountAllowed", op.own_account_set_at as "ownAccountSetAt", op.own_account_set_by as "ownAccountSetBy",
             ${restrictedReasonSql('op', 'om.org_id')} as "restrictedReason",
             (

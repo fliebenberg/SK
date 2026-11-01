@@ -713,7 +713,7 @@ export class TournamentManager extends BaseManager {
     // still appears — which is the whole point, because its empty column is where a team is made.
     const orgs = await this.query(
       `SELECT o.id, o.name, o.short_name as "shortName", o.logo,
-              o.settings->'logoConfig' as "logoConfig", o.primary_color as "primaryColor",
+              o.primary_color as "primaryColor",
               o.is_claimed as "isClaimed"
          FROM organizations o
         WHERE o.id IN (${ORG_SCOPE})

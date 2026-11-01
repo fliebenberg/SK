@@ -17,8 +17,7 @@ import { SocketAction, Season, SeasonTeam, LeagueStandingRow, Game, Team, reseed
 import { finishedScoreLine } from '../../../../../../utils/matchScore';
 import DatePicker from '../../../../../../components/DatePicker';
 import { getOrgLogoUrl } from '../../../../../../services/assets';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
+import { useImageUpload } from '../../../../../../hooks/useImageUpload';
 import { calendarRangeStatus, formatFixtureWhen, isCalendarDate } from '../../../../../../utils/dates';
 import { pickableTeams } from '../../../../../../components/teams/TeamBits';
 import { themeColor } from '../../../../../../constants/Colors';
@@ -136,46 +135,8 @@ export default function SeasonDetails() {
 
   const computedStatus = calculateSeasonStatus(startDateStr, endDateStr);
 
-  // Logo Picker Handler
-  const handlePickSeasonLogo = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      alert('We need camera roll permissions to change the season logo.');
-      return;
-    }
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets?.[0]) {
-        const asset = result.assets[0];
-        const minDim = Math.min(asset.width, asset.height);
-        const actions = [{
-          crop: {
-            originX: Math.round((asset.width - minDim) / 2),
-            originY: Math.round((asset.height - minDim) / 2),
-            width: minDim,
-            height: minDim,
-          }
-        }];
-        if (minDim > 1024) actions.push({ resize: { width: 1024, height: 1024 } } as any);
-        const manipulateResult = await ImageManipulator.manipulateAsync(
-          asset.uri,
-          actions,
-          { compress: 0.8, format: ImageManipulator.SaveFormat.PNG, base64: true }
-        );
-        setSeasonLogo(`data:image/png;base64,${manipulateResult.base64}`);
-      }
-    } catch (err) {
-      console.error('[SeasonDetails] Error picking season logo:', err);
-      alert('Failed to process selected logo');
-    }
-  };
+  // The logo is uploaded when chosen and saved with the settings; until Save it is an unsaved change.
+  const logoUpload = useImageUpload({ kind: 'logos', title: 'Season logo', onUploaded: setSeasonLogo });
 
   // Load Data
   useEffect(() => {
@@ -262,9 +223,10 @@ export default function SeasonDetails() {
   const handleCancelSettings = useCallback(() => {
     if (settingsBaseline) {
       seedSeasonSettings(settingsBaseline);
+      logoUpload.discard();
       setActionError(null);
     }
-  }, [settingsBaseline, seedSeasonSettings]);
+  }, [settingsBaseline, seedSeasonSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useUnsavedChanges(hasSettingsChanges && !isProcessing, handleCancelSettings);
 
@@ -408,6 +370,7 @@ export default function SeasonDetails() {
         setActionError(result.message);
         return;
       }
+      logoUpload.saved();
       if (result.data) {
         setSeason(result.data);
         // The baseline moves with the save, which is what brings the Save bar down.
@@ -660,7 +623,7 @@ export default function SeasonDetails() {
               {/* Season Logo Upload */}
               <View className="items-center py-2">
                 <TouchableOpacity
-                  onPress={handlePickSeasonLogo}
+                  onPress={logoUpload.open}
                   className="w-24 h-24 rounded-2xl items-center justify-center overflow-hidden border border-line bg-canvas relative"
                   activeOpacity={0.85}
                 >
@@ -902,6 +865,7 @@ export default function SeasonDetails() {
           </View>
         </View>
       )}
+      {logoUpload.element}
     </SafeAreaView>
   );
 }

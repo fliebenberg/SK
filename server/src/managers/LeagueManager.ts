@@ -36,7 +36,7 @@ export class LeagueManager extends BaseManager {
   async createLeague(data: Omit<League, "id"> & { id?: string }): Promise<League> {
     const id = data.id || `lg-${uuidv4()}`;
     
-    const image = await imageService.stage('logos', data.logo, id);
+    const image = await imageService.stage('logos', data.logo);
     const logo = image.value;
 
     try {
@@ -66,7 +66,7 @@ export class LeagueManager extends BaseManager {
     let idx = 1;
 
     const previousLogo = data.logo !== undefined ? (await this.getLeague(id))?.logo : undefined;
-    const image = await imageService.stage('logos', data.logo, id);
+    const image = await imageService.stage('logos', data.logo);
     if (image.value !== undefined) {
       fields.push(`logo = $${idx++}`);
       values.push(image.value);
@@ -131,7 +131,7 @@ export class LeagueManager extends BaseManager {
     assertCalendarDates(data as Record<string, unknown>, SEASON_DATE_FIELDS);
     const id = data.id || `sn-${uuidv4()}`;
 
-    const image = await imageService.stage('logos', data.logo, id);
+    const image = await imageService.stage('logos', data.logo);
     const logo = image.value;
 
     try {
@@ -162,7 +162,7 @@ export class LeagueManager extends BaseManager {
     let idx = 1;
 
     const previousLogo = data.logo !== undefined ? (await this.getSeason(id))?.logo : undefined;
-    const image = await imageService.stage('logos', data.logo, id);
+    const image = await imageService.stage('logos', data.logo);
     if (image.value !== undefined) {
       fields.push(`logo = $${idx++}`);
       values.push(image.value);

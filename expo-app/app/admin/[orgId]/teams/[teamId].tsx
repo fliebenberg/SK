@@ -327,7 +327,6 @@ export default function TeamPage() {
                 key={m.membershipId}
                 name={nameOf(m)}
                 image={person ? person.image : m.image}
-                imageConfig={person ? person.imageConfig : m.imageConfig}
                 guardianship={guardianshipOf(person?.birthdate ?? m.birthdate, minorsSettings, !!guardiansByPlayer.get(m.id)?.length)}
                 orgPersonId={person?.personOrgId}
                 role={seasonLine(m.id)}
@@ -365,7 +364,6 @@ export default function TeamPage() {
                 key={m.membershipId}
                 name={nameOf(m)}
                 image={person ? person.image : m.image}
-                imageConfig={person ? person.imageConfig : m.imageConfig}
                 role={roleName(m.roleId)}
                 first={i === 0}
                 onPress={openPerson(m)}

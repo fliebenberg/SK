@@ -31,7 +31,7 @@ function OrgRow({ org, first, sportName }: { org: NearbyOrganization; first: boo
   return (
     <HomeRow
       first={first}
-      lead={<OrgMark logo={org.logo} logoConfig={org.logoConfig} primaryColor={org.primaryColor} />}
+      lead={<OrgMark logo={org.logo} primaryColor={org.primaryColor} />}
       title={org.name}
       tags={org.isPrivate ? <PrivateOrgTag /> : undefined}
       subtitle={orgLine(org, sportName)}
@@ -180,7 +180,7 @@ export function MyHomeCard({ mine, sports }: { mine: MyHome; sports: Sport[] }) 
     <HomeRow
       key={org.id}
       first={i === 0}
-      lead={<OrgMark logo={org.logo} logoConfig={org.logoConfig} primaryColor={org.primaryColor} />}
+      lead={<OrgMark logo={org.logo} primaryColor={org.primaryColor} />}
       title={org.name}
       tags={<>{org.isPrivate ? <PrivateOrgTag /> : null}<RoleBadge roleId={org.roleId} /></>}
       end={org.liveCount ? <RowTag tone="live" label={`● ${org.liveCount} live`} /> : undefined}

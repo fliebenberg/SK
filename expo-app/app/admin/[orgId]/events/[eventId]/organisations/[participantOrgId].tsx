@@ -116,7 +116,7 @@ export default function OrganisationInTournamentScreen() {
   const org: EventOrgBadge | null =
     event?.participatingOrgs?.find(o => o.id === participantOrgId) ||
     (isHost && hostOrg
-      ? { id: hostOrg.id, name: hostOrg.name, shortName: hostOrg.shortName || hostOrg.name, logo: hostOrg.logo, logoConfig: (hostOrg.settings as any)?.logoConfig, primaryColor: hostOrg.primaryColor, isClaimed: true, invitation: 'accepted' }
+      ? { id: hostOrg.id, name: hostOrg.name, shortName: hostOrg.shortName || hostOrg.name, logo: hostOrg.logo, primaryColor: hostOrg.primaryColor, isClaimed: true, invitation: 'accepted' }
       : null);
 
   // Who invited and who answered: names, so a read of their own rather than on the public event.

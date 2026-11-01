@@ -15,8 +15,7 @@ import { SocketAction, League, Sport, Organization } from '@sk/shared';
 import { getOrgLogoUrl } from '../../../../services/assets';
 import CustomSelect from '../../../../components/CustomSelect';
 import { AgeGroupPicker } from '../../../../components/AgeGroupPicker';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
+import { useImageUpload } from '../../../../hooks/useImageUpload';
 import { themeColor } from '../../../../constants/Colors';
 
 export default function OrgLeagues() {
@@ -46,58 +45,13 @@ export default function OrgLeagues() {
   // Deletion Modal State
   const [leagueToDelete, setLeagueToDelete] = useState<League | null>(null);
 
-  // Logo Picker Handler
-  const handlePickLeagueLogo = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      alert('We need camera roll permissions to set the league logo.');
-      return;
-    }
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets?.[0]) {
-        const asset = result.assets[0];
-        const minDim = Math.min(asset.width, asset.height);
-
-        const actions: any[] = [
-          {
-            crop: {
-              originX: Math.round((asset.width - minDim) / 2),
-              originY: Math.round((asset.height - minDim) / 2),
-              width: minDim,
-              height: minDim,
-            },
-          },
-        ];
-
-        if (minDim > 1024) {
-          actions.push({
-            resize: {
-              width: 1024,
-              height: 1024,
-            },
-          });
-        }
-
-        const manipulateResult = await ImageManipulator.manipulateAsync(
-          asset.uri,
-          actions,
-          { compress: 0.8, format: ImageManipulator.SaveFormat.PNG, base64: true }
-        );
-
-        setNewLeagueLogo(`data:image/png;base64,${manipulateResult.base64}`);
-      }
-    } catch (err) {
-      console.error('[Leagues] Error picking logo image:', err);
-      alert('Failed to process selected logo image');
-    }
+  // The logo is uploaded when chosen and saved with the league. Closing the form deletes an
+  // upload it did not save.
+  const logoUpload = useImageUpload({ kind: 'logos', title: 'League logo', onUploaded: setNewLeagueLogo });
+  const closeCreateModal = () => {
+    logoUpload.discard();
+    setNewLeagueLogo('');
+    setIsCreateModalOpen(false);
   };
 
   // Fetch Data & Subscribe
@@ -181,6 +135,7 @@ export default function OrgLeagues() {
       if (!result.ok) {
         setCreateError(result.message);
       } else {
+        logoUpload.saved();
         setIsCreateModalOpen(false);
         setNewLeagueName('');
         setSelectedSportId('');
@@ -226,6 +181,8 @@ export default function OrgLeagues() {
         <TouchableOpacity
           className="w-8 h-8 rounded-lg bg-primary items-center justify-center shadow-md shadow-primary/20 active:opacity-85"
           onPress={() => setIsCreateModalOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="New league"
         >
           <Ionicons name="add" size={18} color={themeColor(isDark, 'on-primary')} />
         </TouchableOpacity>
@@ -326,7 +283,7 @@ export default function OrgLeagues() {
           <View className="bg-card rounded-t-3xl p-6 border-t border-line gap-4">
             <View className="flex-row justify-between items-center pb-2 border-b border-line-soft">
               <Text className="font-orbitron-bold text-lg text-ink uppercase">New League</Text>
-              <TouchableOpacity onPress={() => setIsCreateModalOpen(false)}>
+              <TouchableOpacity onPress={closeCreateModal}>
                 <Ionicons name="close" size={24} color={themeColor(isDark, 'ink-muted')} />
               </TouchableOpacity>
             </View>
@@ -340,12 +297,14 @@ export default function OrgLeagues() {
             {/* League Logo Selector */}
             <View className="items-center py-2">
               <TouchableOpacity
-                onPress={handlePickLeagueLogo}
+                onPress={logoUpload.open}
+                accessibilityRole="button"
+                accessibilityLabel="Choose the league logo"
                 className="w-20 h-20 rounded-2xl items-center justify-center overflow-hidden border border-line bg-canvas relative"
                 activeOpacity={0.8}
               >
                 {newLeagueLogo ? (
-                  <Image source={{ uri: newLeagueLogo }} className="w-full h-full" resizeMode="cover" />
+                  <Image source={{ uri: getOrgLogoUrl(newLeagueLogo, 'medium') }} className="w-full h-full" resizeMode="cover" />
                 ) : (
                   <Ionicons name="trophy-outline" size={32} color={themeColor(isDark, 'ink-muted')} />
                 )}
@@ -411,7 +370,7 @@ export default function OrgLeagues() {
               <Button
                 title="Cancel"
                 variant="secondary"
-                onPress={() => setIsCreateModalOpen(false)}
+                onPress={closeCreateModal}
                 className="flex-1 py-3 rounded-xl"
               />
               <Button
@@ -423,6 +382,8 @@ export default function OrgLeagues() {
             </View>
           </View>
         </View>
+        {/* Inside the form's modal: iOS shows a modal opened over another only from within it. */}
+        {logoUpload.element}
       </Modal>
 
       <ConfirmationModal

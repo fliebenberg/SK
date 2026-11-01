@@ -270,7 +270,7 @@ export class TeamManager extends BaseManager {
             p.id, p.name, p.email, p.cellphone, p.birthdate, p.national_id as "nationalId",
             p.identifier as "personOrgId",
             p.org_id as "orgId", p.user_id as "userId", p.image, p.primary_role_id as "primaryRoleId",
-            p.last_invite_sent_at as "lastInviteSentAt", p.last_invite_email as "lastInviteEmail", p.image_config as "imageConfig",
+            p.last_invite_sent_at as "lastInviteSentAt", p.last_invite_email as "lastInviteEmail",
             p.own_account_allowed as "ownAccountAllowed",
             ${restrictedReasonSql('p', 't.org_id')} as "restrictedReason",
             (

@@ -75,5 +75,5 @@ export function orgName(row: Pick<TournamentStandingRow, 'orgId' | 'teamName'>, 
 export function crestOf(orgId: string | undefined, orgs: EventOrgBadge[] | undefined) {
   const org = orgs?.find(o => o.id === orgId);
   if (!org) return undefined;
-  return { id: org.id, orgId: org.id, orgLogo: org.logo, orgLogoConfig: org.logoConfig, orgPrimaryColor: org.primaryColor };
+  return { id: org.id, orgId: org.id, orgLogo: org.logo, orgPrimaryColor: org.primaryColor };
 }

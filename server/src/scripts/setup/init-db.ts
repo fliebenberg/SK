@@ -232,7 +232,6 @@ const createTables = async () => {
                 primary_role_id TEXT,
                 last_invite_sent_at TIMESTAMPTZ,
                 last_invite_email TEXT,
-                image_config JSONB DEFAULT NULL,
                 own_account_allowed BOOLEAN,
                 own_account_set_at TIMESTAMPTZ,
                 own_account_set_by TEXT REFERENCES org_profiles(id) ON DELETE SET NULL,
@@ -957,6 +956,19 @@ const createTables = async () => {
                 value TEXT NOT NULL
             );
         `);
+
+        // Uploaded images no row uses yet (see ImageService). A save claims its upload and deletes
+        // the row; the uploader leaving without saving, or the sweep after 24 hours, deletes both.
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS pending_uploads (
+                name TEXT PRIMARY KEY,
+                kind TEXT NOT NULL,
+                uploaded_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        `);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_pending_uploads_uploaded_by ON pending_uploads(uploaded_by);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_pending_uploads_created_at ON pending_uploads(created_at);`);
 
         // Stamp every existing migration as already applied.
         //

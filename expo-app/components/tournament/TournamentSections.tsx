@@ -239,7 +239,7 @@ export function useOrganisationsSection({ event, orgId, sports, divisions, entra
       };
     };
     const rows: OrgRow[] = [];
-    if (hostOrg) rows.push(rowFor({ id: hostOrg.id, name: hostOrg.name, logo: hostOrg.logo, logoConfig: (hostOrg.settings as any)?.logoConfig, primaryColor: hostOrg.primaryColor }, true));
+    if (hostOrg) rows.push(rowFor({ id: hostOrg.id, name: hostOrg.name, logo: hostOrg.logo, primaryColor: hostOrg.primaryColor }, true));
     for (const org of takingPart) {
       if (org.id === event.orgId) continue;
       rows.push(rowFor(org, false, org.invitation));
@@ -297,7 +297,7 @@ export function useOrganisationsSection({ event, orgId, sports, divisions, entra
   const badgeFor = (id: string) => takingPart.find(o => o.id === id) || null;
   // The host may have been taken off the list (it can run a tournament it does not play in).
   const hostBadge: EventOrgBadge | null = hostOrg
-    ? badgeFor(hostOrg.id) || { id: hostOrg.id, name: hostOrg.name, shortName: hostOrg.shortName || hostOrg.name, logo: hostOrg.logo, logoConfig: (hostOrg.settings as any)?.logoConfig, primaryColor: hostOrg.primaryColor, isClaimed: true, invitation: 'accepted' }
+    ? badgeFor(hostOrg.id) || { id: hostOrg.id, name: hostOrg.name, shortName: hostOrg.shortName || hostOrg.name, logo: hostOrg.logo, primaryColor: hostOrg.primaryColor, isClaimed: true, invitation: 'accepted' }
     : null;
   const dialogOrg = orgDialog && 'orgId' in orgDialog ? (orgDialog.orgId === event.orgId ? hostBadge : badgeFor(orgDialog.orgId)) : null;
 

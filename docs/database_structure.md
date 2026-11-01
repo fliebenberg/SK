@@ -219,7 +219,6 @@ Core records for individuals in an organization (players, coaches, staff).
 - `last_invite_email` (TEXT): The address that invite went to, normalised. The resend cooldown is
   per address and keyed on this, not on `email` — see `SEND_MEMBER_INVITE` in
   [api_actions.md](file:///c:/Fred/Coding/SK/docs/api_actions.md).
-- `image_config` (JSONB): crop and focal point for `image`.
 - `own_account_allowed` (BOOLEAN, **nullable on purpose**): a minor's own say in whether their
   membership carries a member's privileges (`MEMBER-3`). `NULL` means nobody has said, so the
   organisation's setting decides; `false` is an explicit refusal and restricts them even when the
@@ -781,6 +780,17 @@ Written by two scripts and by nothing else: `run-all-migrations.ts` inserts a fi
 it, and **`init-db.ts` stamps every migration filename at the end of a clean install** — so a fresh
 database is correctly "already migrated" and `db:migrate` against it is a no-op rather than a replay
 of the entire history. See [okf/database.md](file:///c:/Fred/Coding/SK/okf/database.md).
+
+### 25. `pending_uploads`
+Uploaded pictures that no row uses yet (2026-11-01). Written by
+[ImageService](file:///c:/Fred/Coding/SK/server/src/services/ImageService.ts) only: `upload` adds a
+row, the save that uses the picture deletes it, and `discardUpload` (the uploader leaving without
+saving) or the hourly sweep (after 24 hours) deletes the row and the files. See
+[okf/api_comms.md](file:///c:/Fred/Coding/SK/okf/api_comms.md) §Uploaded Images.
+- `name` (TEXT, PK): the stored image name, as saved in an image column.
+- `kind` (TEXT): `logos` or `profiles`, the area it was written to; a save into the other kind is refused.
+- `uploaded_by` (TEXT): FK → `users(id)`, `ON DELETE CASCADE`. Only they may discard it.
+- `created_at` (TIMESTAMPTZ): what the sweep reads.
 
 ---
 

@@ -19,10 +19,6 @@ export const ORG_CUSTOM_TYPE_MAX_LENGTH = 30;
  * counts. Sending the whole {@link Organization} for each is the shape `FIX-2` warned about from
  * the other direction: reading far more than the screen displays.
  *
- * `logoConfig` travels with the logo because `<OrgLogo>` cannot place one without it. It lives in
- * `organizations.settings`, and an org whose owner has nudged their crest renders wrong without
- * it — which is worse than no logo, because it looks like a bug rather than a gap.
- *
  * `primaryColor` is here for the orgs with **no** logo, which are most of them: it tints the
  * fallback mark, so a codeless-looking placeholder still carries the school's colour.
  */
@@ -32,8 +28,6 @@ export interface OrgBadge {
   /** Always set — `organizations.short_name` is `NOT NULL` since 2026-09-20. */
   shortName: string;
   logo?: string;
-  /** `null` where the org has never adjusted its logo; `<OrgLogo>` defaults it. */
-  logoConfig?: { scale?: number; x?: number; y?: number } | null;
   primaryColor?: string;
   /**
    * Whether anybody owns it. An unclaimed organisation accepts a minimum from anybody signed in — a
@@ -45,8 +39,7 @@ export interface OrgBadge {
 }
 
 /**
- * `organizations.settings`. Still an open bag for the keys that predate this type (`logoConfig`
- * and others); **a new key with any weight gets a declared shape here** rather than another loose
+ * `organizations.settings`. Still an open bag for the keys that predate this type; **a new key with any weight gets a declared shape here** rather than another loose
  * one (`PEOPLE-4`).
  */
 export type OrgSettings = Record<string, any> & {

@@ -14,11 +14,11 @@ import { FollowAddressTimezoneDialog } from '../../../components/org/TimezoneDia
 import { AddressMap } from '../../../components/address/AddressMap';
 import { MapOverlay } from '../../../components/address/MapOverlay';
 import { AddressLines } from '../../../components/address/AddressInput';
-import { ImageEditor } from '../../../components/ImageEditor';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../hooks/useSafeBack';
 import { useOrgAccess } from '../../../hooks/useOrgAccess';
+import { useImageUpload } from '../../../hooks/useImageUpload';
 import { sendAction } from '../../../services/actions';
 import { getOrgLogoUrl } from '../../../services/assets';
 import { hasPin } from '../../../services/places';
@@ -53,7 +53,6 @@ export default function OrgProfile() {
   const { data: sports } = useSocketQuery<any[]>('sports');
   const { isAdmin: canEdit } = useOrgAccess(orgId);
   const [dialog, setDialog] = useState<Dialog>(null);
-  const [isEditingLogo, setIsEditingLogo] = useState(false);
   /** The org as just saved with a new address, while asking whether the timezone should follow it. */
   const [askTimezoneFor, setAskTimezoneFor] = useState<Organization | null>(null);
 
@@ -67,19 +66,20 @@ export default function OrgProfile() {
 
   const close = () => setDialog(null);
 
-  const applyLogo = async (uri: string, config: { scale: number; x: number; y: number }) => {
-    if (!org) return;
-    const result = await sendAction(SocketAction.UPDATE_ORG, {
-      id: org.id,
-      data: {
-        // Sent only when it changed, so moving the logo inside its frame does not re-upload it.
-        ...(uri !== (org.logo || '') ? { logo: uri } : {}),
-        settings: { ...(org.settings || {}), logoConfig: config },
-      },
-    });
-    // On failure the editor stays open with the new logo, and sendAction has said why.
-    if (result.ok) setIsEditingLogo(false);
+  // A new logo is saved as soon as it is uploaded. On failure sendAction has said why, and the
+  // upload is deleted when the page closes.
+  const saveLogo = async (logo: string) => {
+    if (!org) return false;
+    const result = await sendAction(SocketAction.UPDATE_ORG, { id: org.id, data: { logo } });
+    return result.ok;
   };
+  const logoUpload = useImageUpload({
+    kind: 'logos',
+    title: 'Logo',
+    current: org?.logo ? getOrgLogoUrl(org.logo, 'large') : null,
+    onUploaded: async name => { if (await saveLogo(name)) logoUpload.saved(); },
+    onRemove: () => saveLogo(''),
+  });
 
   const afterAddressSaved = (saved: Organization) => {
     if (saved.addressTimeZone && saved.addressTimeZone !== saved.timezone) setAskTimezoneFor(saved);
@@ -169,7 +169,7 @@ export default function OrgProfile() {
           <OrgProfileBanner
             org={org}
             onEdit={canEdit ? () => setDialog('identity') : undefined}
-            onEditLogo={canEdit ? () => setIsEditingLogo(true) : undefined}
+            onEditLogo={canEdit ? logoUpload.open : undefined}
           />
           {isWide ? (
             <View className="flex-row gap-4 items-start">
@@ -187,15 +187,7 @@ export default function OrgProfile() {
       <SportsDialog org={org} visible={dialog === 'sports'} onClose={close} />
       <AddressDialog org={org} visible={dialog === 'address'} onClose={close} onSaved={afterAddressSaved} />
       <FollowAddressTimezoneDialog org={askTimezoneFor} visible={!!askTimezoneFor} onClose={() => setAskTimezoneFor(null)} />
-      <ImageEditor
-        visible={isEditingLogo}
-        imageUri={getOrgLogoUrl(org.logo, 'large')}
-        config={org.settings?.logoConfig || { scale: 1, x: 0, y: 0 }}
-        title="Adjust Logo Placement"
-        allowRemove
-        onApply={applyLogo}
-        onCancel={() => setIsEditingLogo(false)}
-      />
+      {logoUpload.element}
     </SafeAreaView>
   );
 }

@@ -8,13 +8,12 @@ import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { ReadCard } from '../../../../components/ReadCard';
 import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
-import { ImageEditor, ImageConfig } from '../../../../components/ImageEditor';
 import { InviteModal, InviteStatusCard, isOnScoreKeeper, useInviteCooldownHours } from '../../../../components/InviteToScoreKeeper';
 import { AddGuardianDialog, GuardiansCard } from '../../../../components/guardians/GuardiansCard';
 import { MinorAccessCard } from '../../../../components/guardians/MinorAccessCard';
 import { PersonBanner } from '../../../../components/people/PersonBanner';
 import { ContactDialog, IdentityDialog, OrgRole, PersonalDialog, rolesTheyMayGive } from '../../../../components/people/PersonDialogs';
-import { guardianshipOf, parseImageConfig } from '../../../../components/people/PersonBits';
+import { guardianshipOf } from '../../../../components/people/PersonBits';
 import { useOrgMembers } from '../../../../hooks/useOrgMembers';
 import { useOrgGuardians } from '../../../../hooks/useOrgGuardians';
 import { useOrgMinorsSettings } from '../../../../hooks/useOrgMinorsSettings';
@@ -30,8 +29,9 @@ import { themeColor } from '../../../../constants/Colors';
 import { PageBody } from '../../../../components/PageBody';
 import { useOrgAccess } from '../../../../hooks/useOrgAccess';
 import { useTeamRoster } from '../../../../hooks/useTeamRoster';
+import { useImageUpload } from '../../../../hooks/useImageUpload';
 
-type Dialog = 'identity' | 'contact' | 'personal' | 'photo' | 'guardian' | 'remove' | null;
+type Dialog = 'identity' | 'contact' | 'personal' | 'guardian' | 'remove' | null;
 
 /**
  * One person in the organisation (docs/people.md).
@@ -81,6 +81,21 @@ export default function PersonPage() {
   const close = () => setDialog(null);
   const back = () => safeBack(`/admin/${orgId}/people`);
 
+  // A new photo is saved as soon as it is uploaded. On failure sendAction has said why, and the
+  // upload is deleted when the page closes.
+  const savePhoto = async (image: string) => {
+    if (!member) return false;
+    const result = await sendAction(SocketAction.UPDATE_ORG_PROFILE, { id: member.id, data: { image } });
+    return result.ok;
+  };
+  const photoUpload = useImageUpload({
+    kind: 'profiles',
+    title: 'Photo',
+    current: member?.image ? getAvatarUrl(member.image, 'large') : null,
+    onUploaded: async name => { if (await savePhoto(name)) photoUpload.saved(); },
+    onRemove: () => savePhoto(''),
+  });
+
   if (isMembersLoading || isRolesLoading || !member) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
@@ -95,15 +110,6 @@ export default function PersonPage() {
       </SafeAreaView>
     );
   }
-
-  const applyPhoto = (uri: string, config: ImageConfig) => {
-    close();
-    sendAction(SocketAction.UPDATE_ORG_PROFILE, {
-      id: member.id,
-      // Sent only when it changed, so moving the photo inside its frame does not re-upload it.
-      data: { ...(uri !== (member.image || '') ? { image: uri } : {}), imageConfig: config },
-    });
-  };
 
   const remove = async () => {
     setIsRemoving(true);
@@ -120,7 +126,7 @@ export default function PersonPage() {
   };
 
   const menu: OverflowMenuItem[] = [
-    { label: 'Edit photo', description: 'Upload, move or remove their photo.', icon: 'camera-outline', onPress: () => setDialog('photo') },
+    { label: 'Edit photo', description: 'Upload, crop or remove their photo.', icon: 'camera-outline', onPress: photoUpload.open },
     ...(guardians.length === 0
       ? [{ label: 'Add guardian', description: 'Record a parent or other adult who answers for them.', icon: 'people-outline' as const, onPress: () => setDialog('guardian') }]
       : []),
@@ -184,7 +190,7 @@ export default function PersonPage() {
             guardianship={guardianship}
             isNarrow={isNarrow}
             onEdit={canEdit ? () => setDialog('identity') : undefined}
-            onEditPhoto={canEdit ? () => setDialog('photo') : undefined}
+            onEditPhoto={canEdit ? photoUpload.open : undefined}
           />
           {!isWide ? (
             <View className="gap-3">{guardiansCard}{access}{contact}{account}{personal}</View>
@@ -213,15 +219,7 @@ export default function PersonPage() {
         hasGuardians={false}
         onClose={close}
       />
-      <ImageEditor
-        visible={dialog === 'photo'}
-        imageUri={getAvatarUrl(member.image, 'large') || member.image || ''}
-        config={parseImageConfig(member.imageConfig)}
-        title="Edit photo"
-        allowRemove
-        onApply={applyPhoto}
-        onCancel={close}
-      />
+      {photoUpload.element}
       <InviteModal
         person={isInviteOpen ? member : null}
         guardians={guardians}

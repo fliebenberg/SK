@@ -16,8 +16,7 @@ import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, League, Season, Sport } from '@sk/shared';
 import DatePicker from '../../../../components/DatePicker';
 import { getOrgLogoUrl } from '../../../../services/assets';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
+import { useImageUpload } from '../../../../hooks/useImageUpload';
 import CustomSelect from '../../../../components/CustomSelect';
 import { calendarRangeStatus, formatDateRange, isCalendarDate } from '../../../../utils/dates';
 import { themeColor } from '../../../../constants/Colors';
@@ -62,85 +61,14 @@ export default function LeagueDetails() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  // Logo pickers
-  const handlePickLeagueLogo = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      alert('We need camera roll permissions to change the league logo.');
-      return;
-    }
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets?.[0]) {
-        const asset = result.assets[0];
-        const minDim = Math.min(asset.width, asset.height);
-        const actions = [{
-          crop: {
-            originX: Math.round((asset.width - minDim) / 2),
-            originY: Math.round((asset.height - minDim) / 2),
-            width: minDim,
-            height: minDim,
-          }
-        }];
-        if (minDim > 1024) actions.push({ resize: { width: 1024, height: 1024 } } as any);
-        const manipulateResult = await ImageManipulator.manipulateAsync(
-          asset.uri,
-          actions,
-          { compress: 0.8, format: ImageManipulator.SaveFormat.PNG, base64: true }
-        );
-        setLeagueLogo(`data:image/png;base64,${manipulateResult.base64}`);
-      }
-    } catch (err) {
-      console.error('[LeagueDetails] Error picking league logo:', err);
-      alert('Failed to process selected logo');
-    }
-  };
-
-  const handlePickSeasonLogo = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      alert('We need camera roll permissions to set the season logo.');
-      return;
-    }
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets?.[0]) {
-        const asset = result.assets[0];
-        const minDim = Math.min(asset.width, asset.height);
-        const actions = [{
-          crop: {
-            originX: Math.round((asset.width - minDim) / 2),
-            originY: Math.round((asset.height - minDim) / 2),
-            width: minDim,
-            height: minDim,
-          }
-        }];
-        if (minDim > 1024) actions.push({ resize: { width: 1024, height: 1024 } } as any);
-        const manipulateResult = await ImageManipulator.manipulateAsync(
-          asset.uri,
-          actions,
-          { compress: 0.8, format: ImageManipulator.SaveFormat.PNG, base64: true }
-        );
-        setNewSeasonLogo(`data:image/png;base64,${manipulateResult.base64}`);
-      }
-    } catch (err) {
-      console.error('[LeagueDetails] Error picking season logo:', err);
-      alert('Failed to process selected logo');
-    }
+  // Logos are uploaded when chosen and saved with the form. A league logo is the page's unsaved
+  // change until Save; the new season's lasts as long as its form.
+  const leagueLogoUpload = useImageUpload({ kind: 'logos', title: 'League logo', onUploaded: setLeagueLogo });
+  const seasonLogoUpload = useImageUpload({ kind: 'logos', title: 'Season logo', onUploaded: setNewSeasonLogo });
+  const closeCreateModal = () => {
+    seasonLogoUpload.discard();
+    setNewSeasonLogo('');
+    setIsCreateModalOpen(false);
   };
 
   // Season Deletion State
@@ -224,9 +152,10 @@ export default function LeagueDetails() {
       setLeagueName(league.name);
       setJoinPolicy(league.joinPolicy);
       setLeagueLogo(league.logo || '');
+      leagueLogoUpload.discard();
       setEditError(null);
     }
-  }, [league]);
+  }, [league]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useUnsavedChanges(hasLeagueChanges && !isSavingLeague, handleCancelLeague);
 
@@ -257,6 +186,7 @@ export default function LeagueDetails() {
         setEditError(result.message);
         return;
       }
+      leagueLogoUpload.saved();
       // Direct merge to local state
       if (result.data) setLeague(result.data);
       useUnsavedChangesStore.getState().clear();
@@ -302,6 +232,7 @@ export default function LeagueDetails() {
       if (!result.ok) {
         setCreateError(result.message);
       } else {
+        seasonLogoUpload.saved();
         setIsCreateModalOpen(false);
         setNewSeasonName('');
         setStartDateStr('');
@@ -365,7 +296,7 @@ export default function LeagueDetails() {
               {/* League Logo Upload */}
               <View className="items-center py-2">
                 <TouchableOpacity
-                  onPress={handlePickLeagueLogo}
+                  onPress={leagueLogoUpload.open}
                   className="w-24 h-24 rounded-2xl items-center justify-center overflow-hidden border border-line bg-canvas relative"
                   activeOpacity={0.85}
                 >
@@ -529,13 +460,15 @@ export default function LeagueDetails() {
         </ScrollView>
       )}
 
+      {leagueLogoUpload.element}
+
       {/* Create Season Modal */}
       <Modal visible={isCreateModalOpen} animationType="slide" transparent>
         <View className="flex-1 justify-end bg-overlay/60">
           <View className="bg-card rounded-t-3xl p-6 border-t border-line gap-4 max-h-[90%]">
             <View className="flex-row justify-between items-center pb-2 border-b border-line-soft">
               <Text className="font-orbitron-bold text-lg text-ink uppercase">New Season</Text>
-              <TouchableOpacity onPress={() => setIsCreateModalOpen(false)}>
+              <TouchableOpacity onPress={closeCreateModal}>
                 <Ionicons name="close" size={24} color={themeColor(isDark, 'ink-muted')} />
               </TouchableOpacity>
             </View>
@@ -550,12 +483,12 @@ export default function LeagueDetails() {
               {/* Season Logo Upload */}
               <View className="items-center py-1">
                 <TouchableOpacity
-                  onPress={handlePickSeasonLogo}
+                  onPress={seasonLogoUpload.open}
                   className="w-20 h-20 rounded-2xl items-center justify-center overflow-hidden border border-line bg-canvas relative"
                   activeOpacity={0.8}
                 >
                   {newSeasonLogo ? (
-                    <Image source={{ uri: newSeasonLogo }} className="w-full h-full" resizeMode="cover" />
+                    <Image source={{ uri: getOrgLogoUrl(newSeasonLogo) }} className="w-full h-full" resizeMode="cover" />
                   ) : (
                     <Ionicons name="calendar-outline" size={32} color={themeColor(isDark, 'ink-muted')} />
                   )}
@@ -658,7 +591,7 @@ export default function LeagueDetails() {
               <Button
                 title="Cancel"
                 variant="secondary"
-                onPress={() => setIsCreateModalOpen(false)}
+                onPress={closeCreateModal}
                 className="flex-1 py-3 rounded-xl"
               />
               <Button
@@ -670,6 +603,8 @@ export default function LeagueDetails() {
             </View>
           </View>
         </View>
+        {/* Inside the form's modal: iOS shows a modal opened over another only from within it. */}
+        {seasonLogoUpload.element}
       </Modal>
 
       <ConfirmationModal

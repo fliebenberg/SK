@@ -106,8 +106,8 @@ export function DualPairingCard({ event, division, orgId, entrants, games, canEd
     if (result.ok) setConfirm(null);
   };
 
-  const crest = (org?: { id: string; logo?: string; logoConfig?: any; primaryColor?: string }, size = 20) =>
-    org ? <FixtureCrest participant={{ id: org.id, orgId: org.id, orgLogo: org.logo, orgLogoConfig: org.logoConfig, orgPrimaryColor: org.primaryColor }} size={size} /> : null;
+  const crest = (org?: { id: string; logo?: string; primaryColor?: string }, size = 20) =>
+    org ? <FixtureCrest participant={{ id: org.id, orgId: org.id, orgLogo: org.logo, orgPrimaryColor: org.primaryColor }} size={size} /> : null;
 
   /** Who else a team could play: the side's teams, each saying whom it already plays. */
   const choices = (side: 0 | 1, current: string | null, onChoose: (id: string) => void): OverflowMenuItem[] =>

@@ -25,7 +25,7 @@ const LINK_COLUMNS = `
   pg.player_profile_id as "playerProfileId", pg.relationship, pg.is_primary as "isPrimary",
   pg.start_date as "startDate", pg.end_date as "endDate", pg.created_by_profile_id as "createdByProfileId",
   g.name as "guardianName", g.email as "guardianEmail", g.cellphone as "guardianCellphone",
-  g.image as "guardianImage", g.image_config as "guardianImageConfig",
+  g.image as "guardianImage",
   g.last_invite_sent_at as "guardianLastInviteSentAt", g.last_invite_email as "guardianLastInviteEmail",
   (
     g.user_id IS NOT NULL
@@ -290,7 +290,7 @@ export class GuardianManager extends BaseManager {
     const res = await this.query(
       `SELECT pg.player_profile_id AS "playerProfileId", pg.relationship, pg.is_primary AS "isPrimary",
               p.org_id AS "orgId", o.name AS "orgName", o.settings AS "orgSettings",
-              p.name, p.image, p.image_config AS "imageConfig", p.birthdate, p.email,
+              p.name, p.image, p.birthdate, p.email,
               p.last_invite_sent_at AS "lastInviteSentAt", p.last_invite_email AS "lastInviteEmail",
               p.own_account_allowed AS "ownAccountAllowed", p.own_account_set_at AS "ownAccountSetAt",
               setter.name AS "ownAccountSetByName",

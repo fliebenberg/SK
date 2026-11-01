@@ -238,7 +238,7 @@ export function FixtureCrest({ participant, size = 26, placeholder }: {
       importantForAccessibility="no-hide-descendants"
     >
       {participant.orgLogo ? (
-        <OrgLogo logo={participant.orgLogo} settings={{ logoConfig: participant.orgLogoConfig || undefined }} size={Math.round(size * 0.86)} />
+        <OrgLogo logo={participant.orgLogo} size={Math.round(size * 0.86)} />
       ) : (
         <Ionicons name="shield" size={Math.round(size * 0.72)} color={primary} />
       )}

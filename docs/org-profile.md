@@ -25,7 +25,7 @@ Who the org is, and how everyone else sees it. [profile.tsx](file:///c:/Fred/Cod
   in the org's colours. Logo; the name with the short code directly under it in the same font (it
   is the name's short form, not a badge); a footer row with the type and the location (city and
   province, city only on a phone), each with its own icon; and Edit at the end of that row, so on a
-  phone the name has the whole top row. Tapping the logo opens the logo editor.
+  phone the name has the whole top row. Tapping the logo opens the picture library and the crop dialog; with a logo set, it first shows the logo with Remove.
 - **About** — the description. Optional; shown on the public org page.
 - **Address** — see §3.
 - **Sports** — read-only chips. Edit opens the sports list; removing a sport with active teams

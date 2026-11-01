@@ -41,7 +41,7 @@ export function OrgProfileBanner({ org, onEdit, onEditLogo, action }: {
       style={{ width: logoSize, height: logoSize }}
     >
       {org.logo ? (
-        <OrgLogo logo={org.logo} settings={org.settings} size={logoSize} />
+        <OrgLogo logo={org.logo} size={logoSize} />
       ) : (
         <Ionicons name="business" size={logoSize * 0.45} color={ink} />
       )}

@@ -37,6 +37,9 @@ export interface UserPayload {
   isAdminOrCoach?: boolean;
 }
 
+/** The kinds of uploaded image: logos are public, profiles (people's pictures) are not. */
+export type ImageKind = 'logos' | 'profiles';
+
 /** Lets the app load people's pictures from secure/ (MEDIA-1); see services/assets.ts. */
 export interface AssetToken {
   token: string;
@@ -179,7 +182,49 @@ export const apiService = {
   },
 
   /**
-   * Update name, custom base64 image avatar, avatar source, or theme preference
+   * Upload a cropped picture (see components/images/). Answers the name of an unsaved upload: send
+   * it in the image field of the save, then `useImageUpload` stops tracking it. Unsaved uploads are
+   * discarded with `discardUpload`, or by the server after a day.
+   */
+  async uploadImage(
+    token: string,
+    kind: ImageKind,
+    file: { uri: string; mimeType: string },
+    options?: ApiRequestOptions
+  ): Promise<{ name: string }> {
+    const body = await (await fetch(file.uri)).blob();
+    return apiFetch(
+      `${API_BASE_URL}/api/uploads?kind=${kind}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': file.mimeType,
+          'Authorization': `Bearer ${token}`,
+        },
+        body,
+      },
+      options
+    );
+  },
+
+  /**
+   * Discard an unsaved upload. `keepalive` lets the request finish while the page is closing.
+   * Never toasts: there is nothing the person can do about it, and the server sweeps what is left.
+   */
+  async discardUpload(token: string, name: string, keepalive = false): Promise<void> {
+    try {
+      await fetch(`${API_BASE_URL}/api/uploads/${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+        keepalive,
+      });
+    } catch (err) {
+      console.warn('[API] Could not discard an unsaved upload; the server will sweep it:', err);
+    }
+  },
+
+  /**
+   * Update name, custom image (the name of an upload), avatar source, or theme preference
    */
   async updateProfile(
     token: string,

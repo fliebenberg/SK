@@ -211,7 +211,7 @@ function PersonRow({ member, isWide, first, guardians, guardianCount, guardiansh
   if (!isWide) {
     return (
       <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" className={`flex-row items-center gap-3 px-3 py-2.5 ${border}`}>
-        <PersonAvatar name={member.name} image={member.image} imageConfig={member.imageConfig} size={36} />
+        <PersonAvatar name={member.name} image={member.image} size={36} />
         <View className="flex-1 min-w-0">
           <View className="flex-row items-center gap-1.5">
             <Text className="font-inter-semibold text-sm text-ink flex-shrink" numberOfLines={1}>{member.name}</Text>
@@ -237,7 +237,7 @@ function PersonRow({ member, isWide, first, guardians, guardianCount, guardiansh
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" className={`flex-row items-center gap-3 px-4 py-2.5 ${border}`}>
-      <PersonAvatar name={member.name} image={member.image} imageConfig={member.imageConfig} size={36} />
+      <PersonAvatar name={member.name} image={member.image} size={36} />
       <View className="flex-1 min-w-0">
         <View className="flex-row items-center gap-2 flex-wrap">
           <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{member.name}</Text>

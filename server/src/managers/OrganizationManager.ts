@@ -297,7 +297,7 @@ export class OrganizationManager extends BaseManager {
       addressId = newAddr.id;
     }
 
-    const image = await imageService.stage('logos', org.logo, id);
+    const image = await imageService.stage('logos', org.logo);
     const logo = image.value ?? null;
 
     try {
@@ -436,7 +436,7 @@ export class OrganizationManager extends BaseManager {
     const previousLogo = data.logo !== undefined
       ? (await this.query('SELECT logo FROM organizations WHERE id = $1', [id])).rows[0]?.logo
       : undefined;
-    const image = await imageService.stage('logos', data.logo, id);
+    const image = await imageService.stage('logos', data.logo);
     if (image.value !== undefined) data.logo = image.value ?? '';
 
     try {

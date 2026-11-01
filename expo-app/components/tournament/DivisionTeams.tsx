@@ -60,7 +60,7 @@ export function teamFixtures(entrant: TournamentEntrant, games: GameSummary[]) {
 function TeamCrest({ org, size = 28, placeholder }: { org?: OrgBadge; size?: number; placeholder?: boolean }) {
   return (
     <FixtureCrest
-      participant={org ? { id: org.id, orgId: org.id, orgLogo: org.logo, orgLogoConfig: org.logoConfig, orgPrimaryColor: org.primaryColor } : undefined}
+      participant={org ? { id: org.id, orgId: org.id, orgLogo: org.logo, orgPrimaryColor: org.primaryColor } : undefined}
       size={size}
       placeholder={placeholder || !org}
     />

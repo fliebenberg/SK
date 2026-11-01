@@ -168,7 +168,6 @@ export default function OrgControlDashboard() {
             <View className="flex-row items-center gap-3 flex-1">
               <OrgLogo 
                 logo={orgData.logo} 
-                settings={orgData.settings} 
                 size={40} 
                 className="border bg-logo-plate rounded-full" 
                 style={{ borderColor: borderColor }}

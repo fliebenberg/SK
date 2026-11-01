@@ -64,7 +64,7 @@ const EVENT_PIN_JOINS = `
 
 /** The organisation fields Home lists, from `organizations o` and `addresses a`. */
 const ORG_FIELDS = `
-  o.id, o.name, o.short_name AS "shortName", o.logo, o.settings->'logoConfig' AS "logoConfig",
+  o.id, o.name, o.short_name AS "shortName", o.logo,
   o.primary_color AS "primaryColor", o.is_private AS "isPrivate",
   COALESCE(NULLIF(a.address_line_2, ''), NULLIF(a.city, '')) AS locality,
   ARRAY(SELECT sport_id FROM organization_sports WHERE org_id = o.id) AS "sportIds",
@@ -307,7 +307,7 @@ export class HomeManager extends BaseManager {
 
     const [orgs, teams] = await Promise.all([
       this.query(`
-        SELECT o.id, o.name, o.short_name AS "shortName", o.logo, o.settings->'logoConfig' AS "logoConfig",
+        SELECT o.id, o.name, o.short_name AS "shortName", o.logo,
                o.primary_color AS "primaryColor", o.is_private AS "isPrivate",
                (SELECT COUNT(DISTINCT g.id)::int FROM games g JOIN events e ON e.id = g.event_id
                  WHERE g.status = 'Live'

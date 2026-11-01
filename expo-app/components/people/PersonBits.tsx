@@ -8,24 +8,8 @@ import { getAvatarUrl } from '../../services/assets';
  * same thing in the same way (docs/people.md).
  */
 
-export type ImageConfig = { scale: number; x: number; y: number };
-
-/** A stored image config, which older rows hold as a JSON string. Never throws. */
-export function parseImageConfig(config: any): ImageConfig {
-  if (!config) return { scale: 1, x: 0, y: 0 };
-  if (typeof config === 'string') {
-    try {
-      return JSON.parse(config);
-    } catch {
-      return { scale: 1, x: 0, y: 0 };
-    }
-  }
-  return { scale: config.scale ?? 1, x: config.x ?? 0, y: config.y ?? 0 };
-}
-
-/** A person's photo, placed by its image config, or their initial when there is none. */
-export function PersonAvatar({ name, image, imageConfig, size }: { name: string; image?: string | null; imageConfig?: any; size: number }) {
-  const conf = parseImageConfig(imageConfig);
+/** A person's photo, or their initial when there is none. */
+export function PersonAvatar({ name, image, size }: { name: string; image?: string | null; size: number }) {
   const initialSize = Math.round(size * 0.38);
   return (
     <View
@@ -33,9 +17,7 @@ export function PersonAvatar({ name, image, imageConfig, size }: { name: string;
       style={{ width: size, height: size }}
     >
       {image ? (
-        <View style={{ width: size, height: size, transform: [{ scale: conf.scale }, { translateX: conf.x * size }, { translateY: conf.y * size }] }}>
-          <Image source={{ uri: getAvatarUrl(image, size > 48 ? 'large' : 'thumb') }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-        </View>
+        <Image source={{ uri: getAvatarUrl(image, size > 48 ? 'large' : 'thumb') }} style={{ width: size, height: size }} resizeMode="cover" />
       ) : (
         <Text className="font-inter-bold text-primary-ink" style={{ fontSize: initialSize }}>
           {(name || '?').charAt(0).toUpperCase()}

@@ -57,15 +57,14 @@ export function HomeRow({ lead, title, tags, subtitle, end, first, onPress, labe
 }
 
 /** An organisation's logo in a round plate, for a row. */
-export function OrgMark({ logo, logoConfig, primaryColor, size = 36 }: {
+export function OrgMark({ logo, primaryColor, size = 36 }: {
   logo?: string | null;
-  logoConfig?: Record<string, any> | null;
   primaryColor?: string | null;
   size?: number;
 }) {
   return (
     <View className="rounded-full bg-sunken items-center justify-center" style={{ width: size, height: size }}>
-      <OrgLogo logo={logo || undefined} settings={logoConfig ? { logoConfig } : undefined} primaryColor={primaryColor || undefined} size={Math.round(size * 0.72)} />
+      <OrgLogo logo={logo || undefined} primaryColor={primaryColor || undefined} size={Math.round(size * 0.72)} />
     </View>
   );
 }

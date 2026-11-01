@@ -124,7 +124,7 @@ function OrgAdminWorkspace({ grant }: { grant: boolean }) {
             <Ionicons name="close-outline" size={22} color={fabTextColor} />
           ) : (
             orgData?.logo ? (
-              <OrgLogo logo={orgData.logo} settings={orgData.settings} size={44} />
+              <OrgLogo logo={orgData.logo} size={44} />
             ) : (
               <Ionicons name="grid" size={22} color={fabTextColor} />
             )
@@ -171,7 +171,6 @@ function OrgAdminWorkspace({ grant }: { grant: boolean }) {
                   <View className="z-10 flex-shrink-0">
                     <OrgLogo 
                       logo={orgData.logo} 
-                      settings={orgData.settings} 
                       size={32} 
                       className="bg-on-fill/10 border border-on-fill/20"
                       primaryColor={themeColor(isDark, 'on-fill')}

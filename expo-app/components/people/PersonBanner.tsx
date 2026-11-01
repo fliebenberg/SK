@@ -33,7 +33,7 @@ export function PersonBanner({ member, guardianship, isNarrow, onEdit, onEditPho
         accessibilityRole={onEditPhoto ? 'button' : undefined}
         accessibilityLabel={onEditPhoto ? 'Edit photo' : undefined}
       >
-        <PersonAvatar name={member.name} image={member.image} imageConfig={member.imageConfig} size={size} />
+        <PersonAvatar name={member.name} image={member.image} size={size} />
         {onEditPhoto ? (
           <View className="absolute -right-0.5 -bottom-0.5 w-6 h-6 rounded-full bg-primary border-2 border-card items-center justify-center">
             <Ionicons name="camera" size={11} color={themeColor(isDark, 'on-primary')} />

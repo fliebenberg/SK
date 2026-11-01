@@ -30,7 +30,7 @@ import crypto from 'crypto';
 import { emailService } from './services/EmailService';
 import { assetBaseUrl, assetStorage, localAssetMountPath } from './services/assetStorage';
 import { issueAssetToken, requireAssetToken } from './services/assetAccess';
-import { imageService } from './services/ImageService';
+import { imageService, isImageFolder, UploadError, UPLOAD_RULES } from './services/ImageService';
 import { userManager } from './managers/UserManager';
 import { accessManager } from './managers/AccessManager';
 import { addGameOfficial, listGameOfficials, removeGameOfficial } from './managers/gameOfficials';
@@ -88,7 +88,14 @@ dotenv.config();
 
 const app = express();
 app.use(cors());
+// The default 100kb. Pictures never travel in JSON: they go to POST /api/uploads on their own.
 app.use(express.json());
+app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ success: false, message: 'That request is too large.' });
+  }
+  next(err);
+});
 // Uploaded images are served here only while they live on this machine (MEDIA-1). Only the two
 // areas are served: `public/` to anyone, `secure/` with an asset token. Names change on every
 // upload, so a public file never changes and can be cached for long.
@@ -420,7 +427,7 @@ app.patch('/auth/profile', requireAuth, async (req: any, res) => {
     }
 
     // An empty customImage leaves the picture alone, as it always has.
-    const image = await imageService.stage('profiles', customImage || undefined, userId);
+    const image = await imageService.stage('profiles', customImage || undefined);
     try {
       if (image.value) {
         await pool.query("UPDATE users SET custom_image = $1 WHERE id = $2", [image.value, userId]);
@@ -491,8 +498,54 @@ app.patch('/auth/profile', requireAuth, async (req: any, res) => {
       }
     });
   } catch (error) {
+    if (error instanceof UploadError) return res.status(error.status).json({ message: error.message });
     console.error("PATCH /auth/profile error:", error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/uploads?kind=logos|profiles[&keepMetadata=1] — one picture as the raw request body
+ * (`Content-Type: image/jpeg`, `image/png` or `image/webp`). Answers `{ name }`, an unsaved upload
+ * that a save claims by sending the name in the image field. See ImageService.upload for the rules
+ * and okf/api_comms.md §Uploaded Images for the whole flow.
+ */
+const uploadBody = express.raw({ type: UPLOAD_RULES.formats.map(f => `image/${f}`), limit: UPLOAD_RULES.maxBytes });
+app.post('/api/uploads', requireAuth, (req: any, res: any, next: any) => {
+  uploadBody(req, res, (err?: any) => {
+    if (err?.type === 'entity.too.large') {
+      return res.status(413).json({ message: 'That picture is too large to upload. Choose a smaller one.' });
+    }
+    next(err);
+  });
+}, async (req: any, res) => {
+  try {
+    const kind = req.query.kind;
+    if (!isImageFolder(kind)) return res.status(400).json({ message: 'Say what the picture is for.' });
+    if (!Buffer.isBuffer(req.body) || !req.body.length) {
+      return res.status(415).json({ message: 'That file is not a picture we can read. Use a JPEG, PNG or WebP image.' });
+    }
+    const name = await imageService.upload(kind, req.body, req.userId, { keepMetadata: req.query.keepMetadata === '1' });
+    return res.status(201).json({ name });
+  } catch (error) {
+    if (error instanceof UploadError) return res.status(error.status).json({ message: error.message });
+    console.error("POST /api/uploads error:", error);
+    return res.status(500).json({ message: "The picture could not be uploaded." });
+  }
+});
+
+/**
+ * DELETE /api/uploads/:name — the uploader discards an unsaved upload (cancelled, replaced, or
+ * leaving without saving). Saved images and other people's uploads are left alone, and either way
+ * the answer is 204: there is nothing more the app can do about it.
+ */
+app.delete('/api/uploads/:name', requireAuth, async (req: any, res) => {
+  try {
+    await imageService.discardUpload(req.params.name, req.userId);
+    return res.status(204).end();
+  } catch (error) {
+    console.error("DELETE /api/uploads error:", error);
+    return res.status(500).json({ message: "The picture could not be removed." });
   }
 });
 
@@ -4289,6 +4342,13 @@ io.on('connection', (socket) => {
 gameEventManager.rehydrateDisputes().catch(err => {
   console.error('[Dispute System] Failed to rehydrate disputes on startup:', err);
 });
+
+// Unsaved uploads older than a day: on start, then hourly.
+const sweepPendingUploads = () => imageService.sweepPendingUploads()
+  .then(n => { if (n) console.log(`[Uploads] Swept ${n} unsaved upload(s)`); })
+  .catch(err => console.error('[Uploads] Failed to sweep unsaved uploads:', err));
+void sweepPendingUploads();
+setInterval(sweepPendingUploads, 3600e3).unref();
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -7,7 +7,6 @@ import { useActiveTheme } from '../store/settingsStore';
 import { themeColor } from '../constants/Colors';
 interface OrgLogoProps {
   logo?: string;
-  settings?: Record<string, any>;
   size?: 'sm' | 'md' | 'lg' | 'xl' | number;
   className?: string;
   primaryColor?: string;
@@ -17,7 +16,6 @@ interface OrgLogoProps {
 
 export function OrgLogo({ 
   logo, 
-  settings, 
   size = 'md', 
   className = '', 
   primaryColor, 
@@ -59,20 +57,6 @@ export function OrgLogo({
     }
   }
 
-  let parsedSettings = settings;
-  if (typeof settings === 'string') {
-    try {
-      parsedSettings = JSON.parse(settings);
-    } catch (e) {
-      parsedSettings = {};
-    }
-  }
-
-  const logoConfig = parsedSettings?.logoConfig || { scale: 1, x: 0, y: 0 };
-  const scale = logoConfig.scale ?? 1;
-  const x = logoConfig.x ?? 0;
-  const y = logoConfig.y ?? 0;
-
   return (
     <View 
       style={[
@@ -89,26 +73,11 @@ export function OrgLogo({
       ]}
     >
       {logo ? (
-        <View
-          style={{
-            width: '100%',
-            height: '100%',
-            transform: [
-              { scale: scale },
-              { translateX: x * dim },
-              { translateY: y * dim }
-            ]
-          }}
-        >
-          <Image 
-            source={{ uri: getOrgLogoUrl(logo, typeof size === 'string' && size === 'sm' ? 'thumb' : 'medium') }} 
-            style={{ 
-              width: '100%', 
-              height: '100%',
-            }}
-            resizeMode="cover"
-          />
-        </View>
+        <Image
+          source={{ uri: getOrgLogoUrl(logo, typeof size === 'string' && size === 'sm' ? 'thumb' : 'medium') }}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="cover"
+        />
       ) : (
         <View 
           className="w-full h-full items-center justify-center bg-sunken"
