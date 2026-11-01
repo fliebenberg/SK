@@ -10,6 +10,7 @@ import { useActiveTheme } from '../store/settingsStore';
 
 import { deviceTimeZone } from '../utils/dates';
 import { BrandColorsField, brandColorsProblem } from './org/BrandColorsField';
+import { PossibleDuplicateOrgs, usePossibleDuplicateOrgs } from './org/PossibleDuplicateOrgs';
 import { themeColor } from '../constants/Colors';
 
 /**
@@ -35,6 +36,10 @@ import { themeColor } from '../constants/Colors';
  * **The contact email is handed back, not sent.** One caller invites the contact straight away;
  * another holds the invitation until the form around it is saved. Which is right depends on the
  * caller, so the dialog creates the organisation and returns the address, and the caller decides.
+ *
+ * **A name close to one already here is asked about** (`ORG-15`, 2026-11-01), as on *Add
+ * organisation*. Whoever is here wants an organisation for their game or tournament, so a match is
+ * simply used, in place of registering one. A private one is not offered: it plays nobody else.
  */
 export interface RegisterOrgModalProps {
   isOpen: boolean;
@@ -43,11 +48,16 @@ export interface RegisterOrgModalProps {
   initialName?: string;
   /** The sport it plays, if the caller knows, so the new organisation is offered for it. */
   sportId?: string;
-  /** Created. `contactEmail` is the caller's to invite now, later, or not at all. */
-  onRegistered: (org: Organization, contactEmail: string) => void;
+  /** Already where this is being chosen for, so shown but not offered: "Taking part". */
+  alreadyInIds?: Set<string>;
+  /**
+   * The organisation to use: the one created, or an existing one picked instead, which brings no
+   * `contactEmail`. That address is the caller's to invite now, later, or not at all.
+   */
+  onChosen: (org: Organization, contactEmail: string) => void;
 }
 
-export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegistered }: RegisterOrgModalProps) {
+export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, alreadyInIds, onChosen }: RegisterOrgModalProps) {
   const isDark = useActiveTheme() === 'dark';
   const [name, setName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -55,6 +65,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
   const [isSaving, setIsSaving] = useState(false);
   const [seededName, setSeededName] = useState('');
   const shortCode = useOrgShortCode();
+  const duplicates = usePossibleDuplicateOrgs(name, isOpen, { publicOnly: true });
 
   // Fresh each time it opens, seeded from the search that found nothing.
   useEffect(() => {
@@ -73,7 +84,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
     name.trim() !== seededName || !!contactEmail.trim() ||
     colors.primary !== DEFAULT_ORG_PRIMARY_COLOR || colors.secondary !== DEFAULT_ORG_SECONDARY_COLOR;
 
-  const canSave = !!name.trim() && !!shortCode.shortCode && !brandColorsProblem(colors.primary, colors.secondary) && !isSaving;
+  const canSave = !!name.trim() && !!shortCode.shortCode && !brandColorsProblem(colors.primary, colors.secondary) && !isSaving && duplicates.answered;
 
   const handleSave = () => {
     if (!canSave) return;
@@ -92,7 +103,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
       setIsSaving(false);
       // A refusal is already toasted; the dialog stays open with what was typed.
       if (!result.ok) return;
-      onRegistered(result.data, contactEmail.trim());
+      onChosen(result.data, contactEmail.trim());
       onClose();
     });
   };
@@ -126,6 +137,18 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
           className={TEXT_INPUT}
         />
       </View>
+
+      <PossibleDuplicateOrgs
+        matches={duplicates.matches}
+        chooseLabel="Use this"
+        unavailable={org => (alreadyInIds?.has(org.id) ? 'Taking part' : undefined)}
+        onOpen={org => {
+          onChosen(org, '');
+          onClose();
+        }}
+        confirmedNew={duplicates.confirmedNew}
+        onConfirmNew={duplicates.setConfirmedNew}
+      />
 
       {/* Required, but filled in from the name as it is typed — see `useOrgShortCode`. */}
       <View className="gap-1.5">

@@ -324,7 +324,8 @@ export function useOrganisationsSection({ event, orgId, sports, divisions, entra
         onClose={closeOrgDialog}
         initialName={orgDialog?.kind === 'register' ? orgDialog.name : ''}
         sportId={(event.sportIds || []).length === 1 ? event.sportIds![0] : undefined}
-        onRegistered={async (org, contactEmail) => {
+        alreadyInIds={new Set((event.participatingOrgs || []).map(o => o.id))}
+        onChosen={async (org, contactEmail) => {
           const result = await sendAction(SocketAction.ADD_EVENT_ORGS, { eventId, orgId, participantOrgIds: [org.id], invite: !nobodyInvited });
           if (result.ok && contactEmail) void nominateOrgContact(org.id, contactEmail);
           closeOrgDialog();

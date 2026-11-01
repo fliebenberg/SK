@@ -62,6 +62,7 @@ export class DataManager {
   getOrganizations = (params?: any, viewerId?: string | null) => organizationManager.getOrganizations(params, viewerId ?? null);
   getOrganization = (id?: string) => organizationManager.getOrganization(id);
   searchSimilarOrganizations = (name: string, viewerId?: string | null) => organizationManager.searchSimilarOrganizations(name, viewerId ?? null);
+  findPossibleDuplicateOrgs = (name: string, viewerId?: string | null) => organizationManager.findPossibleDuplicates(name, viewerId ?? null);
   addOrganization = async (org: AddOrgPayload): Promise<Organization> => {
     const newOrg = await organizationManager.addOrganization(org);
     if (!org.creatorId) return newOrg;

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR, ORG_CUSTOM_TYPE_MAX_LENGTH, ORG_SHORT_CODE_MAX_LENGTH, Organization, OrganizationType, SocketAction } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { FieldLabel } from '../FieldLabel';
@@ -7,6 +8,7 @@ import CustomSelect from '../CustomSelect';
 import { TEXT_INPUT } from '../formStyles';
 import { BrandColorsField, brandColorsProblem } from './BrandColorsField';
 import { ORG_TYPES } from './orgTypes';
+import { PossibleDuplicateOrgs, usePossibleDuplicateOrgs } from './PossibleDuplicateOrgs';
 import { sendAction } from '../../services/actions';
 import { wsService } from '../../services/websocket';
 import { useOrgShortCode } from '../../hooks/useOrgShortCode';
@@ -25,6 +27,9 @@ import { themeColor } from '../../constants/Colors';
  * sports ScoreKeeper has, and may be left empty: a free-text box used to send whatever was typed as
  * a sport id. The dialog reads the sports itself each time it opens, rather than taking the page's
  * copy, which could be empty and left the picker saying "No options found" (2026-10-31).
+ *
+ * A name close to one already here has to be answered before Add: open that organisation, or tick
+ * that this one is different (`PossibleDuplicateOrgs`, 2026-11-01).
  */
 export interface AddOrgDialogProps {
   visible: boolean;
@@ -47,6 +52,8 @@ export function AddOrgDialog({ visible, onClose, onCreated }: AddOrgDialogProps)
   const [isSaving, setIsSaving] = useState(false);
   const [sports, setSports] = useState<{ id: string; name: string }[] | null>(null);
   const shortCode = useOrgShortCode();
+  const router = useRouter();
+  const duplicates = usePossibleDuplicateOrgs(name, visible);
 
   // Fresh each time it opens.
   useEffect(() => {
@@ -73,7 +80,8 @@ export function AddOrgDialog({ visible, onClose, onCreated }: AddOrgDialogProps)
   const canSave =
     !!name.trim() && !!shortCode.shortCode && !!type &&
     !(type === 'OTHER' && !customType.trim()) &&
-    !brandColorsProblem(colors.primary, colors.secondary);
+    !brandColorsProblem(colors.primary, colors.secondary) &&
+    duplicates.answered;
 
   const handleSave = () => {
     if (!canSave || isSaving || !userId) return;
@@ -132,6 +140,16 @@ export function AddOrgDialog({ visible, onClose, onCreated }: AddOrgDialogProps)
           autoFocus
         />
       </View>
+
+      <PossibleDuplicateOrgs
+        matches={duplicates.matches}
+        onOpen={org => {
+          onClose();
+          router.push(`/organizations/${org.id}` as any);
+        }}
+        confirmedNew={duplicates.confirmedNew}
+        onConfirmNew={duplicates.setConfirmedNew}
+      />
 
       {/* Required, but filled in from the name as it is typed — see `useOrgShortCode`. */}
       <View className="gap-1.5">

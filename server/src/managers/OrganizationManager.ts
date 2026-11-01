@@ -1,9 +1,10 @@
-import { Organization, AddOrgPayload, UpdateOrgPayload, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode, OrgMinorsSettings, isValidMinorAge, minorsSettingsOf, isTimeZone, DEFAULT_TIME_ZONE, normalizeHexColor, DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR, ORG_CUSTOM_TYPE_MAX_LENGTH } from "@sk/shared";
+import { Organization, AddOrgPayload, UpdateOrgPayload, OrganizationRole, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode, OrgMinorsSettings, isValidMinorAge, minorsSettingsOf, isTimeZone, DEFAULT_TIME_ZONE, normalizeHexColor, DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR, ORG_CUSTOM_TYPE_MAX_LENGTH } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { imageService } from "../services/ImageService";
 import { addressManager } from "./AddressManager";
 import { timeZoneAt } from "../utils/timeZoneLookup";
 import { ORG_VISIBLE, viewerOf, hasExternalHistory } from "./privateOrgs";
+import { orgNameMatchScore, orgSearchScore } from "../utils/orgNameMatch";
 
 /**
  * Live-computed organization counts, exposed as `c.team_count` / `c.site_count` / `c.member_count`.
@@ -515,70 +516,38 @@ export class OrganizationManager extends BaseManager {
     return this.organizationRoles.find(r => r.id === id);
   }
 
+  /**
+   * The visible organisations a score says most, best first, in full. Every visible name is scored,
+   * because a slip in a word or a different ending is what no `ILIKE` on the typed text can find. A
+   * private organisation the viewer does not belong to stays out of it (`ORG-14`).
+   */
+  private async bestOrgMatches(
+    score: (name: string, shortName: string | null) => number,
+    limit: number,
+    viewerId: string | null
+  ): Promise<Organization[]> {
+    const candidates = await this.query(
+      `SELECT o.id, o.name, o.short_name FROM organizations o WHERE ${ORG_VISIBLE('o', '$1')}`,
+      [viewerOf(viewerId)]
+    );
+    const best = candidates.rows
+      .map((row: any) => ({ id: row.id as string, name: row.name as string, score: score(row.name, row.short_name) }))
+      .filter((match: { score: number }) => match.score > 0)
+      .sort((a: { name: string; score: number }, b: { name: string; score: number }) => b.score - a.score || a.name.length - b.name.length)
+      .slice(0, limit);
+
+    const orgs = await Promise.all(best.map((match: { id: string }) => this.getOrganizations({ page: 1, limit: 1, orgId: match.id }, viewerId)));
+    return orgs.flatMap(page => page.items);
+  }
+
+  /** Organisations to choose from, for what has been typed so far. See `orgSearchScore`. */
   async searchSimilarOrganizations(name: string, viewerId: string | null = null): Promise<Organization[]> {
-    const query = name.trim().toLowerCase();
-    if (!query) return [];
+    return this.bestOrgMatches((orgName, shortName) => orgSearchScore(name, orgName, shortName), 12, viewerId);
+  }
 
-    const queryParts = query.split(/\s+/).filter(p => p.length > 0);
-    const paginated = await this.getOrganizations({ page: 1, limit: 1000, search: name }, viewerId);
-    const allOrgs: Organization[] = paginated.items;
-
-    const scored = allOrgs.map((org: Organization) => {
-        const orgName = org.name.toLowerCase();
-        const shortName = (org.shortName || "").toLowerCase();
-        const orgParts = orgName.split(/\s+/).concat(shortName ? [shortName] : []);
-
-        let score = 0;
-        
-        // 1. Exact / StartsWith Bonus
-        if (orgName === query) score += 100;
-        else if (orgName.startsWith(query)) score += 20;
-        
-        if (shortName === query) score += 50;
-
-        // 2. Word Matching with Fuzzy Logic
-        queryParts.forEach(qPart => {
-            let bestWordScore = 0;
-            
-            for (const oPart of orgParts) {
-                // Exact word match
-                if (oPart === qPart) {
-                    bestWordScore = 10;
-                    break; 
-                }
-                
-                // Starts with match (for partial typing "Sch" -> "School")
-                if (oPart.startsWith(qPart)) {
-                    bestWordScore = Math.max(bestWordScore, 5);
-                }
-
-                // Fuzzy match (Levenshtein)
-                // Only if word is at least 3 chars to avoid "a" matching "b" too easily with edit dist 1
-                if (qPart.length > 2 && oPart.length > 2) {
-                     const dist = levenshtein(qPart, oPart);
-                     // Allow 1 error for words up to 5 chars, 2 errors for longer
-                     const maxErrors = qPart.length > 5 ? 2 : 1;
-                     if (dist <= maxErrors) {
-                         bestWordScore = Math.max(bestWordScore, 3);
-                     }
-                }
-            }
-            score += bestWordScore;
-        });
-
-        return { org, score };
-    });
-
-    const results = scored
-        .filter((item: { org: Organization; score: number }) => item.score > 0)
-        .sort((a: { org: Organization; score: number }, b: { org: Organization; score: number }) => {
-            if (b.score !== a.score) return b.score - a.score;
-            return a.org.name.length - b.org.name.length; // shorter name first
-        })
-        .map((item: { org: Organization; score: number }) => item.org)
-        .slice(0, 5);
-
-    return results;
+  /** Organisations the name of a new one might be a duplicate of. See `orgNameMatchScore`. */
+  async findPossibleDuplicates(name: string, viewerId: string | null = null): Promise<Organization[]> {
+    return this.bestOrgMatches((orgName, shortName) => orgNameMatchScore(name, orgName, shortName), 5, viewerId);
   }
 
   async syncClaimedStatus(orgId: string): Promise<void> {

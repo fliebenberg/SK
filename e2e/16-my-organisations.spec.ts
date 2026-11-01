@@ -82,17 +82,62 @@ test.describe('My Organisations', () => {
     await signIn(page, USERS.sacStaff);
     await page.goto('/organizations');
     await page.getByRole('button', { name: 'Add organisation' }).click();
-    await page.getByPlaceholder('e.g. Springvale High').fill('Test Added Club');
+    // Stamped, so a rerun without a reset is not asked about the last run's (2026-11-01).
+    const name = `Test Added Club ${Date.now()}`;
+    await page.getByPlaceholder('e.g. Springvale High').fill(name);
     await page.getByRole('button', { name: /^Organisation type/ }).click();
     await page.getByText('Sports Club', { exact: true }).click();
     await page.getByRole('button', { name: 'Add', exact: true }).click();
     // Setting it up is what comes next: its workspace opens.
     await expect(page).toHaveURL(/\/admin\/org-/);
-    await expect(page.getByText('Test Added Club').filter({ visible: true }).first()).toBeVisible();
+    await expect(page.getByText(name).filter({ visible: true }).first()).toBeVisible();
     await page.goto('/organizations');
-    const mine = page.locator('[data-testid^="my-org-"]').filter({ hasText: /Test Added Club/i });
+    const mine = page.locator('[data-testid^="my-org-"]').filter({ hasText: name });
     await expect(mine).toBeVisible();
     await expect(mine).toContainText(/Admin/i);
+  });
+
+  // A name close to one already here is asked about before it can be added (2026-11-01).
+  test('a name close to an existing organisation offers that one, and needs a tick to add anyway @phone', async ({ page }) => {
+    await signIn(page, USERS.sacStaff);
+    await page.goto('/organizations');
+    await page.getByRole('button', { name: 'Add organisation' }).click();
+    const name = page.getByPlaceholder('e.g. Springvale High');
+    const matches = page.getByTestId('possible-duplicate-orgs');
+
+    // A typing slip and a different ending, against "Test Unclaimed Cricket Club".
+    await name.fill('Test Unclaimd Cricket');
+    await expect(matches).toContainText('Test Unclaimed Cricket Club');
+    await expect(matches).toContainText('No administrator yet');
+    await page.getByRole('button', { name: /^Organisation type/ }).click();
+    await page.getByText('Sports Club', { exact: true }).click();
+    const add = page.getByRole('button', { name: 'Add', exact: true });
+    await expect(add).toBeDisabled();
+    await page.getByRole('checkbox', { name: /None of these/ }).click();
+    await expect(add).toBeEnabled();
+
+    // A different name is a different question, so the answer does not carry over.
+    await name.fill('Test Unclaimed Cricket Club');
+    await expect(matches).toContainText('Test Unclaimed Cricket Club');
+    await name.fill('Test Riverbend');
+    await expect(matches).toContainText('Test Riverbend High School');
+    await expect(add).toBeDisabled();
+
+    // Its page is where someone from there claims it.
+    await name.fill('Test Unclaimed Cricket Club');
+    await matches.getByRole('link', { name: 'Open Test Unclaimed Cricket Club' }).click();
+    await expect(page).toHaveURL(new RegExp(`/organizations/${ORG.ucc}$`));
+  });
+
+  test('a name like no other is not asked about', async ({ page }) => {
+    await signIn(page, USERS.sacStaff);
+    await page.goto('/organizations');
+    await page.getByRole('button', { name: 'Add organisation' }).click();
+    await page.getByPlaceholder('e.g. Springvale High').fill('Zzyzx High School');
+    await page.getByRole('button', { name: /^Organisation type/ }).click();
+    await page.getByText('Sports Club', { exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Add', exact: true })).toBeEnabled();
+    await expect(page.getByTestId('possible-duplicate-orgs')).toHaveCount(0);
   });
 
   // Shown, not hidden, to a visitor, so they learn it is there; pressing it says to sign in (2026-10-31).

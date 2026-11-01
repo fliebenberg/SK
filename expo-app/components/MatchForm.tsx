@@ -246,13 +246,9 @@ export default function MatchForm({
 
     setIsSearchingOrgs(true);
     const delayDebounce = setTimeout(() => {
-      wsService.emit('get_data', { type: 'organizations', search: query }, (res: any) => {
+      wsService.emit('get_data', { type: 'search_similar_orgs', name: query }, (res: any) => {
         setIsSearchingOrgs(false);
-        if (res && Array.isArray(res.items)) {
-          setSearchedOrgs(res.items);
-        } else if (Array.isArray(res)) {
-          setSearchedOrgs(res);
-        }
+        if (Array.isArray(res)) setSearchedOrgs(res);
       });
     }, 400);
 
@@ -1004,7 +1000,7 @@ export default function MatchForm({
         onClose={() => setIsCreatingOrg(false)}
         initialName={newOrgName}
         sportId={selectedSportId || undefined}
-        onRegistered={(org, contactEmail) => {
+        onChosen={(org, contactEmail) => {
           // A failed invitation is announced on its own and does not undo the organisation.
           if (contactEmail) void nominateOrgContact(org.id, contactEmail);
           if (isCreatingHomeOrg) {

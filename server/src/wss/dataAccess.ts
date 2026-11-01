@@ -94,6 +94,7 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   organization:         { room: (req: any) => ((req.id || req.orgId) ? `org:${req.id || req.orgId}:summary` : null) },
   org_summary:          { room: (req: any) => ((req.id || req.orgId) ? `org:${req.id || req.orgId}:summary` : null) },
   search_similar_orgs:  { standalone: 'public-directory' },
+  possible_duplicate_orgs: { standalone: 'public-directory' },
 
   // People. The reason this whole module exists.
   org_members:          { room: orgRoom('members') },

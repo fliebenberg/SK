@@ -195,6 +195,8 @@ async function main() {
     expect(names(await read(member, { type: 'organizations', search: 'Zebrafish' })).includes(ORG), true, 'the directory shows it to a member');
     expect(names(await read(former, { type: 'organizations', search: 'Zebrafish' })).includes(ORG), false, 'the directory hides it from a former member');
     expect(names(await read(stranger, { type: 'search_similar_orgs', name: ORG_NAME })).includes(ORG), false, 'the similar-name search hides it');
+    expect(names(await read(stranger, { type: 'possible_duplicate_orgs', name: ORG_NAME })).includes(ORG), false, 'the duplicate check does not give it away');
+    expect(names(await read(member, { type: 'possible_duplicate_orgs', name: ORG_NAME })).includes(ORG), true, 'the duplicate check shows it to a member');
 
     const strangerHome = await read(stranger, { type: 'home_search', query: 'Zebrafish' });
     expect([strangerHome.organizations.length, strangerHome.teams.length, strangerHome.sites.length], [0, 0, 0], 'Home search hides it, its teams and its site from a stranger');

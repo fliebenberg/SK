@@ -50,6 +50,26 @@ it was a free-text box that sent whatever was typed as a sport id. Whoever adds 
 its admin (`creatorId`), and its workspace opens next, since setting it up is what comes next
 (2026-10-31); *Register an organisation* makes nobody admin and stays where it was opened.
 
+**Is it already here?** (2026-11-01, `ORG-15`). As a name is typed into either dialog, `get_data`
+`possible_duplicate_orgs` asks for organisations it might be a copy of, and they are listed under
+the name ([PossibleDuplicateOrgs](file:///c:/Fred/Coding/SK/expo-app/components/org/PossibleDuplicateOrgs.tsx)).
+On *Add organisation* each opens its public page, where one with no administrator can be claimed; on
+*Register an organisation* each is *Use this*, which chooses it for the game or tournament instead
+(one already in the tournament says *Taking part*, and a private one is not offered). The save button
+stays disabled until the person ticks *None of these*, because two schools may share a name, so it is
+asked and never refused; a different list of matches asks again. The match is
+[orgNameMatch](file:///c:/Fred/Coding/SK/server/src/utils/orgNameMatch.ts): accents, case and
+punctuation are ignored, words for a kind of organisation (High, College, Club) do not count, and
+every remaining word of the shorter name must be in the longer, allowing a typing slip or a trailing
+*s* (`Fred Club` and `Fred's Club`). A private
+organisation is left out for anyone who cannot see it. If the check itself fails, nothing is listed
+and the save is not held up.
+
+The pickers that lead to *Register an organisation* search with `search_similar_orgs`
+(`orgSearchScore`, same file), so `Fred Club` finds `Fred's Club` there too: the tournament's *Add
+organisations*, a game's two organisation fields, and *New Head to Head*, which has no way to register
+one.
+
 **Colours**: both ask for its colours too, through the
 same `BrandColorsField` as Edit identity, since whoever sets an org up usually knows them, even as an
 outsider. They start as the app's orange and electric blue, which is what a new org keeps if they

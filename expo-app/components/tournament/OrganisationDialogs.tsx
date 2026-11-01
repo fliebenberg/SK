@@ -62,7 +62,7 @@ function OrgLine({ org, sub, right, onPress }: {
   );
 }
 
-function Tick({ on }: { on: boolean }) {
+export function Tick({ on }: { on: boolean }) {
   const isDark = useActiveTheme() === 'dark';
   return (
     <View className={`w-5 h-5 rounded-md border items-center justify-center ${on ? 'bg-primary border-primary' : 'border-line-strong'}`}>

@@ -1833,6 +1833,9 @@ io.on('connection', (socket) => {
                     callback([]);
                 }
                 break;
+            case 'possible_duplicate_orgs':
+                callback(request.name ? await dataManager.findPossibleDuplicateOrgs(request.name, socket.data?.userId) : []);
+                break;
             case 'search_people':
                 if (request.query) {
                     // `PEOPLE-1`. Contact and identity fields come back only when the search is

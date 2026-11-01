@@ -42,6 +42,11 @@ Clearing the flag returns it to log-only, where the decision is still made and e
 as `[DataAccess] WOULD-REFUSE` but nothing is blocked. Because an unmapped type is refused,
 **adding a `get_data` case now means adding its rule**, or the first call fails.
 
+**`get_data possible_duplicate_orgs`** `{ name }` → up to five `Organization`s, closest first, that a new
+organisation of that name might be a copy of ([orgNameMatch](file:///c:/Fred/Coding/SK/server/src/utils/orgNameMatch.ts)).
+Public directory data; private organisations the caller cannot see are left out. Stricter than
+`search_similar_orgs` `{ name }`, which returns up to twelve organisations to choose from, best first.
+
 One request carries a parameter purely for authorization: **`team_members` accepts an optional
 `gameId`**. A scoring screen shows both sides' players while the scorer belongs to only one of the
 two orgs, so naming the game moves the decision from `team:{id}` to `game:{id}` — the tier that
