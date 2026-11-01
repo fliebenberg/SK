@@ -69,7 +69,11 @@ cannot reach. Never a palette shade, `brand-*`, hex or `rgba`: `npm run check:co
 `expo-app/` rejects them, and the pre-commit hook runs it. Restart Metro after changing the tokens.
 Tokens and rules: [okf/design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md).
 
-## End-to-end tests: release them when you are done
+## End-to-end tests: ask first, and release them when you are done
+
+**Check with the user before running any e2e test, and suggest how much to run.** They take a long
+time and most sessions do not need them: the user prefers one full run once several sessions have
+finished. Committing does not need a full run first. Say what was not run.
 
 `npm run e2e` holds the tests for your session for 15 minutes after each run, so you can fix and
 rerun without another session's run resetting the database under you; other sessions wait. **When you
