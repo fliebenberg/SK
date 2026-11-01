@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { ORG } from './support';
+import { ORG, USERS, signIn } from './support';
 
 /**
  * An organisation as anyone sees it, from the Orgs tab (`UI-34`, agreed on
@@ -72,5 +72,33 @@ test.describe('a team and a site, logged out', () => {
     await expect(page.getByText('Add facility', { exact: true })).toHaveCount(0);
     await expect(page.getByText('Netball Court 4', { exact: true })).toHaveCount(0);
     await expect(page.getByText(/permission/i)).toHaveCount(0);
+  });
+});
+
+/**
+ * An organisation nobody runs yet says so under its banner, to everyone, with the way to claim it or
+ * nominate someone (`UnclaimedOrgStrip`, 2026-10-31). A visitor is asked to sign in first; signed in,
+ * anyone may take the role of one with no members, and the strip goes once they have.
+ */
+test.describe('an organisation nobody runs yet', () => {
+  const UCC = `/organizations/${ORG.ucc}`;
+
+  test('says so to a visitor, who is asked to sign in to claim it @phone', async ({ page }) => {
+    await page.goto(UCC);
+    await expect(visible(page, 'Test Unclaimed Cricket Club has no administrator yet.')).toBeVisible();
+    await page.getByRole('button', { name: 'Claim or nominate' }).click();
+    await expect(visible(page, 'Sign in to claim Test Unclaimed Cricket Club')).toBeVisible();
+  });
+
+  test('signed in, anyone may take it on, and the strip goes', async ({ page }) => {
+    await signIn(page, USERS.sacStaff);
+    await page.goto(UCC);
+    await page.getByRole('button', { name: 'Claim or nominate' }).click();
+    await page.getByText("It's me: take on the admin role", { exact: true }).click();
+    await page.getByText('Take on the admin role', { exact: true }).last().click();
+    await expect(page.getByText(/You are now the administrator of/)).toBeVisible();
+    await page.getByText('Done', { exact: true }).click();
+    await expect(page.getByText('Test Unclaimed Cricket Club has no administrator yet.')).toHaveCount(0);
+    await expect(visible(page, /^Manage Workspace/)).toBeVisible();
   });
 });

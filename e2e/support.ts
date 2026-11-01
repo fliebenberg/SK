@@ -26,7 +26,7 @@ export const USERS = {
   /** Kwaggafontein's U16 Lions rugby coach — in *Test Saturday Fixtures*. */
   kscCoach: 'dewald.nel@kwaggafontein.test',
 };
-export const ORG = { dkl: 'fx-org-dkl', sac: 'fx-org-sac', rbh: 'fx-org-rbh', ksc: 'fx-org-ksc' };
+export const ORG = { dkl: 'fx-org-dkl', sac: 'fx-org-sac', rbh: 'fx-org-rbh', ksc: 'fx-org-ksc', ucc: 'fx-org-ucc' };
 export const TOURNAMENT = 'fx-tour-spring';
 export const DIVISION = { rugbyU16: 'fx-div-spring-rugby-u16', netballU14: 'fx-div-spring-netball-u14', netballU16: 'fx-div-spring-netball-u16' };
 

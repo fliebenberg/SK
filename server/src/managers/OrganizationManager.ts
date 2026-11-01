@@ -1,4 +1,4 @@
-import { Organization, AddOrgPayload, UpdateOrgPayload, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode, OrgMinorsSettings, isValidMinorAge, minorsSettingsOf, isTimeZone, DEFAULT_TIME_ZONE, normalizeHexColor, DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR } from "@sk/shared";
+import { Organization, AddOrgPayload, UpdateOrgPayload, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode, OrgMinorsSettings, isValidMinorAge, minorsSettingsOf, isTimeZone, DEFAULT_TIME_ZONE, normalizeHexColor, DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR, ORG_CUSTOM_TYPE_MAX_LENGTH } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { imageService } from "../services/ImageService";
 import { addressManager } from "./AddressManager";
@@ -259,11 +259,27 @@ export class OrganizationManager extends BaseManager {
     return value;
   }
 
+  /**
+   * An Other type's description, trimmed, or `null` for none — refused past
+   * `ORG_CUSTOM_TYPE_MAX_LENGTH`, the same limit the app's fields hold (2026-10-31). `stored` is the
+   * value already on the row: a description written before the limit may be sent back unchanged, so
+   * an edit to the org's other fields does not fail on it.
+   */
+  private checkCustomType(value: unknown, stored?: string | null): string | null {
+    const text = typeof value === 'string' ? value.trim() : '';
+    if (!text) return null;
+    if (text.length > ORG_CUSTOM_TYPE_MAX_LENGTH && text !== stored?.trim()) {
+      throw new Error(`Describe the organisation type in ${ORG_CUSTOM_TYPE_MAX_LENGTH} characters or fewer.`);
+    }
+    return text;
+  }
+
   async addOrganization(org: AddOrgPayload): Promise<Organization> {
     const id = org.id || `org-${Date.now()}`;
     const supportedSportIds = org.supportedSportIds || [];
     const supportedRoleIds = org.supportedRoleIds || [];
     const shortName = this.requireShortCode(org.shortName, org.name);
+    const customType = this.checkCustomType(org.customType);
     // The creator's device timezone, sent by the create screens (`DATE-2`). An older client or a
     // script sends none, and gets the one every organisation had before timezones existed.
     const timezone = org.timezone === undefined ? DEFAULT_TIME_ZONE : this.requireTimeZone(org.timezone);
@@ -291,7 +307,7 @@ export class OrganizationManager extends BaseManager {
             await tx(
               `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, short_name, is_claimed, creator_id, is_active, settings, address_id, type, custom_type, timezone) 
                VALUES ($1, $2, $3, $4, $5, $6, false, $7, $8, $9, $10, $11, $12, $13)`,
-              [id, org.name, logo, primaryColor, secondaryColor, shortName, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', org.customType || null, timezone]
+              [id, org.name, logo, primaryColor, secondaryColor, shortName, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', customType, timezone]
             );
 
             for (const sportId of supportedSportIds) {
@@ -374,6 +390,11 @@ export class OrganizationManager extends BaseManager {
     }
 
     if ('timezone' in data) data.timezone = this.requireTimeZone(data.timezone);
+
+    if ('customType' in data) {
+      const stored = await this.query('SELECT custom_type FROM organizations WHERE id = $1', [id]);
+      data.customType = this.checkCustomType(data.customType, stored.rows[0]?.custom_type);
+    }
 
     // The primary colour is required, so an update naming it may not blank it; a blank secondary
     // clears it, and the org is then painted in its primary alone.

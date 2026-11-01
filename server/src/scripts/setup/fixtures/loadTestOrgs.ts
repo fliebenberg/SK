@@ -16,6 +16,7 @@ import {
     FixturePerson,
     FixturePlayer,
     TEST_ORGS,
+    UNCLAIMED_TEST_ORGS,
     fixtureIds,
     TEST_TOURNAMENTS,
 } from './testOrgs';
@@ -344,6 +345,17 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
             await insert('team_memberships',
                 ['id', 'org_profile_id', 'team_id', 'role_id', 'start_date', 'end_date'],
                 [fixtureIds.teamMembership(org.key, extra.team, extra.name), profileId, fixtureIds.team(org.key, extra.team), extra.role, FIXTURE_MEMBERSHIP_START, null]);
+        }
+    }
+
+    // Unclaimed: no creator, no members, `is_claimed` false — as `RegisterOrgModal` leaves one.
+    for (const org of UNCLAIMED_TEST_ORGS) {
+        const orgId = fixtureIds.org(org.key);
+        await insert('organizations',
+            ['id', 'name', 'logo', 'primary_color', 'secondary_color', 'short_name', 'is_claimed', 'creator_id', 'is_active', 'settings', 'address_id', 'type'],
+            [orgId, org.name, null, org.primaryColor, org.secondaryColor, org.shortName, false, null, true, { allowUserImageUpdates: false }, null, org.type]);
+        for (const roleId of FIXTURE_ORG_ROLES) {
+            await insert('organization_roles', ['org_id', 'role_id'], [orgId, roleId]);
         }
     }
 

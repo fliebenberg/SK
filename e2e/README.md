@@ -63,7 +63,8 @@ npm run e2e:report     # the last run's report, with traces of any failure
   *Test Saturday Fixtures*, Kwaggafontein's U16 Lions coach's two games with a proposed team, its admin seeing them
   as the coach's; on the desktop the coach confirms one from its game page), then My Organisations
   (`16-my-organisations.spec.ts`: Kwaggafontein's U16 Lions coach seeing Kwaggafontein, as a Member, with
-  *Open Workspace*, and St Aldric's staff seeing theirs to manage), then divisions that rank organisations
+  *Open Workspace*, St Aldric's staff seeing theirs to manage, and an organisation they add being theirs as its
+  Admin), then divisions that rank organisations
   (`17-paired-standings.spec.ts`: *Test Netball Pairs Day*'s division won by an organisation and ranked by
   organisation on its page, a Head to Head division's table of two, and the Standings tab narrowed to a sport), then the
   public tournament page (`18-public-tournament.spec.ts`: *Test Autumn Festival* at `/events/...` logged out — the
@@ -71,7 +72,8 @@ npm run e2e:report     # the last run's report, with traces of any failure
   with no players named — and the same read-only page for a signed-in organiser), then the public organisation page
   (`19-public-organisation.spec.ts`: Doringkloof logged out — its banner and On now & next, its teams with their
   coaches, and Fixtures as the events list without Mine, a tournament opening its public page; then a team row
-  opening the public team page with its squad and competitions, and a site row the public site page), then the team page (`20-team-page.spec.ts`: its tabs, and DKL U16 A's
+  opening the public team page with its squad and competitions, and a site row the public site page; and *Test Unclaimed
+  Cricket Club*'s claim strip — a visitor asked to sign in, St Aldric's staff taking it on), then the team page (`20-team-page.spec.ts`: its tabs, and DKL U16 A's
   season statistics and player lines from the fixtures' team sheets and match events). A single file run on its own may therefore fail where the suite
   passes.
 - **The phone runs first and only tests tagged `@phone`** — ones that read and change nothing — so it sees

@@ -154,7 +154,7 @@ The backend exposes several methods to manage nominations:
 
 An organisation with no administrator is asked about in one way everywhere: **one dialog,
 [NominateAdminModal](file:///c:/Fred/Coding/SK/expo-app/components/NominateAdminModal.tsx), opened
-from three places**, with the same colours meaning the same thing — amber while *you* have not
+from four places**, with the same colours meaning the same thing — amber while *you* have not
 nominated anyone for it, green once you have. Its server calls are
 [services/nominations.ts](file:///c:/Fred/Coding/SK/expo-app/services/nominations.ts), and what it
 knows about the org comes from `useOrgClaimStatus` (`get_data org_claim_status`). This replaced five
@@ -201,6 +201,15 @@ separate implementations (`ORG-6`), two of which held the email until a form was
    says there is nothing left to do, and neither `org_referrals` nor `org_claim_status` is asked
    for. The history stays in the database but is no longer shown. See
    [org-profile.md](file:///c:/Fred/Coding/SK/docs/org-profile.md) §6.
+
+4. **The public organisation page** ([UnclaimedOrgStrip](file:///c:/Fred/Coding/SK/expo-app/components/org/UnclaimedOrgStrip.tsx),
+   2026-10-31), a strip under the banner of `/organizations/[orgId]` while the org is unclaimed:
+   *"{Org} has no administrator yet. If you run it, claim it — or tell us who does."* with **Claim or
+   nominate** (**Nominate an admin** once the server has said the viewer may not take the role). It
+   is the only way in for someone who is not a member — the banner and the Nominate admin page are
+   inside a workspace they cannot open — such as whoever runs a school that was added from a game or
+   a tournament. Shown to everyone: a visitor who presses it is asked to sign in first
+   (design_spec §6.5), and comes back to the page.
 
 The register-an-org dialog ([RegisterOrgModal](file:///c:/Fred/Coding/SK/expo-app/components/RegisterOrgModal.tsx))
 keeps its own contact field, since the org has no chip yet; its callers send it through the same

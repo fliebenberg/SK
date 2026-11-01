@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, ScrollView, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 import { DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR, ORG_SHORT_CODE_MAX_LENGTH, Organization, SocketAction } from '@sk/shared';
-import { Button } from './Button';
+import { EditDialog } from './EditDialog';
 import { FieldLabel } from './FieldLabel';
+import { TEXT_INPUT } from './formStyles';
 import { sendAction } from '../services/actions';
 import { useOrgShortCode } from '../hooks/useOrgShortCode';
 import { useActiveTheme } from '../store/settingsStore';
@@ -52,6 +53,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
   const [contactEmail, setContactEmail] = useState('');
   const [colors, setColors] = useState({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR });
   const [isSaving, setIsSaving] = useState(false);
+  const [seededName, setSeededName] = useState('');
   const shortCode = useOrgShortCode();
 
   // Fresh each time it opens, seeded from the search that found nothing.
@@ -59,12 +61,17 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
     if (!isOpen) return;
     const seeded = (initialName || '').trim();
     setName(seeded);
+    setSeededName(seeded);
     setContactEmail('');
     setColors({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR });
     shortCode.reset();
     if (seeded) shortCode.onNameChange(seeded);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  const isDirty =
+    name.trim() !== seededName || !!contactEmail.trim() ||
+    colors.primary !== DEFAULT_ORG_PRIMARY_COLOR || colors.secondary !== DEFAULT_ORG_SECONDARY_COLOR;
 
   const canSave = !!name.trim() && !!shortCode.shortCode && !brandColorsProblem(colors.primary, colors.secondary) && !isSaving;
 
@@ -90,87 +97,74 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
     });
   };
 
-  const inputClass =
-    'bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink';
-
   return (
-    <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
-      <View className="flex-1 bg-overlay/60 justify-center px-6">
-        <View className="w-full max-w-md self-center bg-card rounded-2xl border border-line shadow-xl" style={{ maxHeight: '90%' }}>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 24, gap: 16 }}>
-          <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider">
-            Register an organisation
-          </Text>
-          <Text className="font-inter text-xs text-ink-muted leading-4">
-            For a school or club that is not on ScoreKeeper yet. It is added unclaimed — nobody runs it
-            until somebody from there claims it.
-          </Text>
+    <EditDialog
+      visible={isOpen}
+      title="Register an organisation"
+      onClose={onClose}
+      onSave={handleSave}
+      saveLabel="Register"
+      saveDisabled={!canSave}
+      isSaving={isSaving}
+      isDirty={isDirty}
+    >
+      <Text className="font-inter text-sm text-ink-muted">
+        For a school or club that is not on ScoreKeeper yet. It is added unclaimed — nobody runs it
+        until somebody from there claims it.
+      </Text>
 
-          <View className="gap-1.5">
-            <FieldLabel label="Full name" />
-            <TextInput
-              value={name}
-              onChangeText={text => {
-                setName(text);
-                shortCode.onNameChange(text);
-              }}
-              placeholder="e.g. St John's College"
-              placeholderTextColor={themeColor(isDark, 'ink-muted')}
-              className={inputClass}
-            />
-          </View>
-
-          {/* Required, but filled in from the name as it is typed — see `useOrgShortCode`. */}
-          <View className="gap-1.5">
-            <FieldLabel label="Short code" help="Used wherever the full name will not fit — tabs, columns and team flags." />
-            <TextInput
-              value={shortCode.shortCode}
-              onChangeText={shortCode.onShortCodeChange}
-              maxLength={ORG_SHORT_CODE_MAX_LENGTH}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              spellCheck={false}
-              placeholder="SJC"
-              placeholderTextColor={themeColor(isDark, 'ink-muted')}
-              className={`${inputClass} font-orbitron-bold w-32 text-center`}
-            />
-          </View>
-
-          <BrandColorsField
-            primary={colors.primary}
-            secondary={colors.secondary}
-            onChange={({ primary, secondary }) => setColors({ primary, secondary })}
-          />
-
-          <View className="gap-1.5">
-            <FieldLabel
-              label="Contact email"
-              optional
-              help="If you know who runs this school or club — the head of sport, the club secretary — we can invite them to claim it and take over their teams and schedules."
-            />
-            <TextInput
-              value={contactEmail}
-              onChangeText={setContactEmail}
-              placeholder="contact@school.edu"
-              placeholderTextColor={themeColor(isDark, 'ink-muted')}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              className={inputClass}
-            />
-          </View>
-
-          <View className="flex-row gap-3 pt-2">
-            <Button title="Cancel" variant="secondary" onPress={onClose} className="flex-1" />
-            <Button
-              title={isSaving ? 'Registering...' : 'Register'}
-              onPress={handleSave}
-              disabled={!canSave}
-              className="flex-1"
-            />
-          </View>
-          </ScrollView>
-        </View>
+      <View className="gap-1.5">
+        <FieldLabel label="Full name" />
+        <TextInput
+          value={name}
+          onChangeText={text => {
+            setName(text);
+            shortCode.onNameChange(text);
+          }}
+          placeholder="e.g. St John's College"
+          placeholderTextColor={themeColor(isDark, 'ink-faint')}
+          className={TEXT_INPUT}
+        />
       </View>
-    </Modal>
+
+      {/* Required, but filled in from the name as it is typed — see `useOrgShortCode`. */}
+      <View className="gap-1.5">
+        <FieldLabel label="Short code" help="Used wherever the full name will not fit — tabs, columns and team flags." />
+        <TextInput
+          value={shortCode.shortCode}
+          onChangeText={shortCode.onShortCodeChange}
+          maxLength={ORG_SHORT_CODE_MAX_LENGTH}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          spellCheck={false}
+          placeholder="SJC"
+          placeholderTextColor={themeColor(isDark, 'ink-faint')}
+          className={`${TEXT_INPUT} w-36`}
+        />
+      </View>
+
+      <BrandColorsField
+        primary={colors.primary}
+        secondary={colors.secondary}
+        onChange={({ primary, secondary }) => setColors({ primary, secondary })}
+      />
+
+      <View className="gap-1.5">
+        <FieldLabel
+          label="Contact email"
+          optional
+          help="If you know who runs this school or club — the head of sport, the club secretary — we can invite them to claim it and take over their teams and schedules."
+        />
+        <TextInput
+          value={contactEmail}
+          onChangeText={setContactEmail}
+          placeholder="contact@school.edu"
+          placeholderTextColor={themeColor(isDark, 'ink-faint')}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          className={TEXT_INPUT}
+        />
+      </View>
+    </EditDialog>
   );
 }

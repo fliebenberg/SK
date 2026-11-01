@@ -75,6 +75,26 @@ test.describe('My Organisations', () => {
     await expect(page.getByPlaceholder('e.g. Springvale High')).toBeVisible();
   });
 
+  // Whoever adds an organisation runs it: its workspace opens, and it is theirs, under My Organisations, as its Admin. The
+  // dialog once dropped `creatorId`, and the org was created unclaimed with nobody in it (2026-10-31).
+  // The reset removes it again: its creator is a test account.
+  test('an organisation you add opens in its workspace, and is yours, under My Organisations, as its Admin', async ({ page }) => {
+    await signIn(page, USERS.sacStaff);
+    await page.goto('/organizations');
+    await page.getByRole('button', { name: 'Add organisation' }).click();
+    await page.getByPlaceholder('e.g. Springvale High').fill('Test Added Club');
+    await page.getByRole('button', { name: /^Organisation type/ }).click();
+    await page.getByText('Sports Club', { exact: true }).click();
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    // Setting it up is what comes next: its workspace opens.
+    await expect(page).toHaveURL(/\/admin\/org-/);
+    await expect(page.getByText('Test Added Club').filter({ visible: true }).first()).toBeVisible();
+    await page.goto('/organizations');
+    const mine = page.locator('[data-testid^="my-org-"]').filter({ hasText: /Test Added Club/i });
+    await expect(mine).toBeVisible();
+    await expect(mine).toContainText(/Admin/i);
+  });
+
   // Shown, not hidden, to a visitor, so they learn it is there; pressing it says to sign in (2026-10-31).
   test('a visitor who is not signed in is offered Add organisation, and told to sign in @phone', async ({ page }) => {
     await page.goto('/organizations');

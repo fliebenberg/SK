@@ -66,11 +66,17 @@ export function BrandColorsField({ primary, secondary, onChange, label = 'Brand 
             value={(open === 'primary' ? primary : secondary) || primary}
             onChange={hex => onChange(open === 'primary' ? { primary: hex, secondary } : { primary, secondary: hex })}
           />
-          {open === 'secondary' && secondary ? (
-            <TouchableOpacity onPress={() => onChange({ primary, secondary: '' })} hitSlop={8} accessibilityRole="button">
-              <Text className="font-inter-bold text-sm text-primary-ink">Use the primary colour instead</Text>
+          {/* A way out of the panel that can be seen: before Done, only pressing the tile again closed it. */}
+          <View className="flex-row items-center justify-between gap-4">
+            {open === 'secondary' && secondary ? (
+              <TouchableOpacity onPress={() => onChange({ primary, secondary: '' })} hitSlop={8} accessibilityRole="button">
+                <Text className="font-inter-bold text-sm text-primary-ink">Use the primary colour instead</Text>
+              </TouchableOpacity>
+            ) : <View />}
+            <TouchableOpacity onPress={() => setOpen(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Done choosing the ${open} colour`}>
+              <Text className="font-inter-bold text-sm text-primary-ink">Done</Text>
             </TouchableOpacity>
-          ) : null}
+          </View>
         </View>
       ) : null}
     </View>

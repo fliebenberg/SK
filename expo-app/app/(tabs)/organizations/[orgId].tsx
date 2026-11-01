@@ -8,6 +8,7 @@ import { ScreenHeader } from '../../../components/ScreenHeader';
 import { Tabs } from '../../../components/Tabs';
 import { PageBody } from '../../../components/PageBody';
 import { OrgProfileBanner } from '../../../components/org/OrgProfileBanner';
+import { UnclaimedOrgStrip } from '../../../components/org/UnclaimedOrgStrip';
 import { TournamentCard } from '../../../components/tournament/TournamentBits';
 import { AddressMap } from '../../../components/address/AddressMap';
 import { MapOverlay } from '../../../components/address/MapOverlay';
@@ -38,7 +39,9 @@ import { copyText, openDirections } from '../../../utils/share';
  * - **Fixtures**, the organisation's Fixtures & Events list, read-only (`OrgEventsListView`);
  * - **Sites** and **Leagues**.
  * Everything on it is public: the summary, teams, sites, events and leagues rooms. A member sees the
- * same page with the way into the workspace at the end of the banner. Applying to join comes with
+ * same page with the way into the workspace at the end of the banner. An org with no administrator
+ * carries a strip under the banner to claim it or nominate someone (`UnclaimedOrgStrip`, 2026-10-31),
+ * for everyone — a visitor is asked to sign in first. Applying to join comes with
  * `MEMBER-1`, for an organisation that allows it; team and site rows open nothing until the public
  * team and site pages exist.
  */
@@ -245,8 +248,10 @@ export default function PublicOrgPage() {
       <ScreenHeader title="Organisation" onBack={() => safeBack('/(tabs)/organizations')} />
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <View style={{ padding: isWide ? 24 : 12, paddingBottom: 0 }}>
-          <PageBody>
+          <PageBody className="gap-3">
             <OrgProfileBanner org={org} action={workspaceLabel ? { label: workspaceLabel, onPress: () => router.push(`/admin/${orgId}` as any) } : undefined} />
+            {/* Nobody runs it yet: the way to claim it, or to say who should (docs/nomination-process.md §4). */}
+            <UnclaimedOrgStrip org={org} />
           </PageBody>
         </View>
         <View className="bg-card mt-4 border-y border-line">

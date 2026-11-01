@@ -36,8 +36,21 @@ Each card's Edit opens a dialog that saves only that card's fields: **Edit ident
 code, type, brand colours), **Edit about**, **Edit address**, **Edit sports**. An empty card has no
 Edit link — its empty state carries the action ("No address yet. Add address").
 
-**Colours**: both ways of creating an org — the Organisations tab's *Add Organization* and the
-*Register an organisation* dialog used where an org is chosen — ask for its colours too, through the
+**Creating an org**: both ways — the Organisations tab's *Add organisation*
+([AddOrgDialog](file:///c:/Fred/Coding/SK/expo-app/components/org/AddOrgDialog.tsx)) and the
+*Register an organisation* dialog used where an org is chosen
+([RegisterOrgModal](file:///c:/Fred/Coding/SK/expo-app/components/RegisterOrgModal.tsx)) — are
+`EditDialog`s (2026-10-31), so they are a bottom sheet on a phone and ask before throwing away what
+was typed, and they enter each field as Edit identity does: `FieldLabel`, `TEXT_INPUT`, the short code
+in Inter behind a help icon. *Add organisation* also asks for the *Organisation type* (the same
+`ORG_TYPES` dropdown, with *Describe it* beside Other — up to `ORG_CUSTOM_TYPE_MAX_LENGTH`, 30
+characters, in both dialogs and on the server, which refuses a longer one; the column itself is
+`TEXT`) and an optional main sport, chosen from the sports ScoreKeeper has —
+it was a free-text box that sent whatever was typed as a sport id. Whoever adds an organisation there becomes
+its admin (`creatorId`), and its workspace opens next, since setting it up is what comes next
+(2026-10-31); *Register an organisation* makes nobody admin and stays where it was opened.
+
+**Colours**: both ask for its colours too, through the
 same `BrandColorsField` as Edit identity, since whoever sets an org up usually knows them, even as an
 outsider. They start as the app's orange and electric blue, which is what a new org keeps if they
 are left alone. The primary colour is required; the secondary is optional and marked so, and an admin who

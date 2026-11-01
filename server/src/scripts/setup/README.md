@@ -45,7 +45,12 @@ Four made-up organisations, each with "Test" in its name:
 | `fx-org-rbh` | Test Riverbend High School | Rugby U16 A, 1st XV; Netball U14 A, U16 A |
 | `fx-org-ksc` | Test Kwaggafontein Sports Club | Rugby U16 Lions, U19 Colts; Netball U14 Meteors, U16 Comets |
 
-Each organisation has one site with two rugby fields and three netball courts, an admin, staff,
+And one organisation **nobody runs yet** (`UNCLAIMED_TEST_ORGS`, 2026-10-31): `fx-org-ucc`, *Test
+Unclaimed Cricket Club* — unclaimed, with no creator, members, teams or sites, as an org added from a
+game or a tournament is left. Anyone signed in may take its admin role, so the public organisation
+page's claim strip can be tried; the reset puts it back unclaimed.
+
+Each organisation above has one site with two rugby fields and three netball courts, an admin, staff,
 a coach for each team, 18 players in each rugby team and 10 in each netball team — except
 Doringkloof's two empty teams, below.
 

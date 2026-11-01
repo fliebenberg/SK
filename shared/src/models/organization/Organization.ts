@@ -5,6 +5,13 @@ import type { TimeZone } from "../../utils/zonedTime";
 export type OrganizationType = 'SCHOOL' | 'CLUB' | 'LEAGUE' | 'ACADEMY' | 'CORPORATE' | 'COMMUNITY' | 'OTHER';
 
 /**
+ * The most an Other type's description may hold ("Charity", "Social group"). It is shown where a
+ * type label goes — the profile banner's facts — so it is a label, not a sentence. Held by the
+ * app's fields only; the `custom_type` column is `TEXT` (2026-10-31).
+ */
+export const ORG_CUSTOM_TYPE_MAX_LENGTH = 30;
+
+/**
  * An organisation reduced to what it takes to *show* one, and nothing else.
  *
  * Screens that list organisations alongside something else — the tournament entrants grid, the

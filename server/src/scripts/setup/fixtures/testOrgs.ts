@@ -584,6 +584,25 @@ export const TEST_ORGS: FixtureOrg[] = [
     },
 ];
 
+/**
+ * Organisations nobody runs yet — added from a game or a tournament (`RegisterOrgModal`) and
+ * waiting to be claimed: no admin, no members, no teams or sites. Anyone signed in may take the
+ * admin role of one (docs/nomination-process.md §4), so the public page's claim strip
+ * (`UnclaimedOrgStrip`) can be tried end to end and put back by the reset (2026-10-31).
+ */
+export interface FixtureUnclaimedOrg {
+    key: string;
+    name: string;
+    shortName: string;
+    type: 'SCHOOL' | 'CLUB';
+    primaryColor: string;
+    secondaryColor: string;
+}
+
+export const UNCLAIMED_TEST_ORGS: FixtureUnclaimedOrg[] = [
+    { key: 'ucc', name: 'Test Unclaimed Cricket Club', shortName: 'UCC', type: 'CLUB', primaryColor: '#14532D', secondaryColor: '#FACC15' },
+];
+
 /** "Jandré Nieuwoudt" → "jandre-nieuwoudt". */
 /**
  * A tournament in the test data, with every state a team's answer can be in (`FIX-31`, `FIX-33`), so

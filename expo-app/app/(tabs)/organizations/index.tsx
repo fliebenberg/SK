@@ -1,23 +1,19 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, useWindowDimensions, Modal, Image } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
 import { GlassCard } from '../../../components/GlassCard';
-import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
-import { sendAction } from '../../../services/actions';
 import { useWsStore } from '../../../store/wsStore';
-import { ORG_SHORT_CODE_MAX_LENGTH, SocketAction, OrganizationType, orgColors, DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR } from '@sk/shared';
-import { BrandColorsField, brandColorsProblem } from '../../../components/org/BrandColorsField';
-import { useOrgShortCode } from '../../../hooks/useOrgShortCode';
+import { orgColors } from '@sk/shared';
+import { AddOrgDialog } from '../../../components/org/AddOrgDialog';
 import { OrgLogo } from '../../../components/OrgLogo';
 import { PrivateOrgChip } from '../../../components/org/PrivateOrgTag';
 import { SignInPrompt } from '../../../components/SignInPrompt';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { inkOnBrand } from '@/utils/colorUtils';
-import { deviceTimeZone } from '@/utils/dates';
 import { orgAccess } from '@/utils/orgAccess';
 import { themeColor } from '../../../constants/Colors';
 
@@ -37,13 +33,6 @@ export default function OrganizationsPage() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [signInPromptVisible, setSignInPromptVisible] = useState(false);
-  const [newOrgName, setNewOrgName] = useState('');
-  const [newOrgSport, setNewOrgSport] = useState('Football');
-  const [newOrgType, setNewOrgType] = useState<OrganizationType | null>(null);
-  const [newOrgCustomType, setNewOrgCustomType] = useState('');
-  // The app's two colours until changed, so a new org has two either way (2026-10-03).
-  const [newOrgColors, setNewOrgColors] = useState({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR });
-  const shortCode = useOrgShortCode();
   const [activeTab, setActiveTab] = useState<'my' | 'all'>('my');
 
   const loadOrgsAndSports = () => {
@@ -133,63 +122,19 @@ export default function OrganizationsPage() {
   const myOrgs = filteredOrgs.filter(org => org.isMine);
   const orgs = filteredOrgs;
 
-  const handleCreateOrg = () => {
-    if (!newOrgName.trim() || !newOrgType || !shortCode.shortCode) return;
-    if (newOrgType === 'OTHER' && !newOrgCustomType.trim()) return;
-    if (brandColorsProblem(newOrgColors.primary, newOrgColors.secondary)) return;
-
-    const matchedSportId = Object.keys(sportsMap).find(
-      (id) => sportsMap[id].toLowerCase() === newOrgSport.trim().toLowerCase()
-    ) || (newOrgSport.trim() ? newOrgSport.trim() : undefined);
-
-    const payload = {
-      name: newOrgName.trim(),
-      shortName: shortCode.shortCode,
-      supportedSportIds: matchedSportId ? [matchedSportId] : [],
-      creatorId: user?.id,
-      isActive: true,
-      type: newOrgType,
-      customType: newOrgType === 'OTHER' ? newOrgCustomType.trim() : undefined,
-      primaryColor: newOrgColors.primary,
-      // Cleared means "not set": painted as the primary.
-      secondaryColor: newOrgColors.secondary || null,
-      // Whoever sets an organisation up is most likely where it plays (DATE-2); changeable in its settings.
-      timezone: deviceTimeZone(),
-    };
-
-    sendAction(SocketAction.ADD_ORG, payload).then(result => {
-      // A refusal used to be read as the new org (`if (res)`), and the form was cleared and closed
-      // before any reply — so a failed create lost what was typed. Now it stays open to retry.
-      if (!result.ok) return;
-      loadOrgsAndSports();
-
-      if (user?.id) {
-        wsService.emit('get_data', { type: 'user_memberships', id: user.id }, (membershipRes: any) => {
-          if (membershipRes) {
-            setMemberships(membershipRes.orgs, membershipRes.teams);
-          }
-        });
-      }
-
-      setNewOrgName('');
-      setNewOrgSport('Football');
-      setNewOrgType(null);
-      setNewOrgCustomType('');
-      setNewOrgColors({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR });
-      shortCode.reset();
-      setModalVisible(false);
-    });
+  // The new org is theirs, and setting it up is what comes next: its workspace opens (2026-10-31).
+  // The directory and their memberships are re-read for when they come back to this page.
+  const handleOrgCreated = (org: { id: string }) => {
+    router.push(`/admin/${org.id}` as any);
+    loadOrgsAndSports();
+    if (user?.id) {
+      wsService.emit('get_data', { type: 'user_memberships', id: user.id }, (membershipRes: any) => {
+        if (membershipRes) {
+          setMemberships(membershipRes.orgs, membershipRes.teams);
+        }
+      });
+    }
   };
-
-  const orgTypes: { value: OrganizationType; label: string }[] = [
-    { value: 'SCHOOL', label: 'School' },
-    { value: 'CLUB', label: 'Sports Club' },
-    { value: 'ACADEMY', label: 'Academy' },
-    { value: 'LEAGUE', label: 'League' },
-    { value: 'CORPORATE', label: 'Corporate' },
-    { value: 'COMMUNITY', label: 'Community' },
-    { value: 'OTHER', label: 'Other' },
-  ];
 
   // Anyone signed in may belong to an org, or set one up.
   const showTabs = isAuthenticated;
@@ -542,189 +487,11 @@ export default function OrganizationsPage() {
         description="Set up your school, club or league on ScoreKeeper, and run its teams, fixtures and results."
       />
 
-      {/* QUICK CREATION MODAL */}
-      <Modal
-        animationType="fade"
-        transparent={true}
+      <AddOrgDialog
         visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View className="flex-1 justify-center items-center bg-overlay/80 px-6">
-          <View className="w-full max-w-md bg-card border border-line p-6 rounded-2xl shadow-2xl" style={{ maxHeight: '90%' }}>
-            <View className="flex-row justify-between items-center mb-6">
-              <Text className="font-orbitron-bold text-lg text-ink uppercase tracking-wide">
-                Add Organisation
-              </Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)} className="p-1 active:opacity-70">
-                <Ionicons name="close" size={22} color={themeColor(isDark, 'ink-muted')} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ flexGrow: 0 }} keyboardShouldPersistTaps="handled">
-            <View className="mb-4">
-              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
-                Organisation Name
-              </Text>
-              <TextInput
-                value={newOrgName}
-                onChangeText={(text) => {
-                  setNewOrgName(text);
-                  shortCode.onNameChange(text);
-                }}
-                placeholder="e.g. Springvale High"
-                placeholderTextColor={themeColor(isDark, 'ink-muted')}
-                className="bg-sunken border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink outline-none"
-                autoFocus
-              />
-            </View>
-
-            {/* Required, but pre-filled from the name as it is typed — see `useOrgShortCode`. */}
-            <View className="mb-4">
-              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
-                Short Code (Required)
-              </Text>
-              <TextInput
-                value={shortCode.shortCode}
-                onChangeText={shortCode.onShortCodeChange}
-                maxLength={ORG_SHORT_CODE_MAX_LENGTH}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                spellCheck={false}
-                placeholder="SVH"
-                placeholderTextColor={themeColor(isDark, 'ink-muted')}
-                className="bg-sunken border border-line rounded-xl px-4 py-3 font-orbitron-bold text-sm text-ink outline-none w-32 text-center"
-              />
-              <Text className="font-inter text-[10px] text-ink-muted mt-1.5">
-                Used wherever the full name will not fit — tabs, columns and team flags.
-              </Text>
-            </View>
-
-            <View className="mb-6">
-              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
-                Primary Sport
-              </Text>
-              <TextInput
-                value={newOrgSport}
-                onChangeText={setNewOrgSport}
-                placeholder="e.g. Football"
-                placeholderTextColor={themeColor(isDark, 'ink-muted')}
-                className="bg-sunken border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink outline-none"
-              />
-              
-              {/* Quick Select Sports */}
-              <View className="flex-row flex-wrap gap-2 mt-3">
-                {['Football', 'Rugby Union', 'Basketball', 'Tennis'].map((sport) => (
-                  <TouchableOpacity
-                    key={sport}
-                    onPress={() => setNewOrgSport(sport)}
-                    className={`px-3 py-1 rounded-full border ${
-                      newOrgSport === sport
-                        ? 'bg-primary-soft border-primary'
-                        : 'bg-transparent border-line'
-                    }`}
-                  >
-                    <Text className={`font-inter text-xs ${
-                      newOrgSport === sport
-                        ? 'text-primary-ink font-inter-bold'
-                        : 'text-ink-muted'
-                    }`}>
-                      {sport}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Organization Type Selector */}
-            <View className="mb-4">
-              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
-                Organisation Type (Required)
-              </Text>
-              <View className="flex-row flex-wrap gap-2 mb-2">
-                {orgTypes.map((t) => (
-                  <TouchableOpacity
-                    key={t.value}
-                    onPress={() => {
-                      setNewOrgType(t.value);
-                      if (t.value !== 'OTHER') {
-                        setNewOrgCustomType('');
-                      }
-                    }}
-                    className={`px-3 py-1.5 rounded-xl border ${
-                      newOrgType === t.value
-                        ? 'bg-primary-soft border-primary'
-                        : 'bg-sunken border-line'
-                    }`}
-                  >
-                    <Text className={`font-inter text-xs ${
-                      newOrgType === t.value
-                        ? 'text-primary-ink font-inter-bold'
-                        : 'text-ink-muted'
-                    }`}>
-                      {t.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Custom Organization Type Specification */}
-            {newOrgType === 'OTHER' && (
-              <View className="mb-6">
-                <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
-                  Specify Custom Type (Required)
-                </Text>
-                <TextInput
-                  value={newOrgCustomType}
-                  onChangeText={setNewOrgCustomType}
-                  placeholder="e.g. Charity / Social Group"
-                  placeholderTextColor={themeColor(isDark, 'ink-muted')}
-                  className="bg-sunken border border-line rounded-xl px-4 py-2.5 font-inter text-sm text-ink outline-none"
-                />
-              </View>
-            )}
-
-            <View className="mb-4">
-              <BrandColorsField
-                primary={newOrgColors.primary}
-                secondary={newOrgColors.secondary}
-                onChange={setNewOrgColors}
-              />
-            </View>
-            </ScrollView>
-
-            <View className="flex-row gap-3 mt-2">
-              <Button
-                title="Cancel"
-                variant="ghost"
-                onPress={() => {
-                  setModalVisible(false);
-                  setNewOrgName('');
-                  setNewOrgSport('Football');
-                  setNewOrgType(null);
-                  setNewOrgCustomType('');
-                  setNewOrgColors({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR });
-                  shortCode.reset();
-                }}
-                className="flex-1"
-              />
-              <Button
-                title="Add"
-                variant="primary"
-                onPress={handleCreateOrg}
-                disabled={
-                  !newOrgName.trim() ||
-                  !shortCode.shortCode ||
-                  !newOrgType ||
-                  (newOrgType === 'OTHER' && !newOrgCustomType.trim()) ||
-                  !!brandColorsProblem(newOrgColors.primary, newOrgColors.secondary)
-                }
-                className="flex-1"
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setModalVisible(false)}
+        onCreated={handleOrgCreated}
+      />
     </View>
   );
 }

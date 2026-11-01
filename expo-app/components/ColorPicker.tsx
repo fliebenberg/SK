@@ -7,8 +7,11 @@ import { isHexColor } from '@sk/shared';
 import { themeColor } from '../constants/Colors';
 
 /**
- * Pick a colour: a base hue, then a shade, or a hex code typed in. On web the swatch also opens the
- * browser's own spectrum picker, and the eyedropper where the browser has one.
+ * Pick a colour: a base hue, then a shade, or a hex code typed in. On web the swatch and the palette
+ * button beside the hex code both open the browser's own spectrum picker, which carries its own
+ * eyedropper where the browser has one. The palette button used to start the eyedropper itself, so
+ * the icon promised a palette and gave a pipette, and the Escape that ended it also reached the
+ * dialog and asked to discard the edits (2026-10-31).
  *
  * @colour-data — the swatches and the fallbacks are colours being picked, not theme colours.
  *
@@ -79,20 +82,11 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
   const [isGrey, setIsGrey] = useState(start.s === 0);
   const [text, setText] = useState(value);
   const webInputRef = useRef<any>(null);
-  const hasEyedropper = Platform.OS === 'web' && typeof window !== 'undefined' && 'EyeDropper' in window;
+  const openSpectrum = () => webInputRef.current?.click();
 
   const set = (hex: string) => {
     setText(hex);
     if (isHexColor(hex)) onChange(hex.toUpperCase());
-  };
-
-  const openEyedropper = async () => {
-    try {
-      const result = await new (window as any).EyeDropper().open();
-      if (result?.sRGBHex) set(result.sRGBHex);
-    } catch {
-      // Closed without picking.
-    }
   };
 
   return (
@@ -109,7 +103,7 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
 
       <View className="flex-row items-center gap-2">
         <TouchableOpacity
-          onPress={() => webInputRef.current?.click()}
+          onPress={openSpectrum}
           disabled={Platform.OS !== 'web'}
           accessibilityLabel={Platform.OS === 'web' ? 'Open the colour spectrum' : undefined}
           className="w-10 h-10 rounded-lg border border-line-strong"
@@ -129,8 +123,8 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
           accessibilityLabel="Hex colour code"
           className="flex-1 font-mono text-sm text-ink bg-canvas border border-line rounded-xl px-3 py-2.5 outline-none"
         />
-        {hasEyedropper ? (
-          <TouchableOpacity onPress={openEyedropper} accessibilityLabel="Pick a colour from the screen" className="w-10 h-10 rounded-xl items-center justify-center border border-line">
+        {Platform.OS === 'web' ? (
+          <TouchableOpacity onPress={openSpectrum} accessibilityRole="button" accessibilityLabel="More colours" className="w-10 h-10 rounded-xl items-center justify-center border border-line">
             <Ionicons name="color-palette-outline" size={18} color={themeColor(isDark, 'ink')} />
           </TouchableOpacity>
         ) : null}

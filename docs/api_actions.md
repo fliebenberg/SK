@@ -466,7 +466,8 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
     from the name when missing), `type?`, `customType?`, `logo?`, `primaryColor?`,
     `secondaryColor?` (`null` paints it as the primary), `supportedSportIds?`, `supportedRoleIds?`,
     `address?` or `addressId?`, `creatorId?`, `isActive?`, `settings?`, `timezone?`.
-*   **Logic**: Creates a new organization.
+*   **Logic**: Creates a new organization. `customType` (an Other type's description) is trimmed, and
+    refused past `ORG_CUSTOM_TYPE_MAX_LENGTH` (30 characters, `@sk/shared`; 2026-10-31).
 *   **Broadcasts**:
     *   **Topic**: `organizations`
     *   **Event**: `ORGANIZATION_UPDATED`
@@ -475,7 +476,8 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
 #### `UPDATE_ORG`
 *   **Payload**: `{ id, data }` — `data` is `Partial<Organization>` without `isClaimed` or
     `creatorId`; `address` is an `AddressPayload`, or `null` to remove it.
-*   **Logic**: Updates organization details.
+*   **Logic**: Updates organization details. `customType` is held to the same 30 characters as on
+    create, except that a description saved before the limit may be sent back unchanged.
 *   **Broadcasts**:
     *   **Topic**: `organizations`
     *   **Event**: `ORGANIZATION_UPDATED`

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
-import { ORG_SHORT_CODE_MAX_LENGTH, Organization, OrganizationType, SocketAction, normalizeOrgShortCode, orgColors } from '@sk/shared';
+import { ORG_CUSTOM_TYPE_MAX_LENGTH, ORG_SHORT_CODE_MAX_LENGTH, Organization, OrganizationType, SocketAction, normalizeOrgShortCode, orgColors } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { FieldLabel } from '../FieldLabel';
 import CustomSelect from '../CustomSelect';
@@ -110,7 +110,7 @@ export function IdentityDialog({ org, visible, onClose }: { org: Organization; v
 
       <View className="flex-row flex-wrap gap-3">
         <View className="gap-1.5" style={{ flexGrow: 1, flexBasis: 180 }}>
-          <FieldLabel label="Type" />
+          <FieldLabel label="Organisation type" />
           <CustomSelect
             value={draft.type}
             onChange={(value: string) => set('type', value as OrganizationType)}
@@ -126,6 +126,7 @@ export function IdentityDialog({ org, visible, onClose }: { org: Organization; v
               onChangeText={t => set('customType', t)}
               placeholder="e.g. Charity"
               autoFocus
+              maxLength={ORG_CUSTOM_TYPE_MAX_LENGTH}
               accessibilityLabel="Describe the kind of organisation"
               className={TEXT_INPUT}
             />

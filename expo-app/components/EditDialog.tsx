@@ -14,7 +14,9 @@ import { useWarnOnTabClose } from '../hooks/useWarnOnTabClose';
  * Profile and Settings pages.
  *
  * **Closing with unsaved edits asks first, inside the dialog.** The footer turns into "Discard your
- * changes?" rather than a second modal on top, which React Native Web stacks unreliably. Pass
+ * changes?" rather than a second modal on top, which React Native Web stacks unreliably. While it
+ * asks, the form is covered and cannot be edited; pressing it, or closing again (a second Escape),
+ * goes back to editing (2026-10-31). Pass
  * `isDirty` and the dialog does the rest; the caller's `onClose` runs only once the edits are
  * really to go. On web, closing or reloading the tab while the dialog holds unsaved edits asks
  * too (`useWarnOnTabClose`).
@@ -55,9 +57,12 @@ export function EditDialog({
     if (!visible) setConfirmingDiscard(false);
   }, [visible]);
 
+  // Asked twice — a second Escape, the backdrop again — is a change of mind, not a yes: it goes back
+  // to editing, and only Discard throws the edits away.
   const requestClose = () => {
     if (isSaving) return;
-    if (isDirty) setConfirmingDiscard(true);
+    if (confirmingDiscard) setConfirmingDiscard(false);
+    else if (isDirty) setConfirmingDiscard(true);
     else onClose();
   };
 
@@ -81,9 +86,21 @@ export function EditDialog({
               </TouchableOpacity>
             </View>
 
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, gap: 16 }}>
-              {children}
-            </ScrollView>
+            <View className="flex-shrink">
+              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, gap: 16 }}>
+                {children}
+              </ScrollView>
+              {/* While Discard is asked, the form cannot be edited behind the question — that left it
+                  answerable by carrying on, with no Save in sight. Pressing the form is Keep editing. */}
+              {confirmingDiscard ? (
+                <Pressable
+                  className="absolute inset-0"
+                  onPress={() => setConfirmingDiscard(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Keep editing"
+                />
+              ) : null}
+            </View>
 
             <View className={`flex-row items-center gap-2 px-5 py-3 border-t border-line ${isSheet ? 'pb-6' : ''}`}>
               {confirmingDiscard ? (
