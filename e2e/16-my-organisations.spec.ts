@@ -42,11 +42,10 @@ test.describe('My Organisations', () => {
   });
 
   // The Teams tab lists the teams they coach, each opening its team page in the workspace (PERM-5).
-  test('the Teams tab lists the teams a coach coaches, and Manage Team opens one', async ({ page }) => {
+  test('the Teams tab lists the teams a coach coaches, and a card opens one', async ({ page }) => {
     await signIn(page, USERS.kscCoach);
     await page.goto('/teams');
-    await expect(page.getByText('My Coached Teams')).toBeVisible();
-    await page.getByRole('button', { name: 'Manage Team' }).first().click();
+    await page.getByTestId('team-card-fx-team-ksc-rugby-u16').click();
     await expect(page).toHaveURL(new RegExp(`/admin/${ORG.ksc}/teams/`));
   });
 
@@ -54,7 +53,7 @@ test.describe('My Organisations', () => {
   test("a coach opens a player on their team, and picks others by name", async ({ page }) => {
     await signIn(page, USERS.kscCoach);
     await page.goto('/teams');
-    await page.getByRole('button', { name: 'Manage Team' }).first().click();
+    await page.getByTestId('team-card-fx-team-ksc-rugby-u16').click();
     await expect(page).toHaveURL(new RegExp(`/admin/${ORG.ksc}/teams/`));
     const teamUrl = page.url();
 

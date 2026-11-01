@@ -192,6 +192,18 @@ async function main() {
     const names = (reply: any) => (reply?.items || reply || []).map((o: any) => o.id);
     expect(names(await read(stranger, { type: 'organizations', search: 'Zebrafish' })).includes(ORG), false, 'the directory hides it from a stranger');
     expect(names(await read(visitor, { type: 'organizations', search: 'Zebrafish' })).includes(ORG), false, 'the directory hides it from a visitor');
+    // The public Teams list (`UI-33`), and how it pages on the server.
+    expect(names(await read(stranger, { type: 'team_directory', search: 'Zebrafish' })).includes(TEAM_A), false, 'the Teams list hides its teams from a stranger');
+    expect(names(await read(visitor, { type: 'team_directory', search: 'Zebrafish' })).includes(TEAM_A), false, 'the Teams list hides its teams from a visitor');
+    expect(names(await read(former, { type: 'team_directory', search: 'Zebrafish' })).includes(TEAM_A), false, 'the Teams list hides its teams from a former member');
+    expect(names(await read(member, { type: 'team_directory', search: 'Zebrafish' })).includes(TEAM_A), true, 'the Teams list shows its teams to a member');
+    expect(names(await read(member, { type: 'team_directory', search: 'Zebrafish rugby' })).length, 2, 'every word searched for has to match, across team and sport');
+    expect(names(await read(member, { type: 'team_directory', search: 'Zebrafish netball' })).length, 0, 'a word that matches nothing finds nothing');
+    const secondPage = await read(member, { type: 'team_directory', search: 'Zebrafish', page: 2, limit: 1 });
+    expect([secondPage.items?.length, secondPage.total, secondPage.page], [1, 2, 2], 'the Teams list answers one page, and the total');
+    expect((await read(member, { type: 'team_directory', search: 'Zebrafish', limit: 1000 })).limit, 100, 'a page is at most 100 teams');
+    expect((await read(member, { type: 'team_directory', mine: true })).total, 0, 'My Teams is only teams they are on');
+    expect((await read(visitor, { type: 'team_directory', mine: true })).total, 0, 'a visitor has no My Teams');
     expect(names(await read(member, { type: 'organizations', search: 'Zebrafish' })).includes(ORG), true, 'the directory shows it to a member');
     expect(names(await read(former, { type: 'organizations', search: 'Zebrafish' })).includes(ORG), false, 'the directory hides it from a former member');
     expect(names(await read(stranger, { type: 'search_similar_orgs', name: ORG_NAME })).includes(ORG), false, 'the similar-name search hides it');

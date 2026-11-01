@@ -121,6 +121,9 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   find_matching_user:   { standalone: 'authenticated' },
 
   // --- Teams ---------------------------------------------------------------
+  // The public Teams list: leaves out private organisations the caller does not belong to in the
+  // query itself (`ORG-14`), and says how the caller is connected to a team only to them.
+  team_directory:       { standalone: 'public-directory' },
   teams:                { room: orgRoom('teams') },
   team:                 { room: async (req: any) => {
                             const orgId = req.id ? await accessManager.getTeamOrgId(req.id) : null;

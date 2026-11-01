@@ -113,7 +113,7 @@ function OrgAdminWorkspace({ grant }: { grant: boolean }) {
         <TouchableOpacity
           onPress={() => setWorkspaceMenuVisible(!workspaceMenuVisible)}
           activeOpacity={0.8}
-          className="absolute bottom-[75px] right-4 w-12 h-12 rounded-full items-center justify-center shadow-lg z-50 border overflow-hidden"
+          className="absolute bottom-[75px] right-4 w-12 h-12 rounded-xl overflow-hidden items-center justify-center shadow-lg z-50 border overflow-hidden"
           style={{ 
             backgroundColor: orgColors(orgData).primary,
             borderColor: orgColors(orgData).secondary,

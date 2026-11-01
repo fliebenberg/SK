@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GameSummary, Organization, Team, isScoreNotProvided, orgColors, participantLabel } from '@sk/shared';
 import { OrgLogo } from '../OrgLogo';
-import { readableTextOn } from '../../utils/colorUtils';
+import { brandOnPlate, readableTextOn } from '../../utils/colorUtils';
 import { whenMs } from '../../utils/dates';
 
 /**
@@ -29,12 +29,12 @@ export function TeamCrest({ team, org, size, inactive }: {
   size: number;
   inactive?: boolean;
 }) {
-  const { primary } = orgColors(org);
+  const { primary, secondary } = orgColors(org);
   const band = Math.max(12, Math.round(size * 0.28));
   const art = size - band;
   return (
     <View
-      className="rounded-xl overflow-hidden border border-line bg-card"
+      className="rounded-xl overflow-hidden border border-line bg-logo-plate"
       style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), opacity: inactive ? 0.5 : 1 }}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
@@ -43,7 +43,7 @@ export function TeamCrest({ team, org, size, inactive }: {
         {org?.logo ? (
           <OrgLogo logo={org.logo} size={Math.round(art * 0.86)} />
         ) : (
-          <Ionicons name="shield" size={Math.round(art * 0.72)} color={primary} />
+          <Ionicons name="shield" size={Math.round(art * 0.72)} color={brandOnPlate(primary, secondary)} />
         )}
       </View>
       <View className="items-center justify-center px-0.5" style={{ height: band, backgroundColor: primary }}>

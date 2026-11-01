@@ -1667,6 +1667,10 @@ io.on('connection', (socket) => {
             case 'teams':
                 callback(await dataManager.getTeams(orgId));
                 break;
+            case 'team_directory':
+                // The viewer is the handshake's, never the request's (`ORG-14`).
+                callback(await dataManager.getTeamDirectory(request, socket.data?.userId));
+                break;
             case 'team':
                 callback(await dataManager.getTeam(id));
                 break;

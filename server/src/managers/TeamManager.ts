@@ -1,7 +1,9 @@
-import { Team, TeamRole, TeamMembership, TeamMember } from "@sk/shared";
+import { PaginatedResponse, PaginationParams, Team, TeamDirectoryEntry, TeamRole, TeamMembership, TeamMember } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
+import { accessManager } from "./AccessManager";
 import { organizationManager } from "./OrganizationManager";
 import { restrictedReasonSql } from "./minorAccess";
+import { ORG_VISIBLE, viewerOf } from "./privateOrgs";
 import { withReason } from "./UserManager";
 
 export class TeamManager extends BaseManager {
@@ -29,6 +31,68 @@ export class TeamManager extends BaseManager {
         teams.push(await this.enrichTeam(t));
     }
     return teams;
+  }
+
+  /**
+   * The public Teams list across every organisation (`UI-33`): static and paged on the server
+   * (okf/live_rooms.md). `mine` narrows it to the teams the viewer is on or a child of theirs is on,
+   * which may include a team that has been switched off; otherwise only active teams show. A private
+   * organisation's teams appear only to those who belong to it (`ORG-14`). The viewer is the
+   * handshake's, never the request's, and every word searched for must match somewhere.
+   */
+  async getTeamDirectory(
+    params: PaginationParams & { mine?: boolean } = { page: 1, limit: 100 },
+    userId: string | null = null,
+  ): Promise<PaginatedResponse<TeamDirectoryEntry>> {
+    const page = Math.max(1, Math.floor(Number(params.page)) || 1);
+    const limit = Math.min(Math.max(1, Math.floor(Number(params.limit)) || 100), 100);
+    const viewer = viewerOf(userId);
+    if (params.mine && !viewer) return { items: [], total: 0, page, limit };
+
+    const mine = `tm.org_profile_id IN (${accessManager.PROFILE_IDS_FOR_USER})`;
+    const child = `EXISTS (SELECT 1 FROM profile_guardians pg
+                            WHERE pg.player_profile_id = tm.org_profile_id
+                              AND (pg.end_date IS NULL OR pg.end_date > NOW())
+                              AND pg.guardian_profile_id IN (${accessManager.PROFILE_IDS_FOR_USER}))`;
+    const onTeam = (who: string) => `SELECT 1 FROM team_memberships tm
+      WHERE tm.team_id = t.id AND (tm.end_date IS NULL OR tm.end_date > NOW()) AND ${who}`;
+
+    const args: unknown[] = [viewer];
+    const where = [ORG_VISIBLE('o', '$1')];
+    where.push(params.mine ? `EXISTS (${onTeam(`(${mine} OR ${child})`)})` : 't.is_active');
+    for (const word of String(params.search ?? '').trim().split(/\s+/).filter(Boolean)) {
+      args.push(`%${word.replace(/[\\%_]/g, '\\$&')}%`);
+      const n = `$${args.length}`;
+      where.push(`(t.name ILIKE ${n} OR t.short_name ILIKE ${n} OR ag.name ILIKE ${n} OR s.name ILIKE ${n} OR o.name ILIKE ${n} OR o.short_name ILIKE ${n})`);
+    }
+    const from = `FROM teams t
+      JOIN organizations o ON o.id = t.org_id
+      LEFT JOIN sports s ON s.id = t.sport_id
+      LEFT JOIN sport_age_groups ag ON ag.id = t.age_group_id
+      WHERE ${where.join(' AND ')}`;
+
+    const [count, rows] = await Promise.all([
+      this.query(`SELECT COUNT(*)::int AS total ${from}`, args),
+      this.query(
+        `SELECT t.id, t.name, t.short_name AS "shortName", ag.name AS "ageGroup",
+                t.sport_id AS "sportId", s.name AS "sportName", t.is_active AS "isActive",
+                t.org_id AS "orgId", o.name AS "orgName", o.logo AS "orgLogo",
+                o.primary_color AS "orgPrimaryColor", o.secondary_color AS "orgSecondaryColor",
+                o.is_private AS "orgIsPrivate",
+                (SELECT tm.role_id FROM team_memberships tm
+                  WHERE tm.team_id = t.id AND (tm.end_date IS NULL OR tm.end_date > NOW()) AND ${mine}
+                  ORDER BY CASE tm.role_id WHEN 'role-coach' THEN 0 WHEN 'role-assistant-coach' THEN 1
+                                           WHEN 'role-scorer' THEN 2 WHEN 'role-medic' THEN 3 ELSE 4 END
+                  LIMIT 1) AS "myRoleId",
+                ARRAY(SELECT DISTINCT p.name FROM team_memberships tm JOIN org_profiles p ON p.id = tm.org_profile_id
+                       WHERE tm.team_id = t.id AND (tm.end_date IS NULL OR tm.end_date > NOW()) AND ${child}) AS "childNames"
+         ${from}
+         ORDER BY o.name, s.name, ag.sort_order NULLS LAST, t.name, t.id
+         LIMIT $${args.length + 1} OFFSET $${args.length + 2}`,
+        [...args, limit, (page - 1) * limit],
+      ),
+    ]);
+    return { items: rows.rows, total: count.rows[0].total, page, limit };
   }
 
   /**

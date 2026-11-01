@@ -63,7 +63,7 @@ export function OrgMark({ logo, primaryColor, size = 36 }: {
   size?: number;
 }) {
   return (
-    <View className="rounded-full bg-sunken items-center justify-center" style={{ width: size, height: size }}>
+    <View className="rounded-xl bg-sunken items-center justify-center" style={{ width: size, height: size }}>
       <OrgLogo logo={logo || undefined} primaryColor={primaryColor || undefined} size={Math.round(size * 0.72)} />
     </View>
   );

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, TextInput, useWindowDimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useActiveTheme } from '../store/settingsStore';
-import { themeColor } from '../constants/Colors';
+import { View, useWindowDimensions } from 'react-native';
+import { ListPager } from './ListPager';
 
 
 export interface PaginatedListProps<T> {
@@ -28,10 +26,8 @@ export function PaginatedList<T>({
   containerClassName = '',
   itemSpacingClassName = 'gap-1',
 }: PaginatedListProps<T>) {
-  const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();
   const [currentPage, setCurrentPage] = useState(1);
-  const [jumpInput, setJumpInput] = useState('1');
 
   // Determine active columns based on viewport width and maxColumns prop
   let activeColumns = 1;
@@ -51,29 +47,12 @@ export function PaginatedList<T>({
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(1);
-      setJumpInput('1');
     }
   }, [totalItems, totalPages, currentPage, effectivePageSize]);
 
   useEffect(() => {
     setCurrentPage(1);
-    setJumpInput('1');
   }, [data]);
-
-  const handlePageChange = (newPage: number) => {
-    const validPage = Math.min(Math.max(1, newPage), totalPages);
-    setCurrentPage(validPage);
-    setJumpInput(String(validPage));
-  };
-
-  const handleJumpSubmit = () => {
-    const parsed = parseInt(jumpInput, 10);
-    if (!isNaN(parsed) && parsed >= 1 && parsed <= totalPages) {
-      handlePageChange(parsed);
-    } else {
-      setJumpInput(String(currentPage));
-    }
-  };
 
   const startIndex = (currentPage - 1) * effectivePageSize;
   const endIndex = Math.min(startIndex + effectivePageSize, totalItems);
@@ -84,6 +63,8 @@ export function PaginatedList<T>({
   return (
     <View className={`w-full ${containerClassName}`}>
       {header}
+
+      <View className={showPagination ? 'mb-3' : ''}><ListPager page={currentPage} limit={effectivePageSize} total={totalItems} onPageChange={setCurrentPage} /></View>
 
       {totalItems === 0 ? (
         emptyState || null
@@ -108,95 +89,7 @@ export function PaginatedList<T>({
         </View>
       )}
 
-      {showPagination && (
-        <View className="mt-3 py-2 px-3 bg-card border border-line rounded-xl flex-row items-center justify-between flex-wrap gap-2 shadow-sm">
-          {/* Item Count Info */}
-          <Text className="font-inter text-xs text-ink-muted">
-            Showing{' '}
-            <Text className="font-inter-bold text-ink-soft">
-              {startIndex + 1}–{endIndex}
-            </Text>{' '}
-            of{' '}
-            <Text className="font-inter-bold text-ink-soft">
-              {totalItems}
-            </Text>
-          </Text>
-
-          {/* Navigation & Jump Controls */}
-          <View className="flex-row items-center gap-1.5">
-            {/* First Page */}
-            <TouchableOpacity
-              onPress={() => handlePageChange(1)}
-              disabled={currentPage === 1}
-              className={`w-7 h-7 rounded-lg items-center justify-center border border-line ${
-                currentPage === 1
-                  ? 'opacity-30 bg-sunken'
-                  : 'bg-raised active:opacity-75'
-              }`}
-            >
-              <Ionicons name="play-skip-back" size={12} color={themeColor(isDark, 'ink-soft')} />
-            </TouchableOpacity>
-
-            {/* Prev Page */}
-            <TouchableOpacity
-              onPress={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className={`w-7 h-7 rounded-lg items-center justify-center border border-line ${
-                currentPage === 1
-                  ? 'opacity-30 bg-sunken'
-                  : 'bg-raised active:opacity-75'
-              }`}
-            >
-              <Ionicons name="chevron-back" size={14} color={themeColor(isDark, 'ink-soft')} />
-            </TouchableOpacity>
-
-            {/* Page Jump Input */}
-            <View className="flex-row items-center gap-1 px-1">
-              <Text className="font-inter text-xs text-ink-muted">
-                Page
-              </Text>
-              <TextInput
-                value={jumpInput}
-                onChangeText={setJumpInput}
-                onBlur={handleJumpSubmit}
-                onSubmitEditing={handleJumpSubmit}
-                keyboardType="number-pad"
-                selectTextOnFocus
-                className="w-10 h-7 text-center font-inter-bold text-xs bg-sunken text-ink border border-line rounded-md py-0 px-1 outline-none"
-              />
-              <Text className="font-inter text-xs text-ink-muted">
-                of {totalPages}
-              </Text>
-            </View>
-
-            {/* Next Page */}
-            <TouchableOpacity
-              onPress={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className={`w-7 h-7 rounded-lg items-center justify-center border border-line ${
-                currentPage === totalPages
-                  ? 'opacity-30 bg-sunken'
-                  : 'bg-raised active:opacity-75'
-              }`}
-            >
-              <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-soft')} />
-            </TouchableOpacity>
-
-            {/* Last Page */}
-            <TouchableOpacity
-              onPress={() => handlePageChange(totalPages)}
-              disabled={currentPage === totalPages}
-              className={`w-7 h-7 rounded-lg items-center justify-center border border-line ${
-                currentPage === totalPages
-                  ? 'opacity-30 bg-sunken'
-                  : 'bg-raised active:opacity-75'
-              }`}
-            >
-              <Ionicons name="play-skip-forward" size={12} color={themeColor(isDark, 'ink-soft')} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      <View className="mt-3"><ListPager page={currentPage} limit={effectivePageSize} total={totalItems} onPageChange={setCurrentPage} /></View>
     </View>
   );
 }

@@ -25,33 +25,34 @@ export function OrgLogo({
   const isDark = useActiveTheme() === 'dark';
   // Determine dimensions based on size prop
   let dim = 48;
-  let borderRadius = 12; // Squircle style
+  // A rounded square, everywhere; a person's photo is the round one (docs/design_spec.md).
+  let borderRadius = 12;
   let iconSize = fallbackIconSize || 24;
 
   if (typeof size === 'number') {
     dim = size;
-    borderRadius = className.includes('rounded-full') ? Math.round(size / 2) : Math.round(size * 0.25);
+    borderRadius = Math.round(size * 0.25);
     iconSize = fallbackIconSize || Math.round(size * 0.5);
   } else {
     switch (size) {
       case 'sm':
         dim = 32;
-        borderRadius = className.includes('rounded-full') ? 16 : 8;
+        borderRadius = 8;
         iconSize = fallbackIconSize || 16;
         break;
       case 'md':
         dim = 48;
-        borderRadius = className.includes('rounded-full') ? 24 : 12;
+        borderRadius = 12;
         iconSize = fallbackIconSize || 24;
         break;
       case 'lg':
         dim = 64;
-        borderRadius = className.includes('rounded-full') ? 32 : 16;
+        borderRadius = 16;
         iconSize = fallbackIconSize || 32;
         break;
       case 'xl':
         dim = 96;
-        borderRadius = className.includes('rounded-full') ? 48 : 24;
+        borderRadius = 24;
         iconSize = fallbackIconSize || 48;
         break;
     }

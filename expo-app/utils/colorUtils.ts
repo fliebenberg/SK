@@ -47,6 +47,20 @@ export function readableTextOn(hex: string | undefined): '#000000' | '#FFFFFF' {
 }
 
 /**
+ * A brand colour that shows on a logo's white plate: the first of these dark enough to, or a dark
+ * grey if an organisation's colours are all pale.
+ */
+export function brandOnPlate(...colours: (string | null | undefined)[]): string {
+  const dark = colours.find((hex): hex is string => {
+    const clean = (hex || '').replace('#', '');
+    if (!/^[0-9a-fA-F]{6}$/.test(clean)) return false;
+    const channel = (i: number) => parseInt(clean.substring(i, i + 2), 16);
+    return (channel(0) * 299 + channel(2) * 587 + channel(4) * 114) / 1000 < 215;
+  });
+  return dark ?? '#475569';
+}
+
+/**
  * The colours for content drawn over a brand colour — an org's banner card: black-based on a light
  * colour, white-based on a dark one, with the softer shades for subtext, borders and chips. The
  * one place those shades are written, so the banners cannot drift apart (`UI-24`).

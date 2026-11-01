@@ -101,6 +101,7 @@ export class DataManager {
 
   // Teams
   getTeams = (orgId?: string) => teamManager.getTeams(orgId);
+  getTeamDirectory = (params: any, viewerId?: string | null) => teamManager.getTeamDirectory(params, viewerId ?? null);
   getTeam = (id: string) => teamManager.getTeam(id);
   teamIdsCoachedBy = (orgProfileId: string) => teamManager.teamIdsCoachedBy(orgProfileId);
   addTeam = (team: AddTeamPayload) => teamManager.addTeam(team);

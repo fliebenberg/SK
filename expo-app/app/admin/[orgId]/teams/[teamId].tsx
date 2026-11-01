@@ -283,7 +283,12 @@ export default function TeamPage() {
         <Text className="font-inter text-sm text-ink-soft mt-1">{[sportName, team.ageGroup].filter(Boolean).join(' · ')}</Text>
       </View>
       {isNarrow ? null : <View>{seasonChoice}</View>}
-      {canEdit ? <View className="self-start"><EditLink onPress={() => setDialog('edit')} /></View> : null}
+      {canEdit ? (
+        <View className="flex-row flex-wrap items-center gap-4 self-start">
+          <EditLink onPress={() => setDialog('edit')} />
+          <EditLink label="Public page" icon="open-outline" onPress={() => router.push(`/teams/${team.id}` as any)} />
+        </View>
+      ) : null}
     </View>
     {isNarrow ? <View className="self-start">{seasonChoice}</View> : null}
     </View>

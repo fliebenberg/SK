@@ -267,7 +267,7 @@ export default function OrganizationsPage() {
                             <OrgLogo 
                               logo={org.logo} 
                               size={40} 
-                              className="border bg-logo-plate rounded-full" 
+                              className="border bg-logo-plate" 
                               style={{ borderColor: borderColor }}
                             />
                             <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide leading-tight flex-shrink">
@@ -379,7 +379,7 @@ export default function OrganizationsPage() {
                         <OrgLogo 
                           logo={org.logo} 
                           size={40} 
-                          className="border bg-logo-plate rounded-full" 
+                          className="border bg-logo-plate" 
                           style={{ borderColor: borderColor }}
                         />
                         <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide flex-shrink">

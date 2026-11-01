@@ -8,6 +8,11 @@ description: How real-time data reaches a client — rooms as the read boundary,
 Four rules. All four are load-bearing; breaking any one of them has already caused a
 bug in this repo.
 
+**First decide whether the list should be live at all.** A list that may be very long is static, and
+so is a short one that does not need live data; a static list is read a page at a time with
+`get_data`. If it is not clear, ask the user. The rule and every list's kind are in
+[okf/live_rooms.md](file:///c:/Fred/Coding/SK/okf/live_rooms.md).
+
 ## 1. A broadcast carries the data. It is never a nudge to refetch.
 
 **Never** react to an update by issuing a `get_data` for the thing that just changed.

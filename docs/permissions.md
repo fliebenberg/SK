@@ -283,7 +283,7 @@ What the survey found and the decisions changed, each with the to-do that carrie
 - **Coaches** (`PERM-5`, B9, C2): their team's record (not switching it off or deleting it), roster
   and roles (not the Coach; an assistant not other assistants), its people's details, invites and
   guardians, a new Member for the team, single matches for it, its team sheets. The Teams tab's
-  *My Coached Teams* lists their real teams, each opening its team page (B12).
+  *My Teams* lists their real teams, each opening its team page in the workspace (B12, `UI-33`).
 - **Scoring and fixtures** (`PERM-6`, B4, B6, B8, C4, C5): team scorers score their team's games;
   convenors and sport organisers score, pick sides and edit the fixtures of their divisions; Score is
   no longer offered to an org that neither hosts nor plays.

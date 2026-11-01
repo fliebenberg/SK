@@ -105,7 +105,7 @@ export default function TabLayout() {
       <Tabs.Screen 
         name="teams" 
         options={{ 
-          headerTitle: 'TEAMS DIRECTORY',
+          headerTitle: 'TEAMS',
           // A team's own page has its header, with Back (2026-10-22); only the list wears the tab's.
           headerShown: !isLargeScreen && (segments as string[])[2] !== '[teamId]',
           tabBarLabel: 'Teams',

@@ -22,6 +22,7 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
 1. **WebSocket-First Exchange**:
    - WebSockets are the preferred communication method for active games, scoring, and real-time feeds.
    - **REST API Fallback**: REST endpoints are reserved for heavy operations, user authentication (login/signup), or file uploads (avatars, logos).
+   - **A static list is filtered and paged on the server** (decided 2026-11-01). Its read takes `PaginationParams` and answers `PaginatedResponse` (`@sk/shared`), 100 items per page by default: search, filters and sorting are in the query, and the client holds only the page on screen. Why: filtering on the device means sending the whole table first, and a capped read then silently hides whatever is past the cap (`ORG-16`). A list short enough and needing live data stays live, read whole through its room; which list is which is in [live_rooms.md](file:///c:/Fred/Coding/SK/okf/live_rooms.md). The lists still to move are in `LIST-1`.
 2. **WebSocket Action Emission Standard**:
    - All state mutation operations sent over Socket.io MUST be emitted using the `'action'` event name with payload `{ type: SocketAction.ENUM_NAME, payload: { ... } }`.
    - Never emit `SocketAction.ENUM` directly as the socket event name.
@@ -201,6 +202,7 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     ([docs/teams.md](file:///c:/Fred/Coding/SK/docs/teams.md) §3). Defers to `org:{id}:teams`
     (public): players' names, numbers and positions are public by decision until `PEOPLE-4`. A
     one-shot read, worked out by `TeamManager.getTeamSeasonStats`.
+*   **`team_directory`** (2026-11-01, `UI-33`): the public Teams list across every organisation, a page at a time (`page`, `limit` up to 100, `search`, `mine`). Every word searched for must match the team, its age group, sport or organisation. Private organisations' teams are left out in the query unless the viewer belongs (`ORG-14`), and the viewer comes from the handshake, so `myRoleId` and `childNames` are only ever the caller's own. `TeamManager.getTeamDirectory`.
 *   **`team_squad`** and **`team_competitions`** (2026-10-22): the public team page's squad — each
     current player's and staff member's name and role, nothing more — and its accepted places in
     tournaments, in place of the roster (`team:{id}:members`) and `team_entries`, which are not public.

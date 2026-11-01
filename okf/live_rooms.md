@@ -28,6 +28,36 @@ changes (`FIX-4`, `LIVE-8`). The closed gaps at the bottom of this document are 
 Read [.agent/skills/live-data/SKILL.md](file:///c:/Fred/Coding/SK/.agent/skills/live-data/SKILL.md)
 first — it carries the rules. This is the data.
 
+## Which lists are live and which are static
+
+Decided 2026-11-01. The app keeps both kinds, and every list is one or the other:
+
+- **Live**: the whole list is read through a room, and changes appear on screen as they happen.
+- **Static**: read one page at a time with `get_data` (`PaginationParams`, 100 per page), filtered on the server. It shows what was true when it was read, and reads again when the page opens or the connection returns.
+
+**The rule.** A list that may be very long is static. A short list is live only if what it is used for needs live data; a short list that does not is static too. When it is not clear which applies, ask the user rather than guess, and add the answer here.
+
+| List | Kind | Why |
+| --- | --- | --- |
+| Teams directory (public Teams tab) | Static | Across all organisations, so very long |
+| Organisations directory | Static | Very long. Today it holds a room per row (`LIVE-10`) and reads only the first 100 (`ORG-16`) |
+| Sites directory (public Sites tab) | Static | Very long, once built on real data (`UI-38`) |
+| Users (platform admin) | Static | Very long; already paged on the server |
+| Reports (platform admin) | Static | Can grow long, and is read when needed, once built on real data (`REP-3`) |
+| An organisation's People | Static (moves under `LIST-1`) | A large organisation runs to thousands, with their guardians alongside |
+| An organisation's past results | Static (moves under `LIST-1`) | Grows every season, and a finished game rarely changes |
+| An organisation's upcoming and in-progress games | Live (moves under `LIST-1`) | Stays short, and carries live scores |
+| An organisation's teams, sites, facilities, leagues and seasons | Live | Short, and people work on them together |
+| An organisation's tournaments, invitations and referrals | Live | Short, and acted on as they arrive |
+| An organisation's applications to join | Live | Short, and acted on as they arrive |
+| A team's roster | Live | Short, and being worked on when it is open |
+| A tournament's divisions, stages, entrants and venues | Live | Short, and change while it is being run |
+| A tournament's or division's fixtures, standings and adjustments | Live | Bounded by the tournament, and results are the point |
+| A game's match events | Live | Live scoring |
+| A person's notifications, memberships and grants | Live | Short, and only their own |
+
+The people import's preview is neither: it pages through the file just uploaded, already on the device, so it reads nothing from the server.
+
 ## The envelope
 
 Every message, on join and on change, is `{ topic, type, data }`

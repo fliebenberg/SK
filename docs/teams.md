@@ -166,7 +166,34 @@ off or delete it (the ⋯ menu is Admin and Staff's), and does not change its Co
 also not other assistant coaches. The team roles are Player, Coach, Assistant Coach, Scorer and Medic
 (`PERM-10`); the Scorer scores every game the team plays.
 
-## 8. Not settled here
+## 8. The public Teams list — `/teams`
+
+Built 2026-11-01 (`UI-33`, agreed on the local `mockups/teams-directory.html` and
+`mockups/card-three-colours.html`), replacing a mockup on hardcoded teams.
+[app/(tabs)/teams/index.tsx](file:///c:/Fred/Coding/SK/expo-app/app/(tabs)/teams/index.tsx).
+
+- **My Teams and All Teams**, for someone signed in; someone signed out sees only all teams. The choice
+  is remembered on the device, and until they choose they start on My Teams if they are on a team or
+  have a child on one. My Teams is the teams they hold a role on and their children's, and can include
+  one that has been switched off, flagged Inactive. An org admin's whole organisation is not in My
+  Teams, which would bury the teams that are personally theirs. All Teams leaves out inactive teams.
+- **One card per team**, the shared [`BrandedListCard`](file:///c:/Fred/Coding/SK/expo-app/components/BrandedListCard.tsx)
+  (design_spec §5.4): the crest and name, the organisation, the sport's icon and name, the age group,
+  and a flag for how the viewer is connected: their role, "Zanele's team" for a guardian, Admin or Staff
+  for a team of an organisation they run, and Private.
+- **A card has no buttons.** It opens the team in the workspace for Admin, Staff and the team's coach,
+  and otherwise its public page. A team's workspace page has a *Public page* link, so those who run it
+  can still see what everyone else sees.
+- **Static and paged on the server** ([live_rooms.md](file:///c:/Fred/Coding/SK/okf/live_rooms.md)):
+  `get_data` `team_directory`, 100 to a page, read when the page opens and when the connection returns
+  ([useTeamDirectory](file:///c:/Fred/Coding/SK/expo-app/hooks/useTeamDirectory.ts)). Search covers team,
+  short name, age group, sport and organisation, and every word has to match, so "doringkloof netball
+  u14" finds one team. [`ListPager`](file:///c:/Fred/Coding/SK/expo-app/components/ListPager.tsx) sits
+  above and below.
+- **No Add team here**: a team is only ever added in an organisation's workspace (design_spec §5.4).
+- **Follow is gone** until following is decided (`FIX-37`): it only changed a value on screen.
+
+## 9. Not settled here
 
 - Picking players for a match from the team page itself; Pick team opens the existing selection
   screen.
