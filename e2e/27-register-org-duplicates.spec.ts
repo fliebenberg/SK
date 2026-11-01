@@ -21,7 +21,8 @@ test.describe('registering an organisation that may already exist', () => {
     await matches.getByRole('button', { name: 'Use this: Test Unclaimed Cricket Club' }).click();
 
     await expect(matches).toHaveCount(0);
-    await expect(page.getByText('Test Unclaimed Cricket Club', { exact: true }).filter({ visible: true }).first()).toBeVisible();
+    // On the form, not just in the prompt to nominate an admin, which goes once the club is claimed.
+    await expect(page.getByText('Test Unclaimed Cricket Club (UCC)').filter({ visible: true }).first()).toBeVisible();
     await expect(search).toHaveCount(0);
   });
 
