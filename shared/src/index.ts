@@ -2,6 +2,7 @@ export * from './models/organization/Organization';
 export * from './models/organization/OrganizationRole';
 export * from './models/organization/OrgMembership';
 export * from './models/organization/OrgMember';
+export * from './models/organization/MembershipApplication';
 export * from './models/venue/Site';
 export * from './models/venue/Facility';
 export * from './models/team/Team';

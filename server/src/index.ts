@@ -33,6 +33,8 @@ import { assetBaseUrl, assetStorage, localAssetMountPath } from './services/asse
 import { issueAssetToken, requireAssetToken } from './services/assetAccess';
 import { imageService, isImageFolder, UploadError, UPLOAD_RULES } from './services/ImageService';
 import { userManager } from './managers/UserManager';
+import { membershipApplicationManager } from './managers/MembershipApplicationManager';
+import { applicationNoticeContent, mailManager as applicationMail } from './managers/MailManager';
 import { teamManager } from './managers/TeamManager';
 import { accessManager } from './managers/AccessManager';
 import { addGameOfficial, listGameOfficials, removeGameOfficial } from './managers/gameOfficials';
@@ -85,6 +87,7 @@ import {
   teamMembersRoom,
   userNotificationsRoom,
   teamGuardiansRoom,
+  orgApplicationsRoom,
   teamRoom,
 } from './wss/rooms';
 
@@ -1770,6 +1773,9 @@ io.on('connection', (socket) => {
                     callback([]);
                 }
                 break;
+            case 'my_org_applications':
+                callback(orgId ? await membershipApplicationManager.getMine(socket.data?.userId, orgId) : []);
+                break;
             case 'org_people_names':
                 callback(orgId ? await userManager.getOrgPeopleNames(orgId) : []);
                 break;
@@ -2116,6 +2122,8 @@ io.on('connection', (socket) => {
                 pushToSocket(socket, room, 'ORG_MEMBERS_SYNC', await dataManager.getOrganizationMembers(id));
             } else if (sub === 'guardians') {
                 pushToSocket(socket, room, 'GUARDIANS_SYNC', await guardianManager.getGuardiansForOrg(id));
+            } else if (sub === 'applications') {
+                pushToSocket(socket, room, 'ORG_APPLICATIONS_SYNC', await membershipApplicationManager.getPending(id));
             } else if (sub === 'teams') {
                 pushToSocket(socket, room, 'TEAMS_SYNC', await dataManager.getTeams(id));
             } else if (sub === 'sites') {
@@ -3292,6 +3300,50 @@ io.on('connection', (socket) => {
                 // before the new summary goes out, so it reaches members only.
                 if (isPrivate) await revalidateRoomsForPrivateOrg();
                 await broadcastOrgSummaries([privacyOrgId]);
+                break;
+            }
+            case SocketAction.SET_ORG_MEMBERSHIP_MODE: {
+                const { orgId: modeOrgId, mode } = action.payload;
+                if (mode !== 'invite' && mode !== 'apply') throw new Error(`"${mode}" is not a way of joining.`);
+                await pool.query('UPDATE organizations SET membership_mode = $2 WHERE id = $1', [modeOrgId, mode]);
+                result = await dataManager.getOrganization(modeOrgId);
+                await broadcastOrgSummaries([modeOrgId]);
+                break;
+            }
+            case SocketAction.APPLY_TO_ORG: {
+                result = await membershipApplicationManager.apply(authUserId!, action.payload);
+                const applied = result;
+                broadcast(orgApplicationsRoom(applied.orgId), 'ORG_APPLICATIONS_SYNC', await membershipApplicationManager.getPending(applied.orgId));
+                // A failed email must not undo the application: it is waiting on their People page anyway.
+                const appliedTo = await dataManager.getOrganization(applied.orgId);
+                const peopleUrl = `${process.env.APP_URL || 'http://localhost:8081'}/admin/${applied.orgId}/people`;
+                membershipApplicationManager.getDeciderEmails(applied.orgId)
+                    .then(to => applicationMail.sendApplicationNotice(to, applicationNoticeContent('received', applied.name, appliedTo?.name || 'your organisation', peopleUrl, applied.applicantName)))
+                    .catch(err => console.error('Application notice not sent:', err));
+                break;
+            }
+            case SocketAction.WITHDRAW_ORG_APPLICATION: {
+                result = await membershipApplicationManager.withdraw(action.payload.id, authUserId!);
+                broadcast(orgApplicationsRoom(result.orgId), 'ORG_APPLICATIONS_SYNC', await membershipApplicationManager.getPending(result.orgId));
+                break;
+            }
+            case SocketAction.DECIDE_ORG_APPLICATION: {
+                const { id: applicationId, decision, existingProfileId } = action.payload;
+                if (decision !== 'approve' && decision !== 'decline') throw new Error(`"${decision}" is not a decision.`);
+                result = decision === 'approve'
+                    ? await membershipApplicationManager.approve(applicationId, authUserId!, existingProfileId)
+                    : await membershipApplicationManager.decline(applicationId, authUserId!);
+                const decided = result;
+                broadcast(orgApplicationsRoom(decided.orgId), 'ORG_APPLICATIONS_SYNC', await membershipApplicationManager.getPending(decided.orgId));
+                if (decision === 'approve' && decided.orgProfileId) {
+                    // The member list, guardians, rosters and both accounts' memberships.
+                    await publishPlayerChange(decided.orgId, decided.orgProfileId);
+                    await broadcastOrgSummaries([decided.orgId]);
+                }
+                const decidedOrg = await dataManager.getOrganization(decided.orgId);
+                const orgUrl = `${process.env.APP_URL || 'http://localhost:8081'}/organizations/${decided.orgId}`;
+                applicationMail.sendApplicationNotice([decided.applicantEmail], applicationNoticeContent(decision === 'approve' ? 'approved' : 'declined', decided.name, decidedOrg?.name || 'the organisation', orgUrl))
+                    .catch(err => console.error('Application decision not sent:', err));
                 break;
             }
             case SocketAction.IMPORT_ORG_PEOPLE: {

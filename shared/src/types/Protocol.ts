@@ -1,6 +1,8 @@
 
 import { SocketAction } from "../constants/SocketActions";
-import { Organization, OrganizationType } from "../models/organization/Organization";
+import { Organization, OrganizationType, OrgMembershipMode } from "../models/organization/Organization";
+import { MembershipApplication } from "../models/organization/MembershipApplication";
+import type { CalendarDate } from "../utils/calendarDate";
 import { OrgMembership } from "../models/organization/OrgMembership";
 import { Team } from "../models/team/Team";
 import { TeamMembership } from "../models/team/TeamMembership";
@@ -474,6 +476,35 @@ export interface SetOrgMinorsSettingsPayload {
 export interface SetOrgPrivatePayload {
     orgId: string;
     isPrivate: boolean;
+}
+
+export interface SetOrgMembershipModePayload {
+    orgId: string;
+    mode: OrgMembershipMode;
+}
+
+export interface ApplyToOrgPayload {
+    orgId: string;
+    /** The person joining: the applicant, or their child. */
+    name: string;
+    birthdate: CalendarDate;
+    /** Who is applying, and the number to reach them on. For someone applying for themselves the name is `name`. */
+    applicantName?: string;
+    applicantCellphone: string;
+    /** Set when applying for a child: what the applicant is to them. */
+    relationship?: GuardianRelationship | null;
+    note?: string | null;
+}
+
+export interface WithdrawOrgApplicationPayload {
+    id: string;
+}
+
+export interface DecideOrgApplicationPayload {
+    id: string;
+    decision: 'approve' | 'decline';
+    /** Approving: the record this person already has here, if the decider says they have one. */
+    existingProfileId?: string | null;
 }
 
 export interface ImportOrgPeoplePayload {
@@ -1259,6 +1290,10 @@ export interface ProtocolMap {
     [SocketAction.SEND_DEPENDANT_INVITE]: { payload: SendDependantInvitePayload; response: OrgProfile };
     [SocketAction.SET_ORG_MINORS_SETTINGS]: { payload: SetOrgMinorsSettingsPayload; response: Organization };
     [SocketAction.SET_ORG_PRIVATE]: { payload: SetOrgPrivatePayload; response: Organization };
+    [SocketAction.SET_ORG_MEMBERSHIP_MODE]: { payload: SetOrgMembershipModePayload; response: Organization };
+    [SocketAction.APPLY_TO_ORG]: { payload: ApplyToOrgPayload; response: MembershipApplication };
+    [SocketAction.WITHDRAW_ORG_APPLICATION]: { payload: WithdrawOrgApplicationPayload; response: MembershipApplication };
+    [SocketAction.DECIDE_ORG_APPLICATION]: { payload: DecideOrgApplicationPayload; response: MembershipApplication };
     [SocketAction.IMPORT_ORG_PEOPLE]: { payload: ImportOrgPeoplePayload; response: PeopleImportReport };
     [SocketAction.REMOVE_SIN_BIN]: { payload: RemoveSinBinPayload; response: unknown };
     [SocketAction.ADD_GAME_OFFICIAL]: { payload: AddGameOfficialPayload; response: GameOfficialEntry };
@@ -1383,6 +1418,7 @@ export type GetDataRequest =
   | { type: 'organizations' | 'teams' | 'games' | 'events' | 'sites' | 'leagues'; orgId: string }
   | { type: 'org_members'; orgId: string }
   | { type: 'org_people_names'; orgId: string }
+  | { type: 'my_org_applications'; orgId: string }
   | { type: 'possible_duplicate_orgs'; name: string }
   | { type: 'team_members'; teamId: string }
   | { type: 'seasons'; leagueId: string }

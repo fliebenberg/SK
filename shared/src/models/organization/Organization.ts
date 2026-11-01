@@ -47,6 +47,8 @@ export type OrgSettings = Record<string, any> & {
   minors?: Partial<OrgMinorsSettings>;
 };
 
+export type OrgMembershipMode = 'invite' | 'apply';
+
 export interface Organization {
   id: string;
   name: string;
@@ -106,6 +108,12 @@ export interface Organization {
    * database; changed only by `SET_ORG_PRIVATE`.
    */
   isPrivate?: boolean;
+  /**
+   * `invite` (the default): only its admins and staff add people. `apply`: anyone signed in may apply
+   * from its public page, and joins once its admins or staff approve (`MEMBER-1`). Changed only by
+   * `SET_ORG_MEMBERSHIP_MODE`.
+   */
+  membershipMode?: OrgMembershipMode;
   /**
    * Whether it has ever shared a game, tournament or season with another organisation. Such an org
    * can never be made private, so the Settings page leaves the setting out. Computed on single-org

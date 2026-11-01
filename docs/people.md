@@ -87,6 +87,29 @@ clears it. `UPDATE_ORG_PROFILE` now publishes the **member row** rather than the
 `restrictedReason` follow from the email and birthdate just saved. The old edit form hid the stale
 values behind its own copy of the fields.
 
+## 7. Asking to join (`MEMBER-1`)
+
+An organisation is **invite only** by default: its admins and staff add people. Its admin can switch it
+to **anyone can apply** in Settings; private and unclaimed organisations do not take applications.
+
+- **On its public page**, one that takes applications offers *Apply to join*, to the side of the banner
+  on a wide screen and on a line below it on a phone. Signed out, the button asks them to sign in. It
+  stays after applying, as they may be applying for themselves and for each child. One that does not is
+  flagged *Invite only*, for those who do not belong, with the reason on hover or tap.
+- **The form** asks for yourself: name, date of birth and cellphone; for your child: their name and date
+  of birth, then your name, cellphone and what you are to them. Your email comes from your account, and a
+  note is optional. The date of birth is required because the minor rules read it: a person with none
+  counts as an adult. Someone under the organisation's minor age cannot apply for themselves unless it
+  gives minors their own access. It says once that ages and contact details are not public.
+- **Applying joins nobody.** It writes an application and no profile or membership, and emails the
+  organisation's admins and staff. The applicant sees it on the page, and can withdraw it.
+- **Admins and staff decide**, from a list at the top of People, there only while something is waiting,
+  and counted on the People & Roles card. If someone with a similar name is on record, whoever decides
+  says whether that is them before Approve is available.
+- **Approving** always gives the plain Member role. For a child it also records the applicant as primary
+  guardian, who holds no membership. Declining tells them by email, and the same person can be applied
+  for again after 30 days.
+
 ## 6. Not settled here
 
 - Finding guardians who hold no membership (`PEOPLE-9`).

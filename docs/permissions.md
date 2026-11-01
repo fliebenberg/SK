@@ -176,6 +176,7 @@ Private org: everything above is "—" for anyone who is not a current member (o
 | Name, logo, colours, about, address, sports | — | View | Edit | Edit |
 | Timezone | — | View | Edit | Edit |
 | Private / public | — | View | Edit | Edit |
+| Invite only / anyone can apply | — | View | Edit | Edit |
 | Minors setting | — | View | Edit | Edit |
 | Delete the organisation | — | — | Edit | Edit |
 
@@ -185,6 +186,7 @@ Private org: everything above is "—" for anyone who is not a current member (o
 | --- | --- | --- | --- | --- | --- |
 | See the people list and contact details | — | View | View | Their team's people, from the roster; everyone else's name and photo, to add them to the team | View |
 | Add, edit, import a person | — | Edit, as Members only | Edit | Add a Member for their team; edit their team's people | Edit |
+| Approve or decline an application to join (always as a Member) | — | Edit | Edit | — | Edit |
 | Make someone Staff, or change anyone's org role | — | — | Edit | — | Edit |
 | Make someone an Admin | — | — | Edit | — | Edit |
 | Remove a Member | — | Edit | Edit | — | Edit |

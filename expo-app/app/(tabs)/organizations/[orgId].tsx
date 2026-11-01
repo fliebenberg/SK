@@ -3,12 +3,13 @@ import { ActivityIndicator, ScrollView, Text, TouchableOpacity, useWindowDimensi
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { League, Team } from '@sk/shared';
+import { League, Organization, orgColors, Team } from '@sk/shared';
 import { ScreenHeader } from '../../../components/ScreenHeader';
 import { Tabs } from '../../../components/Tabs';
 import { PageBody } from '../../../components/PageBody';
 import { OrgProfileBanner } from '../../../components/org/OrgProfileBanner';
 import { UnclaimedOrgStrip } from '../../../components/org/UnclaimedOrgStrip';
+import { ApplyToJoinButton, InviteOnlyFlag, useJoinOrganisation, YourApplications } from '../../../components/org/JoinOrganisation';
 import { TournamentCard } from '../../../components/tournament/TournamentBits';
 import { AddressMap } from '../../../components/address/AddressMap';
 import { MapOverlay } from '../../../components/address/MapOverlay';
@@ -26,6 +27,7 @@ import { themeColor } from '../../../constants/Colors';
 import { hasPin } from '../../../services/places';
 import { orgAccess } from '../../../utils/orgAccess';
 import { copyText, openDirections } from '../../../utils/share';
+import { getContrastColor } from '../../../utils/colorUtils';
 
 /**
  * An organisation as anyone sees it, from the Orgs tab (`UI-34`, agreed 2026-10-22 on
@@ -41,9 +43,10 @@ import { copyText, openDirections } from '../../../utils/share';
  * Everything on it is public: the summary, teams, sites, events and leagues rooms. A member sees the
  * same page with the way into the workspace at the end of the banner. An org with no administrator
  * carries a strip under the banner to claim it or nominate someone (`UnclaimedOrgStrip`, 2026-10-31),
- * for everyone — a visitor is asked to sign in first. Applying to join comes with
- * `MEMBER-1`, for an organisation that allows it; team and site rows open nothing until the public
- * team and site pages exist.
+ * for everyone — a visitor is asked to sign in first. One that takes applications offers *Apply to
+ * join*, and one that does not is flagged *Invite only* (`MEMBER-1`): at the end of the banner on a wide
+ * screen, and on a line of its own below it on a phone, where the banner has no room. Team and site rows
+ * open nothing until the public team and site pages exist.
  */
 type Tab = 'overview' | 'teams' | 'fixtures' | 'sites' | 'leagues';
 const TABS: Array<{ key: Tab; label: string }> = [
@@ -53,6 +56,22 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: 'sites', label: 'Sites' },
   { key: 'leagues', label: 'Leagues' },
 ];
+
+/** The banner, with joining at its end or on the line below it, and the viewer's own applications. */
+function BannerAndJoining({ org, isWide, action }: { org: Organization; isWide: boolean; action?: { label: string; onPress: () => void } }) {
+  const join = useJoinOrganisation(org);
+  const ink = getContrastColor(orgColors(org).primary);
+  const joining = join.takesApplications
+    ? <ApplyToJoinButton org={org} join={join} onCard={isWide} />
+    : join.inviteOnly ? <InviteOnlyFlag onCard={isWide} color={ink} /> : null;
+  return (
+    <>
+      <OrgProfileBanner org={org} action={action} aside={isWide ? joining : undefined} />
+      {!isWide ? joining : null}
+      <YourApplications join={join} />
+    </>
+  );
+}
 
 export default function PublicOrgPage() {
   const router = useRouter();
@@ -249,7 +268,11 @@ export default function PublicOrgPage() {
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <View style={{ padding: isWide ? 24 : 12, paddingBottom: 0 }}>
           <PageBody className="gap-3">
-            <OrgProfileBanner org={org} action={workspaceLabel ? { label: workspaceLabel, onPress: () => router.push(`/admin/${orgId}` as any) } : undefined} />
+            <BannerAndJoining
+              org={org}
+              isWide={isWide}
+              action={workspaceLabel ? { label: workspaceLabel, onPress: () => router.push(`/admin/${orgId}` as any) } : undefined}
+            />
             {/* Nobody runs it yet: the way to claim it, or to say who should (docs/nomination-process.md §4). */}
             <UnclaimedOrgStrip org={org} />
           </PageBody>

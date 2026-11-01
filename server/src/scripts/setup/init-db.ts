@@ -90,7 +90,9 @@ const createTables = async () => {
                 -- IANA name; set from the creator's device, changeable in settings (20260926_venue_timezones.ts).
                 timezone TEXT NOT NULL DEFAULT 'Africa/Johannesburg',
                 -- Seen only by its members (ORG-14, 20261031_org_private.ts).
-                is_private BOOLEAN NOT NULL DEFAULT false
+                is_private BOOLEAN NOT NULL DEFAULT false,
+                -- Whether it takes applications to join (20261101_membership_applications.ts, MEMBER-1).
+                membership_mode TEXT NOT NULL DEFAULT 'invite' CHECK (membership_mode IN ('invite', 'apply'))
                 -- Team/member/site counts are computed live by the org queries, not stored here.
                 -- See migration 20260814_derive_org_counts.ts.
             );
@@ -286,6 +288,28 @@ const createTables = async () => {
                 CHECK (guardian_profile_id <> player_profile_id)
             );
         `);
+
+        // Asking to join an organisation (mirrored from migrations/20261101_membership_applications.ts).
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS org_membership_applications (
+                id TEXT PRIMARY KEY,
+                org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+                applicant_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                applicant_name TEXT NOT NULL,
+                applicant_cellphone TEXT NOT NULL,
+                name TEXT NOT NULL,
+                birthdate DATE NOT NULL,
+                relationship TEXT CHECK (relationship IN ('parent', 'guardian', 'grandparent', 'other')),
+                note TEXT,
+                status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'declined', 'withdrawn')),
+                org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE SET NULL,
+                decided_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+                decided_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        `);
+        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_org_applications_one_pending ON org_membership_applications(org_id, applicant_user_id, LOWER(name)) WHERE status = 'pending';`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_org_applications_org_status ON org_membership_applications(org_id, status);`);
 
         // Events
         await client.query(`

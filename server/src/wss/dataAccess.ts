@@ -107,6 +107,8 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   org_claim_status:     { standalone: 'authenticated' },
   // Names and photos, to pick someone for a team: all a coach needs of the organisation (`PEOPLE-8`).
   org_people_names:     { standalone: 'runs-or-coaches-org' },
+  // The caller's own applications there: the identity comes from the handshake (`MEMBER-1`).
+  my_org_applications:  { standalone: 'authenticated' },
   // Returns [] today, but classify by what it is, not by what it currently does,
   // or filling it in later silently reopens the hole.
   org_profiles:         { room: orgRoom('members') },

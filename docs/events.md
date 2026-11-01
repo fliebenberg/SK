@@ -835,7 +835,7 @@ Profile's banner (logo, name and short code, type, town), then the tournament pa
   Overview stays easy to find; *All fixtures ›* opens the tab.
 - **Gone**: the old counts in the banner (members are not the public's business), *Registration
   Alert* and *Inquire / Register as Athlete*, which did nothing. Applying to join comes back with
-  `MEMBER-1`, only for an organisation that allows it.
+  `MEMBER-1` (docs/people.md §7), only for an organisation that allows it; one that does not shows *Invite only*.
 - A member of the organisation sees the same page with *Manage Workspace ›* or *Open Workspace ›* at
   the end of the banner. A team row opens the public team page (`/teams/[teamId]`), a site row the
   public site page (`/sites/[siteId]`) — agreed 2026-10-22 on `mockups/team-site-public.html`, built

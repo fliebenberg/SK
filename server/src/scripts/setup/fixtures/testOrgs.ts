@@ -184,6 +184,8 @@ export interface FixtureSite {
 }
 
 export interface FixtureOrg {
+    /** Takes applications to join (`MEMBER-1`). Invite only otherwise, as every new organisation is. */
+    takesApplications?: boolean;
     /** Short, lowercase; part of every id this organisation owns. */
     key: string;
     name: string;
@@ -515,6 +517,7 @@ export const TEST_ORGS: FixtureOrg[] = [
     },
     {
         key: 'ksc',
+        takesApplications: true,
         name: 'Test Kwaggafontein Sports Club',
         shortName: 'KSC',
         type: 'CLUB',

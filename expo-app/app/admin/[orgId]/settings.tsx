@@ -6,6 +6,7 @@ import { DEFAULT_TIME_ZONE } from '@sk/shared';
 import { ScreenHeader } from '../../../components/ScreenHeader';
 import { ReadCard } from '../../../components/ReadCard';
 import { ReadRow } from '../../../components/EditDialog';
+import { OrgJoiningCard } from '../../../components/org/OrgJoiningCard';
 import { OrgMinorsSettingsCard } from '../../../components/guardians/OrgMinorsSettingsCard';
 import { OrgPrivacyCard } from '../../../components/org/OrgPrivacyCard';
 import { TimezoneDialog, TimezoneNote, addressTimeZoneNote } from '../../../components/org/TimezoneDialogs';
@@ -53,6 +54,7 @@ export default function OrgSettings() {
         <ScrollView contentContainerStyle={{ padding: width >= 768 ? 24 : 12, paddingBottom: 60 }}>
           <PageBody form className="gap-4">
             <OrgPrivacyCard org={org} isOrgAdmin={isOrgAdminViewer} />
+            <OrgJoiningCard org={org} isOrgAdmin={isOrgAdminViewer} />
             <OrgMinorsSettingsCard orgId={org.id} isOrgAdmin={isOrgAdminViewer} />
 
             <ReadCard

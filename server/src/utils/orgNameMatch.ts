@@ -70,6 +70,21 @@ export function orgNameMatchScore(typed: string, name: string, shortName?: strin
 }
 
 /**
+ * Could a name given on an application be this person on an organisation's records? Every word of the
+ * shorter name in the longer, give or take a slip: "Thabo Mokoena" and "Thabo M Mokoena". Only ever a
+ * question to whoever decides. 0 is no match.
+ */
+export function personNameMatchScore(given: string, name: string): number {
+  const words = (text: string) => normalizeOrgName(text).split(' ').filter(Boolean);
+  const a = words(given);
+  const b = words(name);
+  if (!a.length || !b.length) return 0;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  if (!shorter.every(word => longer.some(other => isSameWord(word, other)))) return 0;
+  return Math.max(1, 70 - (longer.length - shorter.length) * 5);
+}
+
+/**
  * How well an organisation answers a search in a picker: 0 is not at all, and higher is better. Looser
  * than a possible duplicate, since half a word has to find it: any telling word will do, at the start
  * of a word or with a slip, or the whole text anywhere in the name. "Greenfield High" still does not

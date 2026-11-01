@@ -605,6 +605,16 @@ cached access so a restriction takes effect at once.
     links only, primary first. Authorized on `org:{orgId}:guardians` (the member list's tier), and
     held to that org: naming a player from another org returns nothing. Screens use the room instead
     (`useOrgGuardians`); this is for one-off reads.
+*   **`SET_ORG_MEMBERSHIP_MODE`** `{ orgId, mode }` (its admin): `invite` or `apply` (`MEMBER-1`, docs/people.md §7).
+*   **`APPLY_TO_ORG`** `{ orgId, name, birthdate, applicantName?, applicantCellphone, relationship?, note? }`
+    (anyone signed in) → `MembershipApplication`. `relationship` set means it is for their child. Refused
+    for an organisation not taking applications, someone already in it, someone under its minor age where
+    minors have no access of their own, one already waiting, and within 30 days of a decline.
+*   **`WITHDRAW_ORG_APPLICATION`** `{ id }`: the applicant's own, while it waits.
+*   **`DECIDE_ORG_APPLICATION`** `{ id, decision, existingProfileId? }` (Admin or Staff): approving writes
+    the record unless `existingProfileId` names one on record, the Member's membership, and for a child
+    the guardian link, all or none. Queue: `org:{id}:applications` (`ORG_APPLICATIONS_SYNC`, the whole list
+    on every change). The applicant's own: **`get_data my_org_applications`** `{ orgId }`.
 *   **`get_data org_people_names`** `{ orgId }` → `{ id, membershipId, name, image }[]`, for Admin, Staff and
     the organisation's coaches: who a coach may pick for their team, with nothing else about them. A
     coach reads their own team's people from `team:{id}:members`, and those people's guardians from

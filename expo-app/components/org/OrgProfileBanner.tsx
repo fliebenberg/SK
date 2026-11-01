@@ -19,12 +19,14 @@ import { useActiveTheme } from '../../store/settingsStore';
  * read as separate facts, and Edit ends that row so the name gets the whole top row on a phone.
  * Padding is kept tight: the banner already sits in the page's margin.
  */
-export function OrgProfileBanner({ org, onEdit, onEditLogo, action }: {
+export function OrgProfileBanner({ org, onEdit, onEditLogo, action, aside }: {
   org: Organization;
   onEdit?: () => void;
   onEditLogo?: () => void;
   /** At the end of the footer row instead of Edit: the public page's way into the workspace (`UI-34`). */
   action?: { label: string; onPress: () => void };
+  /** Also at the end of the footer row, before `action`: joining it, on a wide screen (`MEMBER-1`). */
+  aside?: React.ReactNode;
 }) {
   const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();
@@ -76,6 +78,7 @@ export function OrgProfileBanner({ org, onEdit, onEditLogo, action }: {
         {location ? <Fact icon="location-outline" text={location} color={ink} /> : null}
         {/* Only its members ever see a private org, so this tells them why nobody else can (`ORG-14`). */}
         {org.isPrivate ? <Fact icon="lock-closed-outline" text="Private" color={ink} /> : null}
+        {aside ? <View className="ml-auto">{aside}</View> : null}
         {onEdit ? (
           <TouchableOpacity
             onPress={onEdit}
@@ -90,7 +93,7 @@ export function OrgProfileBanner({ org, onEdit, onEditLogo, action }: {
           <TouchableOpacity
             onPress={action.onPress}
             accessibilityRole="link"
-            className="ml-auto flex-row items-center gap-1.5 rounded-full px-3 py-1 border bg-overlay/20 border-on-fill/30"
+            className={`${aside ? '' : 'ml-auto '}flex-row items-center gap-1.5 rounded-full px-3 py-1 border bg-overlay/20 border-on-fill/30`}
           >
             <Text className="font-inter-semibold text-sm text-on-fill">{action.label} ›</Text>
           </TouchableOpacity>

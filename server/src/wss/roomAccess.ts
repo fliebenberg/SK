@@ -92,6 +92,8 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
         // An org's people and its commercial relationships.
         case 'members':
         case 'referrals':
+        // Applications to join, which carry the applicant's contact details and a child's age (`MEMBER-1`).
+        case 'applications':
         // Who answers for which player (`MEMBER-3`) — its own dataset, so a screen that wants the
         // guardians is not handed the whole member list, and the other way round.
         case 'guardians':

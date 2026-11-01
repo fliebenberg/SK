@@ -30,6 +30,8 @@ export const orgMembersRoom = (orgId: string) => `org:${orgId}:members`;
 /** Every active guardian link in the org (`MEMBER-3`). People data, at the member list's tier. */
 export const orgGuardiansRoom = (orgId: string) => `org:${orgId}:guardians`;
 export const orgReferralsRoom = (orgId: string) => `org:${orgId}:referrals`;
+/** Applications waiting to be decided (`MEMBER-1`). Every change republishes the whole list. */
+export const orgApplicationsRoom = (orgId: string) => `org:${orgId}:applications`;
 
 // --- Team, site, facility ---
 export const teamRoom = (teamId: string) => `team:${teamId}`;

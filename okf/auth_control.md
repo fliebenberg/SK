@@ -264,8 +264,9 @@ this applies and the rest waits for its owners.
 by that organisation and belongs to it in no way that confers anything — which is exactly what an
 external tournament convenor is. "External" is a *derived* label, never a stored role: a
 `role-org-external` membership row would be counted by `getMembershipSnapshot` like any other and
-would have opened the org's insider rooms when this was written, and a plain Member now reads only what the public reads (`PEOPLE-8`). See `MEMBER-1` and `MEMBER-2` in `TODO.md` for the
-invite/apply membership model and the reserved home for unaffiliated people.
+would have opened the org's insider rooms when this was written, and a plain Member now reads only what the public reads (`PEOPLE-8`). An approved application (`MEMBER-1`, [people.md](file:///c:/Fred/Coding/SK/docs/people.md) §7) is the one
+way a person asks for a membership, always a plain Member's. See `MEMBER-2` in `TODO.md` for the reserved
+home for unaffiliated people.
 
 **Capability flags are computed from the user and the event, never from the `orgId` in the route**,
 and they are delivered as their own per-user read (`get_data { type: 'event_capabilities' }`) rather

@@ -306,6 +306,10 @@ export enum SocketAction {
      * unclaimed org, and — going private — for one that has ever played another organisation.
      */
     SET_ORG_PRIVATE = 'SET_ORG_PRIVATE',
+    SET_ORG_MEMBERSHIP_MODE = 'SET_ORG_MEMBERSHIP_MODE',
+    APPLY_TO_ORG = 'APPLY_TO_ORG',
+    WITHDRAW_ORG_APPLICATION = 'WITHDRAW_ORG_APPLICATION',
+    DECIDE_ORG_APPLICATION = 'DECIDE_ORG_APPLICATION',
 
     // --- Importing people ---
     /**

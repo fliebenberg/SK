@@ -132,6 +132,12 @@ class MailManager {
      * Not `sendClaimInvitation`: that one offers ownership of the organisation, which is not what
      * a coach or a player is being invited to.
      */
+    async sendApplicationNotice(to: string[], content: { subject: string; text: string }) {
+        if (!to.length) return;
+        if (!this.transporter) await this.init();
+        return this.transporter!.sendMail({ from: '"ScoreKeeper" <noreply@scorekeeper.com>', to, subject: content.subject, text: content.text });
+    }
+
     async sendMemberInvitation(to: string, personName: string, orgName: string, signupUrl: string, guardianOf: string[] = []) {
         if (!this.transporter) await this.init();
 
@@ -150,6 +156,20 @@ class MailManager {
         }
         return info;
     }
+}
+
+/** A short plain note about an application to join (`MEMBER-1`). Text is enough for what it says. */
+export function applicationNoticeContent(kind: 'received' | 'approved' | 'declined', person: string, orgName: string, url: string, applicant?: string) {
+    if (kind === 'received') {
+        const by = applicant && applicant !== person ? `${applicant} has applied for ${person}` : `${person} has applied`;
+        return {
+            subject: `${person} wants to join ${orgName}`,
+            text: `${by} to join ${orgName} on ScoreKeeper.\n\nThe application is at the top of your People page, where you can approve or decline it:\n${url}\n`,
+        };
+    }
+    return kind === 'approved'
+        ? { subject: `${person} is now a member of ${orgName}`, text: `${orgName} has approved the application for ${person} on ScoreKeeper.\n\n${url}\n` }
+        : { subject: `Your application to ${orgName}`, text: `${orgName} did not accept the application for ${person} on ScoreKeeper. You can apply again after 30 days.\n\n${url}\n` };
 }
 
 /** "Anika", "Anika and Mia", "Anika, Mia and Zoe". */

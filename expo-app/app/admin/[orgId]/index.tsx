@@ -13,6 +13,7 @@ import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { OrgLogo } from '@/components/OrgLogo';
 import { inkOnBrand } from '@/utils/colorUtils';
 import { useOrgAccess } from '@/hooks/useOrgAccess';
+import { useOrgApplications } from '../../../components/people/OrgApplications';
 import { mayOpenWorkspacePage } from '@/constants/workspaceNav';
 import { themeColor } from '../../../constants/Colors';
 
@@ -22,6 +23,7 @@ export default function OrgControlDashboard() {
   const { orgId } = useGlobalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const access = useOrgAccess(orgId);
+  const applications = useOrgApplications(orgId, access.canManage);
 
   const { data: sportsList } = useSocketQuery('sports');
   const { org: orgData, isLoading: isOrgLoading } = useOrgSummary(orgId);
@@ -169,7 +171,7 @@ export default function OrgControlDashboard() {
               <OrgLogo 
                 logo={orgData.logo} 
                 size={40} 
-                className="border bg-logo-plate rounded-full" 
+                className="border bg-logo-plate" 
                 style={{ borderColor: borderColor }}
               />
               <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide leading-tight flex-shrink">
@@ -242,9 +244,16 @@ export default function OrgControlDashboard() {
                     <Ionicons name={mod.icon} size={18} color={mod.color} />
                   </View>
                   <View className="flex-1">
-                    <Text className="font-orbitron-bold text-sm text-ink leading-tight">
-                      {mod.title}
-                    </Text>
+                    <View className="flex-row items-center gap-2">
+                      <Text className="font-orbitron-bold text-sm text-ink leading-tight flex-shrink">
+                        {mod.title}
+                      </Text>
+                      {mod.page === 'people' && applications.length ? (
+                        <View testID="applications-count" accessibilityLabel={`${applications.length} waiting to join`} className="rounded-full bg-warning-soft px-2 py-0.5">
+                          <Text className="font-inter-bold text-[10px] text-warning-ink">{applications.length} waiting</Text>
+                        </View>
+                      ) : null}
+                    </View>
                     <Text className="font-inter text-[10px] text-ink-muted mt-0.5 leading-3">
                       {mod.description}
                     </Text>

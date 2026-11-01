@@ -2,6 +2,7 @@ import { SocketAction, maySetMinorAccess } from '@sk/shared';
 import pool from '../db';
 import { accessManager } from '../managers/AccessManager';
 import { guardianManager } from '../managers/GuardianManager';
+import { membershipApplicationManager } from '../managers/MembershipApplicationManager';
 
 const ROLE_MEMBER = 'role-org-member';
 
@@ -183,6 +184,12 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   [SocketAction.SET_ORG_MINORS_SETTINGS]: { kind: 'admin-org', org: orgId },
   // Who may see the organisation at all (`ORG-14`): the admins' decision, as the minors settings are.
   [SocketAction.SET_ORG_PRIVATE]: { kind: 'admin-org', org: orgId },
+  [SocketAction.SET_ORG_MEMBERSHIP_MODE]: { kind: 'admin-org', org: orgId },
+  // Whoever manages its people decides who joins, always as a plain Member (`MEMBER-1`).
+  [SocketAction.DECIDE_ORG_APPLICATION]: {
+    kind: 'manage-org',
+    org: async (payload: any) => (payload?.id ? membershipApplicationManager.getOrgIdOf(payload.id) : null),
+  },
 
   // Its things.
   [SocketAction.ADD_TEAM]: { kind: 'create-in-org', org: orgId, keep: TEAM_MINIMUM },
@@ -263,6 +270,9 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   // Who may take an empty admin role depends on membership standing, not on a role the gate can
   // read — `ReferralManager.getAdminTakeover` decides, and refuses with the reason.
   [SocketAction.TAKE_ORG_ADMIN]: { kind: 'signed-in' },
+  // Applying joins nobody, and withdrawing is held to the caller's own in the manager.
+  [SocketAction.APPLY_TO_ORG]: { kind: 'signed-in' },
+  [SocketAction.WITHDRAW_ORG_APPLICATION]: { kind: 'signed-in' },
   [SocketAction.GET_SYSTEM_SETTINGS]: { kind: 'signed-in' },
   // Claiming makes you an admin, so it needs a user to make one of; the token says which org.
   [SocketAction.CLAIM_ORG_VIA_TOKEN]: { kind: 'self', field: 'userId' },
