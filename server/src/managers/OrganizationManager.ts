@@ -56,6 +56,7 @@ export class OrganizationManager extends BaseManager {
         o.logo, 
         o.primary_color as "primaryColor", 
         o.secondary_color as "secondaryColor", 
+        o.tertiary_color as "tertiaryColor", 
         ARRAY(SELECT sport_id FROM organization_sports WHERE org_id = o.id) as "supportedSportIds", 
         o.short_name as "shortName", 
         ARRAY(SELECT role_id FROM organization_roles WHERE org_id = o.id) as "supportedRoleIds",
@@ -170,7 +171,7 @@ export class OrganizationManager extends BaseManager {
       this.query(`SELECT COUNT(*)::int AS total ${from}`, args),
       this.query(
         `SELECT o.id, o.name, o.short_name AS "shortName", o.logo,
-                o.primary_color AS "primaryColor", o.secondary_color AS "secondaryColor",
+                o.primary_color AS "primaryColor", o.secondary_color AS "secondaryColor", o.tertiary_color AS "tertiaryColor",
                 o.type, o.custom_type AS "customType",
                 COALESCE(NULLIF(a.city, ''), NULLIF(a.province, '')) AS town,
                 o.is_private AS "isPrivate", o.is_active AS "isActive"
@@ -228,6 +229,7 @@ export class OrganizationManager extends BaseManager {
         o.logo, 
         o.primary_color as "primaryColor", 
         o.secondary_color as "secondaryColor", 
+        o.tertiary_color as "tertiaryColor", 
         ARRAY(SELECT sport_id FROM organization_sports WHERE org_id = o.id) as "supportedSportIds", 
         o.short_name as "shortName", 
         ARRAY(SELECT role_id FROM organization_roles WHERE org_id = o.id) as "supportedRoleIds",
@@ -340,6 +342,7 @@ export class OrganizationManager extends BaseManager {
     const secondaryColor = org.secondaryColor === undefined
       ? DEFAULT_ORG_SECONDARY_COLOR
       : normalizeHexColor(org.secondaryColor, 'The secondary colour');
+    const tertiaryColor = normalizeHexColor(org.tertiaryColor, 'The third colour');
     
     let addressId = org.addressId;
     if (org.address && !addressId) {
@@ -355,9 +358,9 @@ export class OrganizationManager extends BaseManager {
             // Every org starts unclaimed, whatever the caller sent: `is_claimed` means "has an active
             // admin", and only `syncClaimedStatus` writes it, once an admin membership exists (`ORG-12`).
             await tx(
-              `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, short_name, is_claimed, creator_id, is_active, settings, address_id, type, custom_type, timezone) 
-               VALUES ($1, $2, $3, $4, $5, $6, false, $7, $8, $9, $10, $11, $12, $13)`,
-              [id, org.name, logo, primaryColor, secondaryColor, shortName, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', customType, timezone]
+              `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, tertiary_color, short_name, is_claimed, creator_id, is_active, settings, address_id, type, custom_type, timezone) 
+               VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, $10, $11, $12, $13, $14)`,
+              [id, org.name, logo, primaryColor, secondaryColor, tertiaryColor, shortName, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', customType, timezone]
             );
 
             for (const sportId of supportedSportIds) {
@@ -454,6 +457,7 @@ export class OrganizationManager extends BaseManager {
       data.primaryColor = primary;
     }
     if ('secondaryColor' in data) data.secondaryColor = normalizeHexColor(data.secondaryColor, 'The secondary colour') as any;
+    if ('tertiaryColor' in data) data.tertiaryColor = normalizeHexColor(data.tertiaryColor, 'The third colour') as any;
 
     // `settings` arrives whole — the settings screen carries the object across — so a screen opened
     // before a minors change would silently undo it on save. The minors settings are written by
@@ -505,7 +509,7 @@ export class OrganizationManager extends BaseManager {
                 // Not `is_claimed` (only `syncClaimedStatus` writes it) nor `creator_id` (set once, on
                 // create): neither is the editor's to change (`ORG-12`).
                 const map: Record<string, string> = {
-                    name: 'name', logo: 'logo', primaryColor: 'primary_color', secondaryColor: 'secondary_color',
+                    name: 'name', logo: 'logo', primaryColor: 'primary_color', secondaryColor: 'secondary_color', tertiaryColor: 'tertiary_color',
                     shortName: 'short_name',
                     isActive: 'is_active', settings: 'settings', addressId: 'address_id',
                     type: 'type', customType: 'custom_type', timezone: 'timezone', description: 'description'

@@ -22,10 +22,10 @@ It also hid a bug: the description field never saved. There was no `description`
 Who the org is, and how everyone else sees it. [profile.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/profile.tsx)
 
 - **Banner** ([OrgProfileBanner](file:///c:/Fred/Coding/SK/expo-app/components/org/OrgProfileBanner.tsx)),
-  in the org's colours. Logo; the name with the short code directly under it in the same font (it
-  is the name's short form, not a badge); a footer row with the type and the location (city and
-  province, city only on a phone), each with its own icon; and Edit at the end of that row, so on a
-  phone the name has the whole top row. Tapping the logo opens the picture library and the crop dialog; with a logo set, it first shows the logo with Remove.
+  in the org's colours, with the list cards' look ([design_spec §5.4](file:///c:/Fred/Coding/SK/docs/design_spec.md)). The logo on the slanted bands, and everything else
+  beside it: the name with the short code directly under it (it is the name's short form, not a
+  badge); a footer row with the type and the location (city and province, city only on a phone),
+  each with its own icon; and Edit at the end of that row. Tapping the logo opens the picture library and the crop dialog; with a logo set, it first shows the logo with Remove.
 - **About** — the description. Optional; shown on the public org page.
 - **Address** — see §3.
 - **Sports** — read-only chips. Edit opens the sports list; removing a sport with active teams
@@ -73,8 +73,8 @@ one.
 **Colours**: both ask for its colours too, through the
 same `BrandColorsField` as Edit identity, since whoever sets an org up usually knows them, even as an
 outsider. They start as the app's orange and electric blue, which is what a new org keeps if they
-are left alone. The primary colour is required; the secondary is optional and marked so, and an admin who
-clears it gets the org painted in its primary alone. Each colour falls back to the one before it — `orgColors` in `@sk/shared`.
+are left alone. The primary colour is required; the secondary and third are optional and marked so. An admin who
+clears the secondary gets the org painted in its primary alone, and a new org has no third colour until one is chosen. Each colour falls back to the one before it — `orgColors` in `@sk/shared`.
 
 **Type is required**, and when it is *Other* the description of the type is required too. *Describe
 it* appears beside the type only while Other is chosen. The register-an-org dialog is unchanged.

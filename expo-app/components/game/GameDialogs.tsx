@@ -165,7 +165,10 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
   const isDark = useActiveTheme() === 'dark';
   const { sites, facilities } = useOrgSites(hostOrgId);
   const { org: hostOrg } = useOrgSummary(hostOrgId);
-  const [orgs, setOrgs] = useState<Organization[]>([]);
+  /** Every organisation read so far: the match's two, and whatever a search has found. */
+  const [knownOrgs, setKnownOrgs] = useState<Record<string, Organization>>({});
+  const [found, setFound] = useState<Organization[]>([]);
+  const [orgQuery, setOrgQuery] = useState('');
   const [teamsByOrg, setTeamsByOrg] = useState<Record<string, Team[]>>({});
   const [form, setForm] = useState<{ orgIds: [string, string]; teamIds: [string, string]; date: string; time: string; tbd: boolean; siteId: string; facilityId: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -189,8 +192,29 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
       facilityId: summary.facilityId || '',
     });
     setError(null);
-    wsService.emit('get_data', { type: 'organizations' }, (res: any) => setOrgs(Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : []));
+    setFound([]);
+    [a?.orgId || hostOrgId, b?.orgId].forEach(id => {
+      if (!id) return;
+      wsService.emit('get_data', { type: 'organization', id }, (res: any) => {
+        if (res?.id) setKnownOrgs(prev => ({ ...prev, [res.id]: res }));
+      });
+    });
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A search, not a list of every organisation, which could only ever be its first page (`ORG-18`).
+  useEffect(() => {
+    const text = orgQuery.trim();
+    if (!visible || !text) { setFound([]); return; }
+    let active = true;
+    const timer = setTimeout(() => {
+      wsService.emit('get_data', { type: 'search_similar_orgs', name: text }, (res: any) => {
+        if (!active || !Array.isArray(res)) return;
+        setFound(res);
+        setKnownOrgs(prev => ({ ...prev, ...Object.fromEntries(res.map((o: Organization) => [o.id, o])) }));
+      });
+    }, 350);
+    return () => { active = false; clearTimeout(timer); };
+  }, [orgQuery, visible]);
 
   // Each chosen organisation's teams in this sport.
   useEffect(() => {
@@ -213,7 +237,8 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
   const set = (patch: Partial<typeof form>) => setForm({ ...form, ...patch });
   // A private organisation's games are among its own teams; a public one never plays a private one
   // (`ORG-14`). The server refuses either; the options do not offer it.
-  const orgOptions = orgs
+  const chosenOrgs = form.orgIds.map(id => knownOrgs[id]).filter(Boolean);
+  const orgOptions = [...chosenOrgs, ...found.filter(o => !form.orgIds.includes(o.id))]
     .filter(o => (hostOrg?.isPrivate ? o.id === hostOrgId : !o.isPrivate))
     .map(o => ({ value: o.id, label: o.name }));
   const teamOptions = (i: 0 | 1) => (teamsByOrg[form.orgIds[i]] || [])
@@ -221,7 +246,9 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
     .map(t => ({ value: t.id, label: t.name }));
   const facilityOptions = facilities.filter(f => f.siteId === form.siteId).map(f => ({ value: f.id, label: f.name }));
   const timeOk = form.tbd || /^\d{1,2}:\d{2}$/.test(form.time);
-  const ready = !!form.teamIds[0] && !!form.teamIds[1] && form.teamIds[0] !== form.teamIds[1] && !!form.date && timeOk;
+  // Both organisations must have been read: the match's name is made from their short codes.
+  const ready = !!form.teamIds[0] && !!form.teamIds[1] && form.teamIds[0] !== form.teamIds[1] && !!form.date && timeOk
+    && !!knownOrgs[form.orgIds[0]] && !!knownOrgs[form.orgIds[1]];
 
   const save = async () => {
     if (!ready || !startAt) { setError('Choose both teams, the day and the kick-off time.'); return; }
@@ -240,7 +267,7 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
       },
     }, { suppressToast: true });
     if (!res.ok) { setSaving(false); setError(res.message); return; }
-    const short = (id: string) => { const o = orgs.find(x => x.id === id); return o ? o.shortName || o.name : ''; };
+    const short = (id: string) => { const o = knownOrgs[id]; return o ? o.shortName || o.name : ''; };
     const eventRes = await sendAction(SocketAction.UPDATE_EVENT, {
       id: eventId,
       orgId,
@@ -265,7 +292,9 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
           value={form.orgIds[i]}
           onChange={v => { const orgIds = [...form.orgIds] as [string, string]; orgIds[i] = v; const teamIds = [...form.teamIds] as [string, string]; teamIds[i] = ''; set({ orgIds, teamIds }); }}
           options={orgOptions}
-          showSearch
+          showSearch={!hostOrg?.isPrivate}
+          searchPlaceholder="Type a name to search"
+          onSearchChange={hostOrg?.isPrivate ? undefined : setOrgQuery}
           placeholder="Organisation"
           accessibilityLabel={`Team ${i + 1} organisation`}
         />

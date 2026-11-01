@@ -6,7 +6,8 @@
  *
  * **After that, each colour falls back to the one before it.** An admin may clear the secondary
  * colour, and the org is then painted in its primary alone; the primary is required on every
- * organisation, and only data that predates that falls back to the app's orange.
+ * organisation, and only data that predates that falls back to the app's orange. A third colour is
+ * optional and starts unset (`ORG-17`), so an organisation without one is painted in its first two.
  *
  * Every screen that paints with an org's colours takes them from {@link orgColors} rather than
  * writing its own `|| '#…'` — there were over thirty of those, each with its own guess.
@@ -37,10 +38,12 @@ const filled = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() ? value.trim() : null;
 
 /** The colours to paint an organisation with, every gap filled by the rule above. */
-export function orgColors(org?: { primaryColor?: string | null; secondaryColor?: string | null } | null): {
+export function orgColors(org?: { primaryColor?: string | null; secondaryColor?: string | null; tertiaryColor?: string | null } | null): {
   primary: string;
   secondary: string;
+  tertiary: string;
 } {
   const primary = filled(org?.primaryColor) ?? DEFAULT_ORG_PRIMARY_COLOR;
-  return { primary, secondary: filled(org?.secondaryColor) ?? primary };
+  const secondary = filled(org?.secondaryColor) ?? primary;
+  return { primary, secondary, tertiary: filled(org?.tertiaryColor) ?? secondary };
 }

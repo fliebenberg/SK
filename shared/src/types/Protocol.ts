@@ -82,6 +82,8 @@ export interface AddOrgPayload {
     primaryColor?: string;
     /** `null` means "not set": painted as the primary. */
     secondaryColor?: string | null;
+    /** `null` means "not set": painted as the secondary. */
+    tertiaryColor?: string | null;
     supportedSportIds?: string[];
     supportedRoleIds?: string[];
     addressId?: string;

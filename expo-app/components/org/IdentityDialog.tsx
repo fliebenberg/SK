@@ -16,6 +16,7 @@ interface Draft {
   customType: string;
   primaryColor: string;
   secondaryColor: string;
+  tertiaryColor: string;
 }
 
 const draftOf = (org: Organization): Draft => ({
@@ -26,12 +27,13 @@ const draftOf = (org: Organization): Draft => ({
   primaryColor: orgColors(org).primary,
   // Empty means "not set": painted as the primary colour, and saved as null.
   secondaryColor: (org.secondaryColor || '').trim(),
+  tertiaryColor: (org.tertiaryColor || '').trim(),
 });
 
 /**
  * The org's identity: name, short code, type and brand colours — what the profile banner shows.
- * Every field is required except the secondary colour, which is the one marked Optional; when it
- * is not set the org is painted in its primary colour alone (`orgColors`). Type "Other" needs a description, which appears
+ * Every field is required except the secondary and third colours, the ones marked Optional; each
+ * is painted as the colour before it when not set (`orgColors`). Type "Other" needs a description, which appears
  * beside the type only while Other is chosen. Saves those fields alone (`UPDATE_ORG` is a patch).
  */
 export function IdentityDialog({ org, visible, onClose }: { org: Organization; visible: boolean; onClose: () => void }) {
@@ -55,7 +57,7 @@ export function IdentityDialog({ org, visible, onClose }: { org: Organization; v
     : !draft.shortName.trim() ? 'The organisation needs a short code.'
     : !draft.type ? 'Choose what kind of organisation this is.'
     : draft.type === 'OTHER' && !draft.customType.trim() ? 'Describe the kind of organisation.'
-    : brandColorsProblem(draft.primaryColor, draft.secondaryColor);
+    : brandColorsProblem(draft.primaryColor, draft.secondaryColor, draft.tertiaryColor);
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft(prev => ({ ...prev, [key]: value }));
 
@@ -72,6 +74,7 @@ export function IdentityDialog({ org, visible, onClose }: { org: Organization; v
         customType: draft.type === 'OTHER' ? draft.customType.trim() : null,
         primaryColor: draft.primaryColor,
         secondaryColor: draft.secondaryColor || null,
+        tertiaryColor: draft.tertiaryColor || null,
       },
     }).then(result => {
       setIsSaving(false);
@@ -137,7 +140,8 @@ export function IdentityDialog({ org, visible, onClose }: { org: Organization; v
       <BrandColorsField
         primary={draft.primaryColor}
         secondary={draft.secondaryColor}
-        onChange={({ primary, secondary }) => setDraft(prev => ({ ...prev, primaryColor: primary, secondaryColor: secondary }))}
+        tertiary={draft.tertiaryColor}
+        onChange={({ primary, secondary, tertiary }) => setDraft(prev => ({ ...prev, primaryColor: primary, secondaryColor: secondary, tertiaryColor: tertiary }))}
       />
 
       {blocked && isDirty ? <Text className="font-inter text-xs text-warning-ink">{blocked}</Text> : null}

@@ -77,6 +77,8 @@ const createTables = async () => {
                 -- 20261003_org_secondary_color_default.ts).
                 primary_color TEXT NOT NULL DEFAULT '#FF3E00' CONSTRAINT organizations_primary_color_not_blank CHECK (btrim(primary_color) <> ''),
                 secondary_color TEXT DEFAULT '#00E5FF',
+                -- Optional, and unset to start: painted as the secondary (20261101_org_tertiary_color.ts).
+                tertiary_color TEXT,
                 short_name TEXT NOT NULL CHECK (btrim(short_name) <> ''),
                 is_claimed BOOLEAN DEFAULT false,
                 creator_id TEXT,

@@ -49,7 +49,7 @@ export default function OrgControlDashboard() {
     );
   }
 
-  const { primary: primaryColor, secondary: secondaryColor } = orgColors(orgData);
+  const { primary: primaryColor, secondary: secondaryColor, tertiary: tertiaryColor } = orgColors(orgData);
   const sports = orgData.supportedSportIds?.map((id: string) => sportsMap[id] || id) || ['General'];
   const primarySport = sports[0];
 
@@ -59,6 +59,7 @@ export default function OrgControlDashboard() {
     sports: sports,
     primaryColor: primaryColor,
     secondaryColor: secondaryColor,
+    tertiaryColor: tertiaryColor,
     teamsCount: orgData.teamCount || 0,
     facilitiesCount: orgData.siteCount || 0,
     membersCount: orgData.memberCount || 0,
@@ -161,24 +162,26 @@ export default function OrgControlDashboard() {
       </View>
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* BANNER WITH BACKGROUND ACCENT GLOW */}
+        {/* BANNER */}
         <OrgBrandedCard
           primaryColor={org.primaryColor}
           secondaryColor={org.secondaryColor}
-          className="p-6 mb-3"
+          tertiaryColor={org.tertiaryColor}
+          markSize={52}
+          mark={(
+            <OrgLogo
+              logo={orgData.logo}
+              size={52}
+              className="border bg-logo-plate"
+              style={{ borderColor: borderColor }}
+            />
+          )}
+          style={{ marginBottom: 12 }}
         >
-          <View className="flex-row justify-between items-center gap-3 mb-4">
-            <View className="flex-row items-center gap-3 flex-1">
-              <OrgLogo 
-                logo={orgData.logo} 
-                size={40} 
-                className="border bg-logo-plate" 
-                style={{ borderColor: borderColor }}
-              />
-              <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide leading-tight flex-shrink">
-                {org.name}
-              </Text>
-            </View>
+          <View className="flex-row justify-between items-start gap-2 mb-3">
+            <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-base uppercase tracking-wide leading-tight">
+              {org.name}
+            </Text>
             {role && (
               <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-1 rounded-lg">
                 <Ionicons name="shield-checkmark" size={12} color={textColor} />
@@ -190,7 +193,7 @@ export default function OrgControlDashboard() {
           </View>
 
           {/* QUICK STATS ROW */}
-          <View style={{ borderTopColor: borderColor }} className="flex-row gap-6 border-t pt-4">
+          <View style={{ borderTopColor: borderColor }} className="flex-row flex-wrap gap-x-4 gap-y-2 border-t pt-3">
             <View>
               <Text style={{ color: textColor }} className="font-orbitron-bold text-sm">
                 {org.sports.length}

@@ -149,6 +149,7 @@ export default function OrganizationsPage() {
                   testID={`org-card-${org.id}`}
                   primaryColor={org.primaryColor}
                   secondaryColor={org.secondaryColor}
+                  tertiaryColor={org.tertiaryColor}
                   title={org.name}
                   subtitle={org.town}
                   flags={flags}

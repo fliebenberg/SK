@@ -2,6 +2,7 @@ import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { orgColors } from '@sk/shared';
 import { inkOnBrand } from '../utils/colorUtils';
+import { BrandBands } from './BrandBands';
 
 /**
  * The card every browsing list uses (docs/design_spec.md §5.4): one record in its organisation's
@@ -9,17 +10,10 @@ import { inkOnBrand } from '../utils/colorUtils';
  * record. The top row is the name, with any flags on the right; the row under it says where it
  * belongs on the left and what it is on the right.
  *
- * The organisation's second colour is a slanted band down the left, running behind the logo, and a
- * third colour is a thinner stripe to its right. Organisations have no third colour yet (`ORG-17`),
- * so the second fills both; pass `tertiaryColor` once they do and nothing else on the card changes.
+ * The organisation's second colour is a slanted band down the left, running behind the logo, and
+ * its third colour a thinner stripe to the band's right (`BrandBands`). Without a third colour, the
+ * second fills both.
  */
-const SLANT = '-24deg';
-/** Where each band's edge is, halfway up the card; the slant carries it either way from there. */
-const BAND_EDGE = 36;
-const STRIPE_EDGE = 50;
-/** Far enough past the card's left edge that the slant never shows a gap there. */
-const OVERHANG = 60;
-
 export function BrandedListCard({
   primaryColor, secondaryColor, tertiaryColor, mark, title, subtitle, detail, flags = [], onPress, accessibilityLabel, testID,
 }: {
@@ -37,16 +31,8 @@ export function BrandedListCard({
   accessibilityLabel?: string;
   testID?: string;
 }) {
-  const { primary, secondary } = orgColors({ primaryColor, secondaryColor });
+  const { primary, secondary, tertiary } = orgColors({ primaryColor, secondaryColor, tertiaryColor });
   const ink = inkOnBrand(primary);
-  const band = (color: string, edge: number) => (
-    <View
-      style={{
-        position: 'absolute', top: -24, bottom: -24, left: -OVERHANG, width: OVERHANG + edge,
-        backgroundColor: color, transform: [{ skewX: SLANT }],
-      }}
-    />
-  );
 
   return (
     <TouchableOpacity
@@ -61,8 +47,7 @@ export function BrandedListCard({
         paddingHorizontal: 14, paddingVertical: 12, backgroundColor: primary,
       }}
     >
-      {band(tertiaryColor || secondary, STRIPE_EDGE)}
-      {band(secondary, BAND_EDGE)}
+      <BrandBands secondary={secondary} tertiary={tertiary} />
       <View style={{ width: 44, height: 44 }}>{mark}</View>
       <View className="flex-1 min-w-0 ml-2">
         <View className="flex-row items-start gap-2">

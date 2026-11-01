@@ -220,8 +220,8 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
         await insertAddress(addressId, a);
 
         await insert('organizations',
-            ['id', 'name', 'logo', 'primary_color', 'secondary_color', 'short_name', 'is_claimed', 'creator_id', 'is_active', 'settings', 'address_id', 'type'],
-            [orgId, org.name, org.logo ? await writeImage('logos', org.logo, fixtureIds.logoImage(org.key)) : null, org.primaryColor, org.secondaryColor, org.shortName, true,
+            ['id', 'name', 'logo', 'primary_color', 'secondary_color', 'tertiary_color', 'short_name', 'is_claimed', 'creator_id', 'is_active', 'settings', 'address_id', 'type'],
+            [orgId, org.name, org.logo ? await writeImage('logos', org.logo, fixtureIds.logoImage(org.key)) : null, org.primaryColor, org.secondaryColor, org.tertiaryColor ?? null, org.shortName, true,
              org.admin.account ? fixtureIds.user(org.admin.name) : null, true, { allowUserImageUpdates: false }, addressId, org.type]);
 
         if (org.takesApplications) await client.query(`UPDATE organizations SET membership_mode = 'apply' WHERE id = $1`, [orgId]);

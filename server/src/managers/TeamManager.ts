@@ -77,7 +77,7 @@ export class TeamManager extends BaseManager {
         `SELECT t.id, t.name, t.short_name AS "shortName", ag.name AS "ageGroup",
                 t.sport_id AS "sportId", s.name AS "sportName", t.is_active AS "isActive",
                 t.org_id AS "orgId", o.name AS "orgName", o.logo AS "orgLogo",
-                o.primary_color AS "orgPrimaryColor", o.secondary_color AS "orgSecondaryColor",
+                o.primary_color AS "orgPrimaryColor", o.secondary_color AS "orgSecondaryColor", o.tertiary_color AS "orgTertiaryColor",
                 o.is_private AS "orgIsPrivate",
                 (SELECT tm.role_id FROM team_memberships tm
                   WHERE tm.team_id = t.id AND (tm.end_date IS NULL OR tm.end_date > NOW()) AND ${mine}

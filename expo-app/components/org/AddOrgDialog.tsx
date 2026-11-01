@@ -38,7 +38,7 @@ export interface AddOrgDialogProps {
   onCreated: (org: Organization) => void;
 }
 
-const EMPTY_COLORS = { primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR };
+const EMPTY_COLORS = { primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR, tertiary: '' };
 
 export function AddOrgDialog({ visible, onClose, onCreated }: AddOrgDialogProps) {
   const isDark = useActiveTheme() === 'dark';
@@ -75,12 +75,12 @@ export function AddOrgDialog({ visible, onClose, onCreated }: AddOrgDialogProps)
 
   const isDirty =
     !!name.trim() || !!shortCode.shortCode || !!sportId || !!type ||
-    colors.primary !== EMPTY_COLORS.primary || colors.secondary !== EMPTY_COLORS.secondary;
+    colors.primary !== EMPTY_COLORS.primary || colors.secondary !== EMPTY_COLORS.secondary || !!colors.tertiary;
 
   const canSave =
     !!name.trim() && !!shortCode.shortCode && !!type &&
     !(type === 'OTHER' && !customType.trim()) &&
-    !brandColorsProblem(colors.primary, colors.secondary) &&
+    !brandColorsProblem(colors.primary, colors.secondary, colors.tertiary) &&
     duplicates.answered;
 
   const handleSave = () => {
@@ -99,6 +99,7 @@ export function AddOrgDialog({ visible, onClose, onCreated }: AddOrgDialogProps)
       primaryColor: colors.primary,
       // Cleared means "not set": painted as the primary.
       secondaryColor: colors.secondary || null,
+      tertiaryColor: colors.tertiary || null,
       // Whoever sets an organisation up is most likely where it plays (DATE-2); changeable in its settings.
       timezone: deviceTimeZone(),
     }).then(result => {
@@ -213,7 +214,7 @@ export function AddOrgDialog({ visible, onClose, onCreated }: AddOrgDialogProps)
         />
       </View>
 
-      <BrandColorsField primary={colors.primary} secondary={colors.secondary} onChange={setColors} />
+      <BrandColorsField primary={colors.primary} secondary={colors.secondary} tertiary={colors.tertiary} onChange={setColors} />
     </EditDialog>
   );
 }

@@ -105,7 +105,7 @@ To maintain a consistent, premium live-sports aesthetic and prevent silent failu
     before linking to it**: someone who played in one of its games and has since left still reads the
     game, so the name stays and the link goes.
 
-*   **An organisation's colours**: Take them from `orgColors(org)` in `@sk/shared`, never `org.primaryColor || '#…'`. **A new organisation starts in the app's two colours**, orange and electric blue, until an admin sets its own, so banners show two colours from the start. **After that, each colour falls back to the one before it**: an admin may clear the secondary, and the org is then painted in its primary alone; the primary is required on every organisation (`20261003_org_primary_color_required.ts`), falling back to the app's orange only for data that predates that. Decided 2026-10-01 and 2026-10-03; it replaced over thirty hand-written fallbacks.
+*   **An organisation's colours**: Take them from `orgColors(org)` in `@sk/shared`, never `org.primaryColor || '#…'`. **A new organisation starts in the app's two colours**, orange and electric blue, until an admin sets its own, so banners show two colours from the start. **After that, each colour falls back to the one before it**: an admin may clear the secondary, and the org is then painted in its primary alone; an optional third colour (`ORG-17`) starts unset and is painted as the secondary; the primary is required on every organisation (`20261003_org_primary_color_required.ts`), falling back to the app's orange only for data that predates that. Decided 2026-10-01 and 2026-10-03; it replaced over thirty hand-written fallbacks.
 
 *   **A side of a fixture**: Render it with [`<FixtureSide>`](file:///c:/Fred/Coding/SK/expo-app/components/FixtureSide.tsx), never with ad-hoc text. A side is in one of three states — a known competitor, an entrant awaiting confirmation ("TBC — awaiting confirmation"), or a slot awaiting a result ("Winner QF1") — and the fixtures list, the schedule, the bracket, the game screen, the standings and anything printed all show them. Five independent renderings of "TBC" is a guaranteed inconsistency. The wording itself is derived in [`shared/src/utils/fixtureSide.ts`](file:///c:/Fred/Coding/SK/shared/src/utils/fixtureSide.ts), so the server and print paths say the same thing the screen does; a placeholder is drawn in secondary text (AAA in Light Mode) rather than at a lower opacity, so it stays legible.
 
@@ -256,10 +256,10 @@ in the banner — and the same cards, without the statuses, once it is (2026-10-
     heading (*🔒 Locked* on a division) is not repeated on its items, and what an action will do
     is said in its dialog, not on the card that offers it.
 29. **Decoration stays clear of content** (2026-10-12). A background accent never sits behind or
-    near a logo, avatar or icon, where it reads as that element's plate slipped out of place. An
-    org's branded card ([`<OrgBrandedCard>`](file:///c:/Fred/Coding/SK/expo-app/components/OrgBrandedCard.tsx))
-    carries its secondary-colour accent in the bottom-right corner only, and the top-left corner
-    stays plain because the logo sits there.
+    near a logo, avatar or icon, where it reads as that element's plate slipped out of place.
+    **The one exception is an organisation's slanted bands** (2026-11-01,
+    [`<BrandBands>`](file:///c:/Fred/Coding/SK/expo-app/components/BrandBands.tsx)): on the list cards and banners
+    the logo is meant to sit on them, and no text ever does. See design_spec §5.4.
 30. **No news is no message** (2026-10-15, stage 3). A check that finds nothing says nothing: a clash
     warning appears only when there is a clash, never "No clash at this time". The space a message
     would take is kept for the times it matters, so a message is always worth reading. (A *status*

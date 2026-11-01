@@ -469,7 +469,7 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
 #### `ADD_ORG`
 *   **Payload**: `AddOrgPayload` — the fields `addOrganization` reads: `name`, `shortName?` (derived
     from the name when missing), `type?`, `customType?`, `logo?`, `primaryColor?`,
-    `secondaryColor?` (`null` paints it as the primary), `supportedSportIds?`, `supportedRoleIds?`,
+    `secondaryColor?` (`null` paints it as the primary), `tertiaryColor?` (`null` paints it as the secondary), `supportedSportIds?`, `supportedRoleIds?`,
     `address?` or `addressId?`, `creatorId?`, `isActive?`, `settings?`, `timezone?`.
 *   **Logic**: Creates a new organization. `customType` (an Other type's description) is trimmed, and
     refused past `ORG_CUSTOM_TYPE_MAX_LENGTH` (30 characters, `@sk/shared`; 2026-10-31).

@@ -34,6 +34,7 @@ export interface TeamDirectoryEntry {
   orgLogo?: string | null;
   orgPrimaryColor?: string | null;
   orgSecondaryColor?: string | null;
+  orgTertiaryColor?: string | null;
   orgIsPrivate: boolean;
   /** The viewer's own role on the team, the most senior if they hold several. */
   myRoleId?: string | null;

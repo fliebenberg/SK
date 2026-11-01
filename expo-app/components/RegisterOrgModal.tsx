@@ -61,7 +61,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, alread
   const isDark = useActiveTheme() === 'dark';
   const [name, setName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
-  const [colors, setColors] = useState({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR });
+  const [colors, setColors] = useState({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR, tertiary: '' });
   const [isSaving, setIsSaving] = useState(false);
   const [seededName, setSeededName] = useState('');
   const shortCode = useOrgShortCode();
@@ -74,7 +74,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, alread
     setName(seeded);
     setSeededName(seeded);
     setContactEmail('');
-    setColors({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR });
+    setColors({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR, tertiary: '' });
     shortCode.reset();
     if (seeded) shortCode.onNameChange(seeded);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,9 +82,9 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, alread
 
   const isDirty =
     name.trim() !== seededName || !!contactEmail.trim() ||
-    colors.primary !== DEFAULT_ORG_PRIMARY_COLOR || colors.secondary !== DEFAULT_ORG_SECONDARY_COLOR;
+    colors.primary !== DEFAULT_ORG_PRIMARY_COLOR || colors.secondary !== DEFAULT_ORG_SECONDARY_COLOR || !!colors.tertiary;
 
-  const canSave = !!name.trim() && !!shortCode.shortCode && !brandColorsProblem(colors.primary, colors.secondary) && !isSaving && duplicates.answered;
+  const canSave = !!name.trim() && !!shortCode.shortCode && !brandColorsProblem(colors.primary, colors.secondary, colors.tertiary) && !isSaving && duplicates.answered;
 
   const handleSave = () => {
     if (!canSave) return;
@@ -95,6 +95,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, alread
       primaryColor: colors.primary,
       // Cleared means "not set": painted as the primary.
       secondaryColor: colors.secondary || null,
+      tertiaryColor: colors.tertiary || null,
       supportedSportIds: sportId ? [sportId] : [],
       // A guess until it is claimed: an organisation registered to play against is most likely
       // near whoever registered it (DATE-2). Its admins can change it in its settings.
@@ -169,7 +170,8 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, alread
       <BrandColorsField
         primary={colors.primary}
         secondary={colors.secondary}
-        onChange={({ primary, secondary }) => setColors({ primary, secondary })}
+        tertiary={colors.tertiary}
+        onChange={setColors}
       />
 
       <View className="gap-1.5">

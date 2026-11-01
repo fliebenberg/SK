@@ -75,7 +75,6 @@ export default function MatchForm({
   const [sites, setSites] = useState<Site[]>([]);
   /** The organisation the match is being scheduled for: whose venues these are, and whose timezone a venue without one uses. */
   const [hostOrg, setHostOrg] = useState<Organization | null>(null);
-  const [orgsList, setOrgsList] = useState<Organization[]>([]);
   const [homeTeams, setHomeTeams] = useState<Team[]>([]);
   const [awayTeams, setAwayTeams] = useState<Team[]>([]);
 
@@ -148,14 +147,6 @@ export default function MatchForm({
 
     wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
       if (res) setHostOrg(res);
-    });
-
-    wsService.emit('get_data', { type: 'organizations' }, (res: any) => {
-      if (res && Array.isArray(res.items)) {
-        setOrgsList(res.items);
-      } else if (Array.isArray(res)) {
-        setOrgsList(res);
-      }
     });
   }, [isConnected, orgId]);
 
@@ -267,26 +258,26 @@ export default function MatchForm({
     if (hostIsPrivate && hostOrg && !isEdit && !selectedAwayOrg) setSelectedAwayOrg(hostOrg);
   }, [hostIsPrivate, hostOrg, isEdit, selectedAwayOrg]);
 
-  // Resolve Organization details for edit mode or initialData on load
+  // Resolve Organization details for edit mode, each by its id (`ORG-18`)
   useEffect(() => {
-    if (orgsList.length === 0) return;
+    if (!isConnected || !isEdit) return;
+    const read = (id: string | undefined, set: (org: Organization) => void) => new Promise<void>(resolve => {
+      if (!id) return resolve();
+      wsService.emit('get_data', { type: 'organization', id }, (res: any) => {
+        if (res) set(res);
+        resolve();
+      });
+    });
+    Promise.all([
+      read(initialData?.homeOrgId, setSelectedHomeOrg),
+      read(initialData?.awayOrgId, setSelectedAwayOrg),
+    ]).then(() => setIsInitializing(false));
+  }, [isConnected, isEdit, initialData?.homeOrgId, initialData?.awayOrgId]);
 
-    if (isEdit) {
-      if (initialData?.homeOrgId) {
-        const homeOrg = orgsList.find(o => o.id === initialData.homeOrgId);
-        if (homeOrg) setSelectedHomeOrg(homeOrg);
-      }
-      if (initialData?.awayOrgId) {
-        const awayOrg = orgsList.find(o => o.id === initialData.awayOrgId);
-        if (awayOrg) setSelectedAwayOrg(awayOrg);
-      }
-      setIsInitializing(false);
-    } else if (!isEdit && !selectedHomeOrg) {
-      // Default Team 1 to host org
-      const hostOrg = orgsList.find(o => o.id === orgId);
-      if (hostOrg) setSelectedHomeOrg(hostOrg);
-    }
-  }, [orgsList, isEdit, initialData?.homeOrgId, initialData?.awayOrgId, orgId]);
+  // Default Team 1 to host org, once: someone who clears it means to.
+  useEffect(() => {
+    if (!isEdit && hostOrg && !selectedHomeOrg) setSelectedHomeOrg(hostOrg);
+  }, [isEdit, hostOrg?.id]);
 
   // Synchronize dynamic initialData fields when they load
   useEffect(() => {

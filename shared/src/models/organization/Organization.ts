@@ -60,6 +60,7 @@ export interface OrgDirectoryEntry {
   logo?: string | null;
   primaryColor?: string | null;
   secondaryColor?: string | null;
+  tertiaryColor?: string | null;
   type?: OrganizationType | null;
   customType?: string | null;
   /** The town or city of its address, or its province if the address has no town. */
@@ -79,6 +80,8 @@ export interface Organization {
   primaryColor?: string;
   /** Optional: `null` (or blank on an update, which clears it) means "the primary colour". */
   secondaryColor?: string | null;
+  /** Optional (`ORG-17`): `null` (or blank on an update, which clears it) means "the secondary colour". */
+  tertiaryColor?: string | null;
   supportedSportIds?: string[];
   /**
    * The org's short code. **Always present on a record read from the database** — the column is

@@ -1,57 +1,54 @@
 import React from 'react';
 import { orgColors } from '@sk/shared';
 import { View, ViewStyle } from 'react-native';
+import { BrandBands, brandBandInset } from './BrandBands';
+
+const PADDING = 14;
 
 interface OrgBrandedCardProps {
   /** `null` is accepted: an org read from the database may have no colour stored. */
   primaryColor?: string | null;
   secondaryColor?: string | null;
+  tertiaryColor?: string | null;
+  /** The logo, on the bands. Everything else goes beside it, so no text ever sits on them. */
+  mark: React.ReactNode;
+  markSize: number;
   children: React.ReactNode;
-  className?: string;
   style?: ViewStyle | ViewStyle[];
   testID?: string;
 }
 
+/**
+ * An organisation's banner, at the top of its pages: the look of the list cards
+ * (`BrandedListCard`, docs/design_spec.md §5.4), with room for more than a card shows.
+ */
 export function OrgBrandedCard({
   primaryColor,
   secondaryColor,
+  tertiaryColor,
+  mark,
+  markSize,
   children,
-  className = '',
   style,
   testID,
 }: OrgBrandedCardProps) {
   // Each colour falls back to the one before it (`orgColors`).
-  const { primary: finalPrimary, secondary: finalSecondary } = orgColors({ primaryColor, secondaryColor });
+  const { primary, secondary, tertiary } = orgColors({ primaryColor, secondaryColor, tertiaryColor });
 
   return (
-    <View 
+    <View
       testID={testID}
-      className={`relative overflow-hidden rounded-2xl shadow-sm ${className}`}
+      className="overflow-hidden rounded-2xl shadow-sm flex-row items-start"
       style={[
-        { backgroundColor: finalPrimary },
+        { backgroundColor: primary, padding: PADDING },
         ...(Array.isArray(style) ? style : style ? [style] : []),
       ]}
     >
-      {/* Secondary color accent shapes inside banner */}
-      {/* Outer semi-transparent halo for bottom-right circle */}
-      <View 
-        className="absolute w-40 h-40 rounded-full opacity-35"
-        style={{ 
-          backgroundColor: finalSecondary,
-          right: -56,
-          bottom: -56,
-        }}
-      />
-      {/* Solid inner bottom-right circle */}
-      <View 
-        className="absolute w-32 h-32 rounded-full"
-        style={{ 
-          backgroundColor: finalSecondary,
-          right: -40,
-          bottom: -40,
-        }}
-      />
-      {children}
+      <BrandBands secondary={secondary} tertiary={tertiary} markSize={markSize} />
+      {mark}
+      <View className="flex-1 min-w-0" style={{ marginLeft: brandBandInset(markSize) - PADDING - markSize }}>
+        {children}
+      </View>
     </View>
   );
 }

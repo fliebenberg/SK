@@ -193,6 +193,8 @@ export interface FixtureOrg {
     type: 'SCHOOL' | 'CLUB';
     primaryColor: string;
     secondaryColor: string;
+    /** Only some organisations have one, so screens show both cases. */
+    tertiaryColor?: string;
     /** A file in `fixtures/images`. Only some organisations have one, so screens show both cases. */
     logo?: string;
     address: {
@@ -237,6 +239,7 @@ export const TEST_ORGS: FixtureOrg[] = [
         type: 'SCHOOL',
         primaryColor: '#7A1F2B',
         secondaryColor: '#E0B040',
+        tertiaryColor: '#F4EFE6',
         logo: 'logo-doringkloof.svg',
         address: { line1: '12 Kiepersol Avenue', suburb: 'Doringkloof', city: 'Centurion', province: 'Gauteng', postalCode: '0157', latitude: -25.8603, longitude: 28.1894 },
         site: {
@@ -523,6 +526,7 @@ export const TEST_ORGS: FixtureOrg[] = [
         type: 'CLUB',
         primaryColor: '#E86A10',
         secondaryColor: '#1A1A1A',
+        tertiaryColor: '#FFFFFF',
         logo: 'logo-kwaggafontein.svg',
         address: { line1: '7 Nelson Mandela Drive', city: 'Bloemfontein', province: 'Free State', postalCode: '9301', latitude: -29.1183, longitude: 26.2141 },
         site: {

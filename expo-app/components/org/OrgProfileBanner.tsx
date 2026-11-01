@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Organization, orgColors } from '@sk/shared';
 import { OrgBrandedCard } from '../OrgBrandedCard';
 import { OrgLogo } from '../OrgLogo';
-import { getContrastColor } from '../../utils/colorUtils';
+import { inkOnBrand } from '../../utils/colorUtils';
 
 import { addressLocality } from '../../services/places';
 import { orgTypeIcon, orgTypeLabel } from './orgTypes';
@@ -14,10 +14,10 @@ import { useActiveTheme } from '../../store/settingsStore';
 /**
  * The top of the org Profile page: the organisation as everyone else sees it (docs/org-profile.md §2).
  *
- * Logo, then the name with the short code directly under it in the same font — it is the name's
- * short form, not a badge. Type and location sit in a footer row, each with its own icon, so they
- * read as separate facts, and Edit ends that row so the name gets the whole top row on a phone.
- * Padding is kept tight: the banner already sits in the page's margin.
+ * The look of the list cards (`OrgBrandedCard`): the logo on the slanted bands, and everything else
+ * beside it. The name, with the short code under it — it is the name's short form, not a badge. Type
+ * and location sit in a footer row, each with its own icon, so they read as separate facts, and Edit
+ * ends that row.
  */
 export function OrgProfileBanner({ org, onEdit, onEditLogo, action, aside }: {
   org: Organization;
@@ -31,71 +31,63 @@ export function OrgProfileBanner({ org, onEdit, onEditLogo, action, aside }: {
   const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();
   const isNarrow = width < 768;
-  const { primary, secondary } = orgColors(org);
-  const ink = getContrastColor(primary);
+  const { primary, secondary, tertiary } = orgColors(org);
+  const ink = inkOnBrand(primary);
   const location = addressLocality(org.address, !isNarrow);
   const type = orgTypeLabel(org.type, org.customType);
   const logoSize = isNarrow ? 52 : 64;
 
-  const crest = (
-    <View
-      className="items-center justify-center rounded-2xl overflow-hidden border bg-on-fill/15 border-on-fill/25"
-      style={{ width: logoSize, height: logoSize }}
-    >
-      {org.logo ? (
-        <OrgLogo logo={org.logo} size={logoSize} />
-      ) : (
-        <Ionicons name="business" size={logoSize * 0.45} color={ink} />
-      )}
-    </View>
-  );
+  const crest = <OrgLogo logo={org.logo} size={logoSize} className="border bg-logo-plate" style={{ borderColor: ink.border }} />;
 
   return (
-    <OrgBrandedCard primaryColor={primary} secondaryColor={secondary} className="p-3 gap-2.5">
-      <View className="flex-row items-center gap-3">
-        {onEditLogo ? (
-          <TouchableOpacity onPress={onEditLogo} accessibilityRole="button" accessibilityLabel="Change the logo" activeOpacity={0.85}>
-            {crest}
-            <View className="absolute -right-1 -bottom-1 w-5 h-5 rounded-full bg-primary border-2 border-card items-center justify-center">
-              <Ionicons name="pencil" size={9} color={themeColor(isDark, 'on-primary')} />
-            </View>
-          </TouchableOpacity>
-        ) : crest}
-        <View className="flex-1 min-w-0">
-          <Text className={`font-inter-bold ${isNarrow ? 'text-lg' : 'text-2xl'} leading-tight`} style={{ color: ink }}>
-            {org.name}
-          </Text>
-          {org.shortName ? (
-            <Text className={`font-inter-semibold ${isNarrow ? 'text-sm' : 'text-base'} mt-0.5`} style={{ color: ink, opacity: 0.85 }}>
-              {org.shortName}
-            </Text>
-          ) : null}
-        </View>
-      </View>
+    <OrgBrandedCard
+      primaryColor={primary}
+      secondaryColor={secondary}
+      tertiaryColor={tertiary}
+      markSize={logoSize}
+      mark={onEditLogo ? (
+        <TouchableOpacity onPress={onEditLogo} accessibilityRole="button" accessibilityLabel="Change the logo" activeOpacity={0.85}>
+          {crest}
+          <View className="absolute -right-1 -bottom-1 w-5 h-5 rounded-full bg-primary border-2 border-card items-center justify-center">
+            <Ionicons name="pencil" size={9} color={themeColor(isDark, 'on-primary')} />
+          </View>
+        </TouchableOpacity>
+      ) : crest}
+    >
+      <Text className={`font-orbitron-bold uppercase tracking-wide ${isNarrow ? 'text-base' : 'text-xl'} leading-tight`} style={{ color: ink.text }}>
+        {org.name}
+      </Text>
+      {org.shortName ? (
+        <Text className={`font-inter-semibold ${isNarrow ? 'text-sm' : 'text-base'} mt-0.5`} style={{ color: ink.subtext }}>
+          {org.shortName}
+        </Text>
+      ) : null}
 
-      <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1.5">
-        {type ? <Fact icon={orgTypeIcon(org.type)} text={type} color={ink} /> : null}
-        {location ? <Fact icon="location-outline" text={location} color={ink} /> : null}
+      <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1.5 mt-2.5">
+        {type ? <Fact icon={orgTypeIcon(org.type)} text={type} color={ink.text} /> : null}
+        {location ? <Fact icon="location-outline" text={location} color={ink.text} /> : null}
         {/* Only its members ever see a private org, so this tells them why nobody else can (`ORG-14`). */}
-        {org.isPrivate ? <Fact icon="lock-closed-outline" text="Private" color={ink} /> : null}
+        {org.isPrivate ? <Fact icon="lock-closed-outline" text="Private" color={ink.text} /> : null}
         {aside ? <View className="ml-auto">{aside}</View> : null}
         {onEdit ? (
           <TouchableOpacity
             onPress={onEdit}
             accessibilityRole="button"
             accessibilityLabel="Edit the name, short code, type and colours"
-            className="ml-auto flex-row items-center gap-1.5 rounded-full px-3 py-1 border bg-overlay/20 border-on-fill/30"
+            style={{ backgroundColor: ink.chip, borderColor: ink.border }}
+            className="ml-auto flex-row items-center gap-1.5 rounded-full px-3 py-1 border"
           >
-            <Ionicons name="pencil" size={12} color={themeColor(isDark, 'on-fill')} />
-            <Text className="font-inter-semibold text-sm text-on-fill">Edit</Text>
+            <Ionicons name="pencil" size={12} color={ink.text} />
+            <Text className="font-inter-semibold text-sm" style={{ color: ink.text }}>Edit</Text>
           </TouchableOpacity>
         ) : action ? (
           <TouchableOpacity
             onPress={action.onPress}
             accessibilityRole="link"
-            className={`${aside ? '' : 'ml-auto '}flex-row items-center gap-1.5 rounded-full px-3 py-1 border bg-overlay/20 border-on-fill/30`}
+            style={{ backgroundColor: ink.chip, borderColor: ink.border }}
+            className={`${aside ? '' : 'ml-auto '}flex-row items-center gap-1.5 rounded-full px-3 py-1 border`}
           >
-            <Text className="font-inter-semibold text-sm text-on-fill">{action.label} ›</Text>
+            <Text className="font-inter-semibold text-sm" style={{ color: ink.text }}>{action.label} ›</Text>
           </TouchableOpacity>
         ) : null}
       </View>

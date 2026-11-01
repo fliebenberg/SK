@@ -131,6 +131,7 @@ export default function TeamsPage() {
                   testID={`team-card-${team.id}`}
                   primaryColor={team.orgPrimaryColor}
                   secondaryColor={team.orgSecondaryColor}
+                  tertiaryColor={team.orgTertiaryColor}
                   title={team.name}
                   subtitle={team.orgName}
                   flags={flags}
