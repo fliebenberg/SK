@@ -1,9 +1,28 @@
-import { OrgProfile, OrgMembership, User, UserEmail, OrgMember, assertCalendarDates, cellphoneSearchDigits, parseCellphone } from "@sk/shared";
+import { OrgProfile, OrgMembership, User, UserEmail, OrgMember, OrgPeoplePage, PaginatedResponse, assertCalendarDates, cellphoneSearchDigits, parseCellphone } from "@sk/shared";
 import { randomBytes } from "crypto";
 import { BaseManager } from "./BaseManager";
 import { memberPrivilegedSql, restrictedReasonSql } from "./minorAccess";
 import { organizationManager } from "./OrganizationManager";
 import { imageService } from "../services/ImageService";
+
+/** Each word of a search, as an ILIKE pattern with its own wildcards taken literally. */
+const searchWords = (search?: string) => String(search ?? '').trim().split(/\s+/).filter(Boolean)
+  .map(word => `%${word.replace(/[\\%_]/g, '\\$&')}%`);
+
+/** A member row, for a query with `org_memberships om` joined to `org_profiles op`. */
+const memberColumns = `
+  om.id as "membershipId", om.role_id as "roleId", om.start_date as "startDate", om.end_date as "endDate",
+  op.id, op.name, op.email, op.cellphone, op.birthdate, op.national_id as "nationalId",
+  op.identifier as "personOrgId",
+  op.org_id as "orgId", op.user_id as "userId", op.image, op.primary_role_id as "primaryRoleId",
+  op.last_invite_sent_at as "lastInviteSentAt", op.last_invite_email as "lastInviteEmail",
+  op.own_account_allowed as "ownAccountAllowed", op.own_account_set_at as "ownAccountSetAt", op.own_account_set_by as "ownAccountSetBy",
+  ${restrictedReasonSql('op', 'om.org_id')} as "restrictedReason",
+  (
+    op.user_id IS NOT NULL
+    OR EXISTS (SELECT 1 FROM users u WHERE u.email = op.email)
+    OR EXISTS (SELECT 1 FROM user_emails ue WHERE ue.email = op.email AND ue.verified_at IS NOT NULL)
+  ) as "hasAccount"`;
 
 /** A birthdate is a calendar date, never a timestamp (date-formatting skill, DATE-1). */
 const PROFILE_DATE_FIELDS = { birthdate: 'Birthdate' };
@@ -348,21 +367,74 @@ export class UserManager extends BaseManager {
     return res.rows[0] || null;
   }
 
+  /**
+   * One page of an organisation's People (okf/live_rooms.md: static). Every word searched for must
+   * match the name, email or org ID. `roleCounts` is across the whole organisation, whatever the
+   * filter, for the role filter's counts.
+   */
+  async getOrgPeoplePage(orgId: string, params: { page?: number; limit?: number; search?: string; roleId?: string; sort?: string }): Promise<OrgPeoplePage> {
+    const page = Math.max(1, Math.floor(Number(params.page)) || 1);
+    const limit = Math.min(Math.max(1, Math.floor(Number(params.limit)) || 100), 100);
+    const args: unknown[] = [orgId];
+    const where = ['om.org_id = $1', '(om.end_date IS NULL OR om.end_date > NOW())'];
+    if (params.roleId) {
+      args.push(params.roleId);
+      where.push(`om.role_id = $${args.length}`);
+    }
+    for (const word of searchWords(params.search)) {
+      args.push(word);
+      const n = `$${args.length}`;
+      where.push(`(op.name ILIKE ${n} OR op.email ILIKE ${n} OR op.identifier ILIKE ${n})`);
+    }
+    const from = `FROM org_memberships om JOIN org_profiles op ON om.org_profile_id = op.id WHERE ${where.join(' AND ')}`;
+    const byName = 'LOWER(op.name), op.id';
+    const order = params.sort === 'role'
+      ? `CASE om.role_id WHEN 'role-org-admin' THEN 0 WHEN 'role-org-staff' THEN 1 ELSE 2 END, ${byName}`
+      : byName;
+
+    const [count, rows, roles] = await Promise.all([
+      this.query(`SELECT COUNT(*)::int AS total ${from}`, args),
+      this.query(
+        `SELECT ${memberColumns},
+                ARRAY(SELECT g.name FROM profile_guardians pg JOIN org_profiles g ON g.id = pg.guardian_profile_id
+                       WHERE pg.player_profile_id = op.id AND (pg.end_date IS NULL OR pg.end_date > NOW())
+                       ORDER BY pg.is_primary DESC, pg.start_date, pg.id) AS "guardianNames"
+         ${from}
+         ORDER BY ${order}
+         LIMIT $${args.length + 1} OFFSET $${args.length + 2}`,
+        [...args, limit, (page - 1) * limit],
+      ),
+      this.query(
+        `SELECT role_id AS "roleId", COUNT(*)::int AS total FROM org_memberships
+          WHERE org_id = $1 AND (end_date IS NULL OR end_date > NOW()) GROUP BY role_id`,
+        [orgId],
+      ),
+    ]);
+    return {
+      items: rows.rows.map((row: any) => withReason({ ...row, roleName: organizationManager.getOrganizationRole(row.roleId)?.name })),
+      total: count.rows[0].total,
+      page,
+      limit,
+      roleCounts: Object.fromEntries(roles.rows.map((r: any) => [r.roleId, r.total])),
+    };
+  }
+
+  /** One person's page, by their membership of this organisation: nothing if it is not one of its. */
+  async getOrgPerson(orgId: string, membershipId: string): Promise<(OrgMember & { ownAccountSetByName?: string | null }) | null> {
+    const res = await this.query(
+      `SELECT ${memberColumns},
+              (SELECT s.name FROM org_profiles s WHERE s.id = op.own_account_set_by) AS "ownAccountSetByName"
+         FROM org_memberships om JOIN org_profiles op ON om.org_profile_id = op.id
+        WHERE om.org_id = $1 AND om.id = $2 AND (om.end_date IS NULL OR om.end_date > NOW())`,
+      [orgId, membershipId],
+    );
+    const row = res.rows[0];
+    return row ? withReason({ ...row, roleName: organizationManager.getOrganizationRole(row.roleId)?.name }) : null;
+  }
+
   async getOrganizationMembers(orgId: string): Promise<OrgMember[]> {
     const res = await this.query(`
-        SELECT 
-            om.id as "membershipId", om.role_id as "roleId", om.start_date as "startDate", om.end_date as "endDate",
-            op.id, op.name, op.email, op.cellphone, op.birthdate, op.national_id as "nationalId",
-            op.identifier as "personOrgId",
-            op.org_id as "orgId", op.user_id as "userId", op.image, op.primary_role_id as "primaryRoleId",
-            op.last_invite_sent_at as "lastInviteSentAt", op.last_invite_email as "lastInviteEmail",
-            op.own_account_allowed as "ownAccountAllowed", op.own_account_set_at as "ownAccountSetAt", op.own_account_set_by as "ownAccountSetBy",
-            ${restrictedReasonSql('op', 'om.org_id')} as "restrictedReason",
-            (
-              op.user_id IS NOT NULL
-              OR EXISTS (SELECT 1 FROM users u WHERE u.email = op.email)
-              OR EXISTS (SELECT 1 FROM user_emails ue WHERE ue.email = op.email AND ue.verified_at IS NOT NULL)
-            ) as "hasAccount"
+        SELECT ${memberColumns}
         FROM org_memberships om
         JOIN org_profiles op ON om.org_profile_id = op.id
         WHERE om.org_id = $1 AND (om.end_date IS NULL OR om.end_date > NOW())
@@ -375,14 +447,26 @@ export class UserManager extends BaseManager {
     return members;
   }
 
-  /** Who is in the organisation, by name and photo: enough for a coach to pick someone (`PEOPLE-8`). */
-  async getOrgPeopleNames(orgId: string): Promise<Array<Pick<OrgMember, 'id' | 'membershipId' | 'name' | 'image'>>> {
-    const res = await this.query(`
-        SELECT op.id, om.id as "membershipId", op.name, op.image
-        FROM org_memberships om JOIN org_profiles op ON om.org_profile_id = op.id
-        WHERE om.org_id = $1 AND (om.end_date IS NULL OR om.end_date > NOW())
-    `, [orgId]);
-    return res.rows;
+  /** Who is in the organisation, by name and photo, a page at a time: enough for a coach to pick someone (`PEOPLE-8`). */
+  async getOrgPeopleNames(orgId: string, params: { page?: number; limit?: number; search?: string } = {}): Promise<PaginatedResponse<Pick<OrgMember, 'id' | 'membershipId' | 'name' | 'image'>>> {
+    const page = Math.max(1, Math.floor(Number(params.page)) || 1);
+    const limit = Math.min(Math.max(1, Math.floor(Number(params.limit)) || 100), 100);
+    const args: unknown[] = [orgId];
+    const where = ['om.org_id = $1', '(om.end_date IS NULL OR om.end_date > NOW())'];
+    for (const word of searchWords(params.search)) {
+      args.push(word);
+      where.push(`op.name ILIKE $${args.length}`);
+    }
+    const from = `FROM org_memberships om JOIN org_profiles op ON om.org_profile_id = op.id WHERE ${where.join(' AND ')}`;
+    const [count, rows] = await Promise.all([
+      this.query(`SELECT COUNT(*)::int AS total ${from}`, args),
+      this.query(
+        `SELECT op.id, om.id as "membershipId", op.name, op.image ${from}
+         ORDER BY LOWER(op.name), op.id LIMIT $${args.length + 1} OFFSET $${args.length + 2}`,
+        [...args, limit, (page - 1) * limit],
+      ),
+    ]);
+    return { items: rows.rows, total: count.rows[0].total, page, limit };
   }
 
   async getOrgMembership(id: string): Promise<OrgMembership | undefined> {

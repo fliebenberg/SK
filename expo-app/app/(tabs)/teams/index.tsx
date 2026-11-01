@@ -10,7 +10,7 @@ import { PageBody } from '../../../components/PageBody';
 import { TeamCrest } from '../../../components/teams/TeamBits';
 import { sportIcon } from '../../../components/teams/sportIcon';
 import { themeColor } from '../../../constants/Colors';
-import { useTeamDirectory } from '../../../hooks/useTeamDirectory';
+import { usePagedList } from '../../../hooks/usePagedList';
 import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme, useSettingsStore } from '../../../store/settingsStore';
 import { inkOnBrand } from '../../../utils/colorUtils';
@@ -55,7 +55,9 @@ export default function TeamsPage() {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const { teams, total, limit, isLoading, error, isSettled, term, retry } = useTeamDirectory({ mine: tab === 'my', search, page });
+  const { items: teams, total, limit, isLoading, error, isSettled, term, retry } = usePagedList<TeamDirectoryEntry>({
+    type: 'team_directory', noun: 'teams', params: { mine: tab === 'my' }, search, page,
+  });
 
   // A new search or tab starts again from the first page.
   useEffect(() => setPage(1), [term, tab]);

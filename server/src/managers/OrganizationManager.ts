@@ -1,9 +1,9 @@
-import { Organization, AddOrgPayload, UpdateOrgPayload, OrganizationRole, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode, OrgMinorsSettings, isValidMinorAge, minorsSettingsOf, isTimeZone, DEFAULT_TIME_ZONE, normalizeHexColor, DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR, ORG_CUSTOM_TYPE_MAX_LENGTH } from "@sk/shared";
+import { Organization, OrgDirectoryEntry, AddOrgPayload, UpdateOrgPayload, OrganizationRole, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode, OrgMinorsSettings, isValidMinorAge, minorsSettingsOf, isTimeZone, DEFAULT_TIME_ZONE, normalizeHexColor, DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR, ORG_CUSTOM_TYPE_MAX_LENGTH } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { imageService } from "../services/ImageService";
 import { addressManager } from "./AddressManager";
 import { timeZoneAt } from "../utils/timeZoneLookup";
-import { ORG_VISIBLE, viewerOf, hasExternalHistory } from "./privateOrgs";
+import { BELONGS, ORG_VISIBLE, viewerOf, hasExternalHistory } from "./privateOrgs";
 import { orgNameMatchScore, orgSearchScore } from "../utils/orgNameMatch";
 
 /**
@@ -134,6 +134,53 @@ export class OrganizationManager extends BaseManager {
         console.error('Params:', queryParams);
         throw error;
     }
+  }
+
+  /**
+   * The public Organisations list (okf/live_rooms.md: static), a page at a time, with only what its
+   * card shows. Every word searched for must match the organisation's name, type, town or a sport it
+   * offers. `mine` is the organisations the viewer has a current membership of. The viewer comes from
+   * the handshake, never the request (`ORG-14`).
+   */
+  async getOrgDirectory(
+    params: PaginationParams & { mine?: boolean } = { page: 1, limit: 100 },
+    viewerId: string | null = null,
+  ): Promise<PaginatedResponse<OrgDirectoryEntry>> {
+    const page = Math.max(1, Math.floor(Number(params.page)) || 1);
+    const limit = Math.min(Math.max(1, Math.floor(Number(params.limit)) || 100), 100);
+    const viewer = viewerOf(viewerId);
+    if (params.mine && !viewer) return { items: [], total: 0, page, limit };
+
+    const args: unknown[] = [viewer];
+    const where = [ORG_VISIBLE('o', '$1')];
+    if (params.mine) where.push(BELONGS('o.id', '$1::text'));
+    for (const word of String(params.search ?? '').trim().split(/\s+/).filter(Boolean)) {
+      args.push(`%${word.replace(/[\\%_]/g, '\\$&')}%`);
+      const n = `$${args.length}`;
+      where.push(`(o.name ILIKE ${n} OR o.short_name ILIKE ${n} OR o.type::text ILIKE ${n} OR o.custom_type ILIKE ${n}
+        OR a.city ILIKE ${n} OR a.province ILIKE ${n}
+        OR EXISTS (SELECT 1 FROM organization_sports os JOIN sports s ON s.id = os.sport_id
+                    WHERE os.org_id = o.id AND s.name ILIKE ${n}))`);
+    }
+    const from = `FROM organizations o
+      LEFT JOIN addresses a ON a.id = o.address_id
+      WHERE ${where.join(' AND ')}`;
+
+    const [count, rows] = await Promise.all([
+      this.query(`SELECT COUNT(*)::int AS total ${from}`, args),
+      this.query(
+        `SELECT o.id, o.name, o.short_name AS "shortName", o.logo,
+                o.primary_color AS "primaryColor", o.secondary_color AS "secondaryColor",
+                o.type, o.custom_type AS "customType",
+                COALESCE(NULLIF(a.city, ''), NULLIF(a.province, '')) AS town,
+                o.is_private AS "isPrivate", o.is_active AS "isActive"
+         ${from}
+         ORDER BY o.name, o.id
+         LIMIT $${args.length + 1} OFFSET $${args.length + 2}`,
+        [...args, limit, (page - 1) * limit],
+      ),
+    ]);
+    return { items: rows.rows, total: count.rows[0].total, page, limit };
   }
 
   private mapOrg(row: any): Organization {

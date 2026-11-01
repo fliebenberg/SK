@@ -11,6 +11,7 @@ import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { OrgLogo } from '@/components/OrgLogo';
+import { EditLink } from '@/components/ReadCard';
 import { inkOnBrand } from '@/utils/colorUtils';
 import { useOrgAccess } from '@/hooks/useOrgAccess';
 import { useOrgApplications } from '../../../components/people/OrgApplications';
@@ -164,7 +165,7 @@ export default function OrgControlDashboard() {
         <OrgBrandedCard
           primaryColor={org.primaryColor}
           secondaryColor={org.secondaryColor}
-          className="p-6 mb-8"
+          className="p-6 mb-3"
         >
           <View className="flex-row justify-between items-center gap-3 mb-4">
             <View className="flex-row items-center gap-3 flex-1">
@@ -224,6 +225,9 @@ export default function OrgControlDashboard() {
             </View>
           </View>
         </OrgBrandedCard>
+        <View className="flex-row justify-end mb-6">
+          <EditLink label="Public page" icon="open-outline" onPress={() => router.push(`/organizations/${orgId}` as any)} />
+        </View>
 
         {/* LIST OF MODULES */}
         <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-4">

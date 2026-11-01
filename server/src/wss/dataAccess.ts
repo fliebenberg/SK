@@ -93,6 +93,9 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // The list and the search leave out private organisations the caller does not belong to, in the
   // query itself (`ORG-14`). A single organisation is its summary room's, which a private org closes.
   organizations:        { standalone: 'public-directory' },
+  // The public Organisations list: leaves out private organisations the caller does not belong to in
+  // the query itself (`ORG-14`).
+  org_directory:        { standalone: 'public-directory' },
   organization:         { room: (req: any) => ((req.id || req.orgId) ? `org:${req.id || req.orgId}:summary` : null) },
   org_summary:          { room: (req: any) => ((req.id || req.orgId) ? `org:${req.id || req.orgId}:summary` : null) },
   search_similar_orgs:  { standalone: 'public-directory' },
@@ -100,6 +103,9 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
 
   // People. The reason this whole module exists.
   org_members:          { room: orgRoom('members') },
+  // People, a page at a time and one person's page (okf/live_rooms.md: static): the member list's level.
+  org_people:           { room: orgRoom('members') },
+  org_person:           { room: orgRoom('members') },
   org_referrals:        { room: orgRoom('referrals') },
   // The nominator's view of an org they do not belong to: "is an invitation already pending?"
   // Any signed-in user may add an org to an event, so any signed-in user may ask; what comes back

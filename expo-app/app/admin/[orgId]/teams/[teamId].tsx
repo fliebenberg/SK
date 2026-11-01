@@ -5,7 +5,7 @@ import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWi
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { GameSummary, OrgMember, SocketAction, Sport, TeamMember } from '@sk/shared';
+import { GameSummary, SocketAction, Sport, TeamMember } from '@sk/shared';
 import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { EditLink } from '../../../../components/ReadCard';
 import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowMenu';
@@ -28,8 +28,7 @@ import { useOrgTeams } from '../../../../hooks/useOrgTeams';
 import { useTeamRoster } from '../../../../hooks/useTeamRoster';
 import { useTeamGames } from '../../../../hooks/useTeamGames';
 import { useOrgSummary } from '../../../../hooks/useOrgSummary';
-import { useOrgMembers } from '../../../../hooks/useOrgMembers';
-import { useOrgGuardians, useTeamGuardians } from '../../../../hooks/useOrgGuardians';
+import { useTeamGuardians } from '../../../../hooks/useOrgGuardians';
 import { useOrgMinorsSettings } from '../../../../hooks/useOrgMinorsSettings';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
@@ -124,12 +123,8 @@ export default function TeamPage() {
   // The organisation's people are its Admin and Staff's business (`PEOPLE-8`). A coach has the team's
   // own people from its roster and guardians, and everyone else's names to pick from; the public
   // page has the squad alone.
-  const { members } = useOrgMembers(runsOrg ? orgId : null);
-  const { data: peopleNames } = useSocketQuery<OrgMember[]>('org_people_names', { orgId }, { enabled: !isPublic && !runsOrg && !!myTeamRole && !!orgId });
-  const toPickFrom = runsOrg ? members : peopleNames;
-  const { byPlayer: orgGuardians } = useOrgGuardians(runsOrg ? orgId : null);
-  const { byPlayer: teamGuardians } = useTeamGuardians(!isPublic && !runsOrg ? teamId : null);
-  const guardiansByPlayer = runsOrg ? orgGuardians : teamGuardians;
+  const peopleRead = runsOrg ? 'org_people' as const : 'org_people_names' as const;
+  const { byPlayer: guardiansByPlayer } = useTeamGuardians(isPublic ? null : teamId);
   const { settings: minorsSettings } = useOrgMinorsSettings(isPublic ? null : orgId);
   const { data: sportsData } = useSocketQuery<Sport[]>('sports');
   const { data: rolesData } = useSocketQuery<any>('roles');
@@ -156,23 +151,20 @@ export default function TeamPage() {
   const back = () => safeBack(isPublic ? (orgId ? `/organizations/${orgId}?tab=teams` : '/organizations') : `/admin/${orgId}/teams`);
   const q = query.trim().toLowerCase();
 
-  // Names, photos and org IDs come from the org's members, which update the moment a person page
-  // saves; the roster row is the fallback for anyone no longer a member.
-  const memberOf = useMemo(() => new Map((members || []).map(m => [m.id, m] as [string, OrgMember])), [members]);
-  const nameOf = (m: TeamMember) => memberOf.get(m.id)?.name || m.name;
+  const nameOf = (m: TeamMember) => m.name;
   const roleName = (roleId: string) => allTeamRoles.find(r => r.id === roleId)?.name || 'Staff';
 
   const players = useMemo(
     () => roster.filter(m => m.roleId === PLAYER_ROLE).sort((a, b) => nameOf(a).localeCompare(nameOf(b))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [roster, memberOf]
+    [roster]
   );
   const staff = useMemo(
     () => roster.filter(m => m.roleId !== PLAYER_ROLE).sort((a, b) => staffRank(a.roleId) - staffRank(b.roleId) || nameOf(a).localeCompare(nameOf(b))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [roster, memberOf]
+    [roster]
   );
-  const matchingPlayers = q ? players.filter(m => nameOf(m).toLowerCase().includes(q) || (memberOf.get(m.id)?.personOrgId || '').toLowerCase().includes(q)) : players;
+  const matchingPlayers = q ? players.filter(m => nameOf(m).toLowerCase().includes(q) || ((m as any).personOrgId || '').toLowerCase().includes(q)) : players;
   const matchingStaff = q ? staff.filter(m => nameOf(m).toLowerCase().includes(q) || roleName(m.roleId).toLowerCase().includes(q)) : staff;
 
   if (isTeamsLoading || !team) {
@@ -194,7 +186,7 @@ export default function TeamPage() {
   const close = () => setDialog(null);
 
   const openPerson = (m: TeamMember) => {
-    const membership = m.orgMembershipId ?? memberOf.get(m.id)?.membershipId;
+    const membership = m.orgMembershipId;
     return membership
       ? () => router.push({ pathname: '/admin/[orgId]/people/[membershipId]', params: { orgId: orgId!, membershipId: membership, teamId: teamId! } })
       : undefined;
@@ -332,14 +324,13 @@ export default function TeamPage() {
       ) : (
         <View>
           {shownPlayers.map((m, i) => {
-            const person = memberOf.get(m.id);
             return (
               <RosterRow
                 key={m.membershipId}
                 name={nameOf(m)}
-                image={person ? person.image : m.image}
-                guardianship={guardianshipOf(person?.birthdate ?? m.birthdate, minorsSettings, !!guardiansByPlayer.get(m.id)?.length)}
-                orgPersonId={person?.personOrgId ?? (m as any).personOrgId}
+                image={m.image}
+                guardianship={guardianshipOf(m.birthdate, minorsSettings, !!guardiansByPlayer.get(m.id)?.length)}
+                orgPersonId={(m as any).personOrgId}
                 role={seasonLine(m.id)}
                 first={i === 0}
                 onPress={openPerson(m)}
@@ -369,12 +360,11 @@ export default function TeamPage() {
       ) : (
         <View>
           {matchingStaff.map((m, i) => {
-            const person = memberOf.get(m.id);
             return (
               <RosterRow
                 key={m.membershipId}
                 name={nameOf(m)}
-                image={person ? person.image : m.image}
+                image={m.image}
                 role={roleName(m.roleId)}
                 first={i === 0}
                 onPress={openPerson(m)}
@@ -614,7 +604,8 @@ export default function TeamPage() {
             visible={dialog === 'players'}
             onClose={close}
             teamId={team.id}
-            members={toPickFrom || []}
+            orgId={orgId!}
+            readType={peopleRead}
             playerProfileIds={new Set(players.map(m => m.id))}
             minorsSettings={minorsSettings}
             guardiansByPlayer={guardiansByPlayer}
@@ -624,7 +615,8 @@ export default function TeamPage() {
             visible={dialog === 'staff'}
             onClose={close}
             teamId={team.id}
-            members={toPickFrom || []}
+            orgId={orgId!}
+            readType={peopleRead}
             staffProfileIds={new Set(staff.map(m => m.id))}
             roles={teamRoles}
             onAddNew={roleId => { close(); setNewPersonRole(roleId); }}

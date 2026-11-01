@@ -1667,6 +1667,10 @@ io.on('connection', (socket) => {
             case 'teams':
                 callback(await dataManager.getTeams(orgId));
                 break;
+            case 'org_directory':
+                // The viewer is the handshake's, never the request's (`ORG-14`).
+                callback(await dataManager.getOrgDirectory(request, socket.data?.userId));
+                break;
             case 'team_directory':
                 // The viewer is the handshake's, never the request's (`ORG-14`).
                 callback(await dataManager.getTeamDirectory(request, socket.data?.userId));
@@ -1777,11 +1781,19 @@ io.on('connection', (socket) => {
                     callback([]);
                 }
                 break;
+            case 'org_people':
+                callback(orgId ? await dataManager.getOrgPeoplePage(orgId, request) : { items: [], total: 0, page: 1, limit: 100, roleCounts: {} });
+                break;
+            case 'org_person': {
+                const person = orgId && request.membershipId ? await dataManager.getOrgPerson(orgId, request.membershipId) : null;
+                callback(person ? { ...person, guardians: await guardianManager.getGuardiansForPlayer(person.id) } : null);
+                break;
+            }
             case 'my_org_applications':
                 callback(orgId ? await membershipApplicationManager.getMine(socket.data?.userId, orgId) : []);
                 break;
             case 'org_people_names':
-                callback(orgId ? await userManager.getOrgPeopleNames(orgId) : []);
+                callback(orgId ? await userManager.getOrgPeopleNames(orgId, request) : { items: [], total: 0, page: 1, limit: 100 });
                 break;
             case 'profile_guardians': {
                 // `MEMBER-3`. Authorized on `org:{orgId}:members`, so the answer is held to that org:

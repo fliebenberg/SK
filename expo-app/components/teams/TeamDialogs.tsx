@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { OrgMember, OrgMinorsSettings, ProfileGuardian, SocketAction, Sport, Team, TeamMember } from '@sk/shared';
+import { OrgMember, OrgMinorsSettings, OrgPersonRow, ProfileGuardian, SocketAction, Sport, Team, TeamMember } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { FieldLabel } from '../FieldLabel';
 import { TEXT_INPUT } from '../formStyles';
@@ -9,6 +9,7 @@ import { SegmentedControl } from '../SegmentedControl';
 import CustomSelect from '../CustomSelect';
 import { AgeGroupPicker } from '../AgeGroupPicker';
 import { guardianshipOf } from '../people/PersonBits';
+import { usePagedList } from '../../hooks/usePagedList';
 import { useRequestScope } from '../../hooks/useRequestScope';
 import { requestKeyFor, sendAction } from '../../services/actions';
 
@@ -220,7 +221,9 @@ export function TeamDetailsDialog({ visible, onClose, orgId, supportedSportIds, 
  * Add players
  * --------------------------------------------------------------------------------------------- */
 
-const PICK_LIMIT = 60;
+/** Who the viewer may read to pick from: Admin and Staff the people, a coach names and photos (`PEOPLE-8`). */
+type PeopleRead = 'org_people' | 'org_people_names';
+type PickRow = OrgMember & Partial<Pick<OrgPersonRow, 'guardianNames'>>;
 
 /**
  * Add players from the organisation's people, several at once — a squad is fifteen and more, and
@@ -232,11 +235,12 @@ const PICK_LIMIT = 60;
  * stops there and says who was not added; everyone before them is on the team already, so they
  * leave the selection and Add tries only the rest again.
  */
-export function AddPlayersDialog({ visible, onClose, teamId, members, playerProfileIds, minorsSettings, guardiansByPlayer, onAddNew }: {
+export function AddPlayersDialog({ visible, onClose, teamId, orgId, readType, playerProfileIds, minorsSettings, guardiansByPlayer, onAddNew }: {
   visible: boolean;
   onClose: () => void;
   teamId: string;
-  members: OrgMember[];
+  orgId: string;
+  readType: PeopleRead;
   /** Profiles already playing for this team. */
   playerProfileIds: Set<string>;
   minorsSettings: OrgMinorsSettings;
@@ -259,12 +263,9 @@ export function AddPlayersDialog({ visible, onClose, teamId, members, playerProf
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return members
-      .filter(m => !q || m.name.toLowerCase().includes(q) || (m.personOrgId || '').toLowerCase().includes(q))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [members, query]);
+  const { items: matches, total, isLoading, error: listError, isSettled } = usePagedList<PickRow>({
+    type: readType, noun: 'people', params: { orgId }, search: query, page: 1, enabled: visible,
+  });
 
   const isSelected = (m: OrgMember) => selected.some(s => s.id === m.id);
   const toggle = (m: OrgMember) => setSelected(prev => (isSelected(m) ? prev.filter(s => s.id !== m.id) : [...prev, m]));
@@ -330,10 +331,10 @@ export function AddPlayersDialog({ visible, onClose, teamId, members, playerProf
       ) : null}
       <View className="rounded-xl border border-line overflow-hidden">
         <ScrollView style={{ maxHeight: 320 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-          {matches.slice(0, PICK_LIMIT).map((m, i) => {
+          {matches.map((m, i) => {
             const onTeam = playerProfileIds.has(m.id);
             const on = isSelected(m);
-            const kind = guardianshipOf(m.birthdate, minorsSettings, !!guardiansByPlayer.get(m.id)?.length);
+            const kind = guardianshipOf(m.birthdate, minorsSettings, !!m.guardianNames?.length || !!guardiansByPlayer.get(m.id)?.length);
             const sub = [kind === 'minor' ? 'Minor' : kind === 'dependant' ? 'Dependant' : null, m.personOrgId].filter(Boolean).join(' · ');
             return (
               <TouchableOpacity
@@ -361,11 +362,13 @@ export function AddPlayersDialog({ visible, onClose, teamId, members, playerProf
               </TouchableOpacity>
             );
           })}
-          {matches.length === 0 ? (
-            <Text className="font-inter text-sm text-ink-muted px-3 py-4">Nobody in the organisation matches.</Text>
-          ) : matches.length > PICK_LIMIT ? (
+          {listError ? (
+            <Text className="font-inter text-sm text-danger-ink px-3 py-4">{listError}</Text>
+          ) : matches.length === 0 ? (
+            <Text className="font-inter text-sm text-ink-muted px-3 py-4">{isLoading || !isSettled ? 'Looking…' : 'Nobody in the organisation matches.'}</Text>
+          ) : total > matches.length ? (
             <Text className="font-inter text-xs text-ink-muted px-3 py-2.5 border-t border-line-soft">
-              {matches.length - PICK_LIMIT} more. Type a name to narrow the list.
+              {total - matches.length} more. Type a name to narrow the list.
             </Text>
           ) : null}
         </ScrollView>
@@ -388,11 +391,12 @@ function staffRoleOptions(roles: TeamRole[]) {
 }
 
 /** One person from the organisation and their role on this team. */
-export function AddStaffDialog({ visible, onClose, teamId, members, staffProfileIds, roles, onAddNew }: {
+export function AddStaffDialog({ visible, onClose, teamId, orgId, readType, staffProfileIds, roles, onAddNew }: {
   visible: boolean;
   onClose: () => void;
   teamId: string;
-  members: OrgMember[];
+  orgId: string;
+  readType: PeopleRead;
   /** Profiles already on this team's staff. */
   staffProfileIds: Set<string>;
   roles: TeamRole[];
@@ -400,6 +404,8 @@ export function AddStaffDialog({ visible, onClose, teamId, members, staffProfile
   onAddNew: (roleId: string) => void;
 }) {
   const [profileId, setProfileId] = useState('');
+  const [pickedName, setPickedName] = useState('');
+  const [search, setSearch] = useState('');
   const [roleId, setRoleId] = useState('role-coach');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -407,17 +413,28 @@ export function AddStaffDialog({ visible, onClose, teamId, members, staffProfile
   useEffect(() => {
     if (!visible) return;
     setProfileId('');
+    setPickedName('');
+    setSearch('');
     setRoleId('role-coach');
     setError(null);
   }, [visible]);
 
-  const people = useMemo(
-    () => members
+  const { items, total } = usePagedList<PickRow>({
+    type: readType, noun: 'people', params: { orgId }, search, page: 1, enabled: visible,
+  });
+  const people = useMemo(() => {
+    const options = items
       .filter(m => !staffProfileIds.has(m.id))
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map(m => ({ value: m.id, label: m.name, description: m.personOrgId || undefined })),
-    [members, staffProfileIds]
-  );
+      .map(m => ({ value: m.id, label: m.name, description: m.personOrgId || undefined }));
+    // A search can leave the chosen person off the list; the control still has to name them.
+    return profileId && !options.some(o => o.value === profileId)
+      ? [{ value: profileId, label: pickedName, description: undefined }, ...options]
+      : options;
+  }, [items, staffProfileIds, profileId, pickedName]);
+  const choose = (id: string) => {
+    setProfileId(id);
+    setPickedName(people.find(o => o.value === id)?.label || '');
+  };
 
   const save = async () => {
     setIsSaving(true);
@@ -443,11 +460,13 @@ export function AddStaffDialog({ visible, onClose, teamId, members, staffProfile
         <FieldLabel label="Person" />
         <CustomSelect
           value={profileId}
-          onChange={setProfileId}
+          onChange={choose}
           options={people}
           placeholder="Choose from the organisation's people"
           showSearch
           searchPlaceholder="Search by name"
+          onSearchChange={setSearch}
+          note={total > items.length ? `${total - items.length} more. Type a name to narrow the list.` : null}
         />
       </View>
       <View className="gap-1.5">

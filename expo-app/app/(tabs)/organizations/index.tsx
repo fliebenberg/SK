@@ -1,132 +1,79 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
-import { GlassCard } from '../../../components/GlassCard';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from '../../../store/authStore';
-import { useActiveTheme } from '../../../store/settingsStore';
-import { wsService } from '../../../services/websocket';
-import { useWsStore } from '../../../store/wsStore';
-import { orgColors } from '@sk/shared';
-import { AddOrgDialog } from '../../../components/org/AddOrgDialog';
+import { OrgDirectoryEntry, orgColors } from '@sk/shared';
+import { BrandedListCard } from '../../../components/BrandedListCard';
+import { GlassCard } from '../../../components/GlassCard';
+import { ListPager } from '../../../components/ListPager';
 import { OrgLogo } from '../../../components/OrgLogo';
-import { PrivateOrgChip } from '../../../components/org/PrivateOrgTag';
+import { PageBody } from '../../../components/PageBody';
 import { SignInPrompt } from '../../../components/SignInPrompt';
-import { OrgBrandedCard } from '@/components/OrgBrandedCard';
-import { inkOnBrand } from '@/utils/colorUtils';
-import { orgAccess } from '@/utils/orgAccess';
+import { AddOrgDialog } from '../../../components/org/AddOrgDialog';
+import { orgTypeIcon, orgTypeLabel } from '../../../components/org/orgTypes';
 import { themeColor } from '../../../constants/Colors';
+import { usePagedList } from '../../../hooks/usePagedList';
+import { wsService } from '../../../services/websocket';
+import { useAuthStore } from '../../../store/authStore';
+import { useActiveTheme, useSettingsStore } from '../../../store/settingsStore';
+import { inkOnBrand } from '../../../utils/colorUtils';
+import { orgAccess } from '../../../utils/orgAccess';
 
+/** The viewer's choice of My Organisations or All Organisations, remembered on this device. */
+const TAB_KEY = 'organisationsDirectoryTab';
 
+/**
+ * The public Organisations tab: every organisation in one list, static and paged on the server
+ * (okf/live_rooms.md). A card opens the organisation's workspace for those who run it, and otherwise
+ * its public page, which offers a team duty its part of the workspace.
+ */
 export default function OrganizationsPage() {
   const router = useRouter();
+  const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
-  const isDark = useActiveTheme() === 'dark';
-  const { isAuthenticated, user, orgMemberships, teamMemberships, setMemberships } = useAuthStore();
-  const isConnected = useWsStore(state => state.isConnected);
+  const columns = width >= 1280 ? 3 : isLargeScreen ? 2 : 1;
 
-  const [organizations, setOrganizations] = useState<any[]>([]);
-  const [sportsMap, setSportsMap] = useState<Record<string, string>>({});
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const { isAuthenticated, user, orgMemberships, teamMemberships, setMemberships } = useAuthStore();
+  const saved = useSettingsStore(state => state.localOverrides[TAB_KEY]) as 'my' | 'all' | undefined;
+  const setLocalOverride = useSettingsStore(state => state.setLocalOverride);
+  // Until they choose, they start on their own organisations if they have any.
+  const tab = isAuthenticated ? (saved ?? ((orgMemberships || []).length > 0 ? 'my' : 'all')) : 'all';
+
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const { items: orgs, total, limit, isLoading, error, isSettled, term, retry } = usePagedList<OrgDirectoryEntry>({
+    type: 'org_directory', noun: 'organisations', params: { mine: tab === 'my' }, search, page,
+  });
+
+  // A new search or tab starts again from the first page.
+  useEffect(() => setPage(1), [term, tab]);
+
+  const scroller = useRef<ScrollView>(null);
+  const goToPage = (next: number) => {
+    setPage(next);
+    scroller.current?.scrollTo({ y: 0, animated: false });
+  };
 
   const [modalVisible, setModalVisible] = useState(false);
   const [signInPromptVisible, setSignInPromptVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<'my' | 'all'>('my');
 
-  const loadOrgsAndSports = () => {
-    if (!isConnected) return;
-    setIsLoading(true);
+  const accessTo = (org: OrgDirectoryEntry) => orgAccess(org.id, user?.globalRole === 'admin', orgMemberships, teamMemberships);
 
-    wsService.emit('get_data', { type: 'sports' }, (sportsList: any) => {
-      const map: Record<string, string> = {};
-      if (Array.isArray(sportsList)) {
-        sportsList.forEach((s: any) => {
-          map[s.id] = s.name;
-        });
-      }
-      setSportsMap(map);
-
-      wsService.emit('get_data', { type: 'organizations', limit: 1000 }, (res: any) => {
-        setIsLoading(false);
-        if (res && Array.isArray(res.items)) {
-          setOrganizations(res.items);
-        } else {
-          setOrganizations([]);
-        }
-      });
-    });
+  const flagsFor = (org: OrgDirectoryEntry) => {
+    const access = accessTo(org);
+    const flags: string[] = [];
+    if (org.isPrivate) flags.push('Private');
+    if (!org.isActive) flags.push('Inactive');
+    // Only a role they hold there: a system admin reads as Admin everywhere, which tells them nothing.
+    if (access.membership && access.role) flags.push(access.role);
+    return flags;
   };
 
-  useEffect(() => {
-    loadOrgsAndSports();
-  }, [isConnected]);
-
-  useEffect(() => {
-    if (!isConnected || organizations.length === 0) return;
-
-    // Dynamically join the summary room for each organization loaded in the list
-    const unsubscribes = organizations.map(org => {
-      const room = `org:${org.id}:summary`;
-      return wsService.subscribeToRoom(room);
-    });
-
-    const handleUpdate = (event: any) => {
-      if (event && event.type === 'ORGANIZATION_UPDATED') {
-        if (event.data && event.data.id) {
-          setOrganizations(prev =>
-            prev.map(org => org.id === event.data.id ? { ...org, ...event.data } : org)
-          );
-        }
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-
-    return () => {
-      unsubscribes.forEach(unsub => unsub());
-      wsService.off('update', handleUpdate);
-    };
-  }, [isConnected, organizations.map(org => org.id).join(',')]);
-
-  // Map database properties dynamically
-  const mappedOrgs = organizations.map(org => {
-    const access = orgAccess(org.id, user?.globalRole === 'admin', orgMemberships, teamMemberships);
-
-    const sports = org.supportedSportIds?.map((id: string) => sportsMap[id] || id) || [];
-    const hasFootball = sports.some((s: string) => s.toLowerCase().includes('football'));
-    const icon = hasFootball ? ('football-outline' as const) : ('trophy-outline' as const);
-
-    return {
-      ...org,
-      sports: sports.length > 0 ? sports : ['General'],
-      icon,
-      teamsCount: org.teamCount || 0,
-      eventsCount: org.eventCount || 0,
-      facilitiesCount: org.siteCount || 0,
-      membersCount: String(org.memberCount || 0),
-      role: access.role,
-      // Every org they hold a role in, not only the ones they run — a coach is an org Member.
-      isMine: !!access.role,
-      // Admin and Staff manage the workspace; a Member opens it for what is theirs there.
-      workspaceLabel: access.canManage ? 'Manage' : access.canOpenWorkspace ? 'Open' : null,
-    };
-  });
-
-  const filteredOrgs = mappedOrgs.filter(org => 
-    org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    org.sports.some((s: string) => s.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
-
-  const myOrgs = filteredOrgs.filter(org => org.isMine);
-  const orgs = filteredOrgs;
-
   // The new org is theirs, and setting it up is what comes next: its workspace opens (2026-10-31).
-  // The directory and their memberships are re-read for when they come back to this page.
+  // The list reads again when they come back to this page; their memberships are read now.
   const handleOrgCreated = (org: { id: string }) => {
     router.push(`/admin/${org.id}` as any);
-    loadOrgsAndSports();
     if (user?.id) {
       wsService.emit('get_data', { type: 'user_memberships', id: user.id }, (membershipRes: any) => {
         if (membershipRes) {
@@ -135,9 +82,6 @@ export default function OrganizationsPage() {
       });
     }
   };
-
-  // Anyone signed in may belong to an org, or set one up.
-  const showTabs = isAuthenticated;
 
   // The page's add action sits in its header, as on every list page — never at the end of the list.
   // A signed-out visitor sees it too, and is told to sign in, so they know it is there.
@@ -159,323 +103,120 @@ export default function OrganizationsPage() {
     navigation.getParent()?.setOptions({ headerRight: isLargeScreen ? undefined : () => addButton });
   }, [navigation, isAuthenticated, isLargeScreen, isDark]);
 
+  const pager = (where: string) => (
+    <View className={where === 'top' ? 'mb-3' : 'mt-3'}>
+      <ListPager testID={`orgs-pager-${where}`} page={page} limit={limit} total={total} noun="organisations" onPageChange={goToPage} disabled={isLoading} />
+    </View>
+  );
+
+  const message = (title: string, text: string, action?: { label: string; onPress: () => void }) => (
+    <GlassCard className="border border-line p-6 items-center">
+      <Ionicons name="business-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="mb-3" />
+      <Text className="font-orbitron-bold text-sm text-ink-soft text-center mb-1 uppercase tracking-wide">{title}</Text>
+      <Text className="font-inter text-xs text-ink-muted text-center leading-4">{text}</Text>
+      {action ? (
+        <TouchableOpacity onPress={action.onPress} accessibilityRole="button" className="mt-3 px-4 py-2 rounded-xl bg-primary">
+          <Text className="font-inter-bold text-xs text-on-primary">{action.label}</Text>
+        </TouchableOpacity>
+      ) : null}
+    </GlassCard>
+  );
+
+  const body = () => {
+    if (error) return message('Organisations did not load', error, { label: 'Try again', onPress: retry });
+    if (isLoading && !orgs.length) {
+      return <View className="py-20 items-center"><Text className="font-inter text-ink-muted">Loading organisations...</Text></View>;
+    }
+    if (!orgs.length && !isSettled) return null;
+    if (!orgs.length) {
+      if (term.trim()) return message('No matching organisations', `No organisations found matching "${term.trim()}".`);
+      return tab === 'my'
+        ? message('No organisations yet', "You're not part of any organisations yet. Set one up with Add organisation.")
+        : message('No organisations', 'There are no organisations on ScoreKeeper yet.');
+    }
+    return (
+      <View style={{ opacity: isLoading ? 0.6 : 1 }}>
+        {pager('top')}
+        <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
+          {orgs.map(org => {
+            const { primary } = orgColors(org);
+            const ink = inkOnBrand(primary);
+            const flags = flagsFor(org);
+            const type = orgTypeLabel(org.type, org.customType);
+            return (
+              <View key={org.id} style={{ width: `${100 / columns}%`, paddingHorizontal: 6, paddingBottom: 12 }}>
+                <BrandedListCard
+                  testID={`org-card-${org.id}`}
+                  primaryColor={org.primaryColor}
+                  secondaryColor={org.secondaryColor}
+                  title={org.name}
+                  subtitle={org.town}
+                  flags={flags}
+                  accessibilityLabel={[org.name, org.town, type, ...flags].filter(Boolean).join(', ')}
+                  onPress={() => router.push((accessTo(org).canManage ? `/admin/${org.id}` : `/organizations/${org.id}`) as any)}
+                  mark={<OrgLogo logo={org.logo ?? undefined} size={44} className="border bg-logo-plate" style={{ borderColor: ink.border }} />}
+                  detail={type ? (
+                    <View className="flex-row items-center gap-1">
+                      <Ionicons name={orgTypeIcon(org.type)} size={14} color={ink.text} />
+                      <Text numberOfLines={1} style={{ color: ink.text }} className="font-inter-semibold text-xs leading-4">{type}</Text>
+                    </View>
+                  ) : null}
+                />
+              </View>
+            );
+          })}
+        </View>
+        {pager('bottom')}
+      </View>
+    );
+  };
+
+  const tabButton = (key: 'my' | 'all', label: string) => (
+    <TouchableOpacity
+      onPress={() => setLocalOverride(TAB_KEY, key)}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: tab === key }}
+      className={`flex-1 pb-3 items-center border-b-2 ${tab === key ? 'border-ink' : 'border-transparent'}`}
+    >
+      <Text className={`font-orbitron-bold text-xs uppercase tracking-wider ${tab === key ? 'text-ink' : 'text-ink-muted'}`}>{label}</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View className="flex-1 bg-canvas">
-      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* HEADER SECTION */}
-        {isLargeScreen && (
-          <View className="mb-6 flex-row items-start gap-4">
-            <View className="flex-1">
-              <Text className="font-orbitron-bold text-2xl tracking-widest text-ink uppercase mb-2">
-                Organisations
-              </Text>
-              <Text className="font-inter text-sm text-ink-muted">
-                Browse and search active sports clubs, schools, and leagues on ScoreKeeper.
-              </Text>
+      <ScrollView ref={scroller} className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
+        <PageBody>
+          {isLargeScreen && (
+            <View className="mb-6 flex-row items-start gap-4">
+              <View className="flex-1">
+                <Text className="font-orbitron-bold text-2xl tracking-widest text-ink uppercase mb-2">Organisations</Text>
+                <Text className="font-inter text-sm text-ink-muted">Find an organisation and see its teams, games and results.</Text>
+              </View>
+              {addButton}
             </View>
-            {addButton}
+          )}
+
+          <View className="flex-row items-center bg-card border border-line rounded-xl px-4 py-3 mb-6 shadow-sm">
+            <Ionicons name="search-outline" size={18} color={themeColor(isDark, 'ink-muted')} />
+            <TextInput
+              placeholder="Search by name, town, type or sport..."
+              placeholderTextColor={themeColor(isDark, 'ink-muted')}
+              accessibilityLabel="Search organisations"
+              className="flex-1 font-inter text-ink text-sm ml-2.5 outline-none"
+              value={search}
+              onChangeText={setSearch}
+            />
           </View>
-        )}
 
-        {/* SEARCH BAR */}
-        <View className="flex-row items-center bg-card border border-line rounded-xl px-4 py-3 mb-6 shadow-sm">
-          <Ionicons name="search-outline" size={18} color={themeColor(isDark, 'ink-muted')} />
-          <TextInput
-            placeholder="Search organisations..."
-            placeholderTextColor={themeColor(isDark, 'ink-muted')}
-            className="flex-1 font-inter text-ink text-sm ml-2.5 outline-none"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-
-        {/* TABS */}
-        {showTabs && (
-          <View className="flex-row border-b border-line mb-6">
-            <TouchableOpacity
-              onPress={() => setActiveTab('my')}
-              className={`flex-1 pb-3 items-center border-b-2 ${
-                activeTab === 'my' ? 'border-ink' : 'border-transparent'
-              }`}
-            >
-              <Text className={`font-orbitron-bold text-xs uppercase tracking-wider ${
-                activeTab === 'my' ? 'text-ink font-orbitron-bold' : 'text-ink-muted'
-              }`}>
-                My Organisations
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setActiveTab('all')}
-              className={`flex-1 pb-3 items-center border-b-2 ${
-                activeTab === 'all' ? 'border-ink' : 'border-transparent'
-              }`}
-            >
-              <Text className={`font-orbitron-bold text-xs uppercase tracking-wider ${
-                activeTab === 'all' ? 'text-ink font-orbitron-bold' : 'text-ink-muted'
-              }`}>
-                All Organisations
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* TAB CONTENTS */}
-        {isLoading ? (
-          <View className="py-20 items-center justify-center">
-            <Text className="font-inter text-ink-muted">Loading organisations...</Text>
-          </View>
-        ) : showTabs && activeTab === 'my' ? (
-          <View className="mb-8">
-            <View className="gap-4">
-              {myOrgs.length === 0 ? (
-                <GlassCard className="border border-line p-6 items-center">
-                  <Ionicons name="business-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="mb-3" />
-                  <Text className="font-orbitron-bold text-sm text-ink-soft text-center mb-1 uppercase tracking-wide">
-                    {searchQuery.trim() ? "No Matching Organisations" : "No Organisations Yet"}
-                  </Text>
-                  <Text className="font-inter text-xs text-ink-muted text-center mb-5 leading-4">
-                    {searchQuery.trim()
-                      ? `None of your organisations match "${searchQuery}".`
-                      : "You're not part of any organisations yet. Set one up with Add organisation."
-                    }
-                  </Text>
-                </GlassCard>
-              ) : (
-                myOrgs.map((org) => {
-                  const { primary: primaryColor, secondary: secondaryColor } = orgColors(org);
-                  const ink = inkOnBrand(primaryColor);
-                  const isLightBg = ink.isLight;
-                  const textColor = ink.text;
-                  const subtextColor = ink.subtext;
-                  const badgeBgColor = ink.badge;
-                  const borderColor = ink.border;
-
-                  return (
-                    <OrgBrandedCard
-                      key={org.id}
-                      testID={`my-org-${org.id}`}
-                      primaryColor={primaryColor}
-                      secondaryColor={secondaryColor}
-                      className="p-5"
-                    >
-                      <TouchableOpacity 
-                        onPress={() => router.push(`/organizations/${org.id}` as any)}
-                        activeOpacity={0.7}
-                      >
-                        <View className="flex-row justify-between items-center gap-3 mb-3">
-                          <View className="flex-row items-center gap-3 flex-1">
-                            <OrgLogo 
-                              logo={org.logo} 
-                              size={40} 
-                              className="border bg-logo-plate" 
-                              style={{ borderColor: borderColor }}
-                            />
-                            <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide leading-tight flex-shrink">
-                              {org.name}
-                            </Text>
-                          </View>
-                          <View className="flex-row items-center gap-1.5">
-                            {org.isPrivate ? <PrivateOrgChip textColor={textColor} chipColor={ink.chip} borderColor={borderColor} /> : null}
-                            <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
-                              <Ionicons name="shield-checkmark" size={12} color={textColor} />
-                              <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
-                                {org.role}
-                              </Text>
-                            </View>
-                          </View>
-                        </View>
-
-                        <View className="flex-row gap-4 mb-4">
-                          <View className="flex-row items-center gap-1">
-                            <Ionicons name="trophy-outline" size={14} color={textColor} />
-                            <Text style={{ color: subtextColor }} className="font-inter text-xs">
-                              {org.sports.length} {org.sports.length === 1 ? 'Sport' : 'Sports'}
-                            </Text>
-                          </View>
-                          <View className="flex-row items-center gap-1">
-                            <Ionicons name="people-outline" size={14} color={textColor} />
-                            <Text style={{ color: subtextColor }} className="font-inter text-xs">
-                              {org.membersCount} {org.membersCount === '1' ? 'Member' : 'Members'}
-                            </Text>
-                          </View>
-                          <View className="flex-row items-center gap-1">
-                            <Ionicons name="shirt-outline" size={14} color={textColor} />
-                            <Text style={{ color: subtextColor }} className="font-inter text-xs">
-                              {org.teamsCount} {org.teamsCount === 1 ? 'Team' : 'Teams'}
-                            </Text>
-                          </View>
-                          <View className="flex-row items-center gap-1">
-                            <Ionicons name="location-outline" size={14} color={textColor} />
-                            <Text style={{ color: subtextColor }} className="font-inter text-xs">
-                              {org.facilitiesCount} {org.facilitiesCount === 1 ? 'Facility' : 'Facilities'}
-                            </Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-
-                      {/* A restricted minor's membership has no workspace; the card itself opens the profile. */}
-                      {org.workspaceLabel && (
-                        <View style={{ borderTopColor: borderColor }} className="mt-2 border-t pt-3">
-                          <TouchableOpacity
-                            style={{
-                              backgroundColor: ink.button,
-                              borderColor: borderColor,
-                            }}
-                            className="w-full border py-2.5 rounded-lg items-center justify-center active:opacity-85"
-                            onPress={() => router.push(`/admin/${org.id}` as any)}
-                          >
-                            <Text style={{ color: textColor }} className="font-inter-bold text-sm">
-                              {org.workspaceLabel} Workspace
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </OrgBrandedCard>
-                  );
-                })
-              )}
-
+          {isAuthenticated && (
+            <View className="flex-row border-b border-line mb-5">
+              {tabButton('my', 'My Organisations')}
+              {tabButton('all', 'All Organisations')}
             </View>
-          </View>
-        ) : (
-          <View className="gap-4">
-            {orgs.length === 0 ? (
-              <GlassCard className="border border-line p-6 items-center">
-                <Ionicons name="business-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="mb-3" />
-                <Text className="font-orbitron-bold text-sm text-ink-soft text-center mb-1 uppercase tracking-wide">
-                  {searchQuery.trim() ? "No Matching Organisations" : "No Organisations"}
-                </Text>
-                <Text className="font-inter text-xs text-ink-muted text-center mb-2 leading-4">
-                  {searchQuery.trim()
-                    ? `No organisations found matching "${searchQuery}".`
-                    : "There are no active organisations on ScoreKeeper yet."
-                  }
-                </Text>
-              </GlassCard>
-            ) : (
-              orgs.map((org) => {
-              const { primary: primaryColor, secondary: secondaryColor } = orgColors(org);
-              const ink = inkOnBrand(primaryColor);
-              const isLightBg = ink.isLight;
-              const textColor = ink.text;
-              const subtextColor = ink.subtext;
-              const badgeBgColor = ink.badge;
-              const borderColor = ink.border;
+          )}
 
-              return (
-                <OrgBrandedCard
-                  key={org.id}
-                  testID={`org-${org.id}`}
-                  primaryColor={primaryColor}
-                  secondaryColor={secondaryColor}
-                  className="p-5"
-                >
-                  <TouchableOpacity
-                    onPress={() => router.push(`/organizations/${org.id}` as any)}
-                    activeOpacity={0.7}
-                  >
-                    <View className="flex-row justify-between items-center gap-3 mb-4">
-                      <View className="flex-row items-center gap-3 flex-1">
-                        <OrgLogo 
-                          logo={org.logo} 
-                          size={40} 
-                          className="border bg-logo-plate" 
-                          style={{ borderColor: borderColor }}
-                        />
-                        <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide flex-shrink">
-                          {org.name}
-                        </Text>
-                      </View>
-                      
-                      {org.isPrivate ? <PrivateOrgChip textColor={textColor} chipColor={ink.chip} borderColor={borderColor} /> : null}
-                      {org.isMine ? (
-                        <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
-                          <Ionicons name="shield-checkmark" size={12} color={textColor} />
-                          <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
-                            {org.role}
-                          </Text>
-                        </View>
-                      ) : (
-                        <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
-                          <Ionicons name="people-outline" size={12} color={textColor} />
-                          <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
-                            {org.membersCount}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    {/* STATS BLOCKS */}
-                    <View className="flex-row gap-6 mb-4">
-                      <View>
-                        <Text style={{ color: textColor }} className="font-orbitron-bold text-base leading-none">
-                          {org.sports.length}
-                        </Text>
-                        <Text style={{ color: subtextColor }} className="font-inter text-[9px] mt-1 uppercase tracking-wider">
-                          {org.sports.length === 1 ? 'Sport' : 'Sports'}
-                        </Text>
-                      </View>
-                      <View>
-                        <Text style={{ color: textColor }} className="font-orbitron-bold text-base leading-none">
-                          {org.membersCount}
-                        </Text>
-                        <Text style={{ color: subtextColor }} className="font-inter text-[9px] mt-1 uppercase tracking-wider">
-                          {org.membersCount === '1' ? 'Member' : 'Members'}
-                        </Text>
-                      </View>
-                      <View>
-                        <Text style={{ color: textColor }} className="font-orbitron-bold text-base leading-none">
-                          {org.teamsCount}
-                        </Text>
-                        <Text style={{ color: subtextColor }} className="font-inter text-[9px] mt-1 uppercase tracking-wider">
-                          {org.teamsCount === 1 ? 'Team' : 'Teams'}
-                        </Text>
-                      </View>
-                      <View>
-                        <Text style={{ color: textColor }} className="font-orbitron-bold text-base leading-none">
-                          {org.facilitiesCount}
-                        </Text>
-                        <Text style={{ color: subtextColor }} className="font-inter text-[9px] mt-1 uppercase tracking-wider">
-                          {org.facilitiesCount === 1 ? 'Facility' : 'Facilities'}
-                        </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-
-                  <View className="flex-row gap-2 mt-1">
-                    <TouchableOpacity
-                      style={{
-                        backgroundColor: ink.button,
-                        borderColor: borderColor,
-                      }}
-                      className="flex-1 border py-2 rounded-lg items-center justify-center active:opacity-85"
-                      onPress={() => router.push(`/organizations/${org.id}` as any)}
-                    >
-                      <Text style={{ color: textColor }} className="font-inter-bold text-sm">
-                        View Profile
-                      </Text>
-                    </TouchableOpacity>
-                    {org.workspaceLabel && (
-                      <TouchableOpacity
-                        style={{
-                          backgroundColor: ink.text,
-                          borderColor: 'transparent',
-                        }}
-                        className="flex-1 border py-2 rounded-lg items-center justify-center active:opacity-85"
-                        onPress={() => router.push(`/admin/${org.id}` as any)}
-                      >
-                        <Text style={{ color: ink.inverse }} className="font-inter-bold text-sm">
-                          {org.workspaceLabel}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </OrgBrandedCard>
-              );
-            })
-            )}
-          </View>
-        )}
+          {body()}
+        </PageBody>
       </ScrollView>
 
       <SignInPrompt
@@ -493,4 +234,3 @@ export default function OrganizationsPage() {
     </View>
   );
 }
-

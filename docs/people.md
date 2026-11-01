@@ -79,7 +79,9 @@ Only the label differs; the rules are the same for both (`guardianshipOf` in
 
 ## 5. Data and live updates
 
-Both screens read members through [useOrgMembers](file:///c:/Fred/Coding/SK/expo-app/hooks/useOrgMembers.ts)
+Since `LIST-1` (2026-11-01) People is a static list, paged and filtered on the server ([usePagedList](file:///c:/Fred/Coding/SK/expo-app/hooks/usePagedList.ts), `org_people`), and a person's page reads that one person ([useOrgPerson](file:///c:/Fred/Coding/SK/expo-app/hooks/useOrgPerson.ts), `org_person`). Each reads again when the page comes back into view and after any change made from this device, so a save shows at once for whoever made it; someone else's shows at the next read. The add-to-team dialogs and the tournament person picker search on the server too. What follows describes the rooms these replaced:
+
+Both screens read members through useOrgMembers
 (`org:{id}:members`) and guardians through `useOrgGuardians`, so a save shows everywhere without a
 refetch. Each dialog sends only the fields that changed; an emptied field goes as `null`, which
 clears it. `UPDATE_ORG_PROFILE` now publishes the **member row** rather than the bare profile, as

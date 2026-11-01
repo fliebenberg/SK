@@ -4,10 +4,13 @@ import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { GlassCard } from '../../../components/GlassCard';
 import { Button } from '../../../components/Button';
+import { ListPager } from '../../../components/ListPager';
 import { Ionicons } from '@expo/vector-icons';
 import { apiService, AdminSearchUserResult } from '../../../services/api';
 import { getAvatarUrl } from '../../../services/assets';
 import { themeColor } from '../../../constants/Colors';
+
+const PAGE_SIZE = 100;
 
 export default function UserManagement() {
   const token = useAuthStore(state => state.token);
@@ -25,9 +28,7 @@ export default function UserManagement() {
 
   // Pagination states
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
 
   // Results & UI states
   const [users, setUsers] = useState<AdminSearchUserResult[]>([]);
@@ -45,7 +46,7 @@ export default function UserManagement() {
     }));
   };
 
-  const fetchResults = async (searchName: string, searchEmail: string, searchId: string, targetPage: number, targetLimit: number) => {
+  const fetchResults = async (searchName: string, searchEmail: string, searchId: string, targetPage: number) => {
     if (!token) return;
     setIsLoading(true);
     setError(null);
@@ -56,13 +57,11 @@ export default function UserManagement() {
         searchEmail.trim(),
         searchId.trim(),
         targetPage,
-        targetLimit
+        PAGE_SIZE
       );
       setUsers(paginatedRes.results);
       setTotalCount(paginatedRes.totalCount);
-      setTotalPages(paginatedRes.totalPages);
       setPage(paginatedRes.page);
-      setPageSize(paginatedRes.limit);
       setHasSearched(true);
     } catch (err: any) {
       console.error('[UserManagement] Search failed:', err);
@@ -83,7 +82,7 @@ export default function UserManagement() {
     setActiveId(idQuery);
     setExpandedIds({});
     
-    fetchResults(nameQuery, emailQuery, idQuery, 1, pageSize);
+    fetchResults(nameQuery, emailQuery, idQuery, 1);
   };
 
   const handleClear = () => {
@@ -95,7 +94,6 @@ export default function UserManagement() {
     setActiveId('');
     setUsers([]);
     setTotalCount(0);
-    setTotalPages(0);
     setPage(1);
     setExpandedIds({});
     setHasSearched(false);
@@ -103,16 +101,15 @@ export default function UserManagement() {
   };
 
   const handlePageChange = (newPage: number) => {
-    if (newPage < 1 || newPage > totalPages || isLoading) return;
-    fetchResults(activeName, activeEmail, activeId, newPage, pageSize);
+    if (isLoading) return;
+    fetchResults(activeName, activeEmail, activeId, newPage);
   };
 
-  const handlePageSizeChange = (newSize: number) => {
-    if (newSize === pageSize || isLoading) return;
-    setPageSize(newSize);
-    // Fetch page 1 with the new size
-    fetchResults(activeName, activeEmail, activeId, 1, newSize);
-  };
+  const pager = (where: string) => (
+    <View className={where === 'top' ? 'mb-4' : 'mt-2'}>
+      <ListPager testID={`users-pager-${where}`} page={page} limit={PAGE_SIZE} total={totalCount} noun="results" onPageChange={handlePageChange} disabled={isLoading} />
+    </View>
+  );
 
   return (
     <View className="flex-1 bg-canvas">
@@ -251,16 +248,10 @@ export default function UserManagement() {
         {/* RESULTS SECTION */}
         {hasSearched && !isLoading && (
           <>
-            <View className="flex-row items-center justify-between mb-4">
-              <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest">
-                Results ({totalCount})
-              </Text>
-              {totalPages > 1 && (
-                <Text className="font-inter text-[11px] text-ink-muted">
-                  Page {page} of {totalPages}
-                </Text>
-              )}
-            </View>
+            <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-4">
+              Results ({totalCount})
+            </Text>
+            {pager('top')}
 
             {/* EMPTY STATE */}
             {users.length === 0 && (
@@ -452,63 +443,7 @@ export default function UserManagement() {
               );
             })}
 
-            {/* PAGINATION CONTROLS BAR */}
-            <GlassCard className="border border-line p-4 mt-6 flex-col md:flex-row items-center justify-between gap-4">
-              {/* PAGE SIZE SELECTOR */}
-              <View className="flex-row items-center gap-2">
-                <Text className="font-inter text-xs text-ink-muted">Page size:</Text>
-                {[50, 100, 150, 200].map((size) => (
-                  <TouchableOpacity
-                    key={size}
-                    onPress={() => handlePageSizeChange(size)}
-                    className={`px-2.5 py-1 rounded border ${
-                      pageSize === size
-                        ? 'bg-primary border-primary text-on-primary'
-                        : 'bg-card border-line'
-                    }`}
-                  >
-                    <Text className={`font-inter text-xs ${
-                      pageSize === size ? 'text-on-primary font-inter-bold' : 'text-ink-muted'
-                    }`}>
-                      {size}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* PAGE NAVIGATION BUTTONS */}
-              {totalPages > 1 && (
-                <View className="flex-row items-center gap-3">
-                  <TouchableOpacity
-                    onPress={() => handlePageChange(page - 1)}
-                    disabled={page === 1}
-                    className={`p-2 rounded-lg border ${
-                      page === 1
-                        ? 'opacity-40 bg-sunken border-line'
-                        : 'bg-card border-line active:opacity-80'
-                    }`}
-                  >
-                    <Ionicons name="chevron-back" size={16} color={themeColor(isDark, 'ink')} />
-                  </TouchableOpacity>
-
-                  <Text className="font-inter text-xs text-ink-soft">
-                    Page {page} of {totalPages}
-                  </Text>
-
-                  <TouchableOpacity
-                    onPress={() => handlePageChange(page + 1)}
-                    disabled={page === totalPages}
-                    className={`p-2 rounded-lg border ${
-                      page === totalPages
-                        ? 'opacity-40 bg-sunken border-line'
-                        : 'bg-card border-line active:opacity-80'
-                    }`}
-                  >
-                    <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink')} />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </GlassCard>
+            {pager('bottom')}
           </>
         )}
       </ScrollView>

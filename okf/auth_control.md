@@ -138,8 +138,9 @@ What each role may see and do, page by page — and the permission questions sti
       `AuthGuard` admits on it, or on an appointment the server reports (`event_capabilities`,
       `game_capabilities`) for that tournament's or game's pages; the workspace menu and Control
       Panel list only the pages the scope opens (`mayOpenWorkspacePage`), and any other page goes back
-      to the Control Panel. The Organisations list and an org's public page use the same rule:
-      *Manage Workspace* for Admin and Staff, *Open Workspace* for a team duty.
+      to the Control Panel. An org's public page uses the same rule: *Manage Workspace* for Admin
+      and Staff, *Open Workspace* for a team duty. On the Organisations list the card itself opens the
+      workspace for Admin and Staff, and the public page for everyone else.
     - **Guardians hold no membership.** Being a guardian is derived from an active
       `profile_guardians` link, so a guardian reads nothing org-wide; what they see of their child
       arrives as `dependants` in their own `USER_MEMBERSHIPS_UPDATED`.

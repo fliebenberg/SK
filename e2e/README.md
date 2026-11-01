@@ -62,8 +62,8 @@ npm run e2e:report     # the last run's report, with traces of any failure
   desktop, last, Riverbend naming the place with its 1st XV), then proposed teams (`15-team-picking.spec.ts`: on
   *Test Saturday Fixtures*, Kwaggafontein's U16 Lions coach's two games with a proposed team, its admin seeing them
   as the coach's; on the desktop the coach confirms one from its game page), then My Organisations
-  (`16-my-organisations.spec.ts`: Kwaggafontein's U16 Lions coach seeing Kwaggafontein, as a Member, with
-  *Open Workspace*, St Aldric's staff seeing theirs to manage, and an organisation they add being theirs as its
+  (`16-my-organisations.spec.ts`: Kwaggafontein's U16 Lions coach seeing Kwaggafontein, as a Member, reaching
+  *Open Workspace* from its public page, St Aldric's staff's card opening their workspace, and an organisation they add being theirs as its
   Admin), then divisions that rank organisations
   (`17-paired-standings.spec.ts`: *Test Netball Pairs Day*'s division won by an organisation and ranked by
   organisation on its page, a Head to Head division's table of two, and the Standings tab narrowed to a sport), then the

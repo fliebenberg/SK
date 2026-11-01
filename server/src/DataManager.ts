@@ -59,7 +59,10 @@ export class DataManager {
   getSport = (id: string) => sportManager.getSport(id);
 
   // Organizations
+  getOrgPeoplePage = (orgId: string, params: any) => userManager.getOrgPeoplePage(orgId, params);
+  getOrgPerson = (orgId: string, membershipId: string) => userManager.getOrgPerson(orgId, membershipId);
   getOrganizations = (params?: any, viewerId?: string | null) => organizationManager.getOrganizations(params, viewerId ?? null);
+  getOrgDirectory = (params: any, viewerId?: string | null) => organizationManager.getOrgDirectory(params, viewerId ?? null);
   getOrganization = (id?: string) => organizationManager.getOrganization(id);
   searchSimilarOrganizations = (name: string, viewerId?: string | null) => organizationManager.searchSimilarOrganizations(name, viewerId ?? null);
   findPossibleDuplicateOrgs = (name: string, viewerId?: string | null) => organizationManager.findPossibleDuplicates(name, viewerId ?? null);

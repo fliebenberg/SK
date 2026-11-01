@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
 
 import { wsService } from '../services/websocket';
+import { usePagedList } from '../hooks/usePagedList';
 import { themeColor } from '../constants/Colors';
 
 /**
@@ -25,7 +26,7 @@ import { themeColor } from '../constants/Colors';
  * type — a superset of the old behaviour, since typing still works at the same speed.
  *
  * **Three scopes, because the server supports exactly three.** The organisation whose workspace you
- * are in can be *listed* (`org_members`), so it is browsable and filtered on the client. Anything
+ * are in can be *listed* (`org_people`, a page at a time, filtered on the server). Anything
  * wider can only be *searched* (`organizer_candidates`, which returns nothing without a query):
  * `Taking part` covers the event's own organisations, and `Everyone` is the deliberate widening
  * that already existed as a checkbox. Offering a browse where the server has no list to give would
@@ -97,7 +98,6 @@ export function PersonPickerModal({
 
   const [scope, setScope] = useState<ScopeKey>('org');
   const [term, setTerm] = useState('');
-  const [roster, setRoster] = useState<PickablePerson[]>([]);
   const [results, setResults] = useState<PickablePerson[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   /*
@@ -115,28 +115,16 @@ export function PersonPickerModal({
     setResults([]);
   }, [visible]);
 
-  /** The browsable list. Read once per opening — an org's roster does not move while a modal is up. */
+  /** The browsable list: the first page, narrowed on the server as they type. */
+  const hostList = usePagedList<PickablePerson>({
+    type: 'org_people', noun: 'people', params: { orgId: hostOrgId }, search: term, page: 1,
+    enabled: visible && !!hostOrgId && scope === 'org',
+  });
   useEffect(() => {
-    if (!visible || !hostOrgId) return;
-    setIsLoading(true);
-    wsService.emit('get_data', { type: 'org_members', orgId: hostOrgId }, (members: any) => {
-      setIsLoading(false);
-      const available = Array.isArray(members);
-      setRosterAvailable(available);
-      if (!available) setScope(current => (current === 'org' ? 'event' : current));
-      setRoster(
-        Array.isArray(members)
-          ? members.map((m: any) => ({
-              id: m.id,
-              name: m.name,
-              image: m.image,
-              orgId: m.orgId,
-              roleName: m.roleName,
-            }))
-          : []
-      );
-    });
-  }, [visible, hostOrgId]);
+    if (!hostList.error) return;
+    setRosterAvailable(false);
+    setScope(current => (current === 'org' ? 'event' : current));
+  }, [hostList.error]);
 
   /** The searchable scopes. Debounced, and silent below two characters like every other search here. */
   useEffect(() => {
@@ -167,12 +155,7 @@ export function PersonPickerModal({
   }, [visible, scope, term, eventId, sportId, divisionId]);
 
   /* The org scope filters what is already loaded; the others show what came back. */
-  const people = useMemo(() => {
-    if (scope !== 'org') return results;
-    const needle = term.trim().toLowerCase();
-    const list = needle ? roster.filter(p => (p.name || '').toLowerCase().includes(needle)) : roster;
-    return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  }, [scope, results, roster, term]);
+  const people = scope === 'org' ? hostList.items : results;
 
   /* Without the host's list, the "taking part" search stands in for it — it covers the host too —
      so it is always offered, named for the host when nobody else is taking part yet. */
@@ -223,7 +206,7 @@ export function PersonPickerModal({
                 spellCheck={false}
                 className="flex-1 font-inter text-sm text-ink"
               />
-              {isLoading && <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />}
+              {(scope === 'org' ? hostList.isLoading : isLoading) && <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />}
             </View>
 
             {/* Where to look. The host organisation is a list; the wider two are searches, which is

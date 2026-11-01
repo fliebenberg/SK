@@ -32,6 +32,10 @@ interface CustomSelectProps {
   accessibilityLabel?: string;
   /** A compact control, for a toolbar of filters. */
   compact?: boolean;
+  /** The options come from the server: told what is typed, and the list is shown as given. */
+  onSearchChange?: (text: string) => void;
+  /** A line under the options, such as how many more a search would reach. */
+  note?: string | null;
 }
 
 export default function CustomSelect({
@@ -46,6 +50,8 @@ export default function CustomSelect({
   clearable = false,
   accessibilityLabel,
   compact = false,
+  onSearchChange,
+  note,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -56,6 +62,7 @@ export default function CustomSelect({
   useEffect(() => {
     if (!isOpen) {
       setSearchText('');
+      onSearchChange?.('');
     }
   }, [isOpen]);
 
@@ -64,7 +71,7 @@ export default function CustomSelect({
     setIsOpen(false);
   };
 
-  const filteredOptions = options.filter((opt) =>
+  const filteredOptions = onSearchChange ? options : options.filter((opt) =>
     opt.label.toLowerCase().includes(searchText.toLowerCase())
   );
 
@@ -126,7 +133,7 @@ export default function CustomSelect({
                 placeholder={searchPlaceholder}
                 placeholderTextColor={themeColor(isDark, 'ink-muted')}
                 value={searchText}
-                onChangeText={setSearchText}
+                onChangeText={text => { setSearchText(text); onSearchChange?.(text); }}
                 className="bg-field border border-line rounded-xl px-3 py-2 font-inter text-xs text-ink mb-2"
               />
             )}
@@ -179,6 +186,7 @@ export default function CustomSelect({
                   <Text className="font-inter text-xs text-ink-muted">No options found</Text>
                 </View>
               )}
+              {note ? <Text className="font-inter text-xs text-ink-muted px-1 py-1">{note}</Text> : null}
             </ScrollView>
           </Pressable>
         </Pressable>

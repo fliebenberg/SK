@@ -49,6 +49,25 @@ export type OrgSettings = Record<string, any> & {
 
 export type OrgMembershipMode = 'invite' | 'apply';
 
+/**
+ * One organisation on the public Organisations list: only what tells it from the others. How the
+ * viewer is connected to it comes from their own memberships.
+ */
+export interface OrgDirectoryEntry {
+  id: string;
+  name: string;
+  shortName?: string | null;
+  logo?: string | null;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  type?: OrganizationType | null;
+  customType?: string | null;
+  /** The town or city of its address, or its province if the address has no town. */
+  town?: string | null;
+  isPrivate: boolean;
+  isActive: boolean;
+}
+
 export interface Organization {
   id: string;
   name: string;

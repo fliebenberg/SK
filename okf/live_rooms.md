@@ -40,11 +40,11 @@ Decided 2026-11-01. The app keeps both kinds, and every list is one or the other
 | List | Kind | Why |
 | --- | --- | --- |
 | Teams directory (public Teams tab) | Static | Across all organisations, so very long |
-| Organisations directory | Static | Very long. Today it holds a room per row (`LIVE-10`) and reads only the first 100 (`ORG-16`) |
+| Organisations directory | Static | Very long. A rename shows the next time the page opens or comes back into view |
 | Sites directory (public Sites tab) | Static | Very long, once built on real data (`UI-38`) |
-| Users (platform admin) | Static | Very long; already paged on the server |
+| Users (platform admin) | Static | Very long; paged on the server |
 | Reports (platform admin) | Static | Can grow long, and is read when needed, once built on real data (`REP-3`) |
-| An organisation's People | Static (moves under `LIST-1`) | A large organisation runs to thousands, with their guardians alongside |
+| An organisation's People, and one person's page | Static | A large organisation runs to thousands, with their guardians alongside. The viewer's own change shows at once; someone else's at the next read |
 | An organisation's past results | Static (moves under `LIST-1`) | Grows every season, and a finished game rarely changes |
 | An organisation's upcoming and in-progress games | Live (moves under `LIST-1`) | Stays short, and carries live scores |
 | An organisation's teams, sites, facilities, leagues and seasons | Live | Short, and people work on them together |
@@ -95,8 +95,8 @@ involve no one else (`RoomPolicy.subject` in
 | `org:{id}:sites` | public | `SITES_SYNC` | `SITE_ADDED/UPDATED/DELETED` |
 | `org:{id}:facilities` | public | `FACILITIES_SYNC` | `FACILITY_ADDED/UPDATED/DELETED` |
 | `org:{id}:leagues` | public | `LEAGUES_SYNC` | `LEAGUE_*`, `SEASON_*` |
-| `org:{id}:members` | staff | `ORG_MEMBERS_SYNC` | `ORG_MEMBER_UPDATED`, `ORG_MEMBERS_SYNC` (a minors-setting change) |
-| `org:{id}:guardians` | staff | `GUARDIANS_SYNC` (every active `ProfileGuardian` in the org) | `PROFILE_GUARDIANS_UPDATED` (`{ playerProfileId, guardians }` — one player's whole current list; replace that player's slice) |
+| `org:{id}:members` (no screen joins it since `LIST-1`; it still sets the tier for the People reads) | staff | `ORG_MEMBERS_SYNC` | `ORG_MEMBER_UPDATED`, `ORG_MEMBERS_SYNC` (a minors-setting change) |
+| `org:{id}:guardians` (no screen joins it since `LIST-1`) | staff | `GUARDIANS_SYNC` (every active `ProfileGuardian` in the org) | `PROFILE_GUARDIANS_UPDATED` (`{ playerProfileId, guardians }` — one player's whole current list; replace that player's slice) |
 | `org:{id}:invitations` | staff, or a coach of one of its teams | `EVENT_INVITATIONS_SYNC` (`Event[]`: tournaments it is invited to, or declined or withdrew from — `FIX-30`) | `EVENT_INVITATIONS_SYNC` again, whole, when one of its invitations changes |
 | `org:{id}:referrals` | staff | `ORG_REFERRALS_SYNC` | `ORG_REFERRAL_ADDED` |
 | `org:{id}:applications` | staff | `ORG_APPLICATIONS_SYNC` (those waiting, with who each might already be on record) | `ORG_APPLICATIONS_SYNC` (the whole list, on every change) |

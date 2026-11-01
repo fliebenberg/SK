@@ -132,6 +132,17 @@ type NoExtraFields<T, P> =
       ? { [K in keyof P]: K extends KeysOf<NonNullable<T>> ? NoExtraFields<ValueOf<NonNullable<T>, K>, P[K]> : never }
       : P;
 
+const succeeded = new Set<() => void>();
+
+/**
+ * Told when an action of this device's has gone through. A static list holds no room, so this is how
+ * it shows the viewer their own change at once; someone else's shows at its next read.
+ */
+export function onActionSucceeded(listener: () => void): () => void {
+  succeeded.add(listener);
+  return () => { succeeded.delete(listener); };
+}
+
 export async function sendAction<K extends SocketAction, P extends SocketActionPayload<K>>(
   type: K,
   payload: P & NoExtraFields<SocketActionPayload<K>, P>,
@@ -180,7 +191,10 @@ export async function sendAction<K extends SocketAction, P extends SocketActionP
   }
   unconfirmed.delete(key);
 
-  if (reply.status === 'ok') return { ok: true, data: reply.data };
+  if (reply.status === 'ok') {
+    succeeded.forEach(listener => listener());
+    return { ok: true, data: reply.data };
+  }
   if (reply.status === 'error' || reply.error) {
     return fail(reply.message || reply.error || 'The server refused that change.', 'refused');
   }

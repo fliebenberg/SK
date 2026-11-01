@@ -185,8 +185,8 @@ Built 2026-11-01 (`UI-33`, agreed on the local `mockups/teams-directory.html` an
   and otherwise its public page. A team's workspace page has a *Public page* link, so those who run it
   can still see what everyone else sees.
 - **Static and paged on the server** ([live_rooms.md](file:///c:/Fred/Coding/SK/okf/live_rooms.md)):
-  `get_data` `team_directory`, 100 to a page, read when the page opens and when the connection returns
-  ([useTeamDirectory](file:///c:/Fred/Coding/SK/expo-app/hooks/useTeamDirectory.ts)). Search covers team,
+  `get_data` `team_directory`, 100 to a page, read when the page opens or comes back into view and when the connection returns
+  ([usePagedList](file:///c:/Fred/Coding/SK/expo-app/hooks/usePagedList.ts)). Search covers team,
   short name, age group, sport and organisation, and every word has to match, so "doringkloof netball
   u14" finds one team. [`ListPager`](file:///c:/Fred/Coding/SK/expo-app/components/ListPager.tsx) sits
   above and below.

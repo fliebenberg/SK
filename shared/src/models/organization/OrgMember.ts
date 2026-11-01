@@ -1,5 +1,16 @@
 import { OrgProfile } from "../people/OrgProfile";
+import type { PaginatedResponse } from "../../types/Protocol";
+import type { ProfileGuardian } from "../people/ProfileGuardian";
 import type { RestrictedReason } from "../../utils/guardians";
+
+/** One row of an organisation's People list, with its guardians' names, primary first. */
+export type OrgPersonRow = OrgMember & { guardianNames: string[] };
+
+/** One page of People, and how many hold each role across the whole organisation. */
+export type OrgPeoplePage = PaginatedResponse<OrgPersonRow> & { roleCounts: Record<string, number> };
+
+/** One person's page: their member record, their guardians, and who last set their account's permission. */
+export type OrgPerson = OrgMember & { guardians: ProfileGuardian[]; ownAccountSetByName?: string | null };
 
 export interface OrgMember extends OrgProfile {
   membershipId: string;

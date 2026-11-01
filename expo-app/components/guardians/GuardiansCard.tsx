@@ -26,7 +26,7 @@ interface GuardiansCardProps {
   orgId: string;
   playerProfileId: string;
   playerName: string;
-  /** The player's active guardians, primary first (`useOrgGuardians().byPlayer`). */
+  /** The player's active guardians, primary first. */
   guardians: ProfileGuardian[];
   /** Admin or staff: may add, change and end guardians. */
   canEdit: boolean;

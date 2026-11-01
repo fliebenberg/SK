@@ -61,6 +61,8 @@ async function main() {
   await can(MEMBER, `team:${coachesTeam}:guardians`, false);
   for (const sub of ['summary', 'teams', 'fixtures', 'events']) await can(MEMBER, `org:${SAC}:${sub}`, true);
   await reads(MEMBER, { type: 'org_members', orgId: SAC }, false);
+  await reads(MEMBER, { type: 'org_people', orgId: SAC }, false);
+  await reads(MEMBER, { type: 'org_person', orgId: SAC, membershipId: MEMBERSHIP }, false);
   await reads(MEMBER, { type: 'org_people_names', orgId: SAC }, false);
   await reads(MEMBER, { type: 'team_members', teamId: coachesTeam }, false);
   await reads(MEMBER, { type: 'profile_guardians', orgId: SAC }, false);
@@ -83,17 +85,20 @@ async function main() {
   await reads(SAC_COACH, { type: 'org_people_names', orgId: SAC }, true);
   await reads(SAC_COACH, { type: 'org_people_names', orgId: 'fx-org-dkl' }, false);
   await reads(SAC_COACH, { type: 'org_members', orgId: SAC }, false);
+  await reads(SAC_COACH, { type: 'org_people', orgId: SAC }, false);
+  await reads(SAC_COACH, { type: 'org_person', orgId: SAC, membershipId: MEMBERSHIP }, false);
 
   // Signed out: none of it.
   await can('anonymous', `team:${coachesTeam}:guardians`, false);
   await reads('anonymous', { type: 'org_people_names', orgId: SAC }, false);
+  await reads('anonymous', { type: 'org_people', orgId: SAC }, false);
 
   // The lean shapes carry no details.
   const details = ['email', 'cellphone', 'birthdate', 'nationalId', 'userId', 'personOrgId', 'image'];
   for (const row of await teamManager.getTeamMemberNames(coachesTeam) as any[]) {
     check(details.every(key => !(key in row)), `a roster by name should carry none of ${details.join(', ')}`);
   }
-  for (const row of await userManager.getOrgPeopleNames(SAC) as any[]) {
+  for (const row of (await userManager.getOrgPeopleNames(SAC)).items as any[]) {
     check(Object.keys(row).sort().join() === 'id,image,membershipId,name', `the names list carries ${Object.keys(row).join()}`);
   }
 }

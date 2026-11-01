@@ -26,7 +26,7 @@ import type { Tx } from './BaseManager';
 const pooled: Tx = (text, params) => query(text, params);
 
 /** SQL: the user `viewer` (a parameter like `$3`) has a current membership of organisation `org`. */
-const BELONGS = (org: string, viewer: string) => `EXISTS (
+export const BELONGS = (org: string, viewer: string) => `EXISTS (
   SELECT 1 FROM org_memberships vm JOIN org_profiles vp ON vp.id = vm.org_profile_id
    WHERE vm.org_id = ${org}
      AND (vm.end_date IS NULL OR vm.end_date > NOW())

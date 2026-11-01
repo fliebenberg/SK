@@ -204,6 +204,19 @@ async function main() {
     expect((await read(member, { type: 'team_directory', search: 'Zebrafish', limit: 1000 })).limit, 100, 'a page is at most 100 teams');
     expect((await read(member, { type: 'team_directory', mine: true })).total, 0, 'My Teams is only teams they are on');
     expect((await read(visitor, { type: 'team_directory', mine: true })).total, 0, 'a visitor has no My Teams');
+    // The public Organisations list, and how it pages on the server.
+    expect(names(await read(stranger, { type: 'org_directory', search: 'Zebrafish' })).includes(ORG), false, 'the Organisations list hides it from a stranger');
+    expect(names(await read(visitor, { type: 'org_directory', search: 'Zebrafish' })).includes(ORG), false, 'the Organisations list hides it from a visitor');
+    expect(names(await read(former, { type: 'org_directory', search: 'Zebrafish' })).includes(ORG), false, 'the Organisations list hides it from a former member');
+    expect(names(await read(member, { type: 'org_directory', search: 'Zebrafish' })).includes(ORG), true, 'the Organisations list shows it to a member');
+    expect(names(await read(member, { type: 'org_directory', mine: true })).includes(ORG), true, 'My Organisations has it for a member');
+    expect(names(await read(stranger, { type: 'org_directory', mine: true })).includes(ORG), false, 'My Organisations does not have it for a stranger');
+    expect(names(await read(former, { type: 'org_directory', mine: true })).includes(ORG), false, 'My Organisations does not have it for a former member');
+    expect((await read(visitor, { type: 'org_directory', mine: true })).total, 0, 'a visitor has no My Organisations');
+    expect(names(await read(member, { type: 'org_directory', search: 'Zebrafish zzznothing' })).length, 0, 'every word searched for has to match');
+    expect((await read(member, { type: 'org_directory', limit: 1000 })).limit, 100, 'a page is at most 100 organisations');
+    const onePerPage = await read(member, { type: 'org_directory', page: 2, limit: 1 });
+    expect([onePerPage.items?.length, onePerPage.page], [1, 2], 'the Organisations list answers the page asked for');
     expect(names(await read(member, { type: 'organizations', search: 'Zebrafish' })).includes(ORG), true, 'the directory shows it to a member');
     expect(names(await read(former, { type: 'organizations', search: 'Zebrafish' })).includes(ORG), false, 'the directory hides it from a former member');
     expect(names(await read(stranger, { type: 'search_similar_orgs', name: ORG_NAME })).includes(ORG), false, 'the similar-name search hides it');

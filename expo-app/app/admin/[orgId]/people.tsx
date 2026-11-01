@@ -1,19 +1,19 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Text, TextInput, TouchableOpacity, useWindowDimensions, View, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { OrgMember } from '@sk/shared';
+import { OrgPeoplePage, OrgPersonRow } from '@sk/shared';
 import { ScreenHeader } from '../../../components/ScreenHeader';
 import { OverflowMenu } from '../../../components/OverflowMenu';
 import { SegmentedControl } from '../../../components/SegmentedControl';
-import { PaginatedList } from '../../../components/PaginatedList';
+import { ListPager } from '../../../components/ListPager';
 import { AddPersonDialog } from '../../../components/people/AddPersonDialog';
 import { OrgApplicationsCard } from '../../../components/people/OrgApplications';
 import { OrgRole, rolesTheyMayGive } from '../../../components/people/PersonDialogs';
 import { GuardianshipTag, PersonAvatar, RoleBadge, guardianshipOf } from '../../../components/people/PersonBits';
-import { useOrgMembers } from '../../../hooks/useOrgMembers';
-import { useOrgGuardians, guardianSummary } from '../../../hooks/useOrgGuardians';
+import { guardianSummary } from '../../../hooks/useOrgGuardians';
+import { usePagedList } from '../../../hooks/usePagedList';
 import { useOrgMinorsSettings } from '../../../hooks/useOrgMinorsSettings';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../hooks/useSafeBack';
@@ -23,10 +23,8 @@ import { themeColor } from '../../../constants/Colors';
 import { PageBody } from '../../../components/PageBody';
 import { useOrgAccess } from '../../../hooks/useOrgAccess';
 
-const PAGE_SIZE = 50;
 type RoleFilter = 'all' | 'role-org-admin' | 'role-org-staff' | 'role-org-member';
 type SortKey = 'name' | 'role';
-const ROLE_RANK: Record<string, number> = { 'role-org-admin': 0, 'role-org-staff': 1 };
 
 /**
  * The organisation's people (docs/people.md). A row is the person at a glance — name, a badge for
@@ -36,6 +34,9 @@ const ROLE_RANK: Record<string, number> = { 'role-org-admin': 0, 'role-org-staff
  * Wide, the row has columns: contact details stacked, then guardians. On a phone it is two lines —
  * name, badges and org ID; email and cell — and a Minor or Dependant tag stands in for the
  * guardian column.
+ *
+ * The list is static and paged on the server (okf/live_rooms.md): search, the role filter and the
+ * sort are all in the read. The viewer's own changes show at once, and someone else's at the next read.
  */
 export default function OrgPeople() {
   const isDark = useActiveTheme() === 'dark';
@@ -46,46 +47,48 @@ export default function OrgPeople() {
   const isWide = width >= 768;
 
 
-  const { members, isLoading: isMembersLoading } = useOrgMembers(orgId);
   const { data: rolesData, isLoading: isRolesLoading } = useSocketQuery<any>('roles');
   const { canManage: canEdit, isAdmin } = useOrgAccess(orgId);
   const roles: OrgRole[] = rolesTheyMayGive(rolesData?.org || [], isAdmin);
-  const { byPlayer: guardiansByPlayer } = useOrgGuardians(orgId);
   const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
 
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [isAdding, setIsAdding] = useState(false);
+  const [page, setPage] = useState(1);
 
-  const all = members || [];
-  const counts = useMemo(() => {
-    const c: Record<string, number> = {};
-    for (const m of all) c[m.roleId] = (c[m.roleId] || 0) + 1;
-    return c;
-  }, [all]);
+  const { response, items: people, total, limit, isLoading, error, isSettled, term, retry } = usePagedList<OrgPersonRow, OrgPeoplePage>({
+    type: 'org_people',
+    noun: 'people',
+    params: { orgId, sort: sortKey, ...(roleFilter === 'all' ? {} : { roleId: roleFilter }) },
+    search,
+    page,
+    enabled: !!orgId,
+    followActions: true,
+  });
 
-  const shown = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const list = all.filter(m =>
-      (roleFilter === 'all' || m.roleId === roleFilter) &&
-      (!q || m.name.toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q) || (m.personOrgId || '').toLowerCase().includes(q))
-    );
-    const byName = (a: OrgMember, b: OrgMember) => a.name.localeCompare(b.name);
-    return list.sort(sortKey === 'role'
-      ? (a, b) => (ROLE_RANK[a.roleId] ?? 2) - (ROLE_RANK[b.roleId] ?? 2) || byName(a, b)
-      : byName);
-  }, [all, search, roleFilter, sortKey]);
+  // A new search, filter or sort starts again from the first page.
+  useEffect(() => setPage(1), [term, roleFilter, sortKey]);
+
+  const scroller = useRef<ScrollView>(null);
+  const goToPage = (next: number) => {
+    setPage(next);
+    scroller.current?.scrollTo({ y: 0, animated: false });
+  };
+
+  const counts = response?.roleCounts ?? {};
+  const everyone = Object.values(counts).reduce((sum, n) => sum + n, 0);
 
   const count = (n: number) => (isWide ? n : undefined);
   const filterOptions: { key: RoleFilter; label: string; count?: number }[] = [
-    { key: 'all', label: 'All', count: count(all.length) },
+    { key: 'all', label: 'All', count: count(everyone) },
     { key: 'role-org-admin', label: 'Admin', count: count(counts['role-org-admin'] || 0) },
     { key: 'role-org-staff', label: 'Staff', count: count(counts['role-org-staff'] || 0) },
     { key: 'role-org-member', label: 'Member', count: count(counts['role-org-member'] || 0) },
   ];
 
-  const open = (member: OrgMember) => router.push({
+  const open = (member: OrgPersonRow) => router.push({
     pathname: '/admin/[orgId]/people/[membershipId]',
     params: { orgId: orgId!, membershipId: member.membershipId },
   });
@@ -113,7 +116,7 @@ export default function OrgPeople() {
     </View>
   ) : undefined;
 
-  if (isMembersLoading || isRolesLoading) {
+  if (isRolesLoading) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="People" onBack={() => safeBack(`/admin/${orgId}`)} />
@@ -125,7 +128,7 @@ export default function OrgPeople() {
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader title="People" onBack={() => safeBack(`/admin/${orgId}`)} right={headerRight} />
-      <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scroller} contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <PageBody className="gap-3">
           {canEdit ? <OrgApplicationsCard orgId={orgId!} /> : null}
           <View className={`gap-2.5 ${isWide ? 'flex-row items-center' : ''}`}>
@@ -145,7 +148,7 @@ export default function OrgPeople() {
 
           <View className="flex-row items-center justify-between px-1">
             <Text className="font-inter text-sm text-ink-muted">
-              {shown.length === 1 ? '1 person' : `${shown.length} people`}
+              {total === 1 ? '1 person' : `${total} people`}
             </Text>
             <TouchableOpacity
               onPress={() => setSortKey(sortKey === 'name' ? 'role' : 'name')}
@@ -160,35 +163,44 @@ export default function OrgPeople() {
             </TouchableOpacity>
           </View>
 
-          <PaginatedList
-            data={shown}
-            pageSize={PAGE_SIZE}
-            keyExtractor={member => member.membershipId}
-            containerClassName="rounded-2xl border border-line bg-card overflow-hidden"
-            itemSpacingClassName=""
-            emptyState={
+          {error ? (
+            <View className="items-center justify-center py-12 gap-3">
+              <Text className="font-inter text-sm text-danger-ink text-center">{error}</Text>
+              <TouchableOpacity onPress={retry} accessibilityRole="button" className="px-4 py-2 rounded-xl bg-primary">
+                <Text className="font-inter-bold text-xs text-on-primary">Try again</Text>
+              </TouchableOpacity>
+            </View>
+          ) : isLoading && !people.length ? (
+            <View className="items-center justify-center py-12"><ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /></View>
+          ) : !people.length ? (
+            isSettled ? (
               <View className="items-center justify-center py-12 gap-2">
                 <Ionicons name="people-outline" size={40} color={themeColor(isDark, 'ink-muted')} />
                 <Text className="font-inter text-sm text-ink-muted">
-                  {all.length ? 'Nobody matches.' : 'Nobody has been added yet.'}
+                  {everyone ? 'Nobody matches.' : 'Nobody has been added yet.'}
                 </Text>
               </View>
-            }
-            renderItem={(member, index) => {
-              const guardians = guardiansByPlayer.get(member.id);
-              return (
-                <PersonRow
-                  member={member}
-                  isWide={isWide}
-                  first={index % PAGE_SIZE === 0}
-                  guardians={guardianSummary(guardians)}
-                  guardianCount={guardians?.length || 0}
-                  guardianship={guardianshipOf(member.birthdate, minorsSettings, !!guardians?.length)}
-                  onPress={() => open(member)}
-                />
-              );
-            }}
-          />
+            ) : null
+          ) : (
+            <View className="gap-3" style={{ opacity: isLoading ? 0.6 : 1 }}>
+              <ListPager testID="people-pager-top" page={page} limit={limit} total={total} noun="people" onPageChange={goToPage} disabled={isLoading} />
+              <View className="rounded-2xl border border-line bg-card overflow-hidden">
+                {people.map((member, index) => (
+                  <PersonRow
+                    key={member.membershipId}
+                    member={member}
+                    isWide={isWide}
+                    first={index === 0}
+                    guardians={guardianSummary(member.guardianNames)}
+                    guardianCount={member.guardianNames.length}
+                    guardianship={guardianshipOf(member.birthdate, minorsSettings, member.guardianNames.length > 0)}
+                    onPress={() => open(member)}
+                  />
+                ))}
+              </View>
+              <ListPager testID="people-pager-bottom" page={page} limit={limit} total={total} noun="people" onPageChange={goToPage} disabled={isLoading} />
+            </View>
+          )}
         </PageBody>
       </ScrollView>
 
@@ -198,7 +210,7 @@ export default function OrgPeople() {
 }
 
 function PersonRow({ member, isWide, first, guardians, guardianCount, guardianship, onPress }: {
-  member: OrgMember;
+  member: OrgPersonRow;
   isWide: boolean;
   first: boolean;
   guardians: string | null;

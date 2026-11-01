@@ -3,29 +3,15 @@ import { ProfileGuardian } from '@sk/shared';
 import { useLiveRoom } from './useLiveRoom';
 
 /**
- * Every active guardian link in an organisation, from `org:{id}:guardians` (`MEMBER-3`).
- *
- * Scoped at the org rather than per player because the People list and the rosters show a guardian
- * beside every player at once; one room, joined once, rather than a join per row. A change publishes
- * `PROFILE_GUARDIANS_UPDATED` with one player's whole current list, which replaces that player's
- * slice — a merge would keep a link the change ended.
- *
- * The room is the member list's tier, Admin and Staff: pass `enabled: false` for a viewer who cannot join it.
+ * The guardians of one team's players, from `team:{id}:guardians` (`MEMBER-3`, `PEOPLE-8`): one room,
+ * joined once, rather than a join per row. A change publishes `PROFILE_GUARDIANS_UPDATED` with one
+ * player's whole current list, which replaces that player's slice — a merge would keep a link the
+ * change ended.
  */
-export function useOrgGuardians(orgId?: string | null, enabled = true) {
-  return useGuardiansRoom(orgId ? `org:${orgId}:guardians` : null, enabled);
-}
-
-/** The same for one team's players, from `team:{id}:guardians`: a coach's view (`PEOPLE-8`). */
 export function useTeamGuardians(teamId?: string | null) {
-  return useGuardiansRoom(teamId ? `team:${teamId}:guardians` : null, true);
-}
-
-function useGuardiansRoom(room: string | null, enabled: boolean) {
   const { items, isLoading, accessDenied } = useLiveRoom<ProfileGuardian>(
-    room,
+    teamId ? `team:${teamId}:guardians` : null,
     {
-      enabled,
       reduce: (message) => {
         if (message.type === 'GUARDIANS_SYNC') {
           return { kind: 'replace', items: message.data || [] };
@@ -60,8 +46,8 @@ function useGuardiansRoom(room: string | null, enabled: boolean) {
 }
 
 /** "Karin Kotzé" or "Karin Kotzé +1" — the short form a list row has room for. */
-export function guardianSummary(links: ProfileGuardian[] | undefined): string | null {
-  if (!links?.length) return null;
-  const first = links[0].guardianName || 'Guardian';
-  return links.length > 1 ? `${first} +${links.length - 1}` : first;
+export function guardianSummary(names: string[] | undefined): string | null {
+  if (!names?.length) return null;
+  const first = names[0] || 'Guardian';
+  return names.length > 1 ? `${first} +${names.length - 1}` : first;
 }

@@ -4,16 +4,18 @@ import { ORG, USERS, signIn } from './support';
 /**
  * My Organisations lists every organisation you hold a role in, not only the ones you manage
  * (2026-10-22). Kwaggafontein's U16 Lions coach, Dewald Nel, is an org Member there: he sees it, with
- * Open Workspace; St Aldric's staff, who coach nothing, see their own with Manage Workspace.
+ * Open Workspace on its public page; St Aldric's staff, who coach nothing, go straight to their workspace.
  */
 test.describe('My Organisations', () => {
-  test("a coach sees the organisation they coach for, and opens its workspace @phone", async ({ page }) => {
+  test("a coach sees the organisation they coach for, and reaches its workspace from its public page @phone", async ({ page }) => {
     await signIn(page, USERS.kscCoach);
     await page.goto('/organizations');
-    const card = page.getByTestId(`my-org-${ORG.ksc}`);
+    const card = page.getByTestId(`org-card-${ORG.ksc}`);
     await expect(card).toContainText('Member');
-    await expect(page.getByTestId(`my-org-${ORG.dkl}`)).toHaveCount(0);
-    await card.getByText('Open Workspace').click();
+    await expect(page.getByTestId(`org-card-${ORG.dkl}`)).toHaveCount(0);
+    await card.click();
+    await expect(page).toHaveURL(new RegExp(`/organizations/${ORG.ksc}$`));
+    await page.getByText('Open Workspace').filter({ visible: true }).first().click();
     await expect(page).toHaveURL(new RegExp(`/admin/${ORG.ksc}`));
   });
 
@@ -23,10 +25,16 @@ test.describe('My Organisations', () => {
     await expect(page.getByText('Open Workspace')).toBeVisible();
   });
 
-  test('staff who coach nothing see their organisation, to manage @phone', async ({ page }) => {
+  test('staff who coach nothing see their organisation, and its card opens the workspace @phone', async ({ page }) => {
     await signIn(page, USERS.sacStaff);
     await page.goto('/organizations');
-    await expect(page.getByTestId(`my-org-${ORG.sac}`)).toContainText('Manage Workspace');
+    const card = page.getByTestId(`org-card-${ORG.sac}`);
+    await expect(card).toContainText('Staff');
+    await card.click();
+    await expect(page).toHaveURL(new RegExp(`/admin/${ORG.sac}`));
+    // The workspace links back to the page the public sees.
+    await page.getByRole('button', { name: 'Public page' }).filter({ visible: true }).first().click();
+    await expect(page).toHaveURL(new RegExp(`/organizations/${ORG.sac}$`));
   });
 
   // Each role opens its part of the workspace (PERM-4): a coach their teams and fixtures, not the org's.
@@ -115,7 +123,7 @@ test.describe('My Organisations', () => {
     await expect(page).toHaveURL(/\/admin\/org-/);
     await expect(page.getByText(name).filter({ visible: true }).first()).toBeVisible();
     await page.goto('/organizations');
-    const mine = page.locator('[data-testid^="my-org-"]').filter({ hasText: name });
+    const mine = page.locator('[data-testid^="org-card-"]').filter({ hasText: name });
     await expect(mine).toBeVisible();
     await expect(mine).toContainText(/Admin/i);
   });
@@ -166,7 +174,7 @@ test.describe('My Organisations', () => {
   // Shown, not hidden, to a visitor, so they learn it is there; pressing it says to sign in (2026-10-31).
   test('a visitor who is not signed in is offered Add organisation, and told to sign in @phone', async ({ page }) => {
     await page.goto('/organizations');
-    await expect(page.getByTestId(`org-${ORG.sac}`)).toBeVisible();
+    await expect(page.getByTestId(`org-card-${ORG.sac}`)).toBeVisible();
     await page.getByRole('button', { name: 'Add organisation' }).click();
     await expect(page.getByText('Sign in to add an organisation')).toBeVisible();
     await page.getByText('Sign in', { exact: true }).click();

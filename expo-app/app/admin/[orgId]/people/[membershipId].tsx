@@ -14,8 +14,8 @@ import { MinorAccessCard } from '../../../../components/guardians/MinorAccessCar
 import { PersonBanner } from '../../../../components/people/PersonBanner';
 import { ContactDialog, IdentityDialog, OrgRole, PersonalDialog, rolesTheyMayGive } from '../../../../components/people/PersonDialogs';
 import { guardianshipOf } from '../../../../components/people/PersonBits';
-import { useOrgMembers } from '../../../../hooks/useOrgMembers';
-import { useOrgGuardians, useTeamGuardians } from '../../../../hooks/useOrgGuardians';
+import { useOrgPerson } from '../../../../hooks/useOrgPerson';
+import { useTeamGuardians } from '../../../../hooks/useOrgGuardians';
 import { useOrgMinorsSettings } from '../../../../hooks/useOrgMinorsSettings';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
@@ -62,12 +62,10 @@ export default function PersonPage() {
   // Admin and Staff read the organisation's people; someone with a duty on the team opened from, that
   // team's alone (`PEOPLE-8`).
   const fromTeam = !orgAccessOf.canManage && !!teamId && orgAccessOf.dutyTeamIds.includes(teamId) ? teamId : null;
-  const { members, isLoading: isMembersLoading } = useOrgMembers(orgAccessOf.canManage ? orgId : null);
+  const { person, isLoading: isPersonLoading } = useOrgPerson(orgAccessOf.canManage ? orgId : null, membershipId);
   const { roster: teamRoster, isLoading: isRosterLoading } = useTeamRoster(coachesTeam || fromTeam ? teamId : null);
   const roles: OrgRole[] = rolesTheyMayGive(rolesData?.org || [], isOrgAdmin);
-  const { byPlayer: orgGuardians } = useOrgGuardians(orgAccessOf.canManage ? orgId : null);
   const { byPlayer: teamGuardians } = useTeamGuardians(fromTeam);
-  const guardiansByPlayer = fromTeam ? teamGuardians : orgGuardians;
   const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
   const inviteCooldownHours = useInviteCooldownHours();
 
@@ -79,13 +77,13 @@ export default function PersonPage() {
   const [removeError, setRemoveError] = useState<string | null>(null);
 
   const member = useMemo((): OrgMember | null => {
-    if (!fromTeam) return members?.find(m => m.membershipId === membershipId) || null;
+    if (!fromTeam) return person;
     const row = teamRoster.find(r => r.orgMembershipId === membershipId);
     return row ? { ...row, membershipId: row.orgMembershipId!, roleId: row.orgRoleId || 'role-org-member', roleName: undefined } as unknown as OrgMember : null;
-  }, [members, teamRoster, fromTeam, membershipId]);
+  }, [person, teamRoster, fromTeam, membershipId]);
   // Admin or Staff; or a coach, for someone on their team (`PERM-5`).
   const canEdit = orgAccessOf.canManage || (!!member && teamRoster.some(r => r.id === member.id));
-  const guardians = member ? guardiansByPlayer.get(member.id) || [] : [];
+  const guardians = fromTeam ? (member && teamGuardians.get(member.id)) || [] : person?.guardians || [];
   const guardianship = member ? guardianshipOf(member.birthdate, minorsSettings, guardians.length > 0) : null;
   const close = () => setDialog(null);
   const back = () => safeBack(`/admin/${orgId}/people`);
@@ -105,7 +103,7 @@ export default function PersonPage() {
     onRemove: () => savePhoto(''),
   });
 
-  const isLoadingPerson = isMembersLoading || isRolesLoading || (!!fromTeam && isRosterLoading);
+  const isLoadingPerson = isPersonLoading || isRolesLoading || (!!fromTeam && isRosterLoading);
   if (isLoadingPerson || !member) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
@@ -179,7 +177,7 @@ export default function PersonPage() {
       settings={minorsSettings}
       guardians={guardians}
       isOrgAdmin={isOrgAdmin}
-      nameOfProfile={id => members?.find(m => m.id === id)?.name}
+      nameOfProfile={id => (id === person?.ownAccountSetBy ? person?.ownAccountSetByName ?? undefined : undefined)}
     />
   );
   // The account card and the access card each decide for themselves whether to render.
