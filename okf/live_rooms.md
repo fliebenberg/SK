@@ -38,11 +38,13 @@ should be merged, and it says it by convention rather than by declaration — wh
 
 ## The rooms
 
-37 room names are joinable, and each carries **one dataset** (rule 4). `Join push` is what the
+39 room names are joinable, and each carries **one dataset** (rule 4). `Join push` is what the
 joining socket receives immediately; that push **is** the initial load, so a screen that joins must
 not also query for the same data.
 
 `npm run verify:rooms` checks every row of the `Join push` column against a running server.
+
+**`staff` means Admin or Staff of a related organisation** (`PEOPLE-8`, 2026-11-01). A plain Member reads what the public reads.
 
 **A `public` room is public only while its subject's organisation is** (`ORG-14`): every public room
 below whose subject belongs to a private organisation — its org rooms, sites, facilities, leagues,
@@ -63,10 +65,11 @@ involve no one else (`RoomPolicy.subject` in
 | `org:{id}:sites` | public | `SITES_SYNC` | `SITE_ADDED/UPDATED/DELETED` |
 | `org:{id}:facilities` | public | `FACILITIES_SYNC` | `FACILITY_ADDED/UPDATED/DELETED` |
 | `org:{id}:leagues` | public | `LEAGUES_SYNC` | `LEAGUE_*`, `SEASON_*` |
-| `org:{id}:members` | member | `ORG_MEMBERS_SYNC` | `ORG_MEMBER_UPDATED`, `ORG_MEMBERS_SYNC` (a minors-setting change) |
-| `org:{id}:guardians` | member | `GUARDIANS_SYNC` (every active `ProfileGuardian` in the org) | `PROFILE_GUARDIANS_UPDATED` (`{ playerProfileId, guardians }` — one player's whole current list; replace that player's slice) |
-| `org:{id}:invitations` | member | `EVENT_INVITATIONS_SYNC` (`Event[]`: tournaments it is invited to, or declined or withdrew from — `FIX-30`) | `EVENT_INVITATIONS_SYNC` again, whole, when one of its invitations changes |
-| `org:{id}:referrals` | member | `ORG_REFERRALS_SYNC` | `ORG_REFERRAL_ADDED` |
+| `org:{id}:members` | staff | `ORG_MEMBERS_SYNC` | `ORG_MEMBER_UPDATED`, `ORG_MEMBERS_SYNC` (a minors-setting change) |
+| `org:{id}:guardians` | staff | `GUARDIANS_SYNC` (every active `ProfileGuardian` in the org) | `PROFILE_GUARDIANS_UPDATED` (`{ playerProfileId, guardians }` — one player's whole current list; replace that player's slice) |
+| `org:{id}:invitations` | staff, or a coach of one of its teams | `EVENT_INVITATIONS_SYNC` (`Event[]`: tournaments it is invited to, or declined or withdrew from — `FIX-30`) | `EVENT_INVITATIONS_SYNC` again, whole, when one of its invitations changes |
+| `org:{id}:referrals` | staff | `ORG_REFERRALS_SYNC` | `ORG_REFERRAL_ADDED` |
+| `org:{id}:applications` | staff | `ORG_APPLICATIONS_SYNC` (those waiting, with who each might already be on record) | `ORG_APPLICATIONS_SYNC` (the whole list, on every change) |
 
 "Member" here means a membership that carries a member's privileges: a **restricted minor's**
 membership opens none of these rooms (`MEMBER-3`; see
@@ -76,8 +79,9 @@ membership opens none of these rooms (`MEMBER-3`; see
 
 | Room | Access | Join push | Published afterwards |
 | --- | --- | --- | --- |
-| `team:{id}` | member, or the team's coach | `TEAM_UPDATED` | `TEAM_ADDED/UPDATED/DELETED` |
-| `team:{id}:members` | member, or the team's coach | `TEAM_MEMBERS_SYNC` | `TEAM_MEMBERS_SYNC` |
+| `team:{id}` | staff, or a duty on the team | `TEAM_UPDATED` | `TEAM_ADDED/UPDATED/DELETED` |
+| `team:{id}:members` | staff, or a duty on the team | `TEAM_MEMBERS_SYNC` | `TEAM_MEMBERS_SYNC` |
+| `team:{id}:guardians` | staff, or a duty on the team | `GUARDIANS_SYNC` (the guardians of its people) | `PROFILE_GUARDIANS_UPDATED`, `GUARDIANS_SYNC` (someone joined the team) |
 | `site:{id}` | public | `SITE_UPDATED` | `SITE_ADDED/UPDATED/DELETED` |
 | `facility:{id}` | public | `FACILITY_UPDATED` | `FACILITY_ADDED/UPDATED/DELETED` |
 
@@ -90,7 +94,7 @@ membership opens none of these rooms (`MEMBER-3`; see
 | `event:{id}:divisions` | public | `DIVISIONS_SYNC` | `DIVISION_ADDED/UPDATED/DELETED` |
 | `event:{id}:facilities` | public | `EVENT_FACILITIES_SYNC` | `EVENT_FACILITIES_SYNC` |
 | `event:{id}:standings` | public | `EVENT_STANDINGS_UPDATED` | `EVENT_STANDINGS_UPDATED` |
-| `event:{id}:entrants` | member | `EVENT_ENTRANTS_SYNC` (the whole tournament) | `DIVISION_ENTRANTS_SYNC` (one division's slice) |
+| `event:{id}:entrants` | staff, a grant, or a coach in a taking-part organisation | `EVENT_ENTRANTS_SYNC` (the whole tournament) | `DIVISION_ENTRANTS_SYNC` (one division's slice) |
 | `event:{id}:teams` | public | `EVENT_TEAMS_SYNC` (the whole tournament) | `DIVISION_TEAMS_SYNC` (one division's slice) — the roster as the public sees it: team entrants in or withdrawn, of organisations the public may see (`PUBLIC_TEAMS`); no people, placeholder labels or answers (`FIX-25`) |
 
 **Sports and divisions publish each other (U52).** A tournament's sports and divisions move
@@ -109,12 +113,12 @@ the obvious one.
 | `division:{id}:stages` | public | `STAGES_SYNC` | `STAGES_SYNC` |
 | `division:{id}:standings` | public | `DIVISION_STANDINGS_UPDATED` | `DIVISION_STANDINGS_UPDATED` |
 | `division:{id}:facilities` | public | `DIVISION_FACILITIES_SYNC` | `DIVISION_FACILITIES_SYNC` |
-| `division:{id}:entrants` | member | `DIVISION_ENTRANTS_SYNC` | `DIVISION_ENTRANTS_SYNC` |
-| `division:{id}:adjustments` | member | `DIVISION_ADJUSTMENTS_SYNC` | `DIVISION_ADJUSTMENTS_SYNC` |
-| `division:{id}:stage_entrants` | member | one `STAGE_ENTRANTS_SYNC` per stage | `STAGE_ENTRANTS_SYNC` |
+| `division:{id}:entrants` | staff, a grant, or a coach in a taking-part organisation | `DIVISION_ENTRANTS_SYNC` | `DIVISION_ENTRANTS_SYNC` |
+| `division:{id}:adjustments` | staff, a grant, or a coach in a taking-part organisation | `DIVISION_ADJUSTMENTS_SYNC` | `DIVISION_ADJUSTMENTS_SYNC` |
+| `division:{id}:stage_entrants` | staff, a grant, or a coach in a taking-part organisation | one `STAGE_ENTRANTS_SYNC` per stage | `STAGE_ENTRANTS_SYNC` |
 
 **`division:{id}` is `public`.** It carries the division record, which was already spectator-visible
-— it used to be pushed to the public `division:{id}:fixtures` room. Leaving it at `member` when the
+— it used to be pushed to the public `division:{id}:fixtures` room. Leaving it at the insiders' tier when the
 record moved would have taken the division's name away from anyone reading its draw.
 
 ### Game
@@ -129,9 +133,9 @@ coach of a team playing in it (`MEMBER-3`).
 | Room | Access | Join push | Published afterwards |
 | --- | --- | --- | --- |
 | `game:{id}:summary` | public | `GAME_SUMMARY_UPDATED` | `GAME_SUMMARY_UPDATED`, `GAME_SUMMARY_REMOVED` |
-| `game:{id}` | member, a grant, or a duty | `GAME_UPDATED` (full `Game`) | `GAME_UPDATED` (always the full `Game`, clock actions included), `GAME_DELETED`, `GAME_RESET`, `GAME_EVENT_ADDED`, `GAME_EVENT_UPDATED`, `GAME_ROSTER_UPDATED` |
+| `game:{id}` | staff, a grant, or a duty | `GAME_UPDATED` (full `Game`) | `GAME_UPDATED` (always the full `Game`, clock actions included), `GAME_DELETED`, `GAME_RESET`, `GAME_EVENT_ADDED`, `GAME_EVENT_UPDATED`, `GAME_ROSTER_UPDATED` |
 | `game:{id}:events` | public (since 2026-10-22, `FIX-39`: players are public until `PEOPLE-4`) | `GAME_EVENTS_SYNC` | `GAME_EVENT_ADDED/UPDATED/REMOVED`, `GAME_EVENTS_BATCH_UPDATED`, `GAME_EVENTS_SYNC`, `GAME_RESET` |
-| `game:{id}:disputes` | member, a grant, or a duty | `ACTIVE_DISPUTES_SYNC` | `DISPUTE_STARTED`, `DISPUTE_VOTE_UPDATED`, `DISPUTE_RESOLVED` |
+| `game:{id}:disputes` | staff, a grant, or a duty | `ACTIVE_DISPUTES_SYNC` | `DISPUTE_STARTED`, `DISPUTE_VOTE_UPDATED`, `DISPUTE_RESOLVED` |
 
 ### League, season, user
 

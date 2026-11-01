@@ -135,7 +135,7 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     no second recalculation path, deliberately: a cache is only as good as the writes that
     invalidate it, and two of them is how one goes stale.
 *   **Division rooms**: `division:{id}:fixtures` and `division:{id}:standings` are public (a draw
-    and a table are spectator information); `division:{id}` is `member`, because an entrant may be
+    and a table are spectator information); `division:{id}:entrants` and `:adjustments` are `staff`, because an entrant may be
     a person and an adjustment carries an organiser's reason and author. An **appointed convenor**
     also gets in, without any membership at all — otherwise they would be given a division to run
     and refused its roster; so does **a sport's organiser**, whose grant `getGrantSnapshot` resolves
@@ -176,7 +176,7 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
 *   **The roster has an event-level room too** (Phase 6). `event:{id}:entrants` carries **every**
     division's roster in one push, because the entry screens work two axes — by division and by
     organisation — over one dataset, and the organisation axis is a division x org grid that would
-    otherwise need fifteen room joins on one screen open. Same `member` tier as `division:{id}`,
+    otherwise need fifteen room joins on one screen open. Same `staff` tier as `division:{id}:entrants`,
     and for the same reason. A roster edit publishes `DIVISION_ENTRANTS_SYNC` to **both** rooms
     with the same payload, so the reducer is the same in each; the event-level listener merges it
     with `useLiveRoom`'s `replaceWhere`, which replaces one division's slice rather than the whole
@@ -203,7 +203,7 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     one-shot read, worked out by `TeamManager.getTeamSeasonStats`.
 *   **`team_squad`** and **`team_competitions`** (2026-10-22): the public team page's squad — each
     current player's and staff member's name and role, nothing more — and its accepted places in
-    tournaments, in place of the roster (`team:{id}:members`) and `team_entries`, which are members'.
+    tournaments, in place of the roster (`team:{id}:members`) and `team_entries`, which are not public.
     Both defer to `org:{id}:teams` (public); players are public until `PEOPLE-4`.
 *   **Two reads that no room owns** (Phase 6): `event_entrants` defers to the room above, and
     `event_candidate_teams` — "teams that could be entered" — is a standalone
