@@ -36,6 +36,7 @@ export * from './models/Address';
 export * from './models/league/League';
 export * from './constants/SocketActions';
 export * from './constants/UndoWindow';
+export * from './constants/SocketLimits';
 export * from './types/Protocol';
 export * from './utils/stringUtils';
 export * from './utils/gameUtils';

@@ -136,7 +136,13 @@ export default function SeasonDetails() {
   const computedStatus = calculateSeasonStatus(startDateStr, endDateStr);
 
   // The logo is uploaded when chosen and saved with the settings; until Save it is an unsaved change.
-  const logoUpload = useImageUpload({ kind: 'logos', title: 'Season logo', onUploaded: setSeasonLogo });
+  const logoUpload = useImageUpload({
+    kind: 'logos',
+    title: 'Season logo',
+    current: seasonLogo ? getOrgLogoUrl(seasonLogo, 'large') : null,
+    onUploaded: setSeasonLogo,
+    onRemove: () => { setSeasonLogo(''); return true; },
+  });
 
   // Load Data
   useEffect(() => {
@@ -226,7 +232,9 @@ export default function SeasonDetails() {
       logoUpload.discard();
       setActionError(null);
     }
-  }, [settingsBaseline, seedSeasonSettings]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Not `seedSeasonSettings`: it is new each render and only calls setters. Listing it changed this
+    // callback each render, which looped `useUnsavedChanges` ("Maximum update depth exceeded").
+  }, [settingsBaseline]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useUnsavedChanges(hasSettingsChanges && !isProcessing, handleCancelSettings);
 
@@ -624,6 +632,8 @@ export default function SeasonDetails() {
               <View className="items-center py-2">
                 <TouchableOpacity
                   onPress={logoUpload.open}
+                  accessibilityRole="button"
+                  accessibilityLabel="Change the season logo"
                   className="w-24 h-24 rounded-2xl items-center justify-center overflow-hidden border border-line bg-canvas relative"
                   activeOpacity={0.85}
                 >

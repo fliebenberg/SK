@@ -85,4 +85,66 @@ test.describe('Picture uploads', () => {
     await discarded;
     await expect.poll(async () => (await page.request.get(logoFile(name))).status()).toBe(404);
   });
+
+  /** In a form, Remove only empties the field: the dialog closes and Save does the rest. */
+  async function removeLogo(page: Page, label: string) {
+    await page.getByLabel(label).click();
+    await expect(page.getByText('Choose a new picture')).toBeVisible();
+    await page.getByRole('button', { name: 'Remove' }).click();
+    await expect(page.getByText('Choose a new picture')).toHaveCount(0);
+  }
+
+  /** The saved logo stays until Save: Cancel brings it back, and Save deletes its file. */
+  async function removeSavedLogo(page: Page, label: string, name: string) {
+    const unsaved = page.getByText('Unsaved Changes');
+    await removeLogo(page, label);
+    await expect(unsaved).toBeVisible();
+    expect((await page.request.get(logoFile(name))).status()).toBe(200);
+    await page.getByText('Cancel', { exact: true }).click();
+    await expect(unsaved).toHaveCount(0);
+
+    await removeLogo(page, label);
+    await page.getByText('Save', { exact: true }).click();
+    await expect(unsaved).toHaveCount(0);
+    await expect.poll(async () => (await page.request.get(logoFile(name))).status()).toBe(404);
+  }
+
+  test("a new league's and season's logo, and a saved one, can be removed", async ({ page }) => {
+    await signIn(page, USERS.sacAdmin);
+    await page.goto(`/admin/${ORG.sac}/leagues`);
+
+    // A new league: a logo chosen by mistake can be taken out again, and its upload goes with it.
+    await page.getByLabel('New league').click();
+    const mistake = await uploadWidePicture(page, () => page.getByLabel('Choose the league logo').click());
+    await removeLogo(page, 'Choose the league logo');
+    await expect.poll(async () => (await page.request.get(logoFile(mistake))).status()).toBe(404);
+
+    const leagueLogo = await uploadWidePicture(page, () => page.getByLabel('Choose the league logo').click());
+    await page.getByPlaceholder('e.g. Western Province U19 Rugby').fill('Logo Test League');
+    await page.getByText('Select a Sport').click();
+    await page.getByRole('button', { name: 'Rugby', exact: true }).click();
+    await page.getByText('Create League', { exact: true }).click();
+    await page.getByLabel('Edit Logo Test League').click();
+
+    // A new season, the same.
+    await page.getByText('New Season', { exact: true }).click();
+    const seasonMistake = await uploadWidePicture(page, () => page.getByLabel('Choose the season logo').click());
+    await removeLogo(page, 'Choose the season logo');
+    await expect.poll(async () => (await page.request.get(logoFile(seasonMistake))).status()).toBe(404);
+
+    const seasonLogo = await uploadWidePicture(page, () => page.getByLabel('Choose the season logo').click());
+    await page.getByPlaceholder('e.g. 2026 Season').fill('Logo Test Season');
+    await page.getByLabel('Start date').fill('2027-01-01');
+    await page.getByLabel('End date').fill('2027-06-30');
+    await page.getByText('Create Season', { exact: true }).click();
+    await expect(page.getByText('Logo Test Season')).toBeVisible();
+
+    // The saved league logo.
+    await removeSavedLogo(page, 'Change the league logo', leagueLogo);
+
+    // The saved season logo.
+    await page.getByLabel('Edit Logo Test Season').click();
+    await page.getByText('Settings', { exact: true }).last().click();
+    await removeSavedLogo(page, 'Change the season logo', seasonLogo);
+  });
 });

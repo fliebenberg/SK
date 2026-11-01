@@ -87,8 +87,8 @@ const failureLogger = winston.createLogger({
 
 export interface FailureRecord {
   source: 'server' | 'client';
-  /** Why it failed: the server refused it, no answer came back, or the reply could not be read. */
-  kind: 'refused' | 'no-answer' | 'unexpected-reply';
+  /** Why it failed: the server refused it, no answer came back, the reply could not be read, or the app would not send something that large. */
+  kind: 'refused' | 'no-answer' | 'unexpected-reply' | 'too-large';
   actionType?: string;
   message: string;
   userId?: string | null;

@@ -47,7 +47,13 @@ export default function OrgLeagues() {
 
   // The logo is uploaded when chosen and saved with the league. Closing the form deletes an
   // upload it did not save.
-  const logoUpload = useImageUpload({ kind: 'logos', title: 'League logo', onUploaded: setNewLeagueLogo });
+  const logoUpload = useImageUpload({
+    kind: 'logos',
+    title: 'League logo',
+    current: newLeagueLogo ? getOrgLogoUrl(newLeagueLogo, 'large') : null,
+    onUploaded: setNewLeagueLogo,
+    onRemove: () => { setNewLeagueLogo(''); return true; },
+  });
   const closeCreateModal = () => {
     logoUpload.discard();
     setNewLeagueLogo('');
@@ -251,6 +257,8 @@ export default function OrgLeagues() {
                   <View className="flex-row items-center gap-2">
                     <TouchableOpacity 
                       onPress={() => router.push(`/admin/${orgId}/leagues/${league.id}`)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Edit ${league.name}`}
                       className="w-7 h-7 rounded-lg bg-sunken items-center justify-center border border-line-soft active:opacity-80"
                     >
                       <Ionicons name="pencil" size={12} color={themeColor(isDark, 'ink-soft')} />

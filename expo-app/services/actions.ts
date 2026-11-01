@@ -1,4 +1,5 @@
 import {
+  SOCKET_MAX_ACTION_BYTES,
   SocketAction,
   SocketActionPayload,
   SocketActionResponse,
@@ -42,11 +43,15 @@ import { reportClientFailure } from './clientFailures';
  * **A missing reply is a failure, but not a known one.** If even the retry goes unanswered, the
  * server may still have applied the change. `noAnswer` marks that case, and the message says to
  * check before trying again.
+ *
+ * **Too large is refused here (`MEDIA-3`).** The server closes the connection on a message over its
+ * limit without answering, which would read as "no answer". So one over `SOCKET_MAX_ACTION_BYTES` is
+ * never sent: `tooLarge` marks it, the message gives the sizes, and nothing was saved.
  */
 
 export type ActionResult<T> =
   | { ok: true; data: T }
-  | { ok: false; message: string; noAnswer?: boolean };
+  | { ok: false; message: string; noAnswer?: boolean; tooLarge?: boolean };
 
 export interface SendActionOptions {
   /** Defaults to the socket wrapper's 7 seconds. */
@@ -75,12 +80,14 @@ export function newRequestId(): string {
 const unconfirmed = new Map<string, { requestId: string; expiresAt: number }>();
 
 function fingerprint(type: string, payload: unknown): string {
-  // djb2 over the JSON: payloads can carry a base64 logo, so the key is kept small.
+  // djb2 over the JSON: payloads can be large (a people import's rows), so the key is kept small.
   const text = `${type}:${JSON.stringify(payload ?? null)}`;
   let hash = 5381;
   for (let i = 0; i < text.length; i++) hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
   return `${type}:${text.length}:${hash}`;
 }
+
+const toMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')}MB`;
 
 function waitForConnection(ms: number): Promise<boolean> {
   if (useWsStore.getState().isConnected) return Promise.resolve(true);
@@ -137,6 +144,27 @@ export async function sendAction<K extends SocketAction, P extends SocketActionP
     options.requestId || (pending && pending.expiresAt > now ? pending.requestId : undefined) || newRequestId();
   const action = { ...createSocketAction(type, payload), requestId };
 
+  const fail = (message: string, kind: 'refused' | 'no-answer' | 'unexpected-reply' | 'too-large') => {
+    const log = kind === 'unexpected-reply' ? console.error : console.warn;
+    log(`[action] ${type} ${kind}: ${message}`);
+    reportClientFailure({ actionType: type, kind, message, requestId });
+    if (!options.suppressToast) {
+      const title = kind === 'refused' ? 'Not saved' : kind === 'no-answer' ? 'No answer from the server' : kind === 'too-large' ? 'Too large to send' : 'Unexpected reply';
+      useToastStore.getState().showError(message, title);
+    }
+    return {
+      ok: false as const,
+      message,
+      ...(kind === 'no-answer' ? { noAnswer: true } : {}),
+      ...(kind === 'too-large' ? { tooLarge: true } : {}),
+    };
+  };
+
+  const bytes = new TextEncoder().encode(JSON.stringify(action)).length;
+  if (bytes > SOCKET_MAX_ACTION_BYTES) {
+    return fail(`Too large to send: ${toMB(bytes)}, and the limit is ${toMB(SOCKET_MAX_ACTION_BYTES)}. Nothing was saved.`, 'too-large');
+  }
+
   let reply = await emitOnce(action, options.timeoutMs);
   if (reply === null || reply === undefined) {
     // One retry with the same id, once connected: the server replays rather than repeats.
@@ -146,20 +174,9 @@ export async function sendAction<K extends SocketAction, P extends SocketActionP
     }
   }
 
-  const fail = (message: string, kind: 'refused' | 'no-answer' | 'unexpected-reply', noAnswer?: boolean) => {
-    const log = kind === 'unexpected-reply' ? console.error : console.warn;
-    log(`[action] ${type} ${kind}: ${message}`);
-    reportClientFailure({ actionType: type, kind, message, requestId });
-    if (!options.suppressToast) {
-      const title = kind === 'refused' ? 'Not saved' : kind === 'no-answer' ? 'No answer from the server' : 'Unexpected reply';
-      useToastStore.getState().showError(message, title);
-    }
-    return { ok: false as const, message, ...(noAnswer ? { noAnswer: true } : {}) };
-  };
-
   if (reply === null || reply === undefined) {
     unconfirmed.set(key, { requestId, expiresAt: Date.now() + UNCONFIRMED_TTL_MS });
-    return fail(NO_ANSWER_MESSAGE, 'no-answer', true);
+    return fail(NO_ANSWER_MESSAGE, 'no-answer');
   }
   unconfirmed.delete(key);
 

@@ -19,7 +19,7 @@ import { useWsStore } from '../store/wsStore';
 
 export interface ClientFailure {
   actionType: string;
-  kind: 'refused' | 'no-answer' | 'unexpected-reply';
+  kind: 'refused' | 'no-answer' | 'unexpected-reply' | 'too-large';
   message: string;
   requestId?: string;
 }

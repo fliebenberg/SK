@@ -42,8 +42,9 @@ sendAction(SocketAction.UPDATE_TEAM, { id, data }).then(result => {
 ```
 
 [`sendAction`](file:///c:/Fred/Coding/SK/expo-app/services/actions.ts) resolves (never rejects) to
-`{ ok: true, data }` or `{ ok: false, message, noAnswer? }`. It announces every failure itself — a
-refusal, no answer (after one automatic retry), a reply of neither shape — with a toast unless the
+`{ ok: true, data }` or `{ ok: false, message, noAnswer?, tooLarge? }`. It announces every failure itself — a
+refusal, no answer (after one automatic retry), a reply of neither shape, an action over
+`SOCKET_MAX_ACTION_BYTES` (which it never sends: the server would drop the connection) — with a toast unless the
 caller shows it inline, and logs and reports it (Rule 3).
 
 **Do not** call `wsService.emit('action', …)` or `wsService.emitAction(…)`. `npm run check:actions`
@@ -100,7 +101,7 @@ what is saved. The replay memory is in memory and short-lived — `SYNC-5` is th
 ## Rule 3 — failures are recorded where we can see them
 
 `server/logs/failures-YYYY-MM-DD.jsonl` holds one JSON line per failure: every refusal the server
-raises, and what the client reports that the server never sees (no answer, an unreadable reply —
+raises, and what the client reports that the server never sees (no answer, an unreadable reply, too large to send —
 `services/clientFailures.ts`). Nothing to do at a call site: `sendAction` reports. Never put payload
 contents in a report — payloads carry people's details.
 

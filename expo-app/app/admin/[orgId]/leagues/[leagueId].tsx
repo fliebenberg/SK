@@ -63,8 +63,20 @@ export default function LeagueDetails() {
 
   // Logos are uploaded when chosen and saved with the form. A league logo is the page's unsaved
   // change until Save; the new season's lasts as long as its form.
-  const leagueLogoUpload = useImageUpload({ kind: 'logos', title: 'League logo', onUploaded: setLeagueLogo });
-  const seasonLogoUpload = useImageUpload({ kind: 'logos', title: 'Season logo', onUploaded: setNewSeasonLogo });
+  const leagueLogoUpload = useImageUpload({
+    kind: 'logos',
+    title: 'League logo',
+    current: leagueLogo ? getOrgLogoUrl(leagueLogo, 'large') : null,
+    onUploaded: setLeagueLogo,
+    onRemove: () => { setLeagueLogo(''); return true; },
+  });
+  const seasonLogoUpload = useImageUpload({
+    kind: 'logos',
+    title: 'Season logo',
+    current: newSeasonLogo ? getOrgLogoUrl(newSeasonLogo, 'large') : null,
+    onUploaded: setNewSeasonLogo,
+    onRemove: () => { setNewSeasonLogo(''); return true; },
+  });
   const closeCreateModal = () => {
     seasonLogoUpload.discard();
     setNewSeasonLogo('');
@@ -297,6 +309,8 @@ export default function LeagueDetails() {
               <View className="items-center py-2">
                 <TouchableOpacity
                   onPress={leagueLogoUpload.open}
+                  accessibilityRole="button"
+                  accessibilityLabel="Change the league logo"
                   className="w-24 h-24 rounded-2xl items-center justify-center overflow-hidden border border-line bg-canvas relative"
                   activeOpacity={0.85}
                 >
@@ -434,6 +448,8 @@ export default function LeagueDetails() {
                   <View className="flex-row items-center gap-2">
                     <TouchableOpacity 
                       onPress={() => router.push(`/admin/${orgId}/leagues/${leagueId}/seasons/${season.id}`)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Edit ${season.name}`}
                       className="w-7 h-7 rounded-lg bg-sunken items-center justify-center border border-line-soft active:opacity-85"
                     >
                       <Ionicons name="pencil" size={12} color={themeColor(isDark, 'ink-soft')} />
@@ -484,6 +500,8 @@ export default function LeagueDetails() {
               <View className="items-center py-1">
                 <TouchableOpacity
                   onPress={seasonLogoUpload.open}
+                  accessibilityRole="button"
+                  accessibilityLabel="Choose the season logo"
                   className="w-20 h-20 rounded-2xl items-center justify-center overflow-hidden border border-line bg-canvas relative"
                   activeOpacity={0.8}
                 >
@@ -516,6 +534,7 @@ export default function LeagueDetails() {
                   <DatePicker
                     value={startDateStr}
                     onChange={setStartDateStr}
+                    accessibilityLabel="Start date"
                     placeholder="YYYY-MM-DD"
                   />
                 </View>
@@ -524,6 +543,7 @@ export default function LeagueDetails() {
                   <DatePicker
                     value={endDateStr}
                     onChange={setEndDateStr}
+                    accessibilityLabel="End date"
                     placeholder="YYYY-MM-DD"
                   />
                 </View>

@@ -331,8 +331,6 @@ dedicated cleanup pass.
 ### Uploaded Assets
 
 - [ ] `MEDIA-2` **The app cannot keep a picture's metadata, for when a kind of upload should.** Agreed 2026-11-01 when pictures moved to cropping in the app and uploading on their own ([okf/api_comms.md](file:///c:/Fred/Coding/SK/okf/api_comms.md) §Uploaded Images). The server side is built: each kind in `IMAGE_KINDS` ([ImageService.ts](file:///c:/Fred/Coding/SK/server/src/services/ImageService.ts)) says whether it may keep metadata (`mayKeepMetadata`, false for logos and people's pictures), and `POST /api/uploads?keepMetadata=1` asks for it. The app does not: cropping redraws the picture (a canvas on web, expo-image-manipulator or react-native-view-shot on phones), which drops EXIF, and copying it across needs a library on web. Needed first by game photos, which the user wants to keep their location and time; build it with that kind.
-- [ ] `MEDIA-3` **The socket still accepts 10MB messages, sized for pictures that no longer travel in them.** Found 2026-11-01: `maxHttpBufferSize: 1e7` in [server/src/index.ts](file:///c:/Fred/Coding/SK/server/src/index.ts) was there for base64 logos and photos in actions; those now go to `POST /api/uploads` and the server refuses a `data:` image. Check what else is large (a people import's rows) before lowering it toward the 1MB default.
-- [ ] `MEDIA-4` **A league's or season's logo cannot be removed, only replaced.** Found 2026-11-01 while moving their pickers onto `useImageUpload`: the organisation logo and a person's photo offer *Remove* in the crop dialog (`onRemove`), the league and season pages pass none, as before. Probably wants the same `onRemove`, setting the form's logo to empty until Save.
 
 ### Shared Package & Tooling
 

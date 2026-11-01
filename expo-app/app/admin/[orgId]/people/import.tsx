@@ -110,7 +110,7 @@ export default function ImportPeople() {
     );
     setBusy(null);
     if (!result.ok) {
-      setProblem(result.message);
+      setProblem(result.tooLarge ? `${result.message} Split the file into smaller ones.` : result.message);
       return;
     }
     setLoaded({ fileName, sheet, report: result.data });

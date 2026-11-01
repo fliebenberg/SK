@@ -21,6 +21,7 @@ import {
     minorsSettingsOf,
     cellphoneSearchDigits,
     incomingResultOutcome,
+    SOCKET_MAX_ACTION_BYTES,
 } from '@sk/shared';
 import { parseSportWriteFields } from './utils/sportValidation';
 import pool from './db';
@@ -1149,7 +1150,7 @@ app.get('/api/admin/users/search', requireAdmin, async (req: any, res: any) => {
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  maxHttpBufferSize: 1e7, // 10MB
+  maxHttpBufferSize: SOCKET_MAX_ACTION_BYTES + 1024, // the largest action, plus socket.io's framing
   cors: {
     origin: "*", // allow all for now
     methods: ["GET", "POST"]
@@ -4315,7 +4316,7 @@ io.on('connection', (socket) => {
         if (failureReportsInWindow >= 60) break;
         if (!item || typeof item !== 'object') continue;
         const kind = (item as any).kind;
-        if (kind !== 'refused' && kind !== 'no-answer' && kind !== 'unexpected-reply') continue;
+        if (kind !== 'refused' && kind !== 'no-answer' && kind !== 'unexpected-reply' && kind !== 'too-large') continue;
         failureReportsInWindow++;
         recordFailure({
             source: 'client',

@@ -160,7 +160,7 @@ until you do.
 **Failures log.** Every refusal is written to `server/logs/failures-YYYY-MM-DD.jsonl`.
 
 #### `client_failures` (socket event, not an action)
-*   **Payload**: `Array<{ kind: 'no-answer' | 'unexpected-reply', actionType, message, requestId?, occurredAt?, platform?, screen? }>`
+*   **Payload**: `Array<{ kind: 'no-answer' | 'unexpected-reply' | 'too-large', actionType, message, requestId?, occurredAt?, platform?, screen? }>`
 *   **Logic**: written to the failures log with the socket's own user id. At most 20 items per message
     and 60 per minute per socket; malformed items are dropped. No reply.
 

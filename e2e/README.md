@@ -74,7 +74,7 @@ npm run e2e:report     # the last run's report, with traces of any failure
   coaches, and Fixtures as the events list without Mine, a tournament opening its public page; then a team row
   opening the public team page with its squad and competitions, and a site row the public site page; and *Test Unclaimed
   Cricket Club*'s claim strip — a visitor asked to sign in, St Aldric's staff taking it on), then the team page (`20-team-page.spec.ts`: its tabs, and DKL U16 A's
-  season statistics and player lines from the fixtures' team sheets and match events), then picture uploads (`22-image-upload.spec.ts`: St Aldric's logo cropped, saved and removed, a coach's own photo saved from Settings, and a league form closed without saving deleting its upload). A single file run on its own may therefore fail where the suite
+  season statistics and player lines from the fixtures' team sheets and match events), then picture uploads (`22-image-upload.spec.ts`: St Aldric's logo cropped, saved and removed, a coach's own photo saved from Settings, a league form closed without saving deleting its upload, and a league's and a season's logo removed, in their new forms and once saved), then the socket's message limit (`23-socket-limit.spec.ts`: a people import just under it previewed, and a file over it refused with its size). A single file run on its own may therefore fail where the suite
   passes.
 - **The phone runs first and only tests tagged `@phone`** — ones that read and change nothing — so it sees
   the data before the desktop tests change it.
