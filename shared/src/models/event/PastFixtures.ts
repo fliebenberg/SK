@@ -1,4 +1,5 @@
 import type { PaginatedResponse } from "../../types/Protocol";
+import type { Event } from "./Event";
 import type { GameSummary } from "./GameSummary";
 
 /**
@@ -11,23 +12,29 @@ export type PastFixturesPage<T> = PaginatedResponse<T> & {
   roleCounts: { hosting: number; convening: number; away: number };
 };
 
-/** One past event's row, beside its record in `org:{id}:events`: `game` is a single match's fixture. */
+/** One past event's row: `game` is a single match's fixture. */
 export interface PastEventRow {
   eventId: string;
+  event: Event;
   gameCount: number;
   sportIds: string[];
   game: GameSummary | null;
 }
 
-/** A team's finished games in one season, the seasons it has played in, and how many games it has ever had. */
+/** A page of past games, with the records of the events they belong to. */
+export type PastGamesPage = PastFixturesPage<GameSummary> & { events: Event[] };
+
+/** A team's finished games in one season, the competitions' names, the seasons it has played in, and how many games it has ever had. */
 export interface TeamSeasonResults {
   games: GameSummary[];
+  eventNames: Record<string, string>;
   gameCount: number;
   seasons: number[];
 }
 
-/** How many games a site has had, and how many of them on each of its facilities. */
+/** How many games a site has had and events based there, and how many games on each of its facilities. */
 export interface SiteGameCounts {
   games: number;
+  events: number;
   byFacility: Record<string, number>;
 }

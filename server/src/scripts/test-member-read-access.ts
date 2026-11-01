@@ -60,7 +60,6 @@ async function main() {
   await can(MEMBER, `team:${coachesTeam}:members`, false);
   await can(MEMBER, `team:${coachesTeam}:guardians`, false);
   for (const sub of ['summary', 'teams', 'fixtures', 'events']) await can(MEMBER, `org:${SAC}:${sub}`, true);
-  await reads(MEMBER, { type: 'org_members', orgId: SAC }, false);
   await reads(MEMBER, { type: 'org_people', orgId: SAC }, false);
   await reads(MEMBER, { type: 'org_person', orgId: SAC, membershipId: MEMBERSHIP }, false);
   await reads(MEMBER, { type: 'org_people_names', orgId: SAC }, false);
@@ -72,7 +71,7 @@ async function main() {
   // Staff: everything of the organisation's.
   for (const sub of ['members', 'guardians', 'referrals', 'invitations']) await can(SAC_STAFF, `org:${SAC}:${sub}`, true);
   await can(SAC_STAFF, `team:${coachesTeam}:members`, true);
-  await reads(SAC_STAFF, { type: 'org_members', orgId: SAC }, true);
+  await reads(SAC_STAFF, { type: 'org_people', orgId: SAC }, true);
   check(await accessManager.canManageOrgPeople(SAC_STAFF, SAC), 'Staff should get the full people search');
 
   // A coach: their team's people and guardians, everyone else's names, and nothing of the rest.
@@ -84,7 +83,6 @@ async function main() {
   if (otherTeam) await can(SAC_COACH, `team:${otherTeam}:members`, false);
   await reads(SAC_COACH, { type: 'org_people_names', orgId: SAC }, true);
   await reads(SAC_COACH, { type: 'org_people_names', orgId: 'fx-org-dkl' }, false);
-  await reads(SAC_COACH, { type: 'org_members', orgId: SAC }, false);
   await reads(SAC_COACH, { type: 'org_people', orgId: SAC }, false);
   await reads(SAC_COACH, { type: 'org_person', orgId: SAC, membershipId: MEMBERSHIP }, false);
 

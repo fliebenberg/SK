@@ -48,7 +48,8 @@ Decided 2026-11-01. The app keeps both kinds, and every list is one or the other
 | An organisation's past results | Static | Grows every season, and a finished game rarely changes. A running tournament's earlier games stay in the room until it is over |
 | An organisation's upcoming and in-progress games, and the rest of today's | Live | Stays short, and carries live scores |
 | An organisation's teams, sites, facilities, leagues and seasons | Live | Short, and people work on them together |
-| An organisation's tournaments, invitations and referrals | Live | Short, and acted on as they arrive |
+| An organisation's current events, invitations and referrals | Live | Short, and acted on as they arrive |
+| An organisation's past events | Static | A single match is an event of its own, so this grows with every game played |
 | An organisation's applications to join | Live | Short, and acted on as they arrive |
 | A team's roster | Live | Short, and being worked on when it is open |
 | A tournament's divisions, stages, entrants and venues | Live | Short, and change while it is being run |
@@ -89,7 +90,7 @@ involve no one else (`RoomPolicy.subject` in
 | Room | Access | Join push | Published afterwards |
 | --- | --- | --- | --- |
 | `org:{id}:summary` | public | `ORGANIZATION_UPDATED` or `ENTITY_NOT_FOUND` | `ORGANIZATION_UPDATED` |
-| `org:{id}:events` | public | `EVENTS_SYNC` (`Event[]`) | `EVENT_ADDED/UPDATED/DELETED` |
+| `org:{id}:events` | public | `EVENTS_SYNC` (`Event[]`: what is current, `getCurrentEvents`) | `EVENT_ADDED/UPDATED/DELETED` |
 | `org:{id}:fixtures` | public | `GAME_SUMMARIES_SYNC` (`GameSummary[]`: what is current, `getCurrentGameSummaries`) | `GAME_SUMMARY_UPDATED`, `GAME_SUMMARY_REMOVED` |
 | `org:{id}:teams` | public | `TEAMS_SYNC` | `TEAM_ADDED/UPDATED/DELETED` — each a whole `Team` with its player and staff counts and `coachName`, so it is republished by a roster add, removal or role change, and by renaming a coach |
 | `org:{id}:sites` | public | `SITES_SYNC` | `SITE_ADDED/UPDATED/DELETED` |

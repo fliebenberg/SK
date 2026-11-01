@@ -8,8 +8,8 @@ import { useStaticRead } from './useStaticRead';
  * the site or one of its facilities, an event when it is based here.
  *
  * Only the organisation's current fixtures are on the client, so `games` is what is coming up. How
- * many games the site and each facility have ever had, whoever's, is read from the server
- * (`LIST-1`), for whether they can be deleted.
+ * many games the site and each facility have ever had and events based there, whoever's, is read
+ * from the server (`LIST-1`), for whether they can be deleted.
  */
 export function useSiteGames(orgId: string | null | undefined, siteId: string | null | undefined, facilities: Facility[]) {
   const { games: all, events: allEvents, eventNames, isLoading } = useOrgFixtures(orgId);
@@ -22,5 +22,12 @@ export function useSiteGames(orgId: string | null | undefined, siteId: string | 
   const events = useMemo(() => (siteId ? allEvents.filter(e => e.siteId === siteId) : []), [allEvents, siteId]);
   /** Games played on each facility, for whether it can be deleted. */
   const gamesByFacility = useMemo(() => new Map(Object.entries(counts?.byFacility ?? {})), [counts]);
-  return { games, gameCount: Math.max(counts?.games ?? 0, games.length), events, eventNames, gamesByFacility, isLoading };
+  return {
+    games,
+    gameCount: Math.max(counts?.games ?? 0, games.length),
+    eventCount: Math.max(counts?.events ?? 0, events.length),
+    eventNames,
+    gamesByFacility,
+    isLoading,
+  };
 }

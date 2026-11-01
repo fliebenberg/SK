@@ -143,6 +143,7 @@ export class DataManager {
 
   // Events
   getEvents = (orgId?: string) => eventManager.getEvents(orgId);
+  getCurrentEvents = (orgId: string) => eventManager.getCurrentEvents(orgId);
   getEvent = (id: string) => eventManager.getEvent(id);
   addEvent = (event: AddEventPayload) => eventManager.addEvent(event);
   updateEvent = (id: string, data: Partial<Event>) => eventManager.updateEvent(id, data);

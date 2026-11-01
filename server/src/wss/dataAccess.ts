@@ -102,7 +102,6 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   possible_duplicate_orgs: { standalone: 'public-directory' },
 
   // People. The reason this whole module exists.
-  org_members:          { room: orgRoom('members') },
   // People, a page at a time and one person's page (okf/live_rooms.md: static): the member list's level.
   org_people:           { room: orgRoom('members') },
   org_person:           { room: orgRoom('members') },

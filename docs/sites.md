@@ -111,7 +111,7 @@ The list and the page read sites and facilities from `org:{id}:sites` and `org:{
 `org:{id}:fixtures` and `org:{id}:events`
 ([useSiteGames](file:///c:/Fred/Coding/SK/expo-app/hooks/useSiteGames.ts), through `useOrgFixtures`,
 which `useTeamGames` uses too), and the organisation — its timezone and sports — from its summary
-room (`useOrgSummary`). A save shows everywhere at once. The one read is `site_game_counts` (`LIST-1`): how many games the site and each facility have ever had, for whether they can be deleted, since the room only holds what is current.
+room (`useOrgSummary`). A save shows everywhere at once. The one read is `site_game_counts` (`LIST-1`): how many games the site and each facility have ever had and events based there, for whether they can be deleted, since the room only holds what is current.
 
 **Only the organisation's own fixtures are on the client.** Another organisation's game at this site
 is not counted, so Delete can look available while the server's own check

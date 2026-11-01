@@ -245,7 +245,7 @@ async function main() {
     expect(await join(parent, `team:${TEAM_OWN}:members`), 'denied', 'or the child’s roster');
     expect(await join(parent, `org:${DKL}:guardians`), 'denied', 'or the org’s guardians');
     expect(await join(stranger, `org:${DKL}:guardians`), 'denied', 'and nor can another org');
-    expect(refused(await read(parent, { type: 'org_members', orgId: DKL })), true, 'or query the members');
+    expect(refused(await read(parent, { type: 'org_people', orgId: DKL })), true, 'or query the members');
 
     // --- A restricted minor: linked, but no member privileges --------------------------------
     const minorView = await memberships(minor, MINOR_USER);

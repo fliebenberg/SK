@@ -3,7 +3,7 @@ import { Event, EventOrgHistory, Game, GameParticipant, GameClockState, GameEven
 import { getPeriodLabel, assertCalendarDates, hasLeft, isDualEvent } from "@sk/shared";
 import { BaseManager, Tx } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
-import type { PastEventRow, PastFixturesPage, SiteGameCounts, TeamSeasonResults } from "@sk/shared";
+import type { PastEventRow, PastFixturesPage, PastGamesPage, SiteGameCounts, TeamSeasonResults } from "@sk/shared";
 import { INVITATION_LIST, LISTED, NOT_LISTED } from "./eventVisibility";
 
 /** A static list's page, from what a client asked for: at most 100 (okf/live_rooms.md). */
@@ -191,7 +191,7 @@ export class EventManager extends BaseManager {
    * counts are of everything in scope, before search and filters narrow it. `before` is the start of
    * the viewer's today. `mine*` and `conveneEventIds` only narrow what the caller may read anyway.
    */
-  async getOrgPastGames(orgId: string, params: any): Promise<PastFixturesPage<GameSummary>> {
+  async getOrgPastGames(orgId: string, params: any): Promise<PastGamesPage> {
     const { page, limit, offset } = pageOf(params);
     const time = 'COALESCE(g.scheduled_start_time, g.start_time, e.start_date::timestamptz)';
     const args: unknown[] = [orgId, params.before, stringsOf(params.conveneEventIds)];
@@ -229,6 +229,7 @@ export class EventManager extends BaseManager {
     ]);
     return {
       items: rows.rows, total: shown.rows[0].total, page, limit,
+      events: await this.getEventsByIds([...new Set<string>(rows.rows.map((g: any) => g.eventId))]),
       everything: everything.rows[0].total,
       sportCounts: Object.fromEntries(sportRows.rows.map((r: any) => [r.id, r.total])),
       roleCounts: roleRows.rows[0],
@@ -236,9 +237,9 @@ export class EventManager extends BaseManager {
   }
 
   /**
-   * An organisation's past events, a page at a time (`LIST-1`): each event's ID, how many games it
-   * had, its sports, and its first game, which a single match's row shows. The record is in
-   * `org:{id}:events`. `before` is the viewer's today; `alsoEventIds` are tournaments its members see
+   * An organisation's past events, a page at a time (`LIST-1`, `LIST-2`): each event's record, how
+   * many games it had, its sports, and its first game, which a single match's row shows. `before` is
+   * the viewer's today; `alsoEventIds` are tournaments its members see
    * and its lists do not (`FIX-30`), held to ones this organisation has a row in.
    */
   async getOrgPastEvents(orgId: string, params: any): Promise<PastFixturesPage<PastEventRow>> {
@@ -306,8 +307,11 @@ export class EventManager extends BaseManager {
       : { rows: [] as GameSummary[] };
     const first = new Map<string, GameSummary>();
     for (const game of games.rows) if (!first.has(game.eventId)) first.set(game.eventId, game);
+    const records = new Map((await this.getEventsByIds(rows.rows.map((r: any) => r.eventId))).map(event => [event.id, event]));
     return {
-      items: rows.rows.map(({ type: _type, ...row }: any) => ({ ...row, game: first.get(row.eventId) ?? null })),
+      items: rows.rows
+        .filter((row: any) => records.has(row.eventId))
+        .map(({ type: _type, ...row }: any) => ({ ...row, event: records.get(row.eventId), game: first.get(row.eventId) ?? null })),
       total: shown.rows[0].total, page, limit,
       everything: everything.rows[0].total,
       sportCounts: Object.fromEntries(sportRows.rows.map((r: any) => [r.id, r.total])),
@@ -332,7 +336,13 @@ export class EventManager extends BaseManager {
         [teamId],
       ),
     ]);
-    return { games: games.rows, gameCount: totals.rows[0].gameCount, seasons: totals.rows[0].seasons };
+    const events = await this.getEventsByIds([...new Set<string>(games.rows.map((g: any) => g.eventId))]);
+    return {
+      games: games.rows,
+      eventNames: Object.fromEntries(events.map(event => [event.id, event.name])),
+      gameCount: totals.rows[0].gameCount,
+      seasons: totals.rows[0].seasons,
+    };
   }
 
   /** The latest finished games of some of an organisation's teams, for a parent's page. */
@@ -349,7 +359,7 @@ export class EventManager extends BaseManager {
     return res.rows;
   }
 
-  /** How many games a site has had, whoever's, for whether it and its facilities can be deleted. */
+  /** How many games a site has had and events based there, whoever's, for whether it and its facilities can be deleted. */
   async getSiteGameCounts(siteId: string): Promise<SiteGameCounts> {
     const res = await this.query(
       `SELECT g.facility_id AS id, COUNT(*)::int AS total FROM games g
@@ -357,8 +367,10 @@ export class EventManager extends BaseManager {
         GROUP BY g.facility_id`,
       [siteId],
     );
+    const events = await this.query('SELECT COUNT(*)::int AS total FROM events WHERE site_id = $1', [siteId]);
     return {
       games: res.rows.reduce((sum: number, r: any) => sum + r.total, 0),
+      events: events.rows[0].total,
       byFacility: Object.fromEntries(res.rows.filter((r: any) => r.id).map((r: any) => [r.id, r.total])),
     };
   }
@@ -435,6 +447,28 @@ export class EventManager extends BaseManager {
       [gameId]
     );
     return { stageId: res.rows[0]?.stageId ?? null, eventId: res.rows[0]?.eventId ?? null };
+  }
+
+  /**
+   * What `org:{id}:events` holds (`LIST-2`, okf/live_rooms.md): events not over yet in any time zone,
+   * and any with a game still to be played or being played, whose name its fixture row shows. A
+   * single match is an event of its own, so the whole list grows with every game played; past ones
+   * are read a page at a time (`getOrgPastEvents`).
+   */
+  async getCurrentEvents(orgId: string): Promise<Event[]> {
+    const res = await this.query(
+      `SELECT ${this.EVENT_COLUMNS} FROM events
+        WHERE NOT ${NOT_LISTED('events.id', '$1')}
+          AND (org_id = $1
+            OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = events.id AND eo.org_id = $1 AND eo.invitation IN ${LISTED})
+            OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id
+                        WHERE g.event_id = events.id AND t.org_id = $1))
+          AND (start_date IS NULL
+            OR COALESCE(end_date, start_date) >= CURRENT_DATE - 1
+            OR EXISTS (SELECT 1 FROM games ug WHERE ug.event_id = events.id AND ug.status IN ('Scheduled', 'Live')))`,
+      [orgId],
+    );
+    return res.rows;
   }
 
   async getEvents(orgId?: string): Promise<Event[]> {

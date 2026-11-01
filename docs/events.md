@@ -118,7 +118,7 @@ switch always has one option chosen, so its chosen option is raised and in ink, 
 
 ## 5. Data and live updates
 
-Two rooms, as before: `org:{id}:events` and `org:{id}:fixtures`, which since `LIST-1` (2026-11-01) carries what is current: unplayed and live games, the rest of today's, and every game of an event that is not over. **Past** is static and paged on the server (`org_past_games`, `org_past_events`), with its search and filters in the read and the one pager above and below; a finished game stays live until the day is out, so a final score does not vanish from the screen. Venues come from `org:{id}:sites` and
+Two rooms, as before: `org:{id}:events` and `org:{id}:fixtures`. Since `LIST-1` and `LIST-2` (2026-11-01) both carry what is current: for fixtures, unplayed and live games, the rest of today's, and every game of an event that is not over; for events, those not over and any with a game still to play. **Past** is static and paged on the server (`org_past_games`, `org_past_events`), with its search and filters in the read and the one pager above and below; a finished game stays live until the day is out, so a final score does not vanish from the screen. Venues come from `org:{id}:sites` and
 `org:{id}:facilities` ([useOrgSites](file:///c:/Fred/Coding/SK/expo-app/hooks/useOrgSites.ts)), so a game
 at another organisation's site shows no venue — those are not this organisation's rooms.
 

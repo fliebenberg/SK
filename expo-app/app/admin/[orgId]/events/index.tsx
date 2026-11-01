@@ -29,7 +29,8 @@ import {
   NewTournamentDialog,
   ROLE_OPTIONS,
 } from '../../../../components/events/EventListDialogs';
-import { PastEventRow, PastFixturesPage } from '@sk/shared';
+import { PastEventRow, PastFixturesPage, PastGamesPage } from '@sk/shared';
+import { useStaticRead } from '../../../../hooks/useStaticRead';
 import { useLiveRoom } from '../../../../hooks/useLiveRoom';
 import { usePagedList } from '../../../../hooks/usePagedList';
 import { ListPager } from '../../../../components/ListPager';
@@ -70,7 +71,7 @@ import { useOrgSummary } from '../../../../hooks/useOrgSummary';
  * Two live rooms, because they are two datasets: `org:{id}:events` holds the events and
  * `org:{id}:fixtures` the summary of every current game under them. Joining either is the load.
  * **Past** is static (`LIST-1`, okf/live_rooms.md): its search and filters are in the read, a page at a
- * time, and the rows are drawn from the same events.
+ * time, with the records of the events on that page. The events room holds only what is current.
  */
 
 type When = 'upcoming' | 'past';
@@ -102,7 +103,7 @@ const NO_GRANTS = { eventIds: [] as string[], sports: [] as Array<{ eventId: str
  * page's Fixtures tab (`UI-34`, docs/events.md §11): the same rows, sections, Events / All games,
  * Upcoming / Past, search and Filters, read-only. There is no "you" on the public page, so no
  * Mine / All, no New event, no invitations and no *Convening*; *Away* stays, being about the
- * organisation. Only what is public is in `org:{id}:events` to begin with, and a row opens the
+ * organisation. Only what is public is in `org:{id}:events` and its past events to begin with, and a row opens the
  * tournament's public page. Embedded, it brings no header or scroll of its own.
  */
 export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
@@ -213,7 +214,6 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   const siteName = (id?: string | null) => sites.find(s => s.id === id)?.name || '';
   const facilityName = (id?: string | null) => facilities.find(f => f.id === id)?.name || '';
 
-  const eventsById = useMemo(() => new Map((events || []).filter(Boolean).map(e => [e.id, e])), [events]);
   /* ---------------------------------------------------------------------------------------------
    * Past: a page at a time from the server. Its filters are the toolbar's, sent with the read.
    * ------------------------------------------------------------------------------------------- */
@@ -246,7 +246,7 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
     page: pastPage,
     enabled: isPast && view === 'events' && !!orgId,
   });
-  const pastGames = usePagedList<GameSummary, PastFixturesPage<GameSummary>>({
+  const pastGames = usePagedList<GameSummary, PastGamesPage>({
     type: 'org_past_games',
     noun: 'past games',
     params: { ...pastParams, before: startOfTodayInstant() },
@@ -257,6 +257,19 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   const past = view === 'events' ? pastEvents : pastGames;
   useEffect(() => setPastPage(1), [past.term, when, view, scope, JSON.stringify(filters)]);
   const pastRows = useMemo(() => new Map(pastEvents.items.map(r => [r.eventId, r])), [pastEvents.items]);
+
+  /* The room holds what is current (`LIST-2`), so an organisation may have only past events. */
+  const { data: anyPast } = useStaticRead<PastFixturesPage<PastEventRow>>(
+    'org_past_events',
+    orgId && !nowNext && !events.length && !eventsLoading ? { orgId, before: todayCalendarDate(), limit: 1 } : null,
+  );
+  const hasEvents = events.length > 0 || (anyPast?.total ?? 0) > 0;
+
+  /* A past game's event comes with its page. */
+  const eventsById = useMemo(() => new Map([
+    ...(isPast ? pastGames.response?.events ?? [] : []),
+    ...(events || []).filter(Boolean),
+  ].map(e => [e.id, e])), [events, isPast, pastGames.response]);
 
   const gamesByEvent = useMemo(() => {
     const map = new Map<string, GameSummary[]>();
@@ -387,7 +400,7 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   };
 
   const shownEvents = isPast
-    ? pastEvents.items.map(r => eventsById.get(r.eventId)).filter(Boolean) as Event[]
+    ? pastEvents.items.map(r => r.event)
     : baseEvents.filter(eventPasses);
   const shownGames = isPast ? pastGames.items : baseGames.filter(gamePasses);
 
@@ -825,7 +838,7 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
         </View>
       );
     }
-    if (!(events || []).length) {
+    if (!hasEvents) {
       return (
         <View className="rounded-2xl border border-line bg-card px-5 py-8 items-center gap-2">
           <Ionicons name="calendar-outline" size={32} color={themeColor(isDark, 'ink-faint')} />
@@ -954,7 +967,7 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
       shownLabel={`Show ${shownCount} ${shownCount === 1 ? noun.slice(0, -1) : noun}`}
     />
   );
-  const pastLink = !isWide && when === 'upcoming' && (events || []).length ? (
+  const pastLink = !isWide && when === 'upcoming' && hasEvents ? (
     <TouchableOpacity
       onPress={() => setWhen('past')}
       accessibilityRole="button"

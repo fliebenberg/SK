@@ -204,7 +204,7 @@ async function main() {
     expect((await read(member, { type: 'team_directory', search: 'Zebrafish', limit: 1000 })).limit, 100, 'a page is at most 100 teams');
     expect((await read(member, { type: 'team_directory', mine: true })).total, 0, 'My Teams is only teams they are on');
     expect((await read(visitor, { type: 'team_directory', mine: true })).total, 0, 'a visitor has no My Teams');
-    // What the fixtures room no longer carries (`LIST-1`) is held to the same level.
+    // What the fixtures and events rooms no longer carry (`LIST-1`, `LIST-2`) is held to the same level.
     const beforeSoon = '2100-01-01';
     expect(Array.isArray((await read(stranger, { type: 'org_past_games', orgId: ORG, before: beforeSoon }))?.items), false, 'past games are closed to a stranger');
     expect(Array.isArray((await read(visitor, { type: 'org_past_events', orgId: ORG, before: beforeSoon }))?.items), false, 'past events are closed to a visitor');

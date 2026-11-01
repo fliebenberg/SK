@@ -1786,16 +1786,6 @@ io.on('connection', (socket) => {
                 // Avoid sending ALL profiles. 
                 callback([]); 
                 break;
-            case 'org_members':
-                if (orgId) {
-                    const members = await dataManager.getOrganizationMembers(orgId);
-                    console.log(`Server: Returning ${members.length} members for org ${orgId}`);
-                    callback(members);
-                } else {
-                    console.warn("Server: org_members requested without orgId");
-                    callback([]);
-                }
-                break;
             case 'org_people':
                 callback(orgId ? await dataManager.getOrgPeoplePage(orgId, request) : { items: [], total: 0, page: 1, limit: 100, roleCounts: {} });
                 break;
@@ -2163,7 +2153,8 @@ io.on('connection', (socket) => {
                 // The `Event` records only. The game summaries under them are `org:{id}:fixtures`
                 // (rule 4) - this room carried both until 2026-09-11, so an events list paid for
                 // every game in the org on join.
-                pushToSocket(socket, room, 'EVENTS_SYNC', await dataManager.getEvents(id));
+                // Only what is current (`LIST-2`): past events are read a page at a time.
+                pushToSocket(socket, room, 'EVENTS_SYNC', await dataManager.getCurrentEvents(id));
             } else if (sub === 'invitations') {
                 // Tournaments its members see in the workspace but not its public lists (`FIX-30`).
                 pushToSocket(socket, room, 'EVENT_INVITATIONS_SYNC', await dataManager.getEventInvitationsForOrg(id));
