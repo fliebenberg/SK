@@ -6,6 +6,7 @@ import { GlassCard } from '../../components/GlassCard';
 import { Button } from '../../components/Button';
 import { useAuthStore } from '../../store/authStore';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
+import { useStaticRead } from '../../hooks/useStaticRead';
 import { sendAction } from '../../services/actions';
 import { getAvatarUrl } from '../../services/assets';
 import { formatFixtureWhen, formatInstant } from '../../utils/dates';
@@ -126,7 +127,7 @@ function DependantCard({ child }: { child: Dependant }) {
   );
 }
 
-/** The child's teams' fixtures, from the org's public fixtures room. */
+/** The child's teams' fixtures, from the org's public fixtures room, and their latest results, which are read once (`LIST-1`). */
 function ChildFixtures({ child }: { child: Dependant }) {
   const teamIds = useMemo(() => new Set(child.teams.map(t => t.teamId)), [child.teams]);
   const { items, isLoading } = useLiveRoom<GameSummary>(child.teams.length ? `org:${child.orgId}:fixtures` : null, {
@@ -138,8 +139,15 @@ function ChildFixtures({ child }: { child: Dependant }) {
     },
   });
 
+  const { data: pastResults } = useStaticRead<GameSummary[]>(
+    'teams_recent_results',
+    child.teams.length ? { orgId: child.orgId, teamIds: child.teams.map(t => t.teamId), limit: 3 } : null,
+  );
+
   const { upcoming, recent } = useMemo(() => {
-    const mine = items.filter(game => game.participants?.some(p => p.teamId && teamIds.has(p.teamId)));
+    const byId = new Map((Array.isArray(pastResults) ? pastResults : []).map(game => [game.id, game]));
+    for (const game of items) byId.set(game.id, game);
+    const mine = [...byId.values()].filter(game => game.participants?.some(p => p.teamId && teamIds.has(p.teamId)));
     const when = (game: GameSummary) => new Date(game.scheduledStartTime || game.startTime || 0).getTime();
     return {
       upcoming: mine
@@ -151,7 +159,7 @@ function ChildFixtures({ child }: { child: Dependant }) {
         .sort((a, b) => when(b) - when(a))
         .slice(0, 3),
     };
-  }, [items, teamIds]);
+  }, [items, pastResults, teamIds]);
 
   if (!child.teams.length) return null;
 

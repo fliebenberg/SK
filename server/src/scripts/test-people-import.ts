@@ -203,16 +203,11 @@ async function main() {
     expect((await importedProfileIds()).length, 0, 'and writes nothing');
 
     // --- Apply -----------------------------------------------------------------------------------
-    const joined = nextMessage(admin, `org:${DKL}:members`, 'ORG_MEMBERS_SYNC');
-    admin.emit('join_room', `org:${DKL}:members`);
-    await joined; // the join's own snapshot
-    const membersBroadcast = nextMessage(admin, `org:${DKL}:members`, 'ORG_MEMBERS_SYNC');
-
     const applied = await importPeople(admin, GOOD_ROWS, 'apply', `${RUN}-1`);
     expect(applied?.status, 'ok', 'an admin can apply');
     expect(applied?.data?.counts, { new: 2, update: 1, unchanged: 2, error: 0, newGuardians: 2, newGuardianLinks: 3 }, 'the apply counts');
-    const members = await membersBroadcast;
-    expect(Array.isArray(members) && members.some((m: any) => m.name === 'PI Test Kid One'), true, 'the People screens get the whole new list, once');
+    const people = await new Promise<any>(resolve => admin.emit('get_data', { type: 'org_people', orgId: DKL, search: 'PI Test Kid One' }, resolve));
+    expect(people?.items?.some((m: any) => m.name === 'PI Test Kid One'), true, 'the People list has them');
 
     const kids = (await query(
       `SELECT op.identifier, om.role_id FROM org_profiles op

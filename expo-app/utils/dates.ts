@@ -449,9 +449,19 @@ export function seasonOf(value?: Instant | CalendarDate | null): number | null {
   return Number.isNaN(ms) ? null : new Date(ms).getFullYear();
 }
 
+/** The instants a season runs between, in the viewer's time, as `seasonOf` counts it. */
+export function seasonRange(season: number): { from: Instant; to: Instant } {
+  return { from: new Date(season, 0, 1).toISOString() as Instant, to: new Date(season + 1, 0, 1).toISOString() as Instant };
+}
+
 /** The season under way today. */
 export function currentSeason(): number {
   return new Date().getFullYear();
+}
+
+/** Local midnight at the start of the viewer's today, to ask the server for what came before it. */
+export function startOfTodayInstant(): Instant {
+  return new Date(startOfTodayMs()).toISOString() as Instant;
 }
 
 /** Local midnight at the start of the viewer's today, for comparing against {@link whenMs}. */

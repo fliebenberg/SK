@@ -3,7 +3,28 @@ import { Event, EventOrgHistory, Game, GameParticipant, GameClockState, GameEven
 import { getPeriodLabel, assertCalendarDates, hasLeft, isDualEvent } from "@sk/shared";
 import { BaseManager, Tx } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
+import type { PastEventRow, PastFixturesPage, SiteGameCounts, TeamSeasonResults } from "@sk/shared";
 import { INVITATION_LIST, LISTED, NOT_LISTED } from "./eventVisibility";
+
+/** A static list's page, from what a client asked for: at most 100 (okf/live_rooms.md). */
+const pageOf = (params: any) => {
+  const page = Math.max(1, Math.floor(Number(params?.page)) || 1);
+  const limit = Math.min(Math.max(1, Math.floor(Number(params?.limit)) || 100), 100);
+  return { page, limit, offset: (page - 1) * limit };
+};
+const stringsOf = (value: unknown): string[] => (Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : []);
+/** Each word of a search, as an ILIKE pattern with its own wildcards taken literally. */
+const wordsOf = (search: unknown) => String(search ?? '').trim().split(/\s+/).filter(Boolean)
+  .map(word => `%${word.replace(/[\\%_]/g, '\\$&')}%`);
+/** SQL for the fixtures' role filter on event `e`: `$1` is the organisation, `$3` the events it convenes. */
+const roleFilter = (roles: unknown): string | null => {
+  const parts = stringsOf(roles).flatMap(role =>
+    role === 'hosting' ? ['e.org_id = $1'] : role === 'away' ? ['e.org_id <> $1'] : role === 'convening' ? ['e.id = ANY($3)'] : []);
+  return parts.length ? `(${parts.join(' OR ')})` : null;
+};
+const ROLE_COUNTS = `COUNT(*) FILTER (WHERE e.org_id = $1)::int AS hosting,
+  COUNT(*) FILTER (WHERE e.id = ANY($3))::int AS convening,
+  COUNT(*) FILTER (WHERE e.org_id <> $1)::int AS away`;
 import { assertEventKeepsPrivateOrgsApart } from "./privateOrgs";
 import { sportManager } from "./SportManager";
 
@@ -109,6 +130,237 @@ export class EventManager extends BaseManager {
            ))
     `, [orgId]);
     return res.rows;
+  }
+
+  /**
+   * What `org:{id}:fixtures` holds (`LIST-1`, okf/live_rooms.md): the games still to play or being
+   * played, the rest of today's in any time zone, and every game of an event that is not over, so a
+   * running tournament's rows count all its games. Everything older is read a page at a time.
+   */
+  async getCurrentGameSummaries(orgId: string): Promise<GameSummary[]> {
+    const res = await this.query(
+      `SELECT ${this.GAME_SUMMARY_COLUMNS}
+         FROM games g JOIN events e ON g.event_id = e.id
+        WHERE ${this.orgReach}
+          AND (g.status IN ('Scheduled', 'Live')
+               OR COALESCE(g.scheduled_start_time, g.start_time, g.finish_time) >= NOW() - INTERVAL '24 hours'
+               OR e.start_date IS NULL
+               OR COALESCE(e.end_date, e.start_date) >= CURRENT_DATE - 1)`,
+      [orgId],
+    );
+    return res.rows;
+  }
+
+  /**
+   * Runs a query with only the arguments it mentions, renumbered. Postgres refuses any it does not
+   * use, and the past fixtures' count, page and facet queries share one list.
+   */
+  private queryUsing(sql: string, args: unknown[]) {
+    const order = new Map<number, number>();
+    const text = sql.replace(/\$(\d+)/g, (_, n) => {
+      const index = Number(n);
+      if (!order.has(index)) order.set(index, order.size + 1);
+      return `$${order.get(index)}`;
+    });
+    return this.query(text, [...order.keys()].map(index => args[index - 1]));
+  }
+
+  /** SQL for query parameter `$1` being an organisation that lists event `e`: `getEvents`'s routes in. */
+  private orgReach = `NOT ${NOT_LISTED('e.id', '$1')}
+    AND (e.org_id = $1
+      OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = $1 AND eo.invitation IN ${LISTED})
+      OR EXISTS (SELECT 1 FROM games rg JOIN game_participants rp ON rp.game_id = rg.id JOIN teams rt ON rp.team_id = rt.id
+                  WHERE rg.event_id = e.id AND rt.org_id = $1))`;
+
+  /** SQL: a word appears on game `g`: its sport, venue or either side. For a word in parameter `n`. */
+  private gameMatches = (n: string) => `(
+    EXISTS (SELECT 1 FROM sports ws WHERE ws.id = g.sport_id AND ws.name ILIKE ${n})
+    OR EXISTS (SELECT 1 FROM sites wv WHERE wv.id = g.site_id AND wv.name ILIKE ${n})
+    OR EXISTS (SELECT 1 FROM facilities wf WHERE wf.id = g.facility_id AND wf.name ILIKE ${n})
+    OR EXISTS (SELECT 1 FROM game_participants wp
+                 LEFT JOIN teams wt ON wt.id = wp.team_id
+                 LEFT JOIN org_profiles wop ON wop.id = wp.org_profile_id
+                 LEFT JOIN division_entrants we ON we.id = wp.entrant_id
+                 LEFT JOIN organizations wo ON wo.id = COALESCE(wt.org_id, we.org_id)
+                WHERE wp.game_id = g.id
+                  AND (wt.name ILIKE ${n} OR wt.short_name ILIKE ${n} OR wop.name ILIKE ${n} OR we.label ILIKE ${n}
+                       OR wo.name ILIKE ${n} OR wo.short_name ILIKE ${n})))`;
+
+  /**
+   * An organisation's past games, a page at a time (`LIST-1`), with what the filters offer: the
+   * counts are of everything in scope, before search and filters narrow it. `before` is the start of
+   * the viewer's today. `mine*` and `conveneEventIds` only narrow what the caller may read anyway.
+   */
+  async getOrgPastGames(orgId: string, params: any): Promise<PastFixturesPage<GameSummary>> {
+    const { page, limit, offset } = pageOf(params);
+    const time = 'COALESCE(g.scheduled_start_time, g.start_time, e.start_date::timestamptz)';
+    const args: unknown[] = [orgId, params.before, stringsOf(params.conveneEventIds)];
+    const base = [this.orgReach, `${time} < $2::timestamptz`];
+    if (params.mine) {
+      args.push(stringsOf(params.mineEventIds), stringsOf(params.mineTeamIds));
+      base.push(`(g.event_id = ANY($4) OR EXISTS (SELECT 1 FROM game_participants mp WHERE mp.game_id = g.id AND mp.team_id = ANY($5)))`);
+    }
+    const narrow = [...base];
+    for (const word of wordsOf(params.search)) {
+      args.push(word);
+      const n = `$${args.length}`;
+      narrow.push(`(e.name ILIKE ${n} OR ${this.gameMatches(n)})`);
+    }
+    const sports = stringsOf(params.sportIds);
+    if (sports.length) {
+      args.push(sports);
+      narrow.push(`g.sport_id = ANY($${args.length})`);
+    }
+    const role = roleFilter(params.roles);
+    if (role) narrow.push(role);
+    const from = 'FROM games g JOIN events e ON e.id = g.event_id';
+    const whereBase = `WHERE ${base.join(' AND ')}`;
+
+    const [everything, shown, rows, sportRows, roleRows] = await Promise.all([
+      this.queryUsing(`SELECT COUNT(*)::int AS total ${from} ${whereBase}`, args),
+      this.queryUsing(`SELECT COUNT(*)::int AS total ${from} WHERE ${narrow.join(' AND ')}`, args),
+      this.queryUsing(
+        `SELECT ${this.GAME_SUMMARY_COLUMNS} ${from} WHERE ${narrow.join(' AND ')}
+         ORDER BY ${time} DESC, g.id LIMIT $${args.length + 1} OFFSET $${args.length + 2}`,
+        [...args, limit, offset],
+      ),
+      this.queryUsing(`SELECT g.sport_id AS id, COUNT(*)::int AS total ${from} ${whereBase} AND g.sport_id IS NOT NULL GROUP BY g.sport_id`, args),
+      this.queryUsing(`SELECT ${ROLE_COUNTS} ${from} ${whereBase}`, args),
+    ]);
+    return {
+      items: rows.rows, total: shown.rows[0].total, page, limit,
+      everything: everything.rows[0].total,
+      sportCounts: Object.fromEntries(sportRows.rows.map((r: any) => [r.id, r.total])),
+      roleCounts: roleRows.rows[0],
+    };
+  }
+
+  /**
+   * An organisation's past events, a page at a time (`LIST-1`): each event's ID, how many games it
+   * had, its sports, and its first game, which a single match's row shows. The record is in
+   * `org:{id}:events`. `before` is the viewer's today; `alsoEventIds` are tournaments its members see
+   * and its lists do not (`FIX-30`), held to ones this organisation has a row in.
+   */
+  async getOrgPastEvents(orgId: string, params: any): Promise<PastFixturesPage<PastEventRow>> {
+    const { page, limit, offset } = pageOf(params);
+    const args: unknown[] = [orgId, params.before, stringsOf(params.conveneEventIds), stringsOf(params.alsoEventIds)];
+    const onEvent = `EXISTS (SELECT 1 FROM event_organizations ao WHERE ao.event_id = e.id AND ao.org_id = $1 AND e.id = ANY($4))`;
+    const base = [`(${this.orgReach} OR ${onEvent})`, 'e.start_date IS NOT NULL', 'COALESCE(e.end_date, e.start_date) < $2::date'];
+    if (params.mine) {
+      args.push(stringsOf(params.mineEventIds), stringsOf(params.mineTeamIds));
+      base.push(`(e.id = ANY($5) OR EXISTS (SELECT 1 FROM games mg JOIN game_participants mp ON mp.game_id = mg.id WHERE mg.event_id = e.id AND mp.team_id = ANY($6)))`);
+    }
+    const narrow = [...base];
+    for (const word of wordsOf(params.search)) {
+      args.push(word);
+      const n = `$${args.length}`;
+      narrow.push(`(e.name ILIKE ${n}
+        OR EXISTS (SELECT 1 FROM sites es WHERE es.id = e.site_id AND es.name ILIKE ${n})
+        OR EXISTS (SELECT 1 FROM event_sports ess JOIN sports ssp ON ssp.id = ess.sport_id WHERE ess.event_id = e.id AND ssp.name ILIKE ${n})
+        OR EXISTS (SELECT 1 FROM games g WHERE g.event_id = e.id AND ${this.gameMatches(n)}))`);
+    }
+    const sports = stringsOf(params.sportIds);
+    if (sports.length) {
+      args.push(sports);
+      const n = `$${args.length}`;
+      narrow.push(`(EXISTS (SELECT 1 FROM event_sports fs WHERE fs.event_id = e.id AND fs.sport_id = ANY(${n}))
+        OR EXISTS (SELECT 1 FROM games fg WHERE fg.event_id = e.id AND fg.sport_id = ANY(${n})))`);
+    }
+    if (params.kind === 'matches') narrow.push(`e.type = 'SingleMatch'`);
+    if (params.kind === 'tournaments') narrow.push(`e.type = 'Tournament'`);
+    const role = roleFilter(params.roles);
+    if (role) narrow.push(role);
+    const from = 'FROM events e';
+    const whereBase = `WHERE ${base.join(' AND ')}`;
+
+    const [everything, shown, rows, sportRows, roleRows] = await Promise.all([
+      this.queryUsing(`SELECT COUNT(*)::int AS total ${from} ${whereBase}`, args),
+      this.queryUsing(`SELECT COUNT(*)::int AS total ${from} WHERE ${narrow.join(' AND ')}`, args),
+      this.queryUsing(
+        `SELECT e.id AS "eventId", e.type,
+                (SELECT COUNT(*)::int FROM games cg WHERE cg.event_id = e.id AND NOT ${NOT_LISTED('e.id', '$1')}) AS "gameCount",
+                ARRAY(SELECT sport_id FROM event_sports WHERE event_id = e.id
+                      UNION SELECT sport_id FROM games WHERE event_id = e.id AND sport_id IS NOT NULL) AS "sportIds"
+         ${from} WHERE ${narrow.join(' AND ')}
+         ORDER BY COALESCE(e.end_date, e.start_date) DESC, e.id LIMIT $${args.length + 1} OFFSET $${args.length + 2}`,
+        [...args, limit, offset],
+      ),
+      this.queryUsing(
+        `WITH base AS (SELECT e.id ${from} ${whereBase})
+         SELECT sport_id AS id, COUNT(*)::int AS total FROM (
+           SELECT es.event_id, es.sport_id FROM event_sports es JOIN base ON base.id = es.event_id
+           UNION SELECT g.event_id, g.sport_id FROM games g JOIN base ON base.id = g.event_id
+         ) x WHERE sport_id IS NOT NULL GROUP BY sport_id`,
+        args,
+      ),
+      this.queryUsing(`SELECT ${ROLE_COUNTS} ${from} ${whereBase}`, args),
+    ]);
+
+    const matches = rows.rows.filter((r: any) => r.type === 'SingleMatch' && r.gameCount > 0).map((r: any) => r.eventId);
+    const games = matches.length
+      ? await this.queryUsing(
+          `SELECT ${this.GAME_SUMMARY_COLUMNS} FROM games g WHERE g.event_id = ANY($1)
+           ORDER BY COALESCE(g.scheduled_start_time, g.start_time), g.id`,
+          [matches],
+        )
+      : { rows: [] as GameSummary[] };
+    const first = new Map<string, GameSummary>();
+    for (const game of games.rows) if (!first.has(game.eventId)) first.set(game.eventId, game);
+    return {
+      items: rows.rows.map(({ type: _type, ...row }: any) => ({ ...row, game: first.get(row.eventId) ?? null })),
+      total: shown.rows[0].total, page, limit,
+      everything: everything.rows[0].total,
+      sportCounts: Object.fromEntries(sportRows.rows.map((r: any) => [r.id, r.total])),
+      roleCounts: roleRows.rows[0],
+    };
+  }
+
+  /** A team's finished games in one season, the seasons it has played in, and how many games it has ever had. */
+  async getTeamSeasonResults(teamId: string, from: string, to: string): Promise<TeamSeasonResults> {
+    const time = 'COALESCE(g.scheduled_start_time, g.start_time)';
+    const onTeam = 'EXISTS (SELECT 1 FROM game_participants tp WHERE tp.game_id = g.id AND tp.team_id = $1)';
+    const [games, totals] = await Promise.all([
+      this.query(
+        `SELECT ${this.GAME_SUMMARY_COLUMNS} FROM games g
+          WHERE ${onTeam} AND g.status = 'Finished' AND ${time} >= $2::timestamptz AND ${time} < $3::timestamptz`,
+        [teamId, from, to],
+      ),
+      this.query(
+        `SELECT COUNT(*)::int AS "gameCount",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT EXTRACT(YEAR FROM ${time})::int), NULL) AS seasons
+           FROM games g WHERE ${onTeam}`,
+        [teamId],
+      ),
+    ]);
+    return { games: games.rows, gameCount: totals.rows[0].gameCount, seasons: totals.rows[0].seasons };
+  }
+
+  /** The latest finished games of some of an organisation's teams, for a parent's page. */
+  async getTeamsRecentResults(orgId: string, teamIds: unknown, limit: unknown): Promise<GameSummary[]> {
+    const res = await this.query(
+      `SELECT ${this.GAME_SUMMARY_COLUMNS} FROM games g
+        WHERE g.status = 'Finished'
+          AND EXISTS (SELECT 1 FROM game_participants tp JOIN teams t ON t.id = tp.team_id
+                       WHERE tp.game_id = g.id AND t.org_id = $1 AND t.id = ANY($2))
+        ORDER BY COALESCE(g.scheduled_start_time, g.start_time) DESC NULLS LAST, g.id
+        LIMIT $3`,
+      [orgId, stringsOf(teamIds), Math.min(Math.max(1, Math.floor(Number(limit)) || 3), 20)],
+    );
+    return res.rows;
+  }
+
+  /** How many games a site has had, whoever's, for whether it and its facilities can be deleted. */
+  async getSiteGameCounts(siteId: string): Promise<SiteGameCounts> {
+    const res = await this.query(
+      `SELECT g.facility_id AS id, COUNT(*)::int AS total FROM games g
+        WHERE g.site_id = $1 OR g.facility_id IN (SELECT id FROM facilities WHERE site_id = $1)
+        GROUP BY g.facility_id`,
+      [siteId],
+    );
+    return {
+      games: res.rows.reduce((sum: number, r: any) => sum + r.total, 0),
+      byFacility: Object.fromEntries(res.rows.filter((r: any) => r.id).map((r: any) => [r.id, r.total])),
+    };
   }
 
   async getGameSummary(gameId: string): Promise<GameSummary | undefined> {

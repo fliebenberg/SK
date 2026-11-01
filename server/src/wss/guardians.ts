@@ -3,31 +3,21 @@ import { teamManager } from '../managers/TeamManager';
 import { userManager } from '../managers/UserManager';
 import { broadcast } from './broadcast';
 import { publishUserMemberships } from './memberships';
-import { orgGuardiansRoom, orgMembersRoom, teamGuardiansRoom, teamMembersRoom } from './rooms';
+import { teamGuardiansRoom, teamMembersRoom } from './rooms';
 
 /**
  * Publishing a change to a player's guardians, or to whether their membership carries privileges
  * (`MEMBER-3`). Data, not a nudge — each message carries what changed (live-data rule 1).
  *
- * One change reaches four audiences:
- *  - **the org's people screens**: the player's whole current guardian list on `org:{id}:guardians`
- *    (and `team:{id}:guardians`, for their coaches),
- *    and the player's member row on `org:{id}:members`, whose `restrictedReason` a guardian link can
- *    change (a link makes the player a minor whatever their age);
+ * People is a static list (`LIST-1`), so the organisation's rooms hear nothing. One change reaches:
+ *  - **their coaches**: the player's whole current guardian list on `team:{id}:guardians`;
  *  - **the player's rosters** (`team:{id}:members`), which show the same reason;
  *  - **the player's own account** and **every guardian's**, through `USER_MEMBERSHIPS_UPDATED`,
  *    which also drops their cached access so a restriction takes effect at once rather than after
  *    the 30-second cache (`broadcast()` keys that off the type).
  */
 export async function publishPlayerChange(orgId: string, playerProfileId: string, options: { guardians?: boolean } = {}): Promise<void> {
-  const room = orgMembersRoom(orgId);
-
-  if (options.guardians !== false) await publishGuardianList(orgId, playerProfileId);
-
-  const members = await userManager.getOrganizationMembers(orgId);
-  for (const member of members.filter(m => m.id === playerProfileId)) {
-    broadcast(room, 'ORG_MEMBER_UPDATED', member);
-  }
+  if (options.guardians !== false) await publishGuardianList(playerProfileId);
 
   await publishProfileToRosters(playerProfileId);
 
@@ -51,21 +41,19 @@ export async function teamGuardians(teamId: string, orgId: string) {
 }
 
 /**
- * An org's minors settings changed: every member row may have a new `restrictedReason`, so the
- * whole list goes out, and every minor and guardian account hears. `widestMinorAge` is the larger of
+ * An org's minors settings changed: every minor and guardian account hears, since their access may
+ * have changed. `widestMinorAge` is the larger of
  * the old and new ages — raising it restricts players who were adults a moment ago.
  */
 export async function publishOrgMinorsChange(orgId: string, widestMinorAge: number): Promise<void> {
-  broadcast(orgMembersRoom(orgId), 'ORG_MEMBERS_SYNC', await userManager.getOrganizationMembers(orgId));
   for (const userId of await guardianManager.getMinorsAffectedByOrgChange(orgId, widestMinorAge)) {
     await publishUserMemberships(userId);
   }
 }
 
-/** One player's whole current guardian list, on the org's guardians room. */
-export async function publishGuardianList(orgId: string, playerProfileId: string): Promise<void> {
+/** One player's whole current guardian list, on the guardians room of each team they are on. */
+export async function publishGuardianList(playerProfileId: string): Promise<void> {
   const list = { playerProfileId, guardians: await guardianManager.getGuardiansForPlayer(playerProfileId) };
-  broadcast(orgGuardiansRoom(orgId), 'PROFILE_GUARDIANS_UPDATED', list);
   const teams = await userManager.getUserTeamMembershipsForProfile(playerProfileId);
   for (const teamId of new Set(teams.map(t => t.teamId))) {
     broadcast(teamGuardiansRoom(teamId), 'PROFILE_GUARDIANS_UPDATED', list);
@@ -78,6 +66,6 @@ export async function publishGuardianList(orgId: string, playerProfileId: string
  */
 export async function publishGuardianProfileChange(guardianProfileId: string): Promise<void> {
   for (const link of await guardianManager.getActiveLinksOfGuardian(guardianProfileId)) {
-    await publishGuardianList(link.orgId, link.playerProfileId);
+    await publishGuardianList(link.playerProfileId);
   }
 }

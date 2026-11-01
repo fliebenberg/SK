@@ -90,7 +90,7 @@ export default function SitePage() {
     () => allFacilities.filter(f => f.siteId === siteId && (!isPublic || f.isActive !== false)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
     [allFacilities, siteId, isPublic]
   );
-  const { games, events, eventNames, gamesByFacility } = useSiteGames(orgId, siteId, facilities);
+  const { games, gameCount, events, eventNames, gamesByFacility } = useSiteGames(orgId, siteId, facilities);
 
   const [query, setQuery] = useState('');
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -178,8 +178,8 @@ export default function SitePage() {
 
   // A single match is a game in an event of its own, so the games are named and the events only
   // when there are none — "5 events and 5 games" would count each match twice.
-  const used = games.length
-    ? (games.length === 1 ? '1 game is played here' : `${games.length} games are played here`)
+  const used = gameCount
+    ? (gameCount === 1 ? '1 game is played here' : `${gameCount} games are played here`)
     : events.length ? (events.length === 1 ? '1 event is based here' : `${events.length} events are based here`) : '';
 
   const menu: OverflowMenuItem[] = [

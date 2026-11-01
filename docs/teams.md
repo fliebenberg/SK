@@ -116,7 +116,7 @@ them out (`getEventCandidateTeams`). Its games, results and roster are kept.
 
 The list and the page read teams from `org:{id}:teams` ([useOrgTeams](file:///c:/Fred/Coding/SK/expo-app/hooks/useOrgTeams.ts)),
 the roster from `team:{id}:members` ([useTeamRoster](file:///c:/Fred/Coding/SK/expo-app/hooks/useTeamRoster.ts)),
-games from `org:{id}:fixtures` and competition names from `org:{id}:events`
+current games from `org:{id}:fixtures`, the season's results from `team_season_results` (read once, `LIST-1`), which also says how many games it has ever had for *Delete team*, and competition names from `org:{id}:events`
 ([useTeamGames](file:///c:/Fred/Coding/SK/expo-app/hooks/useTeamGames.ts)), the players' season
 from `team_season_stats` (read once per team and season, at the `org:{id}:teams` level: players'
 names, numbers and positions are public by decision until `PEOPLE-4` gives a way to hide them —

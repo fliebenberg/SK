@@ -1,7 +1,7 @@
 import { useTeamEntries } from '../../../../hooks/useTeamEntries';
 import { useMineAll } from '../../../../hooks/useMineAll';
 import { useOrgAccess } from '../../../../hooks/useOrgAccess';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,7 +29,10 @@ import {
   NewTournamentDialog,
   ROLE_OPTIONS,
 } from '../../../../components/events/EventListDialogs';
+import { PastEventRow, PastFixturesPage } from '@sk/shared';
 import { useLiveRoom } from '../../../../hooks/useLiveRoom';
+import { usePagedList } from '../../../../hooks/usePagedList';
+import { ListPager } from '../../../../components/ListPager';
 import { useOrgSites } from '../../../../hooks/useOrgSites';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useMyEventGrants } from '../../../../hooks/useEventCapabilities';
@@ -43,6 +46,7 @@ import {
   instantCalendarDate,
   isCalendarDate,
   monthSection,
+  startOfTodayInstant,
   startOfTodayMs,
   todayCalendarDate,
   upcomingSection,
@@ -64,7 +68,9 @@ import { useOrgSummary } from '../../../../hooks/useOrgSummary';
  * are shown. On a phone Mine / All takes Upcoming / Past's place, which moves into Filters.
  *
  * Two live rooms, because they are two datasets: `org:{id}:events` holds the events and
- * `org:{id}:fixtures` the summary of every game under them. Joining either is the load.
+ * `org:{id}:fixtures` the summary of every current game under them. Joining either is the load.
+ * **Past** is static (`LIST-1`, okf/live_rooms.md): its search and filters are in the read, a page at a
+ * time, and the rows are drawn from the same events.
  */
 
 type When = 'upcoming' | 'past';
@@ -208,14 +214,60 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   const facilityName = (id?: string | null) => facilities.find(f => f.id === id)?.name || '';
 
   const eventsById = useMemo(() => new Map((events || []).filter(Boolean).map(e => [e.id, e])), [events]);
+  /* ---------------------------------------------------------------------------------------------
+   * Past: a page at a time from the server. Its filters are the toolbar's, sent with the read.
+   * ------------------------------------------------------------------------------------------- */
+  const [pastPage, setPastPage] = useState(1);
+  const isPast = when === 'past' && !nowNext;
+  const pastParams = {
+    orgId,
+    kind: filters.kind,
+    sportIds: filters.sportIds,
+    roles: filters.roles,
+    conveneEventIds: publicView ? [] : [
+      ...grants.divisions.map(d => d.eventId),
+      ...(grants.sports || []).map(s => s.eventId),
+    ],
+    ...(scope === 'mine' ? {
+      mine: true,
+      mineEventIds: [...grants.eventIds, ...grants.divisions.map(d => d.eventId), ...(grants.sports || []).map(s => s.eventId)],
+      mineTeamIds: [...(teamMemberships || []).map((m: any) => m.teamId), ...(dependants || []).flatMap((d: any) => (d.teams || []).map((t: any) => t.teamId))],
+    } : {}),
+  };
+  const pastEvents = usePagedList<PastEventRow, PastFixturesPage<PastEventRow>>({
+    type: 'org_past_events',
+    noun: 'past events',
+    params: {
+      ...pastParams,
+      before: todayCalendarDate(),
+      alsoEventIds: (invitedEvents || []).filter(e => e && calendarRangeStatus(e.startDate, e.endDate, todayCalendarDate()) === 'after').map(e => e.id),
+    },
+    search,
+    page: pastPage,
+    enabled: isPast && view === 'events' && !!orgId,
+  });
+  const pastGames = usePagedList<GameSummary, PastFixturesPage<GameSummary>>({
+    type: 'org_past_games',
+    noun: 'past games',
+    params: { ...pastParams, before: startOfTodayInstant() },
+    search,
+    page: pastPage,
+    enabled: isPast && view === 'games' && !!orgId,
+  });
+  const past = view === 'events' ? pastEvents : pastGames;
+  useEffect(() => setPastPage(1), [past.term, when, view, scope, JSON.stringify(filters)]);
+  const pastRows = useMemo(() => new Map(pastEvents.items.map(r => [r.eventId, r])), [pastEvents.items]);
+
   const gamesByEvent = useMemo(() => {
     const map = new Map<string, GameSummary[]>();
     for (const game of games || []) {
       if (!game?.eventId) continue;
       map.set(game.eventId, [...(map.get(game.eventId) || []), game]);
     }
+    // A past single match's fixture, which its row shows.
+    if (isPast) for (const row of pastRows.values()) if (row.game && !map.has(row.eventId)) map.set(row.eventId, [row.game]);
     return map;
-  }, [games]);
+  }, [games, isPast, pastRows]);
 
   /* ---------------------------------------------------------------------------------------------
    * Mine: the games of the teams this person plays in, coaches or manages, their children's teams
@@ -268,6 +320,7 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   const eventSportIds = (event: Event) => Array.from(new Set([
     ...(event.sportIds || []),
     ...(gamesByEvent.get(event.id) || []).map(g => g.sportId).filter(Boolean),
+    ...(isPast ? pastRows.get(event.id)?.sportIds || [] : []),
   ]));
   const isPastEvent = (event: Event) => calendarRangeStatus(event.startDate, event.endDate, today) === 'after';
 
@@ -333,8 +386,10 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
     return true;
   };
 
-  const shownEvents = baseEvents.filter(eventPasses);
-  const shownGames = baseGames.filter(gamePasses);
+  const shownEvents = isPast
+    ? pastEvents.items.map(r => eventsById.get(r.eventId)).filter(Boolean) as Event[]
+    : baseEvents.filter(eventPasses);
+  const shownGames = isPast ? pastGames.items : baseGames.filter(gamePasses);
 
   /** Sections of the Events view: On now, This week, later this month, then by month. */
   const eventSections = useMemo(() => {
@@ -395,22 +450,24 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
    * ------------------------------------------------------------------------------------------- */
   const sportOptions = useMemo(() => {
     const counts = new Map<string, number>();
-    if (view === 'events') baseEvents.forEach(e => eventSportIds(e).forEach(id => counts.set(id, (counts.get(id) || 0) + 1)));
+    if (isPast) Object.entries<number>(past.response?.sportCounts ?? {}).forEach(([id, n]) => counts.set(id, n));
+    else if (view === 'events') baseEvents.forEach(e => eventSportIds(e).forEach(id => counts.set(id, (counts.get(id) || 0) + 1)));
     else baseGames.forEach(g => g.sportId && counts.set(g.sportId, (counts.get(g.sportId) || 0) + 1));
     return Array.from(counts.entries())
       .map(([id, count]) => ({ id, name: sportName(id) || 'Unknown sport', count }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [view, baseEvents, baseGames, sportsData]);
+  }, [view, isPast, past.response, baseEvents, baseGames, sportsData]);
 
   const roleCounts = useMemo(() => {
     const counts: Record<EventListRole, number> = { hosting: 0, convening: 0, away: 0 };
+    if (isPast) return past.response?.roleCounts ?? counts;
     const subjects = view === 'events' ? baseEvents : baseGames.map(g => eventsById.get(g.eventId)).filter(Boolean) as Event[];
     subjects.forEach(e => {
       const roles = rolesOf(e);
       (Object.keys(counts) as EventListRole[]).forEach(r => { if (roles[r]) counts[r] += 1; });
     });
     return counts;
-  }, [view, baseEvents, baseGames, eventsById, conveneEventIds]);
+  }, [view, isPast, past.response, baseEvents, baseGames, eventsById, conveneEventIds]);
 
   const chips: Array<{ key: string; label: string; remove: () => void }> = [];
   if (!isWide && when === 'past') chips.push({ key: 'past', label: 'Past', remove: () => setWhen('upcoming') });
@@ -426,8 +483,8 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   const filterCount = chips.length;
   const isNarrowed = !!q || filters.sportIds.length > 0 || (view === 'events' && filters.kind !== 'all') || filters.roles.length > 0;
   const noun = view === 'events' ? 'events' : 'games';
-  const shownCount = view === 'events' ? shownEvents.length : shownGames.length;
-  const baseCount = view === 'events' ? baseEvents.length : baseGames.length;
+  const shownCount = isPast ? past.total : view === 'events' ? shownEvents.length : shownGames.length;
+  const baseCount = isPast ? past.response?.everything ?? 0 : view === 'events' ? baseEvents.length : baseGames.length;
   const clearAll = () => {
     setSearch('');
     setFilters(NO_FILTERS);
@@ -746,6 +803,7 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
         {...rowProps}
         event={event}
         games={own}
+        gameCount={isPast ? pastRows.get(event.id)?.gameCount : undefined}
         sportIds={eventSportIds(event)}
         first={i === 0}
         isPast={when === 'past'}
@@ -790,6 +848,19 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
         </View>
       );
     }
+    if (isPast && past.error) {
+      return (
+        <View className="rounded-2xl border border-line bg-card px-5 py-8 items-center gap-3">
+          <Text className="font-inter text-sm text-danger-ink text-center">{past.error}</Text>
+          <TouchableOpacity onPress={past.retry} accessibilityRole="button" className="px-4 py-2 rounded-xl bg-primary">
+            <Text className="font-inter-bold text-xs text-on-primary">Try again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    if (isPast && !past.items.length && (past.isLoading || !past.isSettled)) {
+      return <View className="items-center justify-center py-12"><ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /></View>;
+    }
     if (shownCount === 0) {
       const narrowedBy = isNarrowed || (!isWide && when === 'past');
       return (
@@ -815,8 +886,17 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
       );
     }
 
+    // Past goes a page at a time, with the one pager above and below.
+    const paged = (rows: React.ReactNode) => (isPast ? (
+      <View className="gap-3" style={{ opacity: past.isLoading ? 0.6 : 1 }}>
+        <ListPager testID="past-pager-top" page={pastPage} limit={past.limit} total={past.total} noun={noun} onPageChange={setPastPage} disabled={past.isLoading} />
+        {rows}
+        <ListPager testID="past-pager-bottom" page={pastPage} limit={past.limit} total={past.total} noun={noun} onPageChange={setPastPage} disabled={past.isLoading} />
+      </View>
+    ) : rows);
+
     if (view === 'games') {
-      return gameSections.map(section => (
+      return paged(gameSections.map(section => (
         <View key={section.key} className="gap-2">
           {sectionHeading(section.label, section.items.length, section.isNow)}
           <View className="rounded-2xl border border-line bg-card overflow-hidden">
@@ -839,17 +919,17 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
             })}
           </View>
         </View>
-      ));
+      )));
     }
 
-    return eventSections.map(section => (
+    return paged(eventSections.map(section => (
       <View key={section.key} className="gap-2">
         {sectionHeading(section.label, section.items.length, section.isNow)}
         <View className="rounded-2xl border border-line bg-card overflow-hidden">
           {section.items.map((event, i) => eventRow(event, i))}
         </View>
       </View>
-    ));
+    )));
   })();
 
   if (nowNext) {

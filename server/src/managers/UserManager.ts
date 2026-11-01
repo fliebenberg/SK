@@ -419,6 +419,18 @@ export class UserManager extends BaseManager {
     };
   }
 
+  /** One profile's member row in this organisation: nothing if they are not a member (a guardian, say). */
+  async getOrgMemberOfProfile(orgId: string, profileId: string): Promise<OrgMember | null> {
+    const res = await this.query(
+      `SELECT ${memberColumns}
+         FROM org_memberships om JOIN org_profiles op ON om.org_profile_id = op.id
+        WHERE om.org_id = $1 AND op.id = $2 AND (om.end_date IS NULL OR om.end_date > NOW())`,
+      [orgId, profileId],
+    );
+    const row = res.rows[0];
+    return row ? withReason({ ...row, roleName: organizationManager.getOrganizationRole(row.roleId)?.name }) : null;
+  }
+
   /** One person's page, by their membership of this organisation: nothing if it is not one of its. */
   async getOrgPerson(orgId: string, membershipId: string): Promise<(OrgMember & { ownAccountSetByName?: string | null }) | null> {
     const res = await this.query(

@@ -112,7 +112,7 @@ export default function TeamPage() {
   const { roster: workspaceRoster } = useTeamRoster(isPublic ? null : teamId);
   const squad = useTeamSquad(isPublic ? teamId : null);
   const roster = isPublic ? squad : workspaceRoster;
-  const { games, eventNames } = useTeamGames(orgId, teamId);
+  const { games, eventNames, gameCount, seasons } = useTeamGames(orgId, teamId, season);
   // Its places in tournaments, and invitations to answer (`FIX-31`): its coach, or an admin, answers.
   const { entries: workspaceEntries, refresh: refreshEntries } = useTeamEntries({ teamId: isPublic ? null : teamId });
   const publicEntries = useTeamCompetitions(isPublic ? teamId : null);
@@ -252,8 +252,8 @@ export default function TeamPage() {
           icon: 'pause-circle-outline',
           onPress: () => { setBusyError(null); setDialog('deactivate'); },
         },
-    games.length
-      ? { label: 'Delete team', description: `Not available: this team has ${games.length === 1 ? 'a game' : `${games.length} games`}. Deactivate it instead.`, icon: 'trash-outline', destructive: true, disabled: true, onPress: () => {} }
+    gameCount
+      ? { label: 'Delete team', description: `Not available: this team has ${gameCount === 1 ? 'a game' : `${gameCount} games`}. Deactivate it instead.`, icon: 'trash-outline', destructive: true, disabled: true, onPress: () => {} }
       : { label: 'Delete team', description: 'Deletes the team and its roster. This cannot be undone.', icon: 'trash-outline', destructive: true, onPress: () => { setBusyError(null); setDialog('delete'); } },
   ];
 
@@ -421,7 +421,7 @@ export default function TeamPage() {
   );
 
   /* ---------------- the season ---------------- */
-  const seasonsOn = [...new Set([currentSeason(), ...games.map(g => seasonOf(g.scheduledStartTime || g.startTime)).filter((y): y is number => !!y)])].sort((a, b) => b - a);
+  const seasonsOn = [...new Set([currentSeason(), ...seasons, ...games.map(g => seasonOf(g.scheduledStartTime || g.startTime)).filter((y): y is number => !!y)])].sort((a, b) => b - a);
   const inSeason = (g: GameSummary) => seasonOf(g.scheduledStartTime || g.startTime) === season;
   const isCurrent = season === currentSeason();
   const byTime = (a: GameSummary, b: GameSummary) => whenMs(a.scheduledStartTime || a.startTime) - whenMs(b.scheduledStartTime || b.startTime);

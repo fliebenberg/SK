@@ -194,13 +194,12 @@ async function main() {
     expect((await send(stranger, SocketAction.ADD_PROFILE_GUARDIAN, addParent))?.status, 'error', 'another org’s admin cannot record a guardian');
     expect((await send(member, SocketAction.ADD_PROFILE_GUARDIAN, addParent))?.status, 'error', 'a plain member cannot record a guardian');
 
-    expect(await join(admin, `org:${DKL}:guardians`, true), 'joined', 'the admin can watch the org’s guardians');
-    const broadcastSeen = nextMessage(admin, `org:${DKL}:guardians`, 'PROFILE_GUARDIANS_UPDATED');
+    expect(await join(admin, `org:${DKL}:guardians`), 'silent', 'the admin is let in at the org’s guardians’ level, where there is nothing to hand over');
+    const guardiansOf = (socket: any) => new Promise<any>(resolve => socket.emit('get_data', { type: 'profile_guardians', orgId: DKL, playerProfileId: ANIKA }, resolve));
     const added = await send(staff, SocketAction.ADD_PROFILE_GUARDIAN, addParent);
     expect(added?.status, 'ok', 'staff can record a guardian');
     expect(added?.data?.isPrimary, true, 'the first guardian is the primary one');
-    const pushed = await broadcastSeen;
-    expect([pushed?.playerProfileId, pushed?.guardians?.length], [ANIKA, 1], 'the guardians room hears the player’s whole guardian list');
+    expect((await guardiansOf(admin))?.length, 1, 'the admin reads the player’s guardian list');
     admin.emit('leave_room', `org:${DKL}:guardians`);
     const firstLink = added?.data?.id;
 
@@ -215,11 +214,10 @@ async function main() {
     const primaries = (await query(`SELECT count(*)::int AS n FROM profile_guardians WHERE player_profile_id = $1 AND is_primary AND end_date IS NULL`, [ANIKA])).rows[0].n;
     expect(primaries, 1, 'which leaves exactly one primary');
 
-    expect(await join(staff, `org:${DKL}:guardians`, true), 'joined', 'staff can watch the org’s guardians');
-    const renamedSeen = nextMessage(staff, `org:${DKL}:guardians`, 'PROFILE_GUARDIANS_UPDATED');
+    expect(await join(staff, `org:${DKL}:guardians`), 'silent', 'staff are let in at the org’s guardians’ level');
     expect((await send(admin, SocketAction.UPDATE_ORG_PROFILE, { id: PARENT, data: { name: 'Karin Kotzé-Smit' } }))?.status, 'ok', 'a guardian’s own details can be edited');
-    const renamed = await renamedSeen;
-    expect(renamed?.guardians?.find((g: any) => g.guardianProfileId === PARENT)?.guardianName, 'Karin Kotzé-Smit', 'and every list they appear in is republished');
+    const renamed = await guardiansOf(staff);
+    expect(renamed?.find((g: any) => g.guardianProfileId === PARENT)?.guardianName, 'Karin Kotzé-Smit', 'and every list they appear in is republished');
     staff.emit('leave_room', `org:${DKL}:guardians`);
     expect((await send(admin, SocketAction.UPDATE_ORG_PROFILE, { id: PARENT, data: { email: MINOR_EMAIL } }))?.status, 'error', 'a guardian cannot be given the child’s email afterwards');
     expect((await send(admin, SocketAction.UPDATE_ORG_PROFILE, { id: ANIKA, data: { email: PARENT_EMAIL } }))?.status, 'error', 'nor the child the guardian’s');

@@ -174,6 +174,15 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // Its teams still invited, for the invitations box: the organisation's own business, as its
   // invitations are (`org:{id}:invitations`, a members' room).
   org_team_invitations: { room: (req: any) => (req.orgId ? `org:${req.orgId}:invitations` : null) },
+  // What `org:{id}:fixtures` no longer carries (`LIST-1`): public at that room's level.
+  org_past_games:       { room: orgRoom('fixtures') },
+  org_past_events:      { room: orgRoom('fixtures') },
+  teams_recent_results: { room: orgRoom('fixtures') },
+  team_season_results:  { room: async (req: any) => {
+                            const orgId = req.teamId ? await accessManager.getTeamOrgId(req.teamId) : null;
+                            return orgId ? `org:${orgId}:fixtures` : null;
+                          } },
+  site_game_counts:     { room: (req: any) => (req.siteId ? `site:${req.siteId}` : null) },
   team_games:           { room: async (req: any) => {
                             const teamId = req.teamId || req.id;
                             const orgId = teamId ? await accessManager.getTeamOrgId(teamId) : null;

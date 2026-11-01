@@ -3,11 +3,11 @@ import { Event, GameSummary } from '@sk/shared';
 import { useLiveRoom } from './useLiveRoom';
 
 /**
- * An organisation's games and events, kept live: its fixtures room — which carries an away game
- * too, since its audience is the host and every org playing — and its events room, which likewise
- * includes any event its teams play in. Both push everything on join and every change after, so
- * nothing here fetches. The team page and the site page each take their slice of it
- * (`useTeamGames`, `useSiteGames`).
+ * An organisation's current games and its events, kept live: its fixtures room — which carries an
+ * away game too, since its audience is the host and every org playing — and its events room, which
+ * likewise includes any event its teams play in. Past games are not in the room (`LIST-1`,
+ * okf/live_rooms.md). The team page and the site page each take their slice of it (`useTeamGames`,
+ * `useSiteGames`).
  */
 export function useOrgFixtures(orgId?: string | null) {
   const { items: games, isLoading } = useLiveRoom<GameSummary>(orgId ? `org:${orgId}:fixtures` : null, {

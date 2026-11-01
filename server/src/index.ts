@@ -1701,6 +1701,21 @@ io.on('connection', (socket) => {
             case 'team_season_stats':
                 callback(await dataManager.getTeamSeasonStats(request.teamId, Number(request.season)));
                 break;
+            case 'org_past_games':
+                callback(orgId && request.before ? await dataManager.getOrgPastGames(orgId, request) : { error: 'Which organisation, and before when?' });
+                break;
+            case 'org_past_events':
+                callback(orgId && request.before ? await dataManager.getOrgPastEvents(orgId, request) : { error: 'Which organisation, and before when?' });
+                break;
+            case 'team_season_results':
+                callback(request.teamId && request.from && request.to ? await dataManager.getTeamSeasonResults(request.teamId, request.from, request.to) : { error: 'Which team and season?' });
+                break;
+            case 'teams_recent_results':
+                callback(orgId ? await dataManager.getTeamsRecentResults(orgId, request.teamIds, request.limit) : []);
+                break;
+            case 'site_game_counts':
+                callback(request.siteId ? await dataManager.getSiteGameCounts(request.siteId) : { error: 'Which site?' });
+                break;
             case 'team_games':
                 callback(await dataManager.getGamesByTeam(request.teamId || id));
                 break;
@@ -2135,9 +2150,7 @@ io.on('connection', (socket) => {
 
         if (kind === 'org') {
             if (sub === 'members') {
-                pushToSocket(socket, room, 'ORG_MEMBERS_SYNC', await dataManager.getOrganizationMembers(id));
-            } else if (sub === 'guardians') {
-                pushToSocket(socket, room, 'GUARDIANS_SYNC', await guardianManager.getGuardiansForOrg(id));
+                // People are static (`LIST-1`): this and `guardians` set the level of their reads, and hold nothing.
             } else if (sub === 'applications') {
                 pushToSocket(socket, room, 'ORG_APPLICATIONS_SYNC', await membershipApplicationManager.getPending(id));
             } else if (sub === 'teams') {
@@ -2166,7 +2179,8 @@ io.on('connection', (socket) => {
             } else if (sub === 'fixtures') {
                 // The other half of what `org:{id}:events` used to push (rule 4). A fixtures list
                 // wants these and not the event records; the events list wants the reverse.
-                pushToSocket(socket, room, 'GAME_SUMMARIES_SYNC', await dataManager.getGameSummaries(id));
+                // Only what is current (`LIST-1`): past results are read a page at a time.
+                pushToSocket(socket, room, 'GAME_SUMMARIES_SYNC', await dataManager.getCurrentGameSummaries(id));
             } else if (sub === 'leagues') {
                 // `LIVE-14`: the room was joinable and published to (`LEAGUE_*`, `SEASON_*`) but
                 // handed over nothing, so a leagues list started empty and only filled in if
@@ -2645,11 +2659,6 @@ io.on('connection', (socket) => {
                 const takenOrgId = action.payload.orgId;
                 result = await dataManager.takeOrgAdmin(takenOrgId, authUserId!);
                 await publishUserMemberships(authUserId);
-                for (const member of await dataManager.getOrganizationMembers(takenOrgId)) {
-                    if ((member as any).userId === authUserId) {
-                        additionalBroadcasts.push({ topic: `org:${takenOrgId}:members`, type: 'ORG_MEMBER_UPDATED', data: member });
-                    }
-                }
                 await broadcastOrgSummaries([takenOrgId]);
                 break;
             }
@@ -3100,13 +3109,6 @@ io.on('connection', (socket) => {
                          type: 'TEAM_UPDATED', 
                          data: { ...teamForAdd } 
                      });
-                     // Broadcast ORG_MEMBER_UPDATED to notify the People & Roles list of the new member
-                     const orgMemberForAdd = (await dataManager.getOrganizationMembers(teamForAdd.orgId)).find((m: any) => m.id === result.orgProfileId);
-                     additionalBroadcasts.push({
-                         topic: `org:${teamForAdd.orgId}:members`,
-                         type: 'ORG_MEMBER_UPDATED',
-                         data: orgMemberForAdd || {}
-                     });
                 }
 
                 const richMemberAdd = (await dataManager.getTeamMembers(result.teamId)).find((m: any) => m.membershipId === result.id);
@@ -3183,7 +3185,7 @@ io.on('connection', (socket) => {
                 console.log(`DataManager: Adding org member ${action.payload.orgProfileId} to ${action.payload.orgId}`);
                 result = await dataManager.addOrganizationMember(action.payload.orgProfileId, action.payload.orgId, action.payload.roleId, action.payload.id);
                 if (result) {
-                    const richMember = (await dataManager.getOrganizationMembers(action.payload.orgId)).find((m: any) => m.membershipId === result.id);
+                    const richMember = await dataManager.getOrgPerson(action.payload.orgId, result.id);
                     if (richMember) {
                         result = richMember;
                         
@@ -3209,8 +3211,6 @@ io.on('connection', (socket) => {
                         }
                     }
                     
-                    updateTopic = `org:${action.payload.orgId}:members`;
-                    updateType = 'ORG_MEMBER_UPDATED';
                     await broadcastOrgSummaries([action.payload.orgId]);
                 }
                 break;
@@ -3218,13 +3218,11 @@ io.on('connection', (socket) => {
                 console.log(`DataManager: Updating org member role ${action.payload.id} to ${action.payload.roleId}`);
                 result = await dataManager.updateOrganizationMember(action.payload.id, action.payload.roleId);
                 if (result) {
-                    updateTopic = `org:${result.orgId}:members`;
-                    updateType = 'ORG_MEMBER_UPDATED';
                     // A role change can leave the org with no admin, or give it one: the summary
                     // carries `isClaimed`, which the workspace's no-admin banner follows.
                     await broadcastOrgSummaries([result.orgId]);
                     // Re-fetch rich member data for broadcast
-                    const richMember = (await dataManager.getOrganizationMembers(result.orgId)).find((m: any) => m.membershipId === result.id);
+                    const richMember = await dataManager.getOrgPerson(result.orgId, result.id);
                     if (richMember) result = richMember;
                 }
                 break;
@@ -3239,8 +3237,6 @@ io.on('connection', (socket) => {
                         await publishUserMemberships(profile.userId);
                     }
 
-                    updateTopic = `org:${orgMembershipToRem.orgId}:members`;
-                    updateType = 'ORG_MEMBER_UPDATED';
                     await broadcastOrgSummaries([orgMembershipToRem.orgId]);
                 }
                 break;
@@ -3422,16 +3418,14 @@ io.on('connection', (socket) => {
                 console.log(`DataManager: Updating org profile ${action.payload.id}`, { ...updateData, image: updateData.image?.startsWith('data:') ? '(upload)' : updateData.image });
                 result = await dataManager.updateOrgProfile(action.payload.id, updateData);
                 if (result && result.orgId) {
-                    updateTopic = `org:${result.orgId}:members`;
-                    updateType = 'ORG_MEMBER_UPDATED';
                     // A guardian's name and contact details travel in their links (`MEMBER-3`).
                     await publishGuardianProfileChange(result.id);
                     // Their coaches read them from the roster, not the member list (`PEOPLE-8`).
                     await publishProfileToRosters(result.id);
-                    // The member row, not the bare profile: the People screens read the org ID as
+                    // The member row, not the bare profile, as the reply: the People screens read the org ID as
                     // `personOrgId`, and `hasAccount` and `restrictedReason` follow from the email and
                     // birthdate just saved. A profile with no membership (a guardian) has no row.
-                    const richMember = (await dataManager.getOrganizationMembers(result.orgId)).find((m: any) => m.id === result.id);
+                    const richMember = await dataManager.getOrgMemberOfProfile(result.orgId, result.id);
                     // A coach's name is on their teams' rows in the teams list (`coachName`).
                     if (updateData.name !== undefined) {
                         for (const coachedTeamId of await dataManager.teamIdsCoachedBy(result.id)) {

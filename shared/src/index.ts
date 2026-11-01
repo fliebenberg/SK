@@ -11,6 +11,7 @@ export * from './models/team/TeamMembership';
 export * from './models/team/TeamMember';
 export * from './models/people/OrgProfile';
 export * from './models/people/ProfileGuardian';
+export * from './models/event/PastFixtures';
 export * from './models/people/User';
 export * from './models/event/Event';
 export * from './models/event/Game';

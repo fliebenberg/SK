@@ -8,17 +8,16 @@ import { userManager } from '../managers/UserManager';
 import { broadcast } from './broadcast';
 import { publishGuardianList } from './guardians';
 import { publishUserMemberships } from './memberships';
-import { orgMembersRoom, teamMembersRoom, userNotificationsRoom } from './rooms';
+import { teamMembersRoom, userNotificationsRoom } from './rooms';
 
 /**
  * Publishing an import of people (`IMPORT_ORG_PEOPLE`), once it is committed.
  *
  * **Once, whole, per audience** — the batch rule (`wss/batch.ts`, rule 3). Two thousand
- * `ORG_MEMBER_UPDATED`s would move to every open People screen exactly the cost the batch saves on
- * the server, so the members room gets the list itself, as it does when it is joined:
- *  - **the org's People screens**: `ORG_MEMBERS_SYNC`, the whole list;
+ * messages would move to every open screen exactly the cost the batch saves on the server. People is
+ * a static list (`LIST-1`), so whoever imported reads it again themselves:
  *  - **guardian lists**: every player given a guardian, and every player whose guardian's details
- *    changed, on `org:{id}:guardians`;
+ *    changed, on their teams' `team:{id}:guardians`;
  *  - **rosters** showing a person whose details changed or who gained a guardian;
  *  - **accounts**: everyone whose access changed — a new membership or role, a changed email, a new
  *    guardian link on either side — through `USER_MEMBERSHIPS_UPDATED`, and a notification for
@@ -30,8 +29,6 @@ import { orgMembersRoom, teamMembersRoom, userNotificationsRoom } from './rooms'
 export async function publishPeopleImport(effects: PeopleImportEffects): Promise<void> {
   const { orgId } = effects;
   try {
-    broadcast(orgMembersRoom(orgId), 'ORG_MEMBERS_SYNC', await userManager.getOrganizationMembers(orgId));
-
     const accessChanged = [
       ...effects.newMemberships.map(m => m.profileId),
       ...effects.roleChangedProfileIds,
@@ -42,7 +39,7 @@ export async function publishPeopleImport(effects: PeopleImportEffects): Promise
     ]);
 
     for (const playerId of new Set([...effects.playersWithNewGuardians, ...targets.guardianListPlayerIds])) {
-      await publishGuardianList(orgId, playerId);
+      await publishGuardianList(playerId);
     }
     for (const teamId of targets.teamIds) {
       broadcast(teamMembersRoom(teamId), 'TEAM_MEMBERS_SYNC', await teamManager.getTeamMembers(teamId));

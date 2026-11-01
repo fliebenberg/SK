@@ -61,6 +61,7 @@ export class DataManager {
   // Organizations
   getOrgPeoplePage = (orgId: string, params: any) => userManager.getOrgPeoplePage(orgId, params);
   getOrgPerson = (orgId: string, membershipId: string) => userManager.getOrgPerson(orgId, membershipId);
+  getOrgMemberOfProfile = (orgId: string, profileId: string) => userManager.getOrgMemberOfProfile(orgId, profileId);
   getOrganizations = (params?: any, viewerId?: string | null) => organizationManager.getOrganizations(params, viewerId ?? null);
   getOrgDirectory = (params: any, viewerId?: string | null) => organizationManager.getOrgDirectory(params, viewerId ?? null);
   getOrganization = (id?: string) => organizationManager.getOrganization(id);
@@ -161,6 +162,12 @@ export class DataManager {
   getGamesByTeam = (teamId: string) => eventManager.getGamesByTeam(teamId);
   getGame = (id: string) => eventManager.getGame(id);
   getGameSummaries = (orgId?: string) => eventManager.getGameSummaries(orgId);
+  getCurrentGameSummaries = (orgId: string) => eventManager.getCurrentGameSummaries(orgId);
+  getOrgPastGames = (orgId: string, params: any) => eventManager.getOrgPastGames(orgId, params);
+  getOrgPastEvents = (orgId: string, params: any) => eventManager.getOrgPastEvents(orgId, params);
+  getTeamSeasonResults = (teamId: string, from: string, to: string) => eventManager.getTeamSeasonResults(teamId, from, to);
+  getTeamsRecentResults = (orgId: string, teamIds: unknown, limit: unknown) => eventManager.getTeamsRecentResults(orgId, teamIds, limit);
+  getSiteGameCounts = (siteId: string) => eventManager.getSiteGameCounts(siteId);
   getGameSummary = (id: string) => eventManager.getGameSummary(id);
   getGameSummariesByEvent = (eventId: string) => eventManager.getGameSummariesByEvent(eventId);
   addGame = (game: AddGamePayload) => eventManager.addGame(game);

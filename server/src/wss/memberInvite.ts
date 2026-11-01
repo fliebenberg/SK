@@ -13,7 +13,6 @@ import { mailManager } from '../managers/MailManager';
 import { broadcast } from './broadcast';
 import { publishGuardianProfileChange } from './guardians';
 import { publishUserMemberships } from './memberships';
-import { orgMembersRoom } from './rooms';
 
 /**
  * Invite a person the organisation has on record to create an account — the one set of rules behind
@@ -92,10 +91,8 @@ export async function sendMemberInvite(memberId: string, emailInput?: string, re
     lastInviteEmail: email,
   });
 
-  // The member list hears about members; a guardian with no membership is not one, and their invite
-  // status travels in the guardian lists they appear in instead.
-  const richMember = (await dataManager.getOrganizationMembers(profile.orgId)).find((m: any) => m.id === memberId);
-  if (richMember) broadcast(orgMembersRoom(profile.orgId), 'ORG_MEMBER_UPDATED', richMember);
+  // A guardian's invite status travels in the guardian lists they appear in.
+  const richMember = await dataManager.getOrgMemberOfProfile(profile.orgId, memberId);
   await publishGuardianProfileChange(memberId);
   // A player's guardians see the invite on My Family.
   for (const userId of await guardianManager.getAffectedUserIds(memberId)) await publishUserMemberships(userId);

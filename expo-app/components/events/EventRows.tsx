@@ -172,9 +172,11 @@ export function MatchRow({ game, event, competition, showDate, isWide, orgId, km
 }
 
 /** A tournament: its name and format, the sports, where, and how many games — or that it is on now. */
-export function TournamentRow({ event, games, sportIds, isPast, isWide, canCreate, km, sportName, siteName, today, first, away, convening, invitation, onPress }: RowBase & {
+export function TournamentRow({ event, games, gameCount, sportIds, isPast, isWide, canCreate, km, sportName, siteName, today, first, away, convening, invitation, onPress }: RowBase & {
   event: Event;
   games: GameSummary[];
+  /** How many it has, when its games are not on the client: a past tournament's (`LIST-1`). */
+  gameCount?: number;
   sportIds: string[];
   isPast: boolean;
   /** This organisation's invitation, when it does not host — its answer leads the row (`FIX-30`). */
@@ -190,7 +192,8 @@ export function TournamentRow({ event, games, sportIds, isPast, isWide, canCreat
   const distance = formatDistance(km);
   const border = first ? '' : 'border-t border-line-soft';
   const isCancelled = event.status === 'Cancelled';
-  const gamesLabel = `${games.length} ${games.length === 1 ? 'game' : 'games'}`;
+  const howMany = gameCount ?? games.length;
+  const gamesLabel = `${howMany} ${howMany === 1 ? 'game' : 'games'}`;
 
   const end = isCancelled ? (
     <RowTag tone="cancelled" label="Cancelled" />
@@ -210,7 +213,7 @@ export function TournamentRow({ event, games, sportIds, isPast, isWide, canCreat
       <Text className="font-inter-semibold text-[13px] text-ink">{gamesLabel}</Text>
       <Text className="font-inter text-[11px] text-ink-muted">Finished</Text>
     </>
-  ) : !games.length ? (
+  ) : !howMany ? (
     canCreate && !away ? <RowTag tone="setup" label="No fixtures yet" /> : <Text className="font-inter text-[11px] text-ink-muted">Fixtures to come</Text>
   ) : (
     <>
