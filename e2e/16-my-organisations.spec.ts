@@ -117,7 +117,7 @@ test.describe('My Organisations', () => {
     const name = `Test Added Club ${Date.now()}`;
     await page.getByPlaceholder('e.g. Springvale High').fill(name);
     await page.getByRole('button', { name: /^Organisation type/ }).click();
-    await page.getByText('Sports Club', { exact: true }).click();
+    await page.getByRole('button', { name: 'Sports Club', exact: true }).click();
     await page.getByRole('button', { name: 'Add', exact: true }).click();
     // Setting it up is what comes next: its workspace opens.
     await expect(page).toHaveURL(/\/admin\/org-/);
@@ -141,7 +141,7 @@ test.describe('My Organisations', () => {
     await expect(matches).toContainText('Test Unclaimed Cricket Club');
     await expect(matches).toContainText('No administrator yet');
     await page.getByRole('button', { name: /^Organisation type/ }).click();
-    await page.getByText('Sports Club', { exact: true }).click();
+    await page.getByRole('button', { name: 'Sports Club', exact: true }).click();
     const add = page.getByRole('button', { name: 'Add', exact: true });
     await expect(add).toBeDisabled();
     await page.getByRole('checkbox', { name: /None of these/ }).click();
@@ -166,7 +166,7 @@ test.describe('My Organisations', () => {
     await page.getByRole('button', { name: 'Add organisation' }).click();
     await page.getByPlaceholder('e.g. Springvale High').fill('Zzyzx High School');
     await page.getByRole('button', { name: /^Organisation type/ }).click();
-    await page.getByText('Sports Club', { exact: true }).click();
+    await page.getByRole('button', { name: 'Sports Club', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Add', exact: true })).toBeEnabled();
     await expect(page.getByTestId('possible-duplicate-orgs')).toHaveCount(0);
   });

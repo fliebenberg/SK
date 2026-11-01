@@ -9,6 +9,7 @@ import { useWsStore } from '../../../store/wsStore';
 import { OrgLogo } from '../../../components/OrgLogo';
 import { EditLink } from '../../../components/ReadCard';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '../../../store/authStore';
 import { useUnsavedChangesStore } from '../../../store/unsavedChangesStore';
 import { BottomMenu } from '../../../components/BottomMenu';
 import { AuthGuard } from '../../../components/AuthGuard';
@@ -56,7 +57,10 @@ function OrgAdminWorkspace({ grant }: { grant: boolean }) {
   // Each role opens only its part of the workspace (`PERM-4`): a coach gets their teams and fixtures.
   const { workspace } = useOrgAccess(orgId);
   // A grant opens the tournament or game it names, which are under Fixtures & Events.
-  const mayOpenPage = mayOpenWorkspacePage(workspace, currentPage, segments[3]) || (grant && currentPage === 'events');
+  // Until their memberships arrive nothing is known against them: a grant can admit someone first, and
+  // sending them to the Control Panel then would lose the page they opened.
+  const membershipsLoaded = useAuthStore(state => state.membershipsLoaded);
+  const mayOpenPage = !membershipsLoaded || mayOpenWorkspacePage(workspace, currentPage, segments[3]) || (grant && currentPage === 'events');
   const [workspaceMenuVisible, setWorkspaceMenuVisible] = useState(false);
   const isConnected = useWsStore(state => state.isConnected);
   const { isDirty, onDiscard, clear, triggerDiscardPrompt } = useUnsavedChangesStore();
@@ -113,7 +117,7 @@ function OrgAdminWorkspace({ grant }: { grant: boolean }) {
         <TouchableOpacity
           onPress={() => setWorkspaceMenuVisible(!workspaceMenuVisible)}
           activeOpacity={0.8}
-          className="absolute bottom-[75px] right-4 w-12 h-12 rounded-xl overflow-hidden items-center justify-center shadow-lg z-50 border overflow-hidden"
+          className="absolute bottom-[75px] right-4 w-12 h-12 rounded-xl overflow-hidden items-center justify-center shadow-lg z-50 border"
           style={{ 
             backgroundColor: orgColors(orgData).primary,
             borderColor: orgColors(orgData).secondary,
