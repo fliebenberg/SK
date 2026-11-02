@@ -104,7 +104,7 @@ export function LeftNavigationRail() {
   // Extract current tab name based on active segment
   // A public tournament page (`FIX-25`) is reached from an organisation, so Orgs stays marked.
   const activeTab = segments[0] === '(tabs)' 
-    ? (segments[1] === 'events' ? 'organizations' : segments[1] || 'index') 
+    ? (segments[1] === 'events' || segments[1] === 'sites' ? 'organizations' : (segments[1] as string) === '(teamPage)' ? 'teams' : segments[1] || 'index')
     : (segments[0] === 'landing' ? 'index' : (segments[0] === 'admin' ? 'admin' : ''));
 
   const getInitials = (userName: string) => {
@@ -147,7 +147,6 @@ export function LeftNavigationRail() {
     items.push(
       { name: 'organizations', label: 'Organisations', icon: 'business' as const, route: '/organizations' },
       { name: 'teams', label: 'Teams', icon: 'people' as const, route: '/teams' },
-      { name: 'sites', label: 'Sites', icon: 'map' as const, route: '/sites' },
       { name: 'settings', label: 'Settings', icon: 'settings' as const, route: '/settings' },
     );
     return { isOrg: false, items };

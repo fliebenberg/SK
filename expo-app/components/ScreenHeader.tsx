@@ -56,7 +56,7 @@ export function ScreenHeader({ title, context, onBack, right, backLabel = 'Back'
 
   return (
     <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
-      <TouchableOpacity onPress={onBack} className="flex-row items-center gap-1 active:opacity-85">
+      <TouchableOpacity testID="screen-back" onPress={onBack} className="flex-row items-center gap-1 active:opacity-85">
         <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
         <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
           {backLabel}

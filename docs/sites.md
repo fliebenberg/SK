@@ -130,6 +130,16 @@ the public side. It reads only public rooms, as it always did; its organisation 
 (`get_data` `site`), since the address names only the site. The workspace's own notes — where the
 timezone comes from, how to add a facility, the inactive-site strip — are left out.
 
+**There is no list of all sites** (decided 2026-11-02, `UI-38`). Someone looking for a site gets
+there from a game, an event or an organisation, and most sites may be private, so a list would not
+serve someone looking for a field nearby either: the Organisations search covers town, province and
+sport. The old `/sites` address goes to Organisations.
+
+**Back** returns to the page the viewer came from, and with no history to the organisation's Sites
+tab. Its stack holds one site page at a time and has no `index` route, or Back would show an earlier
+site or the list instead ([sites/_layout.tsx](file:///c:/Fred/Coding/SK/expo-app/app/(tabs)/sites/_layout.tsx)).
+A site page marks Organisations in the rail and the bottom menu.
+
 ## 7. Not settled here
 
 - Removing an address: `UPDATE_SITE` cannot clear one, and nothing offers to.

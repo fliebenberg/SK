@@ -23,7 +23,10 @@ export default function TabLayout() {
   const showAdminPortal = isAuthenticated && user?.globalRole === 'admin';
   
   const content = (
-    <Tabs 
+    <Tabs
+      // Back returns to the page the viewer came from, which may be on another tab: a site opened from
+      // an organisation goes back to that organisation, not to Home, the first tab.
+      backBehavior="history"
       tabBar={() => !isLargeScreen ? (
         <BottomMenu 
           onSettingsPress={() => {
@@ -106,25 +109,23 @@ export default function TabLayout() {
         name="teams" 
         options={{ 
           headerTitle: 'TEAMS',
-          // A team's own page has its header, with Back (2026-10-22); only the list wears the tab's.
-          headerShown: !isLargeScreen && (segments as string[])[2] !== '[teamId]',
           tabBarLabel: 'Teams',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "people" : "people-outline"} size={22} color={color} />
           )
         }} 
       />
-      <Tabs.Screen 
-        name="sites" 
-        options={{ 
-          headerTitle: 'SITES & FACILITIES',
-          // A site's own page has its header, with Back (2026-10-22); only the list wears the tab's.
-          headerShown: !isLargeScreen && (segments as string[])[2] !== '[siteId]',
-          tabBarLabel: 'Sites',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "map" : "map-outline"} size={22} color={color} />
-          )
-        }} 
+      {/* A team's public page, with its own header and Back (`UI-43`): outside the Teams tab, so that
+          Back does not go to the list when the team was opened from somewhere else. */}
+      <Tabs.Screen
+        name="(teamPage)"
+        options={{ href: null, headerShown: false }}
+      />
+      {/* A site as the public sees it: reached from an organisation, a game or a search, never a tab.
+          There is no list of all sites (`UI-38`, docs/sites.md §6). */}
+      <Tabs.Screen
+        name="sites"
+        options={{ href: null, headerShown: false }}
       />
       <Tabs.Screen 
         name="settings" 

@@ -134,10 +134,15 @@ account links up by email. `ADD_TEAM_MEMBER` refuses a profile from another orga
 
 ## 6. The public team page — `/teams/[teamId]`
 
+**Back** returns to the page the viewer came from, and with no history to the organisation's Teams
+tab. The page is a hidden tab of its own, `(tabs)/(teamPage)/`, not part of the Teams tab's stack,
+where the list would sit under it and Back would go there even for a team opened from an organisation
+(`UI-43`).
+
 Built 2026-10-22 (agreed on the local `mockups/team-site-public.html` and `mockups/team-tabs.html`):
 a team as anyone sees it, signed in or not, opened from its organisation's public page (the Teams
 tab's rows) and shareable by its address. It is **this same page** —
-[app/(tabs)/teams/[teamId].tsx](file:///c:/Fred/Coding/SK/expo-app/app/(tabs)/teams/%5BteamId%5D.tsx)
+[app/(tabs)/(teamPage)/teams/[teamId].tsx](file:///c:/Fred/Coding/SK/expo-app/app/(tabs)/(teamPage)/teams/%5BteamId%5D.tsx)
 mounts it inside `PublicTournamentProvider`, so `useTournamentLinks().isPublic` is true — in the
 public tab bar with Teams marked:
 

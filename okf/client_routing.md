@@ -37,7 +37,7 @@ Full description, including where Exit sits: [design_spec.md §2](file:///c:/Fre
 | `app/index.tsx`, `app/landing.tsx` | `/` and `/landing` | Anyone. `/` waits for the stored session and opens Home, the same page for everyone (`HOME-1`, [home.md](file:///c:/Fred/Coding/SK/docs/home.md)). `/landing` is the old signed-out page, kept only as Home's *What is ScoreKeeper?* until `HOME-2` replaces it. |
 | `app/(auth)/` | `/login`, `/signup`, `/forgot-password`, `/reset-password` | Anyone. A guarded screen sends a visitor to `/login` with a redirect back. |
 | `app/claim/` | `/claim`, `/claim/refer`, `/claim/decline` | Anyone holding an invitation to administer an org ([nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md)). |
-| `app/(tabs)/` | `/` (Home), `/organizations`, `/organizations/[orgId]`, `/teams`, `/teams/[teamId]`, `/sites`, `/sites/[siteId]`, `/family`, `/settings` | Anyone; the directories are public. `/family` and `/settings` show their content only when signed in. |
+| `app/(tabs)/` | `/` (Home), `/organizations`, `/organizations/[orgId]`, `/teams`, `/teams/[teamId]`, `/sites/[siteId]`, `/family`, `/settings` | Anyone; the directories are public. `/family` and `/settings` show their content only when signed in. |
 | `app/leagues/` | `/leagues/[leagueId]` | Anyone: a league's public page. |
 | `app/(tabs)/events/` | `/events/[eventId]` and the pages under it | Anyone, signed in or not: a tournament as the public sees it — read-only for everyone, an organiser included (`FIX-25`). |
 | `app/(tabs)/admin/` | `/admin`, `/admin/users`, `/admin/reports`, `/admin/sports` | **System admins only** (`AuthGuard requireGlobalAdmin` on the layout). `/admin/reports` is user moderation, not analytics, and still a mockup on hardcoded data ([reports.md](file:///c:/Fred/Coding/SK/docs/reports.md)). |
@@ -64,7 +64,12 @@ real boundary ([auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md))
     [teams.md](file:///c:/Fred/Coding/SK/docs/teams.md) §6, [sites.md](file:///c:/Fred/Coding/SK/docs/sites.md) §6):
     the workspace's pages inside `PublicTournamentProvider`, read-only, opened from an organisation's
     page. The team page reads its squad and accepted competitions through public reads in place of
-    the roster and invitations.
+    the roster and invitations. There is no list of all sites (`UI-38`): the old address goes to
+    `/organizations`. `(tabs)/sites/` must not get an `index` route, because the stack would keep it
+    under the site page and Back would go there. The tab bar uses `backBehavior="history"`, so Back
+    returns to the page the viewer came from, even on another tab. For the same reason the team page
+    is a hidden tab of its own, `(tabs)/(teamPage)/teams/[teamId]`, at the same address (`UI-43`). Each
+    of these stacks holds one page at a time (`dangerouslySingular`).
 *   `/events/[eventId]`: **a tournament as the public sees it** (`FIX-25`, [events.md](file:///c:/Fred/Coding/SK/docs/events.md)
     §11). Its routes — the tournament, `/events/[eventId]/divisions/[divisionId]`,
     `/events/[eventId]/games/[gameId]`, an organisation's and a team's results pages (`/events/[eventId]/standings/organisations/[participantOrgId]`, `/events/[eventId]/standings/teams/[entrantId]`) and

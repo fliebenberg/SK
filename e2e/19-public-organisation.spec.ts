@@ -11,6 +11,9 @@ const DKL = `/organizations/${ORG.dkl}`;
 const visible = (page: Page, text: string | RegExp) =>
   page.getByText(text, typeof text === 'string' ? { exact: true } : undefined).filter({ visible: true }).first();
 
+// The page it came from stays mounted underneath with its own Back; the current page's comes last.
+const back = (page: Page) => page.getByTestId('screen-back').filter({ visible: true }).last();
+
 test.describe('the public organisation page, logged out', () => {
   test('leads with its banner and On now & next, and nothing made up @phone', async ({ page }) => {
     await page.goto(DKL);
@@ -72,6 +75,43 @@ test.describe('a team and a site, logged out', () => {
     await expect(page.getByText('Add facility', { exact: true })).toHaveCount(0);
     await expect(page.getByText('Netball Court 4', { exact: true })).toHaveCount(0);
     await expect(page.getByText(/permission/i)).toHaveCount(0);
+  });
+
+  test('Back from a site returns to the organisation, whichever site was opened last @phone', async ({ page }) => {
+    await page.goto(`${DKL}?tab=sites`);
+    await visible(page, 'Main Campus').click();
+    await expect(page).toHaveURL(/\/sites\/fx-site-dkl$/);
+    await back(page).click();
+    await expect(page).toHaveURL(/\/organizations\/fx-org-dkl/);
+    await visible(page, 'Sports Club Grounds').click();
+    await expect(page).toHaveURL(/\/sites\/fx-site-dkl-club$/);
+    await back(page).click();
+    await expect(page).toHaveURL(/\/organizations\/fx-org-dkl/);
+  });
+
+  test('Back from a team returns to the organisation, whichever team was opened last @phone', async ({ page }) => {
+    await page.goto(`${DKL}?tab=teams`);
+    await visible(page, 'U14 A').click();
+    await expect(page).toHaveURL(/\/teams\/fx-team-dkl-netball-u14a$/);
+    await back(page).click();
+    await expect(page).toHaveURL(/\/organizations\/fx-org-dkl/);
+    await visible(page, 'U19 A').click();
+    await expect(page).toHaveURL(/\/teams\/fx-team-dkl-netball-u19a$/);
+    await back(page).click();
+    await expect(page).toHaveURL(/\/organizations\/fx-org-dkl/);
+  });
+
+  test('Back from a team opened from the Teams list returns to the list @phone', async ({ page }) => {
+    await page.goto('/teams');
+    await page.locator('[data-testid^="team-card-"]').filter({ visible: true }).first().click();
+    await expect(page).toHaveURL(/\/teams\/[^/]+$/);
+    await back(page).click();
+    await expect(page).toHaveURL(/\/teams$/);
+  });
+
+  test('there is no list of all sites: the old address goes to Organisations', async ({ page }) => {
+    await page.goto('/sites');
+    await expect(page).toHaveURL(/\/organizations$/);
   });
 });
 

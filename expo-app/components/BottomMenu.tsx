@@ -23,8 +23,8 @@ export function BottomMenu({ onSettingsPress, confirmThenNavigate }: BottomMenuP
   // Determine active tab based on router segments
   const getActiveTab = () => {
     // segments might look like: ["(tabs)", "index"] or ["admin", "[orgId]"]
-    // A public tournament page is reached from an organisation, so Orgs stays marked (`FIX-25`).
-    if (segments.includes('organizations') || segments.includes('admin') || segments.includes('events')) {
+    // A public tournament or site page is reached from an organisation, so Orgs stays marked (`FIX-25`, `UI-38`).
+    if (segments.includes('organizations') || segments.includes('admin') || segments.includes('events') || segments.includes('sites')) {
       return 'orgs';
     }
     if (segments.includes('family')) {
@@ -32,10 +32,6 @@ export function BottomMenu({ onSettingsPress, confirmThenNavigate }: BottomMenuP
     }
     if (segments.includes('teams')) {
       return 'teams';
-    }
-    // Sites has no button here any more (2026-10-09), but its pages must not light up Live.
-    if (segments.includes('sites')) {
-      return 'sites';
     }
     if (segments.includes('settings')) {
       return 'settings';

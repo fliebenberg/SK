@@ -41,7 +41,6 @@ Decided 2026-11-01. The app keeps both kinds, and every list is one or the other
 | --- | --- | --- |
 | Teams directory (public Teams tab) | Static | Across all organisations, so very long |
 | Organisations directory | Static | Very long. A rename shows the next time the page opens or comes back into view |
-| Sites directory (public Sites tab) | Static | Very long, once built on real data (`UI-38`) |
 | Users (platform admin) | Static | Very long; paged on the server |
 | Reports (platform admin) | Static | Can grow long, and is read when needed, once built on real data (`REP-3`) |
 | An organisation's People, and one person's page | Static | A large organisation runs to thousands, with their guardians alongside. The viewer's own change shows at once; someone else's at the next read |
