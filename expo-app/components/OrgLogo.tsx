@@ -59,16 +59,17 @@ export function OrgLogo({
   }
 
   return (
-    <View 
+    // A logo always sits on its white plate, so a dark transparent one shows on any colour behind it.
+    <View
+      className={`${logo ? 'bg-logo-plate' : ''} ${className}`}
       style={[
-        { 
-          width: dim, 
-          height: dim, 
-          borderRadius: borderRadius, 
-          overflow: 'hidden', 
-          justifyContent: 'center', 
+        {
+          width: dim,
+          height: dim,
+          borderRadius: borderRadius,
+          overflow: 'hidden',
+          justifyContent: 'center',
           alignItems: 'center',
-          backgroundColor: 'transparent',
         },
         style
       ]}

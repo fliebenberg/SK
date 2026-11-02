@@ -37,7 +37,7 @@ export function OrgProfileBanner({ org, onEdit, onEditLogo, action, aside }: {
   const type = orgTypeLabel(org.type, org.customType);
   const logoSize = isNarrow ? 52 : 64;
 
-  const crest = <OrgLogo logo={org.logo} size={logoSize} className="border bg-logo-plate" style={{ borderColor: ink.border }} />;
+  const crest = <OrgLogo logo={org.logo} size={logoSize} className="border" style={{ borderColor: ink.border }} />;
 
   return (
     <OrgBrandedCard

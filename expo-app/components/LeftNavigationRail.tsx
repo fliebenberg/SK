@@ -13,7 +13,7 @@ import { useOrgSummary } from '../hooks/useOrgSummary';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 import { AnimatedBox } from './AnimatedBox';
 
-import { readableTextOn } from '../utils/colorUtils';
+import { WorkspaceTile } from './org/WorkspaceTile';
 import { themeColor } from '../constants/Colors';
 import { getWorkspaceNavItems, currentWorkspacePage } from '../constants/workspaceNav';
 
@@ -191,53 +191,16 @@ export function LeftNavigationRail() {
         {navConfig.isOrg ? (
           <>
             {/* Org context card */}
-            {(() => {
-              const primaryColor = orgColors(orgData).primary;
-              const textColor = readableTextOn(primaryColor);
-              const isDarkBg = textColor === '#FFFFFF'; // colour-data: the text worked out for the org's colour
-
-              return (
-                <View className="mb-6">
-                  {/* The way out sits with the workspace it leaves, not at the foot of the menu. */}
-                  <View className="flex-row items-center justify-between mb-2 px-1">
-                    <Text className="font-inter-bold text-[9px] uppercase tracking-widest text-ink-muted">
-                      Active Workspace
-                    </Text>
-                    <EditLink label="Exit" icon="arrow-back-outline" onPress={exitWorkspace} />
-                  </View>
-                  <View 
-                    className="p-1.5 px-2.5 rounded-xl border flex-row items-center gap-3 relative overflow-hidden"
-                    style={{ 
-                      backgroundColor: primaryColor,
-                      borderColor: orgColors(orgData).secondary,
-                      borderWidth: 2,
-                    }}
-                  >
-                    <View 
-                      className="absolute -right-12 -top-12 w-24 h-24 rounded-full blur-xl opacity-20"
-                      style={{ backgroundColor: orgColors(orgData).secondary }}
-                    />
-                    <View className="z-10 flex-shrink-0">
-                      <OrgLogo 
-                        logo={orgData?.logo} 
-                        size={44} 
-                        className={isDarkBg ? 'border border-on-fill/20' : 'border border-on-bright/10'}
-                        primaryColor={textColor}
-                      />
-                    </View>
-                    <View className="flex-1 min-w-0 z-10 justify-center">
-                      <Text 
-                        numberOfLines={1}
-                        className="font-orbitron-bold text-sm uppercase leading-tight"
-                        style={{ color: textColor }}
-                      >
-                        {orgData?.shortName || orgData?.name?.substring(0, 3) || 'ORG'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              );
-            })()}
+            <View className="mb-6">
+              {/* The way out sits with the workspace it leaves, not at the foot of the menu. */}
+              <View className="flex-row items-center justify-between mb-2 px-1">
+                <Text className="font-inter-bold text-[9px] uppercase tracking-widest text-ink-muted">
+                  Active Workspace
+                </Text>
+                <EditLink label="Exit" icon="arrow-back-outline" onPress={exitWorkspace} />
+              </View>
+              <WorkspaceTile org={orgData} markSize={44} />
+            </View>
 
             <ScrollView className="flex-grow" contentContainerClassName="gap-1.5" showsVerticalScrollIndicator={false}>
               {navConfig.items.map((item: any) => {

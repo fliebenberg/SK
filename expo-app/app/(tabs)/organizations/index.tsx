@@ -155,7 +155,7 @@ export default function OrganizationsPage() {
                   flags={flags}
                   accessibilityLabel={[org.name, org.town, type, ...flags].filter(Boolean).join(', ')}
                   onPress={() => router.push((accessTo(org).canManage ? `/admin/${org.id}` : `/organizations/${org.id}`) as any)}
-                  mark={<OrgLogo logo={org.logo ?? undefined} size={44} className="border bg-logo-plate" style={{ borderColor: ink.border }} />}
+                  mark={<OrgLogo logo={org.logo ?? undefined} size={44} className="border" style={{ borderColor: ink.border }} />}
                   detail={type ? (
                     <View className="flex-row items-center gap-1">
                       <Ionicons name={orgTypeIcon(org.type)} size={14} color={ink.text} />

@@ -172,7 +172,7 @@ export default function OrgControlDashboard() {
             <OrgLogo
               logo={orgData.logo}
               size={52}
-              className="border bg-logo-plate"
+              className="border"
               style={{ borderColor: borderColor }}
             />
           )}

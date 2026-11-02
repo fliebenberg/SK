@@ -34,7 +34,7 @@ The whole app moved onto the tokens on 2026-10-04, and `npm run check:colors -- 
 | `tooltip` | A tooltip's dark bubble, in both themes; its text is `on-fill`. |
 | `overlay` | The scrim behind a dialog, always with an opacity (`bg-overlay/60`). |
 | `shadow` | A drop shadow's `shadowColor`. |
-| `logo-plate` | The white plate behind an org logo, in both themes. |
+| `logo-plate` | The white plate behind an org logo, in both themes. `<OrgLogo>` draws it. |
 | `ink`, `ink-soft`, `ink-muted` | Text: names and values; body a step down; labels, counts and meta lines. All clear 4.5:1 on every surface. |
 | `ink-faint` | Placeholders, disabled text and decoration — never text that must be read. |
 | `on-fill`, `on-bright` | White and near-black in both themes, for what is dark or bright in both: a tooltip, the scrim, a photo, a logo plate, a yellow card. Not for a tone's fill — use `on-<tone>`. |

@@ -7,6 +7,7 @@ import { LeftNavigationRail } from '../../../components/LeftNavigationRail';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { useWsStore } from '../../../store/wsStore';
 import { OrgLogo } from '../../../components/OrgLogo';
+import { WorkspaceTile } from '../../../components/org/WorkspaceTile';
 import { EditLink } from '../../../components/ReadCard';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../../store/authStore';
@@ -159,38 +160,7 @@ function OrgAdminWorkspace({ grant }: { grant: boolean }) {
                   <EditLink label="Exit" icon="arrow-back-outline" onPress={exitWorkspace} />
                 </View>
 
-                <View 
-                  className="p-1.5 px-2.5 rounded-xl border flex-row items-center gap-2.5 relative overflow-hidden"
-                  style={{ 
-                    backgroundColor: orgColors(orgData).primary,
-                    borderColor: orgColors(orgData).secondary,
-                    borderWidth: 1.5,
-                  }}
-                >
-                  <View 
-                    className="absolute -right-8 -top-8 w-16 h-16 rounded-full blur-lg opacity-20"
-                    style={{ backgroundColor: orgColors(orgData).secondary }}
-                  />
-
-                  <View className="z-10 flex-shrink-0">
-                    <OrgLogo 
-                      logo={orgData.logo} 
-                      size={32} 
-                      className="bg-on-fill/10 border border-on-fill/20"
-                      primaryColor={themeColor(isDark, 'on-fill')}
-                    />
-                  </View>
-
-                  <View className="flex-1 min-w-0 z-10 justify-center">
-                    <Text 
-                      numberOfLines={1}
-                      className="font-orbitron-bold text-xs uppercase leading-tight"
-                      style={{ color: fabTextColor }}
-                    >
-                      {orgData.shortName || orgData.name?.substring(0, 3) || 'ORG'}
-                    </Text>
-                  </View>
-                </View>
+                <WorkspaceTile org={orgData} markSize={32} />
               </View>
             )}
 
