@@ -3,7 +3,6 @@
  * page that moves changes here and nowhere else.
  */
 export const homeLinks = {
-  organization: (orgId: string) => `/organizations/${orgId}`,
   team: (teamId: string) => `/teams/${teamId}`,
   site: (siteId: string) => `/sites/${siteId}`,
   event: (eventId: string) => `/events/${eventId}`,

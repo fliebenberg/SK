@@ -45,8 +45,13 @@ From top to bottom:
   The rows are the Fixtures & Events list's own
   ([EventRows.tsx](file:///c:/Fred/Coding/SK/expo-app/components/events/EventRows.tsx)), with the
   distance added.
-- **Organisations near you**, closest first, each with its suburb, sports and number of teams. Teams
-  have no card of their own: they are found through the search (decided 2026-10-22).
+- **Organisations near you**, closest first, each on the same card as the Organisations page
+  ([`<OrgListCard>`](file:///c:/Fred/Coding/SK/expo-app/components/org/OrgListCard.tsx), decided 2026-11-02):
+  its suburb, its type and its distance on the right. An organisation found by the search and one on
+  *My organisations & teams* use it too, the latter with how many games are live as a flag. It opens
+  what the viewer runs in the workspace, and otherwise the public page, as it does everywhere. Teams
+  have no card of their own on Home: they are found through the search (decided 2026-10-22), and their
+  rows keep the old look for now (`UI-42`).
 - **Nothing within 25 km still shows something**: the closest there are, and the card says so once
   ("Nothing on within 25 km. The closest:"). A new visitor never lands on an empty page.
 - **Where a game is** is its facility's pin, else its site's, else its host's address; a tournament's

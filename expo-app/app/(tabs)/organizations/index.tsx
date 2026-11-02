@@ -2,22 +2,18 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { OrgDirectoryEntry, orgColors } from '@sk/shared';
-import { BrandedListCard } from '../../../components/BrandedListCard';
+import { OrgDirectoryEntry } from '@sk/shared';
 import { GlassCard } from '../../../components/GlassCard';
 import { ListPager } from '../../../components/ListPager';
-import { OrgLogo } from '../../../components/OrgLogo';
 import { PageBody } from '../../../components/PageBody';
 import { SignInPrompt } from '../../../components/SignInPrompt';
 import { AddOrgDialog } from '../../../components/org/AddOrgDialog';
-import { orgTypeIcon, orgTypeLabel } from '../../../components/org/orgTypes';
+import { OrgListCard } from '../../../components/org/OrgListCard';
 import { themeColor } from '../../../constants/Colors';
 import { usePagedList } from '../../../hooks/usePagedList';
 import { wsService } from '../../../services/websocket';
 import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme, useSettingsStore } from '../../../store/settingsStore';
-import { inkOnBrand } from '../../../utils/colorUtils';
-import { orgAccess } from '../../../utils/orgAccess';
 
 /** The viewer's choice of My Organisations or All Organisations, remembered on this device. */
 const TAB_KEY = 'organisationsDirectoryTab';
@@ -34,7 +30,7 @@ export default function OrganizationsPage() {
   const isLargeScreen = width >= 768;
   const columns = width >= 1280 ? 3 : isLargeScreen ? 2 : 1;
 
-  const { isAuthenticated, user, orgMemberships, teamMemberships, setMemberships } = useAuthStore();
+  const { isAuthenticated, user, orgMemberships, setMemberships } = useAuthStore();
   const saved = useSettingsStore(state => state.localOverrides[TAB_KEY]) as 'my' | 'all' | undefined;
   const setLocalOverride = useSettingsStore(state => state.setLocalOverride);
   // Until they choose, they start on their own organisations if they have any.
@@ -57,18 +53,6 @@ export default function OrganizationsPage() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [signInPromptVisible, setSignInPromptVisible] = useState(false);
-
-  const accessTo = (org: OrgDirectoryEntry) => orgAccess(org.id, user?.globalRole === 'admin', orgMemberships, teamMemberships);
-
-  const flagsFor = (org: OrgDirectoryEntry) => {
-    const access = accessTo(org);
-    const flags: string[] = [];
-    if (org.isPrivate) flags.push('Private');
-    if (!org.isActive) flags.push('Inactive');
-    // Only a role they hold there: a system admin reads as Admin everywhere, which tells them nothing.
-    if (access.membership && access.role) flags.push(access.role);
-    return flags;
-  };
 
   // The new org is theirs, and setting it up is what comes next: its workspace opens (2026-10-31).
   // The list reads again when they come back to this page; their memberships are read now.
@@ -138,34 +122,11 @@ export default function OrganizationsPage() {
       <View style={{ opacity: isLoading ? 0.6 : 1 }}>
         {pager('top')}
         <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
-          {orgs.map(org => {
-            const { primary } = orgColors(org);
-            const ink = inkOnBrand(primary);
-            const flags = flagsFor(org);
-            const type = orgTypeLabel(org.type, org.customType);
-            return (
-              <View key={org.id} style={{ width: `${100 / columns}%`, paddingHorizontal: 6, paddingBottom: 12 }}>
-                <BrandedListCard
-                  testID={`org-card-${org.id}`}
-                  primaryColor={org.primaryColor}
-                  secondaryColor={org.secondaryColor}
-                  tertiaryColor={org.tertiaryColor}
-                  title={org.name}
-                  subtitle={org.town}
-                  flags={flags}
-                  accessibilityLabel={[org.name, org.town, type, ...flags].filter(Boolean).join(', ')}
-                  onPress={() => router.push((accessTo(org).canManage ? `/admin/${org.id}` : `/organizations/${org.id}`) as any)}
-                  mark={<OrgLogo logo={org.logo ?? undefined} size={44} className="border" style={{ borderColor: ink.border }} />}
-                  detail={type ? (
-                    <View className="flex-row items-center gap-1">
-                      <Ionicons name={orgTypeIcon(org.type)} size={14} color={ink.text} />
-                      <Text numberOfLines={1} style={{ color: ink.text }} className="font-inter-semibold text-xs leading-4">{type}</Text>
-                    </View>
-                  ) : null}
-                />
-              </View>
-            );
-          })}
+          {orgs.map(org => (
+            <View key={org.id} style={{ width: `${100 / columns}%`, paddingHorizontal: 6, paddingBottom: 12 }}>
+              <OrgListCard testID={`org-card-${org.id}`} org={org} place={org.town} />
+            </View>
+          ))}
         </View>
         {pager('bottom')}
       </View>

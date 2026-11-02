@@ -3,7 +3,6 @@ import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
-import { OrgLogo } from '../OrgLogo';
 
 /** Small pieces Home's cards share (`HOME-1`). */
 
@@ -54,19 +53,6 @@ export function HomeRow({ lead, title, tags, subtitle, end, first, onPress, labe
   return onPress
     ? <TouchableOpacity onPress={onPress} accessibilityRole="link" accessibilityLabel={label || title}>{body}</TouchableOpacity>
     : body;
-}
-
-/** An organisation's logo in a round plate, for a row. */
-export function OrgMark({ logo, primaryColor, size = 36 }: {
-  logo?: string | null;
-  primaryColor?: string | null;
-  size?: number;
-}) {
-  return (
-    <View className="rounded-xl bg-sunken items-center justify-center" style={{ width: size, height: size }}>
-      <OrgLogo logo={logo || undefined} primaryColor={primaryColor || undefined} size={Math.round(size * 0.72)} />
-    </View>
-  );
 }
 
 /** A round icon plate, for a row with no logo — a team, a site. */

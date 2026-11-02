@@ -42,7 +42,7 @@ export default function Home() {
   // Still finding out where to look counts as loading, so a card never says "nothing" too early.
   const loading = isLoading || resolving;
   const events = <NearbyEventsCard nearby={nearby} isLoading={loading} hasLocation={hasLocation} sports={sports} />;
-  const orgs = <NearbyOrgsCard nearby={nearby} isLoading={loading} hasLocation={hasLocation} sports={sports} />;
+  const orgs = <NearbyOrgsCard nearby={nearby} isLoading={loading} hasLocation={hasLocation} />;
   const cards = isWide ? (
     <View className="flex-row gap-4 items-start">
       <View className="min-w-0" style={{ flex: 1.35 }}>{events}</View>

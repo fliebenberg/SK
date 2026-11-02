@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { HOME_RADIUS_KM, HomeNearby, HomeSearchResult, MyHome, NearbyOrganization, Sport } from '@sk/shared';
+import { HOME_RADIUS_KM, HomeNearby, HomeSearchResult, MyHome, Sport } from '@sk/shared';
 import { TournamentCard } from '../tournament/TournamentBits';
-import { RowTag } from '../events/EventBits';
-import { RoleBadge } from '../people/PersonBits';
-import { PrivateOrgTag } from '../org/PrivateOrgTag';
+import { OrgListCard } from '../org/OrgListCard';
 import { opponentOf, scoresFor } from '../teams/TeamBits';
-import { GroupHeading, HomeRow, IconMark, OrgMark, ShowMore } from './HomeBits';
+import { GroupHeading, HomeRow, IconMark, ShowMore } from './HomeBits';
 import { homeLinks } from './homeLinks';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
@@ -20,37 +18,14 @@ const FIRST_ORGS = 5;
 const Distance = ({ km }: { km: number | null }) =>
   km === null ? null : <Text className="font-inter-semibold text-xs text-ink-muted">{formatDistance(km)}</Text>;
 
-function orgLine(org: NearbyOrganization, sportName: (id: string) => string): string {
-  const sports = org.sportIds.map(sportName).filter(Boolean).join(', ');
-  const teams = org.teamCount ? `${org.teamCount} ${org.teamCount === 1 ? 'team' : 'teams'}` : '';
-  return [org.locality, sports, teams].filter(Boolean).join(' · ');
-}
-
-function OrgRow({ org, first, sportName }: { org: NearbyOrganization; first: boolean; sportName: (id: string) => string }) {
-  const router = useRouter();
-  return (
-    <HomeRow
-      first={first}
-      lead={<OrgMark logo={org.logo} primaryColor={org.primaryColor} />}
-      title={org.name}
-      tags={org.isPrivate ? <PrivateOrgTag /> : undefined}
-      subtitle={orgLine(org, sportName)}
-      end={<Distance km={org.km} />}
-      onPress={() => router.push(homeLinks.organization(org.id) as any)}
-    />
-  );
-}
-
 /** *Organisations near you*, closest first (`HOME-1`). */
-export function NearbyOrgsCard({ nearby, isLoading, hasLocation, sports }: {
+export function NearbyOrgsCard({ nearby, isLoading, hasLocation }: {
   nearby: HomeNearby | null;
   isLoading: boolean;
   hasLocation: boolean;
-  sports: Sport[];
 }) {
   const isDark = useActiveTheme() === 'dark';
   const [showAll, setShowAll] = useState(false);
-  const sportName = (id: string) => sports.find(s => s.id === id)?.name || '';
   const orgs = nearby?.organizations || [];
   const shown = showAll ? orgs : orgs.slice(0, FIRST_ORGS);
   const title = hasLocation ? 'Organisations near you' : 'Organisations';
@@ -62,11 +37,11 @@ export function NearbyOrgsCard({ nearby, isLoading, hasLocation, sports }: {
       ) : !orgs.length ? (
         <Text className="font-inter text-sm text-ink-muted py-1">No organisations yet.</Text>
       ) : (
-        <View>
+        <View className="gap-2.5 pt-1">
           {nearby?.organizationsBeyondRadius ? (
-            <Text className="font-inter text-[13px] text-ink-muted pb-1">None within {HOME_RADIUS_KM} km. The closest:</Text>
+            <Text className="font-inter text-[13px] text-ink-muted">None within {HOME_RADIUS_KM} km. The closest:</Text>
           ) : null}
-          {shown.map((org, i) => <OrgRow key={org.id} org={org} first={i === 0} sportName={sportName} />)}
+          {shown.map(org => <OrgListCard key={org.id} org={org} place={org.locality} km={org.km} />)}
           {orgs.length > FIRST_ORGS ? <ShowMore open={showAll} onToggle={() => setShowAll(v => !v)} /> : null}
         </View>
       )}
@@ -100,7 +75,9 @@ export function SearchResultsCard({ query, results, isSearching, sports }: {
       groups.push(
         <View key="orgs">
           <GroupHeading label={`Organisations  ${results.organizations.length}`} first={!groups.length} />
-          {results.organizations.map((org, i) => <OrgRow key={org.id} org={org} first={i === 0} sportName={sportName} />)}
+          <View className="gap-2.5 pt-1">
+            {results.organizations.map(org => <OrgListCard key={org.id} org={org} place={org.locality} km={org.km} />)}
+          </View>
         </View>
       );
     }
@@ -176,16 +153,8 @@ export function MyHomeCard({ mine, sports }: { mine: MyHome; sports: Sport[] }) 
   const router = useRouter();
   const sportName = (id: string) => sports.find(s => s.id === id)?.name || '';
 
-  const orgRows = mine.organizations.map((org, i) => (
-    <HomeRow
-      key={org.id}
-      first={i === 0}
-      lead={<OrgMark logo={org.logo} primaryColor={org.primaryColor} />}
-      title={org.name}
-      tags={<>{org.isPrivate ? <PrivateOrgTag /> : null}<RoleBadge roleId={org.roleId} /></>}
-      end={org.liveCount ? <RowTag tone="live" label={`● ${org.liveCount} live`} /> : undefined}
-      onPress={() => router.push(homeLinks.organization(org.id) as any)}
-    />
+  const orgRows = mine.organizations.map(org => (
+    <OrgListCard key={org.id} org={org} place={org.locality} extraFlags={org.liveCount ? [`● ${org.liveCount} live`] : []} />
   ));
 
   const teamRows = mine.teams.map((team, i) => {
@@ -243,7 +212,7 @@ export function MyHomeCard({ mine, sports }: { mine: MyHome; sports: Sport[] }) 
         {groups > 1 && runRows.length ? <GroupHeading label="Tournaments I run" first /> : null}
         {runRows}
         {groups > 1 && orgRows.length ? <GroupHeading label="Organisations" first={!runRows.length} /> : null}
-        {orgRows}
+        {orgRows.length ? <View className="gap-2.5 pt-1">{orgRows}</View> : null}
         {groups > 1 && teamRows.length ? <GroupHeading label="Teams" first={false} /> : null}
         {teamRows}
       </View>

@@ -1,5 +1,6 @@
 import type { Event } from '../event/Event';
 import type { GameSummary } from '../event/GameSummary';
+import type { OrganizationType } from '../organization/Organization';
 
 /**
  * What the Home page reads (`HOME-1`, docs/home.md): what is on near the viewer, a search across
@@ -47,6 +48,10 @@ export interface NearbyOrganization {
   shortName: string;
   logo?: string | null;
   primaryColor?: string | null;
+  secondaryColor?: string | null;
+  tertiaryColor?: string | null;
+  type?: OrganizationType | null;
+  customType?: string | null;
   /** The suburb, or the town when there is none. */
   locality?: string | null;
   sportIds: string[];
@@ -128,6 +133,12 @@ export interface MyHomeOrganization {
   shortName: string;
   logo?: string | null;
   primaryColor?: string | null;
+  secondaryColor?: string | null;
+  tertiaryColor?: string | null;
+  type?: OrganizationType | null;
+  customType?: string | null;
+  /** The suburb, or the town when there is none. */
+  locality?: string | null;
   roleId: string;
   /** Games live now that the organisation has a stake in. */
   liveCount: number;

@@ -63,10 +63,15 @@ const EVENT_PIN_JOINS = `
   ) pin`;
 
 /** The organisation fields Home lists, from `organizations o` and `addresses a`. */
-const ORG_FIELDS = `
+/** What an organisation's card shows; `a` is its address. */
+const ORG_CARD_FIELDS = `
   o.id, o.name, o.short_name AS "shortName", o.logo,
-  o.primary_color AS "primaryColor", o.is_private AS "isPrivate",
-  COALESCE(NULLIF(a.address_line_2, ''), NULLIF(a.city, '')) AS locality,
+  o.primary_color AS "primaryColor", o.secondary_color AS "secondaryColor", o.tertiary_color AS "tertiaryColor",
+  o.type, o.custom_type AS "customType", o.is_private AS "isPrivate",
+  COALESCE(NULLIF(a.address_line_2, ''), NULLIF(a.city, '')) AS locality`;
+
+const ORG_FIELDS = `
+  ${ORG_CARD_FIELDS},
   ARRAY(SELECT sport_id FROM organization_sports WHERE org_id = o.id) AS "sportIds",
   (SELECT COUNT(*)::int FROM teams t WHERE t.org_id = o.id AND t.is_active = true) AS "teamCount"`;
 
@@ -307,14 +312,14 @@ export class HomeManager extends BaseManager {
 
     const [orgs, teams] = await Promise.all([
       this.query(`
-        SELECT o.id, o.name, o.short_name AS "shortName", o.logo,
-               o.primary_color AS "primaryColor", o.is_private AS "isPrivate",
+        SELECT ${ORG_CARD_FIELDS},
                (SELECT COUNT(DISTINCT g.id)::int FROM games g JOIN events e ON e.id = g.event_id
                  WHERE g.status = 'Live'
                    AND (e.org_id = o.id
                         OR EXISTS (SELECT 1 FROM game_participants gp JOIN teams t ON t.id = gp.team_id
                                     WHERE gp.game_id = g.id AND t.org_id = o.id))) AS "liveCount"
           FROM organizations o
+          LEFT JOIN addresses a ON a.id = o.address_id
          WHERE o.id = ANY($1)
          ORDER BY o.name`, [[...orgRole.keys()]]),
       this.query(`
