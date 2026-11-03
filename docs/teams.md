@@ -101,7 +101,8 @@ Statistics says.
 - **Add staff** picks one person and their role (a dropdown: there are six).
 - **Someone new to the organisation**, from either, opens the People page's
   [`AddPersonDialog`](file:///c:/Fred/Coding/SK/expo-app/components/people/AddPersonDialog.tsx)
-  with the team and role: it adds the person to the organisation and then to this team.
+  with the team and role: it adds the person to the organisation and then to this team. Someone picked
+  there who is already a member keeps their organisation role.
 
 ## 4. Inactive teams
 

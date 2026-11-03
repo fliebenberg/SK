@@ -40,6 +40,17 @@ function storedCellphone(value: unknown): string | null {
 }
 
 /**
+ * An org ID identifies one person in an organisation, so a write that would give it to a second is
+ * refused rather than merged (`PEOPLE-7`). The message names nobody: `namingOrgIdHolder` in
+ * `profileGate` adds the name for those who may see it.
+ */
+export class OrgIdInUseError extends Error {
+  constructor(readonly orgId: string, readonly identifier: string, readonly holderName: string | null) {
+    super(`Org ID ${identifier} is already in use.`);
+  }
+}
+
+/**
  * `restrictedReason` is an explicit `null` on a membership with full privileges, never absent: the
  * screens merge an updated row over the old one, and an absent key would leave a reason that no
  * longer applies in place.
@@ -259,11 +270,6 @@ export class UserManager extends BaseManager {
     assertCalendarDates(profile as Record<string, unknown>, PROFILE_DATE_FIELDS);
     const cellphone = storedCellphone(profile.cellphone);
     const id = profile.id || `op-${Date.now()}`;
-    // An add can land on an existing profile (ON CONFLICT below), replacing its picture.
-    const previousImage = (await this.query(
-      'SELECT image FROM org_profiles WHERE org_id = $1 AND identifier = $2',
-      [profile.orgId, profile.identifier]
-    )).rows[0]?.image;
     const image = await imageService.stage('profiles', profile.image || undefined);
     const processedImage = image.value ?? null;
 
@@ -272,15 +278,6 @@ export class UserManager extends BaseManager {
       res = await this.query(
         `INSERT INTO org_profiles (id, org_id, user_id, name, email, cellphone, birthdate, national_id, identifier, image, primary_role_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-         ON CONFLICT (org_id, identifier) DO UPDATE SET
-           user_id = EXCLUDED.user_id,
-           name = EXCLUDED.name,
-           email = COALESCE(org_profiles.email, EXCLUDED.email),
-           cellphone = COALESCE(org_profiles.cellphone, EXCLUDED.cellphone),
-           birthdate = COALESCE(org_profiles.birthdate, EXCLUDED.birthdate),
-           national_id = COALESCE(org_profiles.national_id, EXCLUDED.national_id),
-           image = COALESCE(EXCLUDED.image, org_profiles.image),
-           primary_role_id = COALESCE(EXCLUDED.primary_role_id, org_profiles.primary_role_id)
          RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", own_account_allowed as "ownAccountAllowed", own_account_set_at as "ownAccountSetAt", own_account_set_by as "ownAccountSetBy"`,
         [
           id,
@@ -298,10 +295,17 @@ export class UserManager extends BaseManager {
       );
     } catch (error) {
       await image.discard();
-      throw error;
+      throw await this.orgIdClash(error, profile.orgId, profile.identifier);
     }
-    await image.commit(previousImage);
+    await image.commit(null);
     return res.rows[0];
+  }
+
+  /** The refusal for a write that hit `UNIQUE (org_id, identifier)`; any other error as it came. */
+  private async orgIdClash(error: any, orgId: string, identifier?: string | null): Promise<unknown> {
+    if (error?.code !== '23505' || error?.constraint !== 'org_profiles_org_id_identifier_key' || !identifier) return error;
+    const holder = (await this.query('SELECT name FROM org_profiles WHERE org_id = $1 AND identifier = $2', [orgId, identifier])).rows[0];
+    return new OrgIdInUseError(orgId, identifier, holder?.name ?? null);
   }
 
   async updateOrgProfile(id: string, data: Partial<OrgProfile>): Promise<OrgProfile | null> {
@@ -361,7 +365,8 @@ export class UserManager extends BaseManager {
       );
     } catch (error) {
       await image.discard();
-      throw error;
+      const orgId = (await this.query('SELECT org_id FROM org_profiles WHERE id = $1', [id])).rows[0]?.org_id;
+      throw await this.orgIdClash(error, orgId, data.identifier);
     }
     await image.commit(previousImage);
     return res.rows[0] || null;
@@ -483,6 +488,15 @@ export class UserManager extends BaseManager {
 
   async getOrgMembership(id: string): Promise<OrgMembership | undefined> {
     const res = await this.query('SELECT id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate" FROM org_memberships WHERE id = $1', [id]);
+    return res.rows[0];
+  }
+
+  /** This person's current membership of the organisation, if they have one. */
+  async getCurrentOrgMembership(orgProfileId: string, orgId: string): Promise<OrgMembership | undefined> {
+    const res = await this.query(
+      `SELECT ${this.ORG_MEMBERSHIP_COLUMNS} FROM org_memberships WHERE org_profile_id = $1 AND org_id = $2 AND (end_date IS NULL OR end_date > NOW())`,
+      [orgProfileId, orgId]
+    );
     return res.rows[0];
   }
 
@@ -706,26 +720,6 @@ export class UserManager extends BaseManager {
   }
 
   searchPeople = this.searchProfiles;
-
-  async findMatchingUser(email?: string, name?: string, birthdate?: string): Promise<User | null> {
-    if (!email && !birthdate) return null;
-
-    if (email) {
-      const user = await this.getUserByEmail(email);
-      if (user) return user;
-    }
-
-    if (name && birthdate) {
-      const res = await this.query(`
-        SELECT ${this.USER_COLUMNS} FROM users 
-        WHERE name ILIKE $1 AND preferences->>'birthdate' = $2
-        LIMIT 1
-      `, [name, birthdate]);
-      if (res.rows[0]) return res.rows[0];
-    }
-
-    return null;
-  }
 
   async linkUserToProfile(email: string, orgProfileId: string): Promise<OrgProfile | null> {
     return this.updateOrgProfile(orgProfileId, { email });

@@ -123,7 +123,6 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // Cross-org by nature: it is how you find a person to invite. Narrowed from
   // "anyone" to "a signed-in user" rather than guessed at — see `DATA-1`.
   search_people:        { standalone: 'authenticated' },
-  find_matching_user:   { standalone: 'authenticated' },
 
   // --- Teams ---------------------------------------------------------------
   // The public Teams list: leaves out private organisations the caller does not belong to in the

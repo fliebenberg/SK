@@ -191,8 +191,7 @@ export class MembershipApplicationManager extends BaseManager {
   /**
    * Approve: the person's record, their membership, and for a child the applicant as guardian, all or
    * none. `existingProfileId` is the record the decider said this is; without one a record is made,
-   * unless the applicant's own account already has one here. Written directly rather than through
-   * `addOrgProfile`, whose upsert unlinks an existing account (`PEOPLE-7`).
+   * unless the applicant's own account already has one here.
    */
   async approve(id: string, deciderUserId: string, existingProfileId?: string | null): Promise<MembershipApplication> {
     await this.transaction(async (tx) => {

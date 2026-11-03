@@ -125,6 +125,7 @@ export class DataManager {
 
   getOrganizationMembers = (orgId: string) => userManager.getOrganizationMembers(orgId);
   getOrgMembership = (id: string) => userManager.getOrgMembership(id);
+  getCurrentOrgMembership = (orgProfileId: string, orgId: string) => userManager.getCurrentOrgMembership(orgProfileId, orgId);
   addOrganizationMember = (orgProfileId: string, orgId: string, roleId: string, id?: string) => 
     userManager.addOrganizationMember(orgProfileId, orgId, roleId, id);
   updateOrganizationMember = (membershipId: string, roleId: string) => 
@@ -209,8 +210,6 @@ export class DataManager {
     userManager.searchOrganizerCandidates(query, orgIds);
   
   searchPeople = this.searchProfiles;
-  findMatchingUser = (email?: string, name?: string, birthdate?: string) => 
-    userManager.findMatchingUser(email, name, birthdate);
   linkUserToProfile = (email: string, orgProfileId: string) => userManager.linkUserToProfile(email, orgProfileId);
 
   // Referrals

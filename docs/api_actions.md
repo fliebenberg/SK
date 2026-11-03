@@ -495,6 +495,11 @@ international form (`+27825550100`) however it was typed, and refuse one `parseC
 read. An update that sends back a number saved earlier, unchanged, is not checked. See
 [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §8.3.
 
+**Org IDs** (2026-11-02, `PEOPLE-7`): `ADD_ORG_PROFILE` and `UPDATE_ORG_PROFILE` refuse an `identifier`
+someone else in the organisation holds, and change nobody. Admin and Staff are told who holds it; anyone
+else that it is in use. `ADD_ORG_PROFILE` used to update the holder instead. It ignores `userId`, as
+`UPDATE_ORG_PROFILE` does: only the claim flow links an account.
+
 All four go through [wss/profileGate.ts](file:///c:/Fred/Coding/SK/server/src/wss/profileGate.ts),
 added 2026-09-03 (`PEOPLE-2`). **Before that they had no permission check at all**, and two of them
 handed over an admin membership to anybody signed in: `LINK_USER_PROFILE` sets a profile's email,
@@ -655,8 +660,10 @@ spreadsheet. The rules — what an import will and will not do — are
 *   **Not yet**: sending invites to the people it adds. Invite them from the People screen.
 
 #### `ADD_ORG_MEMBER`
-*   **Payload**: `{ orgProfileId, organizationId, roleId }`
-*   **Logic**: Adds a member to an organization.
+*   **Payload**: `{ orgProfileId, orgId, roleId, keepExisting? }`
+*   **Logic**: Adds a member to an organization. Refuses someone already a member and leaves their role
+    (`PEOPLE-7`); with `keepExisting` it answers with their membership as it stands, for adding a person
+    to a team. A role changes through `UPDATE_ORG_MEMBER`.
 *   **Gate** (`PERM-2`): `grant-role` — an admin gives any role, staff only `role-org-member`.
     `UPDATE_ORG_MEMBER` (`{ id, roleId }`, a role change) is admin-only; `REMOVE_ORG_MEMBER` is admin,
     or staff removing a Member.

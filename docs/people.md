@@ -36,6 +36,10 @@ person at a glance, and opens their page.
   [AddPersonDialog](file:///c:/Fred/Coding/SK/expo-app/components/people/AddPersonDialog.tsx): name
   (which searches people already on record), role, email, cell, birthdate, org ID and an optional
   guardian behind an "Add a guardian" link. A photo and national ID are added from the person's page.
+- **Adding never changes someone already on record** (`PEOPLE-7`). An org ID someone else holds is
+  refused, here and on the person's page. Admin and Staff are told who holds it, so they can search for
+  them by name; a coach or event organiser only that it is in use. Picking someone already a member is
+  refused too, and leaves their role and details as they are: a role changes on their page.
 - Import from a spreadsheet stays in the header's ⋯ menu.
 
 ## 3. The person page — `/admin/[orgId]/people/[membershipId]`
@@ -115,4 +119,3 @@ to **anyone can apply** in Settings; private and unclaimed organisations do not 
 ## 6. Not settled here
 
 - Finding guardians who hold no membership (`PEOPLE-9`).
-- Adding someone whose org ID is already on record (`PEOPLE-7`).

@@ -53,7 +53,7 @@ import { placeNameAt, searchPlaces } from './services/places';
 import { runIdempotent, BatchRefused, BatchFailed } from './wss/batch';
 import { enforceTournamentAction } from './wss/tournamentGate';
 import { payloadProblem } from './wss/actionPayloads';
-import { enforceProfileAction } from './wss/profileGate';
+import { enforceProfileAction, namingOrgIdHolder } from './wss/profileGate';
 import { GateRefusal, enforceOrgAction } from './wss/orgGate';
 import { refuseDeletingStartedGame, refuseResultInFixtureEdit, refuseTeamChangeOnDrawnSide, validateRecordedResult } from './wss/fixtureRules';
 import {
@@ -1889,13 +1889,6 @@ io.on('connection', (socket) => {
                     callback([]);
                 }
                 break;
-            case 'find_matching_user':
-                {
-                    // Any signed-in user may ask, so the answer is who it is and nothing about them (`PEOPLE-8`).
-                    const matched = await dataManager.findMatchingUser(request.email, request.name, request.birthdate);
-                    callback(matched ? { id: matched.id } : null);
-                }
-                break;
             case 'pending_claims':
                 // Check for pending claims for the user's email(s)
                 // Using request.email for now, assuming client sends it
@@ -3163,7 +3156,19 @@ io.on('connection', (socket) => {
                     }
                 }
                 break;
-            case SocketAction.ADD_ORG_MEMBER:
+            case SocketAction.ADD_ORG_MEMBER: {
+                // Adding someone never changes a role they already hold: that is `UPDATE_ORG_MEMBER`,
+                // which is admin-only (`PEOPLE-7`). A team's "new person" joins them to the
+                // organisation only if they are not in it yet, and leaves a member as they are.
+                const currentMembership = await dataManager.getCurrentOrgMembership(action.payload.orgProfileId, action.payload.orgId);
+                if (currentMembership) {
+                    if (action.payload.keepExisting) {
+                        result = currentMembership;
+                        break;
+                    }
+                    const alreadyMember = await dataManager.getOrgProfile(action.payload.orgProfileId);
+                    throw new Error(`${alreadyMember?.name || 'That person'} is already a member of this organisation.`);
+                }
                 if (action.payload.orgId !== 'org-system-admins') {
                     const isAdminAccount = await pool.query(
                         `SELECT 1 FROM org_profiles WHERE id = $1 AND (org_id = 'org-system-admins' OR user_id IN (SELECT op2.user_id FROM org_profiles op2 WHERE op2.org_id = 'org-system-admins'))`,
@@ -3205,6 +3210,7 @@ io.on('connection', (socket) => {
                     await broadcastOrgSummaries([action.payload.orgId]);
                 }
                 break;
+            }
             case SocketAction.UPDATE_ORG_MEMBER:
                 console.log(`DataManager: Updating org member role ${action.payload.id} to ${action.payload.roleId}`);
                 result = await dataManager.updateOrganizationMember(action.payload.id, action.payload.roleId);
@@ -3381,10 +3387,11 @@ io.on('connection', (socket) => {
             }
             case SocketAction.ADD_ORG_PROFILE: {
                 // `eventId` authorizes the write (an organiser creating a person to appoint); it is
-                // not a column on the profile.
-                const { eventId: _appointingEventId, ...addPayload } = { ...action.payload };
+                // not a column on the profile. `userId` is dropped, always, as on `UPDATE_ORG_PROFILE`:
+                // linking an account is the claim flow's, and no client sends it (`PEOPLE-2`).
+                const { eventId: _appointingEventId, userId: _rejectedUserId, ...addPayload } = { ...action.payload };
                 // An uploaded picture is saved by addOrgProfile itself, around the database write.
-                result = await dataManager.addOrgProfile(addPayload);
+                result = await namingOrgIdHolder(authUserId, () => dataManager.addOrgProfile(addPayload), ' Search for them by name to add them.');
                 break;
             }
             case SocketAction.UPDATE_ORG_PROFILE: {
@@ -3407,7 +3414,7 @@ io.on('connection', (socket) => {
                 // A new, replaced or removed picture is handled by updateOrgProfile itself: saved
                 // before the write, and the old one deleted after it only if nothing else uses it.
                 console.log(`DataManager: Updating org profile ${action.payload.id}`, { ...updateData, image: updateData.image?.startsWith('data:') ? '(upload)' : updateData.image });
-                result = await dataManager.updateOrgProfile(action.payload.id, updateData);
+                result = await namingOrgIdHolder(authUserId, () => dataManager.updateOrgProfile(action.payload.id, updateData));
                 if (result && result.orgId) {
                     // A guardian's name and contact details travel in their links (`MEMBER-3`).
                     await publishGuardianProfileChange(result.id);

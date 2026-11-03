@@ -18,7 +18,6 @@ import {
 import { useOrgMinorsSettings } from '../../hooks/useOrgMinorsSettings';
 import { useRequestScope } from '../../hooks/useRequestScope';
 import { requestKeyFor, sendAction } from '../../services/actions';
-import { wsService } from '../../services/websocket';
 import { isCalendarDate } from '../../utils/dates';
 import { cellphoneProblem, formatCellphone } from '../../utils/phone';
 import { ORG_ID_HELP, OrgRole, ROLE_HELP, roleOptions } from './PersonDialogs';
@@ -34,14 +33,15 @@ const emptyPerson = () => ({ name: '', email: '', cellphone: '', birthdate: '', 
  * find and reach them; a photo and national ID are added from their page afterwards.
  *
  * The name field searches people already on record in the organisation; picking one adds *that*
- * person rather than a copy. Up to three writes — the profile, the membership, an optional guardian
+ * person rather than a copy. An org ID someone else holds, or picking someone already a member, is
+ * refused and changes nobody (`PEOPLE-7`). Up to three writes — the profile, the membership, an optional guardian
  * — under one request scope kept across retries (SYNC-3), so a retry after a later step fails
  * re-sends the earlier ones (answered from the first attempt) and tries only the failed one again.
  * The dialog stays open on any failure, with what failed said inside it.
  *
  * From a team page (docs/teams.md), `team` names the team and the role on it: the person then also
  * joins that team, as one more write under the same scope, after the membership and before the
- * guardian.
+ * guardian. Someone picked who is already a member keeps their role.
  */
 export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
   orgId: string;
@@ -109,29 +109,18 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
       };
 
       if (!profileId) {
-        // Someone matching on email, or name and birthdate, is already on record: add them, not a copy.
-        const match: any = await new Promise(resolve => {
-          wsService.emit('get_data', {
-            type: 'find_matching_user',
-            email: details.email,
-            name: person.name.trim(),
-            birthdate: details.birthdate,
-          }, (res: any) => resolve(res));
-        });
         // The new profile's id comes from the request scope, so every retry sends the same one.
-        const payload = { id: match?.id || `profile-${scope.current()}`, orgId, name: person.name.trim(), ...details };
+        const payload = { id: `profile-${scope.current()}`, orgId, name: person.name.trim(), ...details };
         const created = await sendAction(SocketAction.ADD_ORG_PROFILE, payload, {
           suppressToast: true,
           requestId: requestKeyFor(scope.current(), SocketAction.ADD_ORG_PROFILE, payload),
         });
         if (!created.ok) throw new Error(`They were not added: ${created.message}`);
         profileId = created.data.id;
-      } else {
-        const updated = await sendAction(SocketAction.UPDATE_ORG_PROFILE, { id: profileId, data: details }, { suppressToast: true });
-        if (!updated.ok) throw new Error(`Their details were not saved: ${updated.message}`);
       }
 
-      const membership = { orgProfileId: profileId!, orgId, roleId: person.roleId };
+      // Refused for someone already a member, unless this is for a team, where they stay as they are.
+      const membership = { orgProfileId: profileId!, orgId, roleId: person.roleId, ...(team ? { keepExisting: true } : {}) };
       const joined = await sendAction(SocketAction.ADD_ORG_MEMBER, membership, {
         suppressToast: true,
         requestId: requestKeyFor(scope.current(), SocketAction.ADD_ORG_MEMBER, membership),
@@ -146,6 +135,15 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
         });
         if (!placed.ok) {
           throw new Error(`${person.name.trim()} was added to the organisation, but not to ${team.name}: ${placed.message} Press Add again to retry.`);
+        }
+      }
+
+      // After they join, so someone already a member is refused before anything of theirs changes,
+      // and a coach may edit them because they are now on the team.
+      if (selected) {
+        const updated = await sendAction(SocketAction.UPDATE_ORG_PROFILE, { id: profileId!, data: details }, { suppressToast: true });
+        if (!updated.ok) {
+          throw new Error(`${person.name.trim()} was added, but their details were not saved: ${updated.message} Press ${team ? 'Add' : 'Add person'} again to retry.`);
         }
       }
 

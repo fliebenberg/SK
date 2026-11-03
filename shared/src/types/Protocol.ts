@@ -277,6 +277,11 @@ export interface AddOrgMemberPayload {
     orgId: string;
     roleId: string;
     id?: string; // Optional specific ID
+    /**
+     * Someone already a member stays as they are and the action succeeds, rather than being refused.
+     * For adding a person to a team, where being in the organisation is all that is asked.
+     */
+    keepExisting?: boolean;
 }
 
 export interface UpdateOrgMemberPayload {
