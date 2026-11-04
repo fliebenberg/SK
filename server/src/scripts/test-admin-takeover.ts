@@ -177,10 +177,10 @@ async function main() {
     r = await send(newcomer, SocketAction.TAKE_ORG_ADMIN, { orgId: ORG });
     expect([r.status, /already has an administrator/.test(r.message)], ['error', true], 'second takeover refused');
 
-    // --- Deleting the only admin's profile leaves the org unclaimed. ----------------------------
+    // --- A person record is kept, and only leaving ends the membership (docs/people.md §9). --------
     r = await send(veteran, SocketAction.DELETE_ORG_PROFILE, { id: vet.profileId });
-    expect(r.status, 'ok', 'admin profile deleted');
-    expect(await isClaimed(), false, 'org unclaimed again after its only admin is deleted');
+    expect(r.status, 'error', 'a member cannot be removed as if they were only a guardian');
+    expect(await isClaimed(), true, 'and the org stays claimed');
   } finally {
     outsider.close();
     veteran.close();

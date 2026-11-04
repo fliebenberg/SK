@@ -16,6 +16,7 @@ import {
   normalizePeopleImportRow,
 } from '@sk/shared';
 import { BaseManager, Tx } from './BaseManager';
+import { reactivateOrgProfile } from './orgProfileStatus';
 import { rethrowEmailClash } from './UserManager';
 import { organizationManager } from './OrganizationManager';
 
@@ -54,6 +55,7 @@ const ACTIVE = (alias: string) => `(${alias}.end_date IS NULL OR ${alias}.end_da
 export class PeopleImportError extends Error {}
 
 interface ExistingProfile {
+  inactiveAt?: string | null;
   id: string;
   name: string;
   email: string | null;
@@ -79,6 +81,7 @@ interface Person {
 
 /** A guardian a row names: a person row in this sheet, a profile on record, or a new profile. */
 interface GuardianTarget {
+  inactive?: boolean;
   id: string;
   name: string;
   email?: string;
@@ -101,6 +104,8 @@ interface NewProfile {
 }
 
 interface RowWrites {
+  /** People who left and this row brings back (docs/people.md §9). */
+  reactivate?: string[];
   newProfile?: NewProfile;
   profileUpdate?: { id: string; set: Record<string, string> };
   newMembership?: { id: string; profileId: string; roleId: string };
@@ -241,7 +246,7 @@ export class PeopleImportManager extends BaseManager {
 
     const profiles: ExistingProfile[] = (await q(
       `SELECT id, name, email, cellphone, birthdate, national_id AS "nationalId", identifier,
-              user_id AS "userId", own_account_allowed AS "ownAccountAllowed"
+              user_id AS "userId", own_account_allowed AS "ownAccountAllowed", inactive_at AS "inactiveAt"
          FROM org_profiles WHERE org_id = $1`,
       [orgId]
     )).rows;
@@ -292,12 +297,26 @@ export class PeopleImportManager extends BaseManager {
     // Compared in one form whatever was typed: numbers and IDs saved by hand are as they were typed.
     const byNationalId = new Map<string, ExistingProfile[]>();
     const byCellphone = new Map<string, ExistingProfile[]>();
-    for (const p of profiles) {
+    // Someone who left (docs/people.md §9) can be matched by what identifies them, which brings them
+    // back, unless someone active now holds it. A name or a shared number never matches them.
+    const leftMostRecentlyFirst = (a: ExistingProfile, b: ExistingProfile) =>
+      String(b.inactiveAt ?? '').localeCompare(String(a.inactiveAt ?? ''));
+    for (const p of [...profiles].filter(p => p.inactiveAt).sort(leftMostRecentlyFirst).reverse()) {
       if (p.identifier) byIdentifier.set(p.identifier, p);
+    }
+    for (const p of profiles) {
       if (p.email) pushTo(byEmail, lower(p.email), p);
       if (p.nationalId) pushTo(byNationalId, normalizeNationalId(p.nationalId), p);
+      if (p.inactiveAt) continue;
+      if (p.identifier) byIdentifier.set(p.identifier, p);
       if (p.cellphone) pushTo(byCellphone, cellphoneKey(p.cellphone), p);
       pushTo(byName, lower(p.name), p);
+    }
+    for (const index of [byEmail, byNationalId]) {
+      for (const [key, list] of index) {
+        const active = list.filter(p => !p.inactiveAt);
+        index.set(key, active.length ? active : [...list].sort(leftMostRecentlyFirst).slice(0, 1));
+      }
     }
     const describe = (p: ExistingProfile) => `${p.name}${p.identifier ? ` (Member ID ${p.identifier})` : ''}`;
     const membershipOf = new Map<string, { id: string; roleId: string }>();
@@ -430,6 +449,10 @@ export class PeopleImportManager extends BaseManager {
 
       claimedBy.set(existing.id, index);
       result.profileId = existing.id;
+      if (existing.inactiveAt) {
+        w.reactivate = [existing.id];
+        warnings.push(`${describe(existing)} left this organisation and is on record from before. This row brings them back, with their history. If this is someone else, change the row's email, Member ID or national ID.`);
+      }
       const set: Record<string, string> = {};
       const change = (column: string, from: string | null, to: string) => {
         set[column] = to;
@@ -504,7 +527,7 @@ export class PeopleImportManager extends BaseManager {
 
     const targetOf = (profile: ExistingProfile): GuardianTarget => ({
       id: profile.id, name: profile.name, email: lower(profile.email) || undefined,
-      hasAccount: hasAccount(profile), isSystemAdmin: isSystemAdmin(profile),
+      hasAccount: hasAccount(profile), isSystemAdmin: isSystemAdmin(profile), inactive: !!profile.inactiveAt,
     });
 
     normalized.forEach(({ row, errors }, index) => {
@@ -546,6 +569,10 @@ export class PeopleImportManager extends BaseManager {
         }
         guardianTargets.set(key, target);
 
+        if (target.inactive) {
+          w.reactivate = [...(w.reactivate || []), target.id];
+          result.warnings.push(`${label}, ${target.name}, left this organisation and is on record from before. This row brings them back. If this is someone else, change the guardian's email.`);
+        }
         if (target.isSystemAdmin) {
           errors.push(`${label}, ${g.email || target.name}, is a system administrator's account, which cannot belong to an organisation.`);
           continue;
@@ -691,6 +718,11 @@ export class PeopleImportManager extends BaseManager {
              AS u(id, name, email, cellphone, birthdate, national_id, identifier)`,
         [orgId, col('id'), col('name'), col('email'), col('cellphone'), col('birthdate'), col('nationalId'), col('identifier')]
       );
+    }
+
+    // After the new people, who keep an address someone returning used to have.
+    for (const w of rowWrites) {
+      for (const id of w.reactivate || []) await reactivateOrgProfile(tx, id);
     }
 
     for (const w of rowWrites) {

@@ -23,7 +23,7 @@ import { themeColor } from '../../../constants/Colors';
 import { PageBody } from '../../../components/PageBody';
 import { useOrgAccess } from '../../../hooks/useOrgAccess';
 
-type RoleFilter = 'all' | 'role-org-admin' | 'role-org-staff' | 'role-org-member';
+type RoleFilter = 'all' | 'role-org-admin' | 'role-org-staff' | 'role-org-member' | 'guardians';
 type SortKey = 'name' | 'role';
 
 /**
@@ -37,6 +37,9 @@ type SortKey = 'name' | 'role';
  *
  * The list is static and paged on the server (okf/live_rooms.md): search, the role filter and the
  * sort are all in the read. The viewer's own changes show at once, and someone else's at the next read.
+ *
+ * The list is members. Guardians hold no membership, so they have their own filter, and a search under
+ * All finds them too (`PEOPLE-9`); one with no membership opens their guardian page.
  */
 export default function OrgPeople() {
   const isDark = useActiveTheme() === 'dark';
@@ -61,7 +64,11 @@ export default function OrgPeople() {
   const { response, items: people, total, limit, isLoading, error, isSettled, term, retry } = usePagedList<OrgPersonRow, OrgPeoplePage>({
     type: 'org_people',
     noun: 'people',
-    params: { orgId, sort: sortKey, ...(roleFilter === 'all' ? {} : { roleId: roleFilter }) },
+    params: {
+      orgId,
+      sort: sortKey,
+      ...(roleFilter === 'guardians' ? { view: 'guardians' } : roleFilter === 'all' ? { withGuardians: true } : { roleId: roleFilter }),
+    },
     search,
     page,
     enabled: !!orgId,
@@ -86,12 +93,17 @@ export default function OrgPeople() {
     { key: 'role-org-admin', label: 'Admin', count: count(counts['role-org-admin'] || 0) },
     { key: 'role-org-staff', label: 'Staff', count: count(counts['role-org-staff'] || 0) },
     { key: 'role-org-member', label: 'Member', count: count(counts['role-org-member'] || 0) },
+    { key: 'guardians', label: 'Guardians', count: count(response?.guardianCount || 0) },
   ];
+  const isGuardiansView = roleFilter === 'guardians';
 
-  const open = (member: OrgPersonRow) => router.push({
-    pathname: '/admin/[orgId]/people/[membershipId]',
-    params: { orgId: orgId!, membershipId: member.membershipId },
-  });
+  const open = (member: OrgPersonRow) => {
+    if (member.membershipId) {
+      router.push({ pathname: '/admin/[orgId]/people/[membershipId]', params: { orgId: orgId!, membershipId: member.membershipId } });
+    } else {
+      router.push({ pathname: '/admin/[orgId]/people/guardian/[profileId]', params: { orgId: orgId!, profileId: member.id } });
+    }
+  };
 
   const headerRight = canEdit ? (
     <View className="flex-row items-center gap-1">
@@ -137,30 +149,34 @@ export default function OrgPeople() {
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Search by name, email or org ID"
+                placeholder={isGuardiansView ? 'Search by name, contact or child' : 'Search by name, email or org ID'}
                 placeholderTextColor={themeColor(isDark, 'ink-muted')}
                 accessibilityLabel="Search people"
                 className="flex-1 font-inter text-base text-ink py-2.5 outline-none"
               />
             </View>
-            <SegmentedControl options={filterOptions} value={roleFilter} onChange={setRoleFilter} isCompact={false} fit={isWide} />
+            <SegmentedControl options={filterOptions} value={roleFilter} onChange={setRoleFilter} isCompact={false} fit />
           </View>
 
           <View className="flex-row items-center justify-between px-1">
             <Text className="font-inter text-sm text-ink-muted">
-              {total === 1 ? '1 person' : `${total} people`}
+              {isGuardiansView
+                ? (total === 1 ? '1 guardian' : `${total} guardians`)
+                : (total === 1 ? '1 person' : `${total} people`)}
             </Text>
-            <TouchableOpacity
-              onPress={() => setSortKey(sortKey === 'name' ? 'role' : 'name')}
-              accessibilityRole="button"
-              accessibilityLabel={`Sorted by ${sortKey}. Change the sort.`}
-              className="flex-row items-center gap-1"
-            >
-              <Text className="font-inter text-sm text-ink-muted">
-                Sort: <Text className="font-inter-semibold text-ink-soft">{sortKey === 'name' ? 'Name' : 'Role'}</Text>
-              </Text>
-              <Ionicons name="swap-vertical" size={14} color={themeColor(isDark, 'ink-muted')} />
-            </TouchableOpacity>
+            {isGuardiansView ? null : (
+              <TouchableOpacity
+                onPress={() => setSortKey(sortKey === 'name' ? 'role' : 'name')}
+                accessibilityRole="button"
+                accessibilityLabel={`Sorted by ${sortKey}. Change the sort.`}
+                className="flex-row items-center gap-1"
+              >
+                <Text className="font-inter text-sm text-ink-muted">
+                  Sort: <Text className="font-inter-semibold text-ink-soft">{sortKey === 'name' ? 'Name' : 'Role'}</Text>
+                </Text>
+                <Ionicons name="swap-vertical" size={14} color={themeColor(isDark, 'ink-muted')} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {error ? (
@@ -177,7 +193,7 @@ export default function OrgPeople() {
               <View className="items-center justify-center py-12 gap-2">
                 <Ionicons name="people-outline" size={40} color={themeColor(isDark, 'ink-muted')} />
                 <Text className="font-inter text-sm text-ink-muted">
-                  {everyone ? 'Nobody matches.' : 'Nobody has been added yet.'}
+                  {isGuardiansView && !term ? 'No guardians have been recorded yet.' : term || everyone ? 'Nobody matches.' : 'Nobody has been added yet.'}
                 </Text>
               </View>
             ) : null
@@ -187,10 +203,11 @@ export default function OrgPeople() {
               <View className="rounded-2xl border border-line bg-card overflow-hidden">
                 {people.map((member, index) => (
                   <PersonRow
-                    key={member.membershipId}
+                    key={member.membershipId ?? member.id}
                     member={member}
                     isWide={isWide}
                     first={index === 0}
+                    showChildren={isGuardiansView || !member.membershipId}
                     guardians={guardianSummary(member.guardianNames)}
                     guardianCount={member.guardianNames.length}
                     guardianship={guardianshipOf(member.birthdate, minorsSettings, member.guardianNames.length > 0)}
@@ -209,10 +226,12 @@ export default function OrgPeople() {
   );
 }
 
-function PersonRow({ member, isWide, first, guardians, guardianCount, guardianship, onPress }: {
+function PersonRow({ member, isWide, first, showChildren, guardians, guardianCount, guardianship, onPress }: {
   member: OrgPersonRow;
   isWide: boolean;
   first: boolean;
+  /** In place of the person's own guardians: who this person answers for. */
+  showChildren: boolean;
   guardians: string | null;
   guardianCount: number;
   guardianship: ReturnType<typeof guardianshipOf>;
@@ -221,6 +240,7 @@ function PersonRow({ member, isWide, first, guardians, guardianCount, guardiansh
   const isDark = useActiveTheme() === 'dark';
   const cell = formatCellphone(member.cellphone);
   const border = first ? '' : 'border-t border-line-soft';
+  const children = member.childNames.join(', ');
 
   if (!isWide) {
     return (
@@ -229,8 +249,8 @@ function PersonRow({ member, isWide, first, guardians, guardianCount, guardiansh
         <View className="flex-1 min-w-0">
           <View className="flex-row items-center gap-1.5">
             <Text className="font-inter-semibold text-sm text-ink flex-shrink" numberOfLines={1}>{member.name}</Text>
-            <RoleBadge roleId={member.roleId} roleName={member.roleName} />
-            <GuardianshipTag kind={guardianship} />
+            <RoleBadge roleId={member.roleId ?? undefined} roleName={member.roleName} />
+            {member.membershipId ? <GuardianshipTag kind={guardianship} /> : null}
             {member.personOrgId ? (
               <Text className="ml-auto pl-2 font-inter text-xs text-ink-muted flex-shrink-0" style={{ fontVariant: ['tabular-nums'] }}>
                 {member.personOrgId}
@@ -242,6 +262,9 @@ function PersonRow({ member, isWide, first, guardians, guardianCount, guardiansh
               <Text className="font-inter text-xs text-ink-muted flex-shrink" numberOfLines={1}>{member.email || ''}</Text>
               {cell ? <Text className="font-inter text-xs text-ink-muted flex-shrink-0">{cell}</Text> : null}
             </View>
+          ) : null}
+          {showChildren && children ? (
+            <Text className="font-inter text-xs text-ink-soft mt-0.5" numberOfLines={1}>Guardian of {children}</Text>
           ) : null}
         </View>
         <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} />
@@ -255,7 +278,7 @@ function PersonRow({ member, isWide, first, guardians, guardianCount, guardiansh
       <View className="flex-1 min-w-0">
         <View className="flex-row items-center gap-2 flex-wrap">
           <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{member.name}</Text>
-          <RoleBadge roleId={member.roleId} roleName={member.roleName} />
+          <RoleBadge roleId={member.roleId ?? undefined} roleName={member.roleName} />
         </View>
         {member.personOrgId ? (
           <Text className="font-inter text-xs text-ink-muted mt-0.5" style={{ fontVariant: ['tabular-nums'] }}>{member.personOrgId}</Text>
@@ -266,7 +289,14 @@ function PersonRow({ member, isWide, first, guardians, guardianCount, guardiansh
         {cell ? <Text className="font-inter text-sm text-ink-muted" numberOfLines={1}>{cell}</Text> : null}
       </View>
       <View style={{ width: 170 }}>
-        {guardians ? (
+        {showChildren ? (
+          children ? (
+            <>
+              <Text className="font-inter text-xs text-ink-muted">Guardian of</Text>
+              <Text className="font-inter text-sm text-ink-soft" numberOfLines={1}>{children}</Text>
+            </>
+          ) : null
+        ) : guardians ? (
           <>
             <Text className="font-inter text-xs text-ink-muted">{guardianCount > 1 ? 'Guardians' : 'Guardian'}</Text>
             <Text className="font-inter text-sm text-ink-soft" numberOfLines={1}>{guardians}</Text>

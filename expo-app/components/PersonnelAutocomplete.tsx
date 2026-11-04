@@ -13,6 +13,8 @@ interface PersonnelAutocompleteProps {
   onSelectPerson: (person: OrgProfile | null) => void;
   onSelectNewPerson?: () => void;
   placeholder?: string;
+  /** Also offer people who left the organisation: only where someone is being added (docs/people.md §9). */
+  includeInactive?: boolean;
 }
 
 export function PersonnelAutocomplete({
@@ -22,6 +24,7 @@ export function PersonnelAutocomplete({
   onSelectPerson,
   onSelectNewPerson,
   placeholder = 'Search roster or enter name...',
+  includeInactive = false,
 }: PersonnelAutocompleteProps) {
   const isDark = useActiveTheme() === 'dark';
   const [isOpen, setIsOpen] = useState(false);
@@ -36,7 +39,7 @@ export function PersonnelAutocomplete({
 
     const delayDebounce = setTimeout(() => {
       setIsLoading(true);
-      wsService.emit('get_data', { type: 'search_people', query: value, orgId }, (results: any) => {
+      wsService.emit('get_data', { type: 'search_people', query: value, orgId, includeInactive }, (results: any) => {
         setIsLoading(false);
         if (Array.isArray(results)) {
           setSuggestions(results);
@@ -47,7 +50,7 @@ export function PersonnelAutocomplete({
     }, 300);
 
     return () => clearTimeout(delayDebounce);
-  }, [value, orgId]);
+  }, [value, orgId, includeInactive]);
 
   const handleSelect = (person: OrgProfile) => {
     onChangeText(person.name);
@@ -135,6 +138,9 @@ export function PersonnelAutocomplete({
                         {item.email}
                       </Text>
                     )}
+                    {item.inactiveAt ? (
+                      <Text className="font-inter text-xs text-warning-ink">Left this organisation</Text>
+                    ) : null}
                   </View>
                   <Ionicons name="checkmark-circle-outline" size={14} color={themeColor(isDark, 'success')} />
                 </TouchableOpacity>

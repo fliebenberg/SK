@@ -102,7 +102,7 @@ async function run() {
     check(await count('SELECT count(*) n FROM facilities WHERE id = $1', [facility.id]) === 0, 'deleteFacility removes the facility');
     await siteManager.deleteSite(site.id);
     check(await count('SELECT count(*) n FROM sites WHERE id = $1', [site.id]) === 0, 'deleteSite removes the site');
-    await userManager.deleteOrgProfile(person.id);
+    await pool.query('DELETE FROM org_profiles WHERE id = $1', [person.id]);
     await pool.query('DELETE FROM teams WHERE id = $1', [`${P}-team`]);
     await organizationManager.deleteOrganization(guest.id);
     check(await count('SELECT count(*) n FROM organizations WHERE id = $1', [guest.id]) === 0, 'deleteOrganization removes the org');

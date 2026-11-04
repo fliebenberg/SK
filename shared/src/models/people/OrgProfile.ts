@@ -15,6 +15,12 @@ export interface OrgProfile {
   nationalId?: string | null;
   /** The organisation's own number for the person. `null` when not set; `null` on an update clears it. */
   identifier?: string | null;
+  /**
+   * Set when this person has left the organisation (docs/people.md §9). The org profile stays on
+   * record but holds nothing: its email and org ID are free, and it gives no access. Sent only by the
+   * reads that offer someone to bring back.
+   */
+  inactiveAt?: string | null;
   image?: string;
   primaryRoleId?: string;
   lastInviteSentAt?: string;

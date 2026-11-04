@@ -490,6 +490,11 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
 
 #### Person records — `ADD_ORG_PROFILE`, `UPDATE_ORG_PROFILE`, `DELETE_ORG_PROFILE`, `LINK_USER_PROFILE`
 
+**`DELETE_ORG_PROFILE` deletes nothing** (2026-11-04, `PEOPLE-9`). It removes someone who holds no
+membership from the organisation: their guardian links end and their org profile is made inactive, kept
+for the record ([people.md](file:///c:/Fred/Coding/SK/docs/people.md) §9). It is refused, saying why,
+while they have a membership or any other part there.
+
 **Cellphone numbers** (2026-09-30): `ADD_ORG_PROFILE` and `UPDATE_ORG_PROFILE` store `cellphone` in
 international form (`+27825550100`) however it was typed, and refuse one `parseCellphone` cannot
 read. An update that sends back a number saved earlier, unchanged, is not checked. See
@@ -676,7 +681,9 @@ spreadsheet. The rules — what an import will and will not do — are
     to a team. A role changes through `UPDATE_ORG_MEMBER`.
 *   **Gate** (`PERM-2`): `grant-role` — an admin gives any role, staff only `role-org-member`.
     `UPDATE_ORG_MEMBER` (`{ id, roleId }`, a role change) is admin-only; `REMOVE_ORG_MEMBER` is admin,
-    or staff removing a Member.
+    or staff removing a Member. Removing also ends their team roles and their guardians' links to them,
+    and makes inactive any org profile left with no part there
+    ([people.md](file:///c:/Fred/Coding/SK/docs/people.md) §9). `ADD_ORG_MEMBER` brings one back.
 *   **Broadcasts**:
     *   **Topic**: `org_memberships` (To be scoped)
     *   **Event**: `ORG_MEMBERSHIPS_UPDATED`

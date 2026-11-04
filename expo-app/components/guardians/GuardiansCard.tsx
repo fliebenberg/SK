@@ -37,9 +37,9 @@ export const GUARDIANS_HELP = 'The adults who answer for this person. The primar
 
 /**
  * Who answers for a player (`MEMBER-3`), as a card on the read-first person page (docs/people.md).
- * Every change is its own action and takes effect at once, and the list updates from
- * `org:{id}:guardians` rather than from the reply, so a second screen open on the same player shows
- * the same thing. Each guardian's actions are in one ⋯ menu on their row.
+ * Every change is its own action and takes effect at once. The list is a static read (`LIST-1`),
+ * read again after any change made from this device. Each guardian's actions are in one ⋯ menu on
+ * their row.
  */
 export function GuardiansCard({ orgId, playerProfileId, playerName, guardians, canEdit }: GuardiansCardProps) {
   const [isAdding, setIsAdding] = useState(false);
@@ -149,7 +149,7 @@ export function GuardiansCard({ orgId, playerProfileId, playerName, guardians, c
         title="Remove guardian?"
         description={
           ending
-            ? `${ending.guardianName} will no longer be recorded as ${playerName}’s guardian. Their own profile is kept, and the record of the link stays in the history.${endError ? `\n\n${endError}` : ''}`
+            ? `${ending.guardianName} will no longer be recorded as ${playerName}’s guardian. If they have no other part in this organisation, they will no longer be part of it. Their ScoreKeeper account, if they have one, is not affected.${endError ? `\n\n${endError}` : ''}`
             : ''
         }
         onConfirm={endLink}

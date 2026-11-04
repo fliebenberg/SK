@@ -227,7 +227,11 @@ Core records for individuals in an organization (players, coaches, staff).
 - `own_account_set_at` (TIMESTAMPTZ), `own_account_set_by` (TEXT, FK to `org_profiles.id`, `ON
   DELETE SET NULL`): when, and by whose profile — a guardian's, or an admin's while the minor had
   none.
-- *Constraint*: UNIQUE(`org_id`, `identifier`).
+- `inactive_at` (TIMESTAMPTZ): set when the person has no part left in the organisation
+  ([people.md](file:///c:/Fred/Coding/SK/docs/people.md) §9). Kept for match histories and the record.
+- *Constraints*: within an organisation, an `identifier` and an email are each one **active** person's
+  (`idx_org_profiles_one_org_id`, `idx_org_profiles_one_email`). The same email in another
+  organisation is fine.
 
 #### Minors and member privileges (`MEMBER-3`)
 A player is a **minor** in an organisation when they have an active guardian link, or their

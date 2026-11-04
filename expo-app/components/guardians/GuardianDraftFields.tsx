@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { GUARDIAN_RELATIONSHIPS } from '@sk/shared';
+import { GUARDIAN_RELATIONSHIPS, OrgProfile } from '@sk/shared';
 import { PersonnelAutocomplete } from '../PersonnelAutocomplete';
 import { CellphoneOnRecordNote } from '../people/CellphoneOnRecordNote';
+import { FormerPersonNote } from '../people/FormerPersonNote';
 import { FieldLabel } from '../FieldLabel';
 import { TEXT_INPUT } from '../formStyles';
 import { SegmentedControl } from '../SegmentedControl';
@@ -30,6 +31,10 @@ interface GuardianDraftFieldsProps {
 export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, excludeProfileId }: GuardianDraftFieldsProps) {
   const isDark = useActiveTheme() === 'dark';
   const set = (patch: Partial<GuardianDraft>) => onChange({ ...draft, ...patch });
+  const pick = (person: OrgProfile) => {
+    if (person.id === excludeProfileId) return;
+    set({ existingId: person.id, name: person.name, email: person.email || '', cellphone: formatCellphone(person.cellphone) });
+  };
 
   return (
     <View className="gap-4">
@@ -57,10 +62,8 @@ export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, exclu
             value={draft.name}
             placeholder="Search this organisation or type a new name..."
             onChangeText={name => set({ name })}
-            onSelectPerson={person => {
-              if (!person || person.id === excludeProfileId) return;
-              set({ existingId: person.id, name: person.name, email: person.email || '', cellphone: formatCellphone(person.cellphone) });
-            }}
+            onSelectPerson={person => { if (person) pick(person); }}
+            includeInactive
           />
         )}
       </View>
@@ -78,6 +81,7 @@ export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, exclu
               keyboardType="email-address"
               className={TEXT_INPUT}
             />
+            <FormerPersonNote orgId={orgId} email={draft.email} onSamePerson={pick} />
           </View>
           <View className="flex-1 gap-1.5" style={{ minWidth: 160 }}>
             <FieldLabel label="Guardian’s cell" />

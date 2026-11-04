@@ -96,6 +96,7 @@ function OrgAdminWorkspace({ grant }: { grant: boolean }) {
       <Stack.Screen name="people" />
       <Stack.Screen name="people/import" />
       <Stack.Screen name="people/[membershipId]" />
+      <Stack.Screen name="people/guardian/[profileId]" />
       <Stack.Screen name="teams" />
       <Stack.Screen name="teams/[teamId]" />
       <Stack.Screen name="sites" />

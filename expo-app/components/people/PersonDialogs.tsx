@@ -94,7 +94,7 @@ export function IdentityDialog({ member, roles, visible, onClose }: { member: Or
         <TextInput value={name} onChangeText={setName} accessibilityLabel="Name" className={TEXT_INPUT} />
       </View>
       {/* Only someone who may give more than one role gets the choice. */}
-      {roles.length > 1 ? (
+      {roles.length > 1 && member.membershipId ? (
         <View className="gap-1.5">
           <FieldLabel label="Role" help={ROLE_HELP} />
           <SegmentedControl options={roleOptions(roles)} value={roleId} onChange={setRoleId} isCompact={false} />

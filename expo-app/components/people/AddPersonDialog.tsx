@@ -21,6 +21,7 @@ import { requestKeyFor, sendAction } from '../../services/actions';
 import { isCalendarDate } from '../../utils/dates';
 import { cellphoneProblem, formatCellphone } from '../../utils/phone';
 import { CellphoneOnRecordNote } from './CellphoneOnRecordNote';
+import { FormerPersonNote } from './FormerPersonNote';
 import { ORG_ID_HELP, OrgRole, ROLE_HELP, roleOptions } from './PersonDialogs';
 
 import { useActiveTheme } from '../../store/settingsStore';
@@ -182,7 +183,13 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
           placeholder="Search the organisation, or type a new name"
           onChangeText={name => { set({ name }); if (selected) setSelected(null); }}
           onSelectPerson={pick}
+          includeInactive
         />
+        {selected?.inactiveAt ? (
+          <Text className="font-inter text-xs text-ink-muted">
+            {selected.name} left this organisation. Adding them brings back their record and history.
+          </Text>
+        ) : null}
       </View>
       {/* Only someone who may give more than one role gets the choice; anyone else adds a Member. */}
       {roles.length > 1 ? (
@@ -204,6 +211,7 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
             accessibilityLabel="Email"
             className={TEXT_INPUT}
           />
+          {!selected ? <FormerPersonNote orgId={orgId} email={person.email} onSamePerson={pick} /> : null}
         </View>
         <View className="flex-1 gap-1.5" style={{ minWidth: 160 }}>
           <FieldLabel label="Cell number" />
@@ -234,6 +242,7 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
             accessibilityLabel="Org ID"
             className={TEXT_INPUT}
           />
+          {!selected ? <FormerPersonNote orgId={orgId} identifier={person.personOrgId} onSamePerson={pick} /> : null}
         </View>
       </View>
       <GuardianBlock

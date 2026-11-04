@@ -45,8 +45,8 @@ External entities that operate across multiple organizations (like centralized r
 > 2026-09-11) both showed that for a **minor** player, availability decisions, transport
 > arrangements and essentially all communication happen with an adult, not with the player; for an
 > **adult** player the same decisions are made by the player. Still open: Trusted Contacts (§5.5,
-> `MEMBER-5`), guardians answering for a child (§5.4, `MEMBER-6`), and a Guardians view on the People
-> screen (`PEOPLE-9`).
+> `MEMBER-5`) and guardians answering for a child (§5.4, `MEMBER-6`). Guardians are found from the People
+> screen ([people.md](file:///c:/Fred/Coding/SK/docs/people.md) §2, `PEOPLE-9`).
 
 ### 5.1 A guardian is an ordinary org profile — and holds no membership
 
@@ -73,7 +73,9 @@ role; it was changed before building, for three reasons found in the code:
 *   **Every role check would have needed an exception**, and a missed one is a data leak.
 
 This is the same principle as "External is derived, never stored" (`MEMBER-2`). A parent who is also
-staff or a coach keeps their own membership; the link adds to it.
+staff or a coach keeps their own membership; the link adds to it. When a guardian-only person's last
+link ends they are no longer part of the organisation, and their org profile is made inactive
+([people.md](file:///c:/Fred/Coding/SK/docs/people.md) §9).
 
 ### 5.2 The link itself
 

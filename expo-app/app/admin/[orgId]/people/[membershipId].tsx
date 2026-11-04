@@ -240,7 +240,7 @@ export default function PersonPage() {
         isOpen={dialog === 'remove'}
         onClose={close}
         title="Remove from organisation?"
-        description={`${member.name} will no longer be a member of this organisation, and will be taken off every team in it.${removeError ? `\n\n${removeError}` : ''}`}
+        description={`${member.name} will no longer be a member of this organisation, and will be taken off every team in it. Their guardians will no longer be linked to them. Their ScoreKeeper account, if they have one, is not affected.${removeError ? `\n\n${removeError}` : ''}`}
         onConfirm={remove}
         confirmText={isRemoving ? 'Removing…' : 'Remove'}
         variant="danger"

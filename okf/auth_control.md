@@ -62,8 +62,8 @@ What each role may see and do, page by page — and the permission questions sti
       `sportId`, so "has an `eventId`" stopped meaning "event scope" when the sport scope arrived;
       the gate, the manager, both handlers and the picker all ask the one function.
     - **Keyed on the profile, not the user account.** `AccessManager` already resolves a user into a
-      set of `org_profiles` ids, matching by `user_id` **or** verified email, so a grant can be made
-      before the person has an account and needs no rewrite when they claim one.
+      set of **active** `org_profiles` ids, matching by `user_id` **or** verified email, so a grant can be
+      made before the person has an account and needs no rewrite when they claim one.
     - **What each scope carries**:
         - *Event organiser* — everything an org admin can do **within that tournament**, including
           deleting it, changing which orgs are invited, and appointing further organisers. Nothing

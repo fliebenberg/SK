@@ -1,7 +1,8 @@
-import { OrgProfile, OrgMembership, User, UserEmail, OrgMember, OrgPeoplePage, PaginatedResponse, assertCalendarDates, cellphoneKey, cellphoneSearchDigits, normalizeEmail, parseCellphone } from "@sk/shared";
+import { OrgProfile, OrgMembership, User, UserEmail, OrgMember, OrgPeoplePage, OrgGuardianPerson, PaginatedResponse, assertCalendarDates, cellphoneKey, cellphoneSearchDigits, normalizeEmail, parseCellphone } from "@sk/shared";
 import { randomBytes } from "crypto";
 import { BaseManager } from "./BaseManager";
 import { memberPrivilegedSql, restrictedReasonSql } from "./minorAccess";
+import { deactivateIfNoPartLeft, reactivateOrgProfile } from './orgProfileStatus';
 import { organizationManager } from "./OrganizationManager";
 import { imageService } from "../services/ImageService";
 
@@ -324,7 +325,7 @@ export class UserManager extends BaseManager {
   /** Refuse an address on someone else's record in this organisation. Compared normalised. */
   async assertEmailFree(orgId: string, email: string, exceptProfileId?: string): Promise<void> {
     const holder = (await this.query(
-      `SELECT name FROM org_profiles WHERE org_id = $1 AND LOWER(TRIM(email)) = $2 AND id IS DISTINCT FROM $3 ORDER BY name LIMIT 1`,
+      `SELECT name FROM org_profiles WHERE org_id = $1 AND inactive_at IS NULL AND LOWER(TRIM(email)) = $2 AND id IS DISTINCT FROM $3 ORDER BY name LIMIT 1`,
       [orgId, normalizeEmail(email), exceptProfileId ?? null]
     )).rows[0];
     if (holder) throw new EmailInUseError(orgId, email.trim(), holder.name);
@@ -340,7 +341,7 @@ export class UserManager extends BaseManager {
     if (!parsed?.ok) return [];
     const res = await this.query(
       `SELECT name, cellphone FROM org_profiles
-        WHERE org_id = $1 AND id IS DISTINCT FROM $2 AND regexp_replace(COALESCE(cellphone, ''), '\\D', '', 'g') LIKE $3
+        WHERE org_id = $1 AND inactive_at IS NULL AND id IS DISTINCT FROM $2 AND regexp_replace(COALESCE(cellphone, ''), '\\D', '', 'g') LIKE $3
         ORDER BY name`,
       [orgId, exceptProfileId ?? null, `%${parsed.value.slice(-7)}`]
     );
@@ -350,11 +351,11 @@ export class UserManager extends BaseManager {
   /** The refusal for a write that hit the unique org ID or email, as two saves at once can; any other error as it came. */
   private async uniqueClash(error: any, orgId: string, identifier?: string | null, email?: string | null): Promise<unknown> {
     if (isEmailClash(error) && email) {
-      const holder = (await this.query('SELECT name FROM org_profiles WHERE org_id = $1 AND LOWER(TRIM(email)) = $2', [orgId, normalizeEmail(email)])).rows[0];
+      const holder = (await this.query('SELECT name FROM org_profiles WHERE org_id = $1 AND inactive_at IS NULL AND LOWER(TRIM(email)) = $2', [orgId, normalizeEmail(email)])).rows[0];
       return new EmailInUseError(orgId, email.trim(), holder?.name ?? null);
     }
-    if (error?.code !== '23505' || error?.constraint !== 'org_profiles_org_id_identifier_key' || !identifier) return error;
-    const holder = (await this.query('SELECT name FROM org_profiles WHERE org_id = $1 AND identifier = $2', [orgId, identifier])).rows[0];
+    if (error?.code !== '23505' || error?.constraint !== 'idx_org_profiles_one_org_id' || !identifier) return error;
+    const holder = (await this.query('SELECT name FROM org_profiles WHERE org_id = $1 AND inactive_at IS NULL AND identifier = $2', [orgId, identifier])).rows[0];
     return new OrgIdInUseError(orgId, identifier, holder?.name ?? null);
   }
 
@@ -428,36 +429,58 @@ export class UserManager extends BaseManager {
 
   /**
    * One page of an organisation's People (okf/live_rooms.md: static). Every word searched for must
-   * match the name, email or org ID. `roleCounts` is across the whole organisation, whatever the
-   * filter, for the role filter's counts.
+   * match the name, email or org ID. `roleCounts` and `guardianCount` are across the whole
+   * organisation, whatever the filter, for the filter's counts.
+   *
+   * The list is members. Guardians hold no membership (docs/identity_structure.md §5.1), so they join
+   * it in two ways only (`PEOPLE-9`): `view: 'guardians'` lists everyone who is a guardian, members
+   * among them, and finds them by contact details or by a child's name as well; and a search with no
+   * role filter also finds guardians with no membership, for the People screen (`withGuardians`), so
+   * nobody has to know which list to look in. The team pickers read members only.
    */
-  async getOrgPeoplePage(orgId: string, params: { page?: number; limit?: number; search?: string; roleId?: string; sort?: string }): Promise<OrgPeoplePage> {
+  async getOrgPeoplePage(orgId: string, params: { page?: number; limit?: number; search?: string; roleId?: string; sort?: string; view?: string; withGuardians?: boolean }): Promise<OrgPeoplePage> {
     const page = Math.max(1, Math.floor(Number(params.page)) || 1);
     const limit = Math.min(Math.max(1, Math.floor(Number(params.limit)) || 100), 100);
+    const words = searchWords(params.search);
+    const guardiansView = params.view === 'guardians';
+    const isGuardian = `EXISTS (SELECT 1 FROM profile_guardians gl WHERE gl.guardian_profile_id = op.id AND (gl.end_date IS NULL OR gl.end_date > NOW()))`;
     const args: unknown[] = [orgId];
-    const where = ['om.org_id = $1', '(om.end_date IS NULL OR om.end_date > NOW())'];
-    if (params.roleId) {
+    const where = ['op.org_id = $1', 'op.inactive_at IS NULL'];
+    if (guardiansView) {
+      where.push(isGuardian);
+    } else if (params.roleId) {
       args.push(params.roleId);
       where.push(`om.role_id = $${args.length}`);
+    } else {
+      where.push(words.length && params.withGuardians ? `(om.id IS NOT NULL OR ${isGuardian})` : 'om.id IS NOT NULL');
     }
-    for (const word of searchWords(params.search)) {
+    for (const word of words) {
       args.push(word);
       const n = `$${args.length}`;
-      where.push(`(op.name ILIKE ${n} OR op.email ILIKE ${n} OR op.identifier ILIKE ${n})`);
+      where.push(guardiansView
+        ? `(op.name ILIKE ${n} OR op.email ILIKE ${n} OR op.identifier ILIKE ${n} OR op.cellphone ILIKE ${n}
+             OR EXISTS (SELECT 1 FROM profile_guardians cl JOIN org_profiles c ON c.id = cl.player_profile_id
+                         WHERE cl.guardian_profile_id = op.id AND (cl.end_date IS NULL OR cl.end_date > NOW()) AND c.name ILIKE ${n}))`
+        : `(op.name ILIKE ${n} OR op.email ILIKE ${n} OR op.identifier ILIKE ${n})`);
     }
-    const from = `FROM org_memberships om JOIN org_profiles op ON om.org_profile_id = op.id WHERE ${where.join(' AND ')}`;
+    const from = `FROM org_profiles op
+      LEFT JOIN org_memberships om ON om.org_profile_id = op.id AND om.org_id = op.org_id AND (om.end_date IS NULL OR om.end_date > NOW())
+      WHERE ${where.join(' AND ')}`;
     const byName = 'LOWER(op.name), op.id';
-    const order = params.sort === 'role'
+    const order = params.sort === 'role' && !guardiansView
       ? `CASE om.role_id WHEN 'role-org-admin' THEN 0 WHEN 'role-org-staff' THEN 1 ELSE 2 END, ${byName}`
       : byName;
 
-    const [count, rows, roles] = await Promise.all([
+    const [count, rows, roles, guardians] = await Promise.all([
       this.query(`SELECT COUNT(*)::int AS total ${from}`, args),
       this.query(
         `SELECT ${memberColumns},
                 ARRAY(SELECT g.name FROM profile_guardians pg JOIN org_profiles g ON g.id = pg.guardian_profile_id
                        WHERE pg.player_profile_id = op.id AND (pg.end_date IS NULL OR pg.end_date > NOW())
-                       ORDER BY pg.is_primary DESC, pg.start_date, pg.id) AS "guardianNames"
+                       ORDER BY pg.is_primary DESC, pg.start_date, pg.id) AS "guardianNames",
+                ARRAY(SELECT c.name FROM profile_guardians cl JOIN org_profiles c ON c.id = cl.player_profile_id
+                       WHERE cl.guardian_profile_id = op.id AND (cl.end_date IS NULL OR cl.end_date > NOW())
+                       ORDER BY LOWER(c.name)) AS "childNames"
          ${from}
          ORDER BY ${order}
          LIMIT $${args.length + 1} OFFSET $${args.length + 2}`,
@@ -468,6 +491,11 @@ export class UserManager extends BaseManager {
           WHERE org_id = $1 AND (end_date IS NULL OR end_date > NOW()) GROUP BY role_id`,
         [orgId],
       ),
+      this.query(
+        `SELECT COUNT(DISTINCT pg.guardian_profile_id)::int AS total FROM profile_guardians pg
+          WHERE pg.org_id = $1 AND (pg.end_date IS NULL OR pg.end_date > NOW())`,
+        [orgId],
+      ),
     ]);
     return {
       items: rows.rows.map((row: any) => withReason({ ...row, roleName: organizationManager.getOrganizationRole(row.roleId)?.name })),
@@ -475,7 +503,56 @@ export class UserManager extends BaseManager {
       page,
       limit,
       roleCounts: Object.fromEntries(roles.rows.map((r: any) => [r.roleId, r.total])),
+      guardianCount: guardians.rows[0].total,
     };
+  }
+
+  /**
+   * A guardian's page, by their org profile as they may hold no membership (`PEOPLE-9`): their
+   * details and the children they answer for. Nothing if they are not a guardian here any more.
+   */
+  async getOrgGuardian(orgId: string, profileId: string): Promise<OrgGuardianPerson | null> {
+    const res = await this.query(
+      `SELECT ${memberColumns}
+         FROM org_profiles op
+         LEFT JOIN org_memberships om ON om.org_profile_id = op.id AND om.org_id = op.org_id AND (om.end_date IS NULL OR om.end_date > NOW())
+        WHERE op.org_id = $1 AND op.id = $2 AND op.inactive_at IS NULL`,
+      [orgId, profileId],
+    );
+    const row = res.rows[0];
+    if (!row) return null;
+    const children = await this.query(
+      `SELECT pg.id AS "linkId", c.id, c.name, c.image, pg.relationship, pg.is_primary AS "isPrimary",
+              (SELECT om.id FROM org_memberships om
+                WHERE om.org_profile_id = c.id AND om.org_id = pg.org_id AND (om.end_date IS NULL OR om.end_date > NOW())
+                LIMIT 1) AS "membershipId"
+         FROM profile_guardians pg JOIN org_profiles c ON c.id = pg.player_profile_id
+        WHERE pg.guardian_profile_id = $1 AND (pg.end_date IS NULL OR pg.end_date > NOW())
+        ORDER BY LOWER(c.name)`,
+      [profileId],
+    );
+    if (!children.rows.length) return null;
+    return withReason({ ...row, roleName: organizationManager.getOrganizationRole(row.roleId)?.name, children: children.rows });
+  }
+
+  /**
+   * Someone who left this organisation with this email or org ID, for "is this them?" on the add
+   * forms (docs/people.md §9). Admin and Staff only, by the read's room.
+   */
+  async getFormerPerson(orgId: string, given: { email?: string; identifier?: string }): Promise<OrgProfile | null> {
+    const email = given.email ? normalizeEmail(given.email) : null;
+    const identifier = given.identifier?.trim() || null;
+    if (!email && !identifier) return null;
+    const res = await this.query(
+      `SELECT id, org_id AS "orgId", user_id AS "userId", name, email, cellphone, to_char(birthdate, 'YYYY-MM-DD') AS birthdate,
+              national_id AS "nationalId", identifier, image, inactive_at AS "inactiveAt"
+         FROM org_profiles
+        WHERE org_id = $1 AND inactive_at IS NOT NULL
+          AND (LOWER(TRIM(email)) = $2 OR identifier = $3)
+        ORDER BY inactive_at DESC LIMIT 1`,
+      [orgId, email, identifier],
+    );
+    return res.rows[0] ?? null;
   }
 
   /** One profile's member row in this organisation: nothing if they are not a member (a guardian, say). */
@@ -558,6 +635,8 @@ export class UserManager extends BaseManager {
     if (!orgProfileId) {
         throw new Error("Cannot add organisation member: orgProfileId is required");
     }
+    // Someone returning: whoever adds them has said it is the same person (docs/people.md §9).
+    await reactivateOrgProfile((text, params) => this.query(text, params) as any, orgProfileId);
     const existing = await this.query(
        `SELECT ${this.ORG_MEMBERSHIP_COLUMNS} FROM org_memberships WHERE org_profile_id = $1 AND org_id = $2 AND (end_date IS NULL OR end_date > NOW())`,
        [orgProfileId, orgId]
@@ -592,16 +671,43 @@ export class UserManager extends BaseManager {
     return res.rows[0] || null;
   }
 
-  async removeOrganizationMember(membershipId: string): Promise<OrgMembership | null> {
-      const res = await this.query(
-          `UPDATE org_memberships SET end_date = NOW() WHERE id = $1 RETURNING id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
-          [membershipId]
+  /**
+   * Someone leaves the organisation (docs/people.md §9). Their membership and team roles end, and so
+   * do the links to their guardians, as nobody answers for someone who has left. Each guardian with
+   * no other part in the organisation, and the person themselves if they have none, then has their
+   * org profile made inactive. Being a guardian of someone else is a part, so a parent who was also
+   * staff stays on as a guardian. Their user account is not touched.
+   *
+   * Returns what the caller must tell: the teams they left and the guardians they had.
+   */
+  async removeOrganizationMember(membershipId: string): Promise<(OrgMembership & { teamIds: string[]; guardianProfileIds: string[] }) | null> {
+    const removed = await this.transaction(async (tx) => {
+      const membership = (await tx(
+        `UPDATE org_memberships SET end_date = NOW() WHERE id = $1 RETURNING ${this.ORG_MEMBERSHIP_COLUMNS}`,
+        [membershipId]
+      )).rows[0];
+      if (!membership) return null;
+      const profileId = membership.orgProfileId;
+      const teams = await tx(
+        `UPDATE team_memberships SET end_date = NOW()
+          WHERE org_profile_id = $1 AND (end_date IS NULL OR end_date > NOW())
+            AND team_id IN (SELECT id FROM teams WHERE org_id = $2)
+          RETURNING team_id AS "teamId"`,
+        [profileId, membership.orgId]
       );
-      if (res.rows[0]) {
-          const membership = res.rows[0];
-          await organizationManager.syncClaimedStatus(membership.orgId);
-      }
-      return res.rows[0] || null;
+      const guardians = await tx(
+        `UPDATE profile_guardians SET end_date = NOW(), is_primary = false
+          WHERE player_profile_id = $1 AND (end_date IS NULL OR end_date > NOW())
+          RETURNING guardian_profile_id AS "guardianProfileId"`,
+        [profileId]
+      );
+      const guardianProfileIds: string[] = guardians.rows.map((r: any) => r.guardianProfileId);
+      for (const guardianId of guardianProfileIds) await deactivateIfNoPartLeft(tx, guardianId);
+      await deactivateIfNoPartLeft(tx, profileId);
+      return { ...membership, teamIds: [...new Set<string>(teams.rows.map((r: any) => r.teamId))], guardianProfileIds };
+    });
+    if (removed) await organizationManager.syncClaimedStatus(removed.orgId);
+    return removed;
   }
 
   // --- User-Centric Membership Queries ---
@@ -714,7 +820,7 @@ export class UserManager extends BaseManager {
     searchTerm: string,
     orgId?: string,
     orgDomain?: string,
-    options?: { lean?: boolean; orgIds?: string[] }
+    options?: { lean?: boolean; orgIds?: string[]; includeInactive?: boolean }
   ): Promise<OrgProfile[]> {
     if (!searchTerm || searchTerm.trim().length < 2) return [];
 
@@ -726,12 +832,14 @@ export class UserManager extends BaseManager {
     // null `$2` already means for the single-org case.
     const projection = lean
       ? `id, "orgId", name, image, "orgName", "orgShortName"`
-      : `id, "orgId", "userId", name, email, cellphone, birthdate, "nationalId", identifier, image, "primaryRoleId", "orgName", "orgShortName"`;
+      : `id, "orgId", "userId", name, email, cellphone, birthdate, "nationalId", identifier, image, "primaryRoleId", "inactiveAt", "orgName", "orgShortName"`;
+    // Only where someone is adding a person, who may be returning. Every other picker offers the active.
+    const inactiveFilter = options?.includeInactive && !lean && orgId ? '' : 'AND op.inactive_at IS NULL';
 
     const queryStr = `
       WITH search_results AS (
         SELECT
-          op.id, op.org_id as "orgId", op.user_id as "userId", op.name, op.email, op.cellphone, op.birthdate, op.national_id as "nationalId", op.identifier, op.image, op.primary_role_id as "primaryRoleId",
+          op.id, op.org_id as "orgId", op.user_id as "userId", op.name, op.email, op.cellphone, op.birthdate, op.national_id as "nationalId", op.identifier, op.image, op.primary_role_id as "primaryRoleId", op.inactive_at as "inactiveAt",
           o.name as "orgName", o.short_name as "orgShortName",
           similarity(op.name, $1) as name_sim,
           similarity(op.email, $1) as email_sim,
@@ -743,6 +851,7 @@ export class UserManager extends BaseManager {
                OR ($6::text IS NOT NULL AND regexp_replace(COALESCE(op.cellphone, ''), '\\D', '', 'g') LIKE $6::text))
           AND (op.org_id = $2 OR $2 IS NULL)
           AND ($5::text[] IS NULL OR op.org_id = ANY($5))
+          ${inactiveFilter}
       )
       SELECT ${projection},
         (GREATEST(name_sim, email_sim) + (CASE WHEN is_member THEN 0.5 ELSE 0 END) + (CASE WHEN domain_match = 1 THEN 0.3 ELSE 0 END)) as final_score
@@ -790,12 +899,14 @@ export class UserManager extends BaseManager {
       SELECT id FROM org_profiles
       WHERE (user_id = $1 OR LOWER(TRIM(email)) = ANY($2))
         AND org_id = $3
+      ORDER BY inactive_at IS NOT NULL, id
       LIMIT 1
     `, [userId, emails.map(email => normalizeEmail(email)), orgId]);
 
     if (existingProfileRes.rows.length > 0) {
       // Ensure user_id is set
       const profileId = existingProfileRes.rows[0].id;
+      await reactivateOrgProfile((text, params) => this.query(text, params) as any, profileId);
       await this.updateOrgProfile(profileId, { userId });
       return profileId;
     }
@@ -810,25 +921,6 @@ export class UserManager extends BaseManager {
     });
 
     return profile.id;
-  }
-
-  async deleteOrgProfile(id: string): Promise<OrgProfile | null> {
-      const profile = (await this.query(`SELECT ${this.ORG_PROFILE_COLUMNS} FROM org_profiles WHERE id = $1`, [id])).rows[0];
-      if (!profile) return null;
-
-      await this.query('DELETE FROM team_memberships WHERE org_profile_id = $1', [id]);
-      await this.query('DELETE FROM org_memberships WHERE org_profile_id = $1', [id]);
-
-      await this.query('DELETE FROM org_profiles WHERE id = $1', [id]);
-
-      // Org counts are computed live, so removing the memberships is sufficient for them — but
-      // `is_claimed` is stored: deleting the only admin's profile must leave the org unclaimed.
-      await organizationManager.syncClaimedStatus(profile.orgId);
-
-      // Deleted only if no other profile or user still shows it.
-      await imageService.release('profiles', profile.image);
-
-      return profile;
   }
 }
 

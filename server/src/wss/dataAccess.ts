@@ -105,6 +105,10 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // People, a page at a time and one person's page (okf/live_rooms.md: static): the member list's level.
   org_people:           { room: orgRoom('members') },
   org_person:           { room: orgRoom('members') },
+  // A guardian's page, by org profile as they hold no membership (`PEOPLE-9`).
+  org_guardian:         { room: orgRoom('members') },
+  // Someone who left with this email or org ID: "is this them?" on the add forms (docs/people.md §9).
+  former_person:        { room: orgRoom('members') },
   org_referrals:        { room: orgRoom('referrals') },
   // The nominator's view of an org they do not belong to: "is an invitation already pending?"
   // Any signed-in user may add an org to an event, so any signed-in user may ask; what comes back

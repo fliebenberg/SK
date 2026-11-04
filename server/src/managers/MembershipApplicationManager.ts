@@ -12,6 +12,7 @@ import {
   parseCellphone,
 } from '@sk/shared';
 import { BaseManager, Tx } from './BaseManager';
+import { reactivateOrgProfile } from './orgProfileStatus';
 import { rethrowEmailClash } from './UserManager';
 import { personNameMatchScore } from '../utils/orgNameMatch';
 
@@ -56,7 +57,8 @@ export class MembershipApplicationManager extends BaseManager {
         WHERE op.org_id = $2 AND (op.user_id = $1 OR LOWER(TRIM(op.email)) IN (
           SELECT LOWER(email) FROM users WHERE id = $1
           UNION SELECT LOWER(email) FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
-        ))`,
+        ))
+        ORDER BY op.inactive_at IS NOT NULL, op.id`,
       [userId, orgId]
     );
     return res.rows.map((r: any) => r.id);
@@ -278,6 +280,9 @@ export class MembershipApplicationManager extends BaseManager {
           : { birthdate: app.birth, email: app.applicant_email, cellphone: app.applicant_cellphone, userId: app.applicant_user_id });
       }
 
+      // Someone who left and is coming back keeps their org profile (docs/people.md §9).
+      await reactivateOrgProfile(tx, personId);
+
       const member = await tx(
         'SELECT 1 FROM org_memberships WHERE org_profile_id = $1 AND org_id = $2 AND (end_date IS NULL OR end_date > NOW())',
         [personId, app.org_id]
@@ -302,6 +307,7 @@ export class MembershipApplicationManager extends BaseManager {
             email: app.applicant_email, cellphone: app.applicant_cellphone, userId: app.applicant_user_id,
           });
         }
+        await reactivateOrgProfile(tx, guardianId);
         const people = (await tx('SELECT id, org_id as "orgId", email FROM org_profiles WHERE id = ANY($1)', [[guardianId, personId]])).rows;
         const problem = guardianLinkProblem(people.find((p: any) => p.id === guardianId), people.find((p: any) => p.id === personId), app.org_id);
         if (problem) throw new ApplicationError(problem);

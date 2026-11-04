@@ -140,7 +140,6 @@ export class DataManager {
   getOrgProfile = (id: string) => userManager.getOrgProfile(id);
   addOrgProfile = (profile: AddOrgProfilePayload) => userManager.addOrgProfile(profile);
   updateOrgProfile = (id: string, data: Partial<OrgProfile>) => userManager.updateOrgProfile(id, data);
-  deleteOrgProfile = (id: string) => userManager.deleteOrgProfile(id);
 
   // Events
   getEvents = (orgId?: string) => eventManager.getEvents(orgId);
@@ -197,7 +196,7 @@ export class DataManager {
    * authorization decision, not a formatting one (`PEOPLE-1`). The socket handler passes false
    * only when the search is scoped to an org the caller belongs to.
    */
-  searchProfiles = async (query: string, orgId?: string, options?: { lean?: boolean }) => {
+  searchProfiles = async (query: string, orgId?: string, options?: { lean?: boolean; includeInactive?: boolean }) => {
     let orgDomain = "";
     if (orgId) {
       const org = await organizationManager.getOrganization(orgId);
@@ -205,7 +204,7 @@ export class DataManager {
         orgDomain = org.shortName || org.name.split(" ")[0].toLowerCase();
       }
     }
-    return userManager.searchProfiles(query, orgId, orgDomain, { lean: options?.lean !== false });
+    return userManager.searchProfiles(query, orgId, orgDomain, { lean: options?.lean !== false, includeInactive: options?.includeInactive });
   };
 
   searchOrganizerCandidates = (query: string, orgIds?: string[]) =>

@@ -11,6 +11,7 @@ import {
 import { BaseManager, Tx } from "./BaseManager";
 import { accessManager } from "./AccessManager";
 import { restrictedReasonSql } from "./minorAccess";
+import { deactivateIfNoPartLeft, otherPartsInOrg, reactivateOrgProfile } from "./orgProfileStatus";
 
 /**
  * Guardians of players (`MEMBER-3`, docs/identity_structure.md §5).
@@ -188,6 +189,9 @@ export class GuardianManager extends BaseManager {
 
     const id = input.id || `pg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const linkId = await this.transaction(async (tx) => {
+      // Someone returning: whoever picked them has said it is the same person (docs/people.md §9).
+      await reactivateOrgProfile(tx, guardian.id);
+      await reactivateOrgProfile(tx, player.id);
       const existing = await tx(
         `SELECT id FROM profile_guardians pg
           WHERE pg.guardian_profile_id = $1 AND pg.player_profile_id = $2 AND ${ACTIVE}`,
@@ -248,27 +252,59 @@ export class GuardianManager extends BaseManager {
    */
   async endGuardian(id: string): Promise<ProfileGuardian> {
     await this.transaction(async (tx) => {
-      const res = await tx(
-        `SELECT player_profile_id AS "playerProfileId", is_primary AS "isPrimary"
-           FROM profile_guardians pg WHERE pg.id = $1 AND ${ACTIVE}`,
-        [id]
-      );
-      const link = res.rows[0];
-      if (!link) throw new GuardianError('That guardian link has already ended or does not exist.');
-      await tx('UPDATE profile_guardians SET end_date = NOW(), is_primary = false WHERE id = $1', [id]);
-      if (link.isPrimary) {
-        await tx(
-          `UPDATE profile_guardians SET is_primary = true
-            WHERE id = (
-              SELECT pg.id FROM profile_guardians pg
-               WHERE pg.player_profile_id = $1 AND ${ACTIVE}
-               ORDER BY pg.start_date, pg.id LIMIT 1
-            )`,
-          [link.playerProfileId]
-        );
-      }
+      const guardianProfileId = await this.endLink(tx, id);
+      // Their last child, and nothing else here: they are no longer part of the organisation.
+      await deactivateIfNoPartLeft(tx, guardianProfileId);
     });
     return (await this.getLink(id))!;
+  }
+
+  /** End one link; the player's next guardian becomes primary if this one was. Returns the guardian. */
+  private async endLink(tx: Tx, id: string): Promise<string> {
+    const res = await tx(
+      `SELECT player_profile_id AS "playerProfileId", guardian_profile_id AS "guardianProfileId", is_primary AS "isPrimary"
+         FROM profile_guardians pg WHERE pg.id = $1 AND ${ACTIVE}`,
+      [id]
+    );
+    const link = res.rows[0];
+    if (!link) throw new GuardianError('That guardian link has already ended or does not exist.');
+    await tx('UPDATE profile_guardians SET end_date = NOW(), is_primary = false WHERE id = $1', [id]);
+    if (link.isPrimary) {
+      await tx(
+        `UPDATE profile_guardians SET is_primary = true
+          WHERE id = (
+            SELECT pg.id FROM profile_guardians pg
+             WHERE pg.player_profile_id = $1 AND ${ACTIVE}
+             ORDER BY pg.start_date, pg.id LIMIT 1
+          )`,
+        [link.playerProfileId]
+      );
+    }
+    return link.guardianProfileId;
+  }
+
+  /**
+   * Remove someone who holds no membership from the organisation (`PEOPLE-9`): every link they have
+   * as a guardian ends and their org profile is made inactive, kept for the record. Refused, saying
+   * why, while they have another part here. Returns the children they answered for.
+   */
+  async removeFromOrganisation(profileId: string): Promise<{ orgId: string; playerProfileIds: string[] }> {
+    return this.transaction(async (tx) => {
+      const profile = (await tx('SELECT org_id, name FROM org_profiles WHERE id = $1 FOR UPDATE', [profileId])).rows[0];
+      if (!profile) throw new GuardianError('That person is not on record.');
+      const parts = await otherPartsInOrg(tx, profileId);
+      if (parts.length) {
+        throw new GuardianError(`${profile.name} cannot be removed yet: they have ${parts.join(', ')} in this organisation. End that first.`);
+      }
+      const links = await tx(
+        `SELECT pg.id, pg.player_profile_id AS "playerProfileId" FROM profile_guardians pg
+          WHERE pg.guardian_profile_id = $1 AND ${ACTIVE}`,
+        [profileId]
+      );
+      for (const link of links.rows) await this.endLink(tx, link.id);
+      await deactivateIfNoPartLeft(tx, profileId);
+      return { orgId: profile.org_id, playerProfileIds: links.rows.map((l: any) => l.playerProfileId) };
+    });
   }
 
   /** Record a minor's own say. `setByProfileId` is the guardian's or admin's profile. */

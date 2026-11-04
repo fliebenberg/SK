@@ -239,7 +239,7 @@ const createTables = async () => {
                 own_account_allowed BOOLEAN,
                 own_account_set_at TIMESTAMPTZ,
                 own_account_set_by TEXT REFERENCES org_profiles(id) ON DELETE SET NULL,
-                UNIQUE(org_id, identifier)
+                inactive_at TIMESTAMPTZ
             );
         `);
 
@@ -248,10 +248,15 @@ const createTables = async () => {
             ALTER TABLE org_profiles ADD COLUMN IF NOT EXISTS cellphone TEXT;
         `);
 
-        // An email is one person's within an organisation, as access follows it (`MEMBER-7`).
+        // An email and an org ID are one active person's within an organisation, as access follows
+        // the email (`MEMBER-7`). Someone who has left holds neither (docs/people.md §9).
         await client.query(`
             CREATE UNIQUE INDEX IF NOT EXISTS idx_org_profiles_one_email
-              ON org_profiles(org_id, LOWER(TRIM(email))) WHERE email IS NOT NULL AND TRIM(email) <> '';
+              ON org_profiles(org_id, LOWER(TRIM(email)))
+              WHERE email IS NOT NULL AND TRIM(email) <> '' AND inactive_at IS NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_org_profiles_one_org_id
+              ON org_profiles(org_id, identifier)
+              WHERE identifier IS NOT NULL AND inactive_at IS NULL;
         `);
 
         // Team Memberships

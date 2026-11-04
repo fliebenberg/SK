@@ -29,8 +29,13 @@ person at a glance, and opens their page.
   Minor or Dependant tag (§4) stands in for the guardian column.
 - **No account status and no Invite.** Who is on ScoreKeeper is a question about one person, so it
   is answered on their page, which is also the only place to invite from.
-- **Filter by role** with counts (All / Admin / Staff / Member), search by name, email or org ID,
-  and sort by name or role.
+- **Filter by role** with counts (All / Admin / Staff / Member / Guardians), search by name, email or
+  org ID, and sort by name or role.
+- **The list is members; guardians are found two ways** (`PEOPLE-9`). They hold no membership, so they
+  are not in All until someone searches: a search under All also finds guardians with no membership,
+  so nobody has to know which list to look in. The **Guardians** filter lists everyone who is a guardian,
+  members among them, with who they answer for, and also finds them by cellphone or by a child's name.
+  Trusted contacts (`MEMBER-5`) get a filter the same way when they are built.
 - **Add person** is a labelled button for Admin and Staff only (the "+" used to be shown to everyone
   and refused on save, `UI-22`). It opens
   [AddPersonDialog](file:///c:/Fred/Coding/SK/expo-app/components/people/AddPersonDialog.tsx): name
@@ -65,6 +70,14 @@ person at a glance, and opens their page.
 - **Layout**: up to the app's page width (1440px, `<PageBody>`). Wide, Contact and Personal details on the left, the other cards on the
   right — or Contact and Personal side by side when there are no others. On a phone one column,
   guardians and member access first.
+
+## 3a. The guardian page — `/admin/[orgId]/people/guardian/[profileId]`
+
+[\[profileId\].tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/people/guardian/%5BprofileId%5D.tsx),
+for a guardian with no membership, as the person page is keyed by membership. The same read-first cards
+without a role or member access, plus **Answers for**: each child, the relationship, and a link to the
+child's page. A guardian who is also a member opens their ordinary person page instead (`PEOPLE-16`).
+**Remove from organisation** in the ⋯ menu ends every link they have, once confirmed (§9).
 
 ## 4. Minor and Dependant
 
@@ -138,6 +151,31 @@ Decided 2026-11-03 (`MEMBER-7`), everywhere a person is written.
   only that someone does. The import warns on the row, as it did already
   ([identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §8.2).
 
-## 6. Not settled here
+## 9. Leaving and coming back
 
-- Finding guardians who hold no membership (`PEOPLE-9`).
+Decided 2026-11-04. **This is about the org profile, a person's record in one organisation. Their user
+account, which is their login and settings, and their org profiles elsewhere, are never touched.** A
+person deleting their own account is a separate, larger piece of work (`PEOPLE-15`).
+
+- **Someone with no part left in an organisation has their org profile made inactive.** That happens
+  when they are removed as a member, when a guardian's last link ends, and when a guardian is removed
+  from the organisation. A part is a membership, a guardian link, a team role, an appointment to a
+  tournament that is not over, an entry in one, or a game still to officiate. Past games are history,
+  not a part. A parent removed as staff stays on as a guardian.
+- **Removing a member ends their team roles and their guardians' links to them.** Nobody answers for
+  someone who has left, so a guardian whose last child leaves goes too. If the child returns, their
+  guardians are linked again by hand.
+- **A guardian cannot be removed while they have another part here**, and the refusal says which.
+- **An inactive org profile is kept, details and all,** so match histories and the record stand. It
+  holds nothing: its email and org ID are free for an active profile in that organisation, it gives no
+  access, and only the add forms offer it. How long the details stay is for the cleanup to decide
+  (`PEOPLE-14`). No screen shows them meanwhile, apart from "is this them?" to Admin and Staff.
+- **A returning person gets the same org profile back, if whoever adds them says it is the same
+  person.** A name, email or org ID matching someone who left is offered on Add person and on the
+  guardian forms, as a question: the address may have changed hands, so ignoring it adds someone new. An
+  application names them as a possible match. An import matches by email, org ID or national ID, never
+  by name, and its preview says the row brings them back. Whatever someone else now holds, they come
+  back without.
+- **A new org profile with the email of someone who left** is linked to the same user account as the old
+  one, as an email always is. The account sees current memberships only, and no screen lists history by
+  account today; a later one can read both, as the inactive profile keeps its link to the account.

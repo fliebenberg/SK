@@ -410,11 +410,11 @@ export class AccessManager extends BaseManager {
    * `$1` is the user id in every query that embeds it.
    */
   readonly PROFILE_IDS_FOR_USER = `
-    SELECT id FROM org_profiles WHERE user_id = $1 OR email IN (
+    SELECT id FROM org_profiles WHERE inactive_at IS NULL AND (user_id = $1 OR email IN (
       SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
       UNION
       SELECT email FROM users WHERE id = $1
-    )
+    ))
   `;
 
   /**
@@ -861,7 +861,7 @@ export class AccessManager extends BaseManager {
   async ownsOrgProfile(userId: string, orgProfileId: string): Promise<boolean> {
     const res = await this.query(`
       SELECT 1 FROM org_profiles
-      WHERE id = $2 AND (
+      WHERE id = $2 AND inactive_at IS NULL AND (
         user_id = $1
         OR email IN (
           SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL

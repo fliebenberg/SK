@@ -1058,7 +1058,7 @@ app.get('/api/admin/users/search', requireAdmin, async (req: any, res: any) => {
           ELSE 0.0 END) AS id_score
         FROM users u
         LEFT JOIN user_emails ue ON u.id = ue.user_id
-        LEFT JOIN org_profiles op ON u.id = op.user_id
+        LEFT JOIN org_profiles op ON u.id = op.user_id AND op.inactive_at IS NULL
         LEFT JOIN organizations org ON op.org_id = org.id
         GROUP BY u.id
       ),
@@ -1106,7 +1106,7 @@ app.get('/api/admin/users/search', requireAdmin, async (req: any, res: any) => {
           ELSE 0.0 END) AS id_score
         FROM org_profiles op
         LEFT JOIN organizations org ON op.org_id = org.id
-        WHERE op.user_id IS NULL
+        WHERE op.user_id IS NULL AND op.inactive_at IS NULL
       ),
       all_candidates AS (
         SELECT * FROM user_candidates
@@ -1794,6 +1794,12 @@ io.on('connection', (socket) => {
                 callback(person ? { ...person, guardians: await guardianManager.getGuardiansForPlayer(person.id) } : null);
                 break;
             }
+            case 'org_guardian':
+                callback(orgId && request.profileId ? await userManager.getOrgGuardian(orgId, request.profileId) : null);
+                break;
+            case 'former_person':
+                callback(orgId ? await userManager.getFormerPerson(orgId, { email: request.email, identifier: request.identifier }) : null);
+                break;
             case 'my_org_applications':
                 callback(orgId ? await membershipApplicationManager.getMine(socket.data?.userId, orgId) : []);
                 break;
@@ -1894,7 +1900,7 @@ io.on('connection', (socket) => {
                     const searchLean =
                         !searchScopeOrgId ||
                         !(await accessManager.canManageOrgPeople(socket.data?.userId, searchScopeOrgId));
-                    callback(await dataManager.searchPeople(request.query, searchScopeOrgId, { lean: searchLean }));
+                    callback(await dataManager.searchPeople(request.query, searchScopeOrgId, { lean: searchLean, includeInactive: !!request.includeInactive }));
                 } else {
                     callback([]);
                 }
@@ -3243,16 +3249,20 @@ io.on('connection', (socket) => {
                 break;
             case SocketAction.REMOVE_ORG_MEMBER:
                 console.log(`DataManager: Removing org member ${action.payload.id}`);
-                const orgMembershipToRem = await dataManager.getOrgMembership(action.payload.id);
                 result = await dataManager.removeOrganizationMember(action.payload.id);
-                if (orgMembershipToRem) {
-                    // Refresh memberships for the affected user
-                    const profile = await dataManager.getOrgProfile(orgMembershipToRem.orgProfileId);
-                    if (profile && profile.userId) {
-                        await publishUserMemberships(profile.userId);
+                if (result) {
+                    // Their account and each guardian's, as their access and My Family both changed.
+                    for (const userId of await guardianManager.getAffectedUserIds(result.orgProfileId)) {
+                        await publishUserMemberships(userId);
                     }
-
-                    await broadcastOrgSummaries([orgMembershipToRem.orgId]);
+                    // The rosters they have just left, and those teams' guardian lists and counts.
+                    for (const teamId of result.teamIds) {
+                        additionalBroadcasts.push({ topic: teamMembersRoom(teamId), type: 'TEAM_MEMBERS_SYNC', data: await dataManager.getTeamMembers(teamId) });
+                        additionalBroadcasts.push({ topic: teamGuardiansRoom(teamId), type: 'GUARDIANS_SYNC', data: await teamGuardians(teamId, result.orgId) });
+                        const team = await dataManager.getTeam(teamId);
+                        if (team) additionalBroadcasts.push({ topic: `org:${team.orgId}:teams`, type: 'TEAM_UPDATED', data: { ...team } });
+                    }
+                    await broadcastOrgSummaries([result.orgId]);
                 }
                 break;
             case SocketAction.SEND_MEMBER_INVITE:
@@ -3288,6 +3298,8 @@ io.on('connection', (socket) => {
             case SocketAction.END_PROFILE_GUARDIAN: {
                 result = await guardianManager.endGuardian(action.payload.id);
                 await publishPlayerChange(result.orgId, result.playerProfileId);
+                // Their last child may have taken them out of the organisation.
+                await broadcastOrgSummaries([result.orgId]);
                 break;
             }
             case SocketAction.SET_MINOR_ACCOUNT_ACCESS: {
@@ -3455,9 +3467,10 @@ io.on('connection', (socket) => {
             }
             case SocketAction.DELETE_ORG_PROFILE:
                 console.log(`DataManager: Deleting org profile ${action.payload.id}`);
-                result = await dataManager.deleteOrgProfile(action.payload.id);
-                // The profile may have been the only admin's (`syncClaimedStatus`).
-                if (result?.orgId) await broadcastOrgSummaries([result.orgId]);
+                // Kept for the record and made inactive, not deleted (docs/people.md §9).
+                result = await guardianManager.removeFromOrganisation(action.payload.id);
+                for (const playerProfileId of result.playerProfileIds) await publishPlayerChange(result.orgId, playerProfileId);
+                await broadcastOrgSummaries([result.orgId]);
                 break;
             case SocketAction.LINK_USER_PROFILE:
                 result = await namingRecordHolder(authUserId, () => dataManager.linkUserToProfile(action.payload.email, action.payload.orgProfileId));
