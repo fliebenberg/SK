@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { MembershipApplication, SocketAction } from '@sk/shared';
+import { ApplicationPossibleMatch, MembershipApplication, SocketAction } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { RELATIONSHIP_LABELS } from '../guardians/guardianDraft';
 import { PersonAvatar } from './PersonBits';
@@ -66,46 +66,19 @@ export function OrgApplicationsCard({ orgId }: { orgId: string }) {
 
 const NEW_PERSON = 'new';
 
-function ReviewDialog({ application, onClose }: { application: MembershipApplication | null; onClose: () => void }) {
+/** One "is this someone we have?" question. A shared number is a hint to weigh: people share a phone (`MEMBER-7`). */
+function MatchQuestion({ testID, name, matches, choice, onChoose }: {
+  testID: string;
+  name: string;
+  matches: ApplicationPossibleMatch[];
+  choice: string | null;
+  onChoose: (id: string) => void;
+}) {
   const isDark = useActiveTheme() === 'dark';
-  const [choice, setChoice] = useState<string | null>(null);
-  const [isDeclining, setIsDeclining] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setChoice(null);
-    setIsDeclining(false);
-    setError(null);
-  }, [application?.id]);
-
-  if (!application) return null;
-  const matches = application.possibleMatches || [];
-  const age = ageInYears(application.birthdate);
-
-  const decide = async (decision: 'approve' | 'decline') => {
-    setIsSaving(true);
-    setError(null);
-    const result = await sendAction(SocketAction.DECIDE_ORG_APPLICATION, {
-      id: application.id,
-      decision,
-      existingProfileId: decision === 'approve' && choice && choice !== NEW_PERSON ? choice : null,
-    }, { suppressToast: true });
-    setIsSaving(false);
-    if (!result.ok) return setError(result.message || 'It was not saved.');
-    onClose();
-  };
-
-  const row = (label: string, value?: string | null) => (value ? (
-    <View className="flex-row gap-3">
-      <Text className="font-inter text-sm text-ink-muted" style={{ width: 100 }}>{label}</Text>
-      <Text className="font-inter text-sm text-ink flex-1" selectable>{value}</Text>
-    </View>
-  ) : null);
   const radio = (value: string, label: string, sub?: string) => (
     <TouchableOpacity
       key={value}
-      onPress={() => setChoice(value)}
+      onPress={() => onChoose(value)}
       accessibilityRole="radio"
       accessibilityState={{ checked: choice === value }}
       accessibilityLabel={label}
@@ -118,6 +91,60 @@ function ReviewDialog({ application, onClose }: { application: MembershipApplica
       </View>
     </TouchableOpacity>
   );
+  return (
+    <View testID={testID} className="rounded-xl border border-line p-3 gap-1">
+      <Text className="font-inter-bold text-sm text-ink-soft mb-1">Is {name} already on your records?</Text>
+      {matches.map(match => radio(
+        match.id,
+        match.name,
+        [match.sameCellphone ? 'Same cellphone' : '', match.birthdate ? `Born ${formatCalendarDate(match.birthdate)}` : '', match.personOrgId ? `Org ID ${match.personOrgId}` : ''].filter(Boolean).join(' · ') || undefined,
+      ))}
+      {radio(NEW_PERSON, 'None of these. It’s someone new.')}
+    </View>
+  );
+}
+
+function ReviewDialog({ application, onClose }: { application: MembershipApplication | null; onClose: () => void }) {
+  const [choice, setChoice] = useState<string | null>(null);
+  const [guardianChoice, setGuardianChoice] = useState<string | null>(null);
+  const [isDeclining, setIsDeclining] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setChoice(null);
+    setGuardianChoice(null);
+    setIsDeclining(false);
+    setError(null);
+  }, [application?.id]);
+
+  if (!application) return null;
+  const matches = application.possibleMatches || [];
+  // The child's record cannot also be their parent's; the list is live, so an answer can go stale.
+  const guardianMatches = (application.possibleGuardianMatches || []).filter(m => m.id !== choice);
+  const guardianAnswered = guardianChoice === NEW_PERSON || guardianMatches.some(m => m.id === guardianChoice);
+  const age = ageInYears(application.birthdate);
+
+  const decide = async (decision: 'approve' | 'decline') => {
+    setIsSaving(true);
+    setError(null);
+    const result = await sendAction(SocketAction.DECIDE_ORG_APPLICATION, {
+      id: application.id,
+      decision,
+      existingProfileId: decision === 'approve' && choice && choice !== NEW_PERSON ? choice : null,
+      existingGuardianProfileId: decision === 'approve' && guardianAnswered && guardianChoice !== NEW_PERSON ? guardianChoice : null,
+    }, { suppressToast: true });
+    setIsSaving(false);
+    if (!result.ok) return setError(result.message || 'It was not saved.');
+    onClose();
+  };
+
+  const row = (label: string, value?: string | null) => (value ? (
+    <View className="flex-row gap-3">
+      <Text className="font-inter text-sm text-ink-muted" style={{ width: 100 }}>{label}</Text>
+      <Text className="font-inter text-sm text-ink flex-1" selectable>{value}</Text>
+    </View>
+  ) : null);
 
   return (
     <EditDialog
@@ -126,7 +153,7 @@ function ReviewDialog({ application, onClose }: { application: MembershipApplica
       onClose={onClose}
       onSave={() => decide(isDeclining ? 'decline' : 'approve')}
       saveLabel={isDeclining ? 'Decline' : 'Approve as Member'}
-      saveDisabled={!isDeclining && matches.length > 0 && !choice}
+      saveDisabled={!isDeclining && ((matches.length > 0 && !choice) || (guardianMatches.length > 0 && !guardianAnswered))}
       isSaving={isSaving}
       footerLeft={!isDeclining ? (
         <TouchableOpacity onPress={() => setIsDeclining(true)} accessibilityRole="button" className="py-2">
@@ -148,15 +175,10 @@ function ReviewDialog({ application, onClose }: { application: MembershipApplica
             {row('Their note', application.note)}
           </View>
           {matches.length ? (
-            <View testID="application-matches" className="rounded-xl border border-line p-3 gap-1">
-              <Text className="font-inter-bold text-sm text-ink-soft mb-1">Is this someone already on your records?</Text>
-              {matches.map(match => radio(
-                match.id,
-                match.name,
-                [match.birthdate ? `Born ${formatCalendarDate(match.birthdate)}` : '', match.personOrgId ? `Org ID ${match.personOrgId}` : ''].filter(Boolean).join(' · ') || undefined,
-              ))}
-              {radio(NEW_PERSON, 'None of these. It’s someone new.')}
-            </View>
+            <MatchQuestion testID="application-matches" name={application.name} matches={matches} choice={choice} onChoose={setChoice} />
+          ) : null}
+          {guardianMatches.length ? (
+            <MatchQuestion testID="application-guardian-matches" name={application.applicantName} matches={guardianMatches} choice={guardianChoice} onChoose={setGuardianChoice} />
           ) : null}
         </>
       )}

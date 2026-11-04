@@ -9,6 +9,8 @@ export interface ApplicationPossibleMatch {
   name: string;
   birthdate?: CalendarDate;
   personOrgId?: string;
+  /** Their number is the one on the application: a hint, never proof, as nothing verifies it (`MEMBER-7`). */
+  sameCellphone?: boolean;
 }
 
 /**
@@ -33,6 +35,8 @@ export interface MembershipApplication {
   decidedAt?: string | null;
   /** On the queue only. */
   possibleMatches?: ApplicationPossibleMatch[];
+  /** On the queue, for a child's application: who the parent applying might already be (`MEMBER-7`). */
+  possibleGuardianMatches?: ApplicationPossibleMatch[];
   /** On the applicant's own, once declined. */
   reapplyFrom?: CalendarDate;
 }

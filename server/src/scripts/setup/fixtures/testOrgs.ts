@@ -587,6 +587,10 @@ export const TEST_ORGS: FixtureOrg[] = [
             // The same account as her guardian profile at Doringkloof.
             { name: 'Elmarie Kruger', email: 'elmarie.kruger@example.test', cellphone: '+27825550206', account: true,
               children: [{ name: 'Ockert Brits', relationship: 'parent', primary: true }] },
+            // On record by name and number alone, as an import leaves a parent: applying with this
+            // number asks whether it is them (`MEMBER-7`).
+            { name: 'Mpho Sefali', cellphone: '+27825550207',
+              children: [{ name: 'Mamello Sefali', relationship: 'parent', primary: true }] },
         ],
     },
 ];

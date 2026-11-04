@@ -10,6 +10,7 @@ import { dataManager } from '../DataManager';
 import { accessManager } from '../managers/AccessManager';
 import { guardianManager } from '../managers/GuardianManager';
 import { mailManager } from '../managers/MailManager';
+import { userManager } from '../managers/UserManager';
 import { broadcast } from './broadcast';
 import { publishGuardianProfileChange } from './guardians';
 import { publishUserMemberships } from './memberships';
@@ -63,6 +64,8 @@ export async function sendMemberInvite(memberId: string, emailInput?: string, re
   if (await guardianManager.linkedEmailClash(memberId, email)) {
     throw new Error(`${email} is the email of someone ${profile.name} is linked to as guardian or child. Each needs their own address.`);
   }
+  // Nor one anybody else here has (`MEMBER-7`), said before the email goes rather than after.
+  if (email !== normalizeEmail(profile.email)) await userManager.assertEmailFree(profile.orgId, email, memberId);
 
   const settingsRes = await pool.query("SELECT key, value FROM system_settings WHERE key = 'invite_cooldown_hours'");
   const cooldownHours = inviteCooldownHoursFrom(Object.fromEntries(settingsRes.rows.map((r: any) => [r.key, r.value])));

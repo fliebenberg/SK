@@ -8,14 +8,16 @@ import { ORG, USERS, signIn } from './support';
  * In order, one after another: each builds on the application the one before left waiting.
  */
 const CHILD = 'Dirk Kotze'; // On Kwaggafontein's records already, so approving asks about him.
+const PARENT_ON_RECORD = 'Mpho Sefali'; // On Kwaggafontein's records by name and this number alone (MEMBER-7).
+const PARENTS_NUMBER = '082 555 0207';
 
-async function applyForChild(page: Page, name: string) {
+async function applyForChild(page: Page, name: string, cellphone = '082 555 0123') {
   await page.goto(`/organizations/${ORG.ksc}`);
   await page.getByRole('button', { name: 'Apply to join' }).click();
   await page.getByText('My child', { exact: true }).click();
   await page.getByLabel('Child’s full name').fill(name);
   await page.getByLabel('Date of birth').fill('2012-05-14');
-  await page.getByLabel('Your cellphone').fill('082 555 0123');
+  await page.getByLabel('Your cellphone').fill(cellphone);
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(page.getByTestId('your-applications')).toContainText(name);
 }
@@ -62,8 +64,10 @@ test.describe.serial('applying to join an organisation', () => {
     await expect(page.getByRole('button', { name: 'Apply to join' })).toBeVisible();
     await page.getByRole('button', { name: 'Withdraw the application for Test Withdrawn Child' }).click();
     await expect(page.getByText('Test Withdrawn Child')).toHaveCount(0);
-    await applyForChild(page, CHILD);
+    await applyForChild(page, CHILD, PARENTS_NUMBER);
     await applyForChild(page, 'Test New Child');
+    // Never told the number is on record: anyone signed in could look people up that way.
+    await expect(page.getByText(PARENT_ON_RECORD)).toHaveCount(0);
   });
 
   test('staff see it waiting: counted on the Control Panel, and listed on People', async ({ page }) => {
@@ -84,8 +88,25 @@ test.describe.serial('applying to join an organisation', () => {
     await expect(page.getByTestId('application-matches')).toContainText(CHILD);
     await expect(approve).toBeDisabled();
     await page.getByTestId('application-matches').getByRole('radio', { name: CHILD }).click();
+    // Then about the parent: the same number on someone with another name, and still theirs to answer.
+    const parent = page.getByTestId('application-guardian-matches');
+    await expect(parent).toContainText(PARENT_ON_RECORD);
+    await expect(parent).toContainText('Same cellphone');
+    await expect(approve).toBeDisabled();
+    await parent.getByRole('radio', { name: PARENT_ON_RECORD }).click();
     await approve.click();
     await expect(page.getByRole('button', { name: `Review ${CHILD}` })).toHaveCount(0);
+  });
+
+  test('a number someone else has is pointed out on the form, and can still be saved', async ({ page }) => {
+    await signIn(page, USERS.kscAdmin);
+    await page.goto(`/admin/${ORG.ksc}/people`);
+    await page.getByRole('button', { name: 'Add person' }).first().click();
+    await page.getByLabel('Cell number').fill(PARENTS_NUMBER);
+    await expect(page.getByTestId('cellphone-on-record')).toContainText(PARENT_ON_RECORD);
+    await page.getByPlaceholder('Search the organisation, or type a new name').fill('Test Shares A Phone');
+    await page.getByRole('button', { name: 'Add person' }).last().click();
+    await expect(page.getByLabel('Cell number')).toHaveCount(0);
   });
 
   test('declining says what happens', async ({ page }) => {

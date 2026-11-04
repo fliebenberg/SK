@@ -53,7 +53,7 @@ import { placeNameAt, searchPlaces } from './services/places';
 import { runIdempotent, BatchRefused, BatchFailed } from './wss/batch';
 import { enforceTournamentAction } from './wss/tournamentGate';
 import { payloadProblem } from './wss/actionPayloads';
-import { enforceProfileAction, namingOrgIdHolder } from './wss/profileGate';
+import { enforceProfileAction, namingRecordHolder } from './wss/profileGate';
 import { GateRefusal, enforceOrgAction } from './wss/orgGate';
 import { refuseDeletingStartedGame, refuseResultInFixtureEdit, refuseTeamChangeOnDrawnSide, validateRecordedResult } from './wss/fixtureRules';
 import {
@@ -1800,6 +1800,13 @@ io.on('connection', (socket) => {
             case 'org_people_names':
                 callback(orgId ? await userManager.getOrgPeopleNames(orgId, request) : { items: [], total: 0, page: 1, limit: 100 });
                 break;
+            case 'cellphone_on_record': {
+                // A coach is told only that it is on record, or this would look up who holds any number.
+                const holders = orgId ? await userManager.getCellphoneHolders(orgId, request.cellphone, request.excludeProfileId) : [];
+                const mayName = orgId ? await accessManager.canManageOrgPeople(socket.data?.userId, orgId) : false;
+                callback({ cellphone: request.cellphone, count: holders.length, names: mayName ? holders : [] });
+                break;
+            }
             case 'profile_guardians': {
                 // `MEMBER-3`. Authorized on `org:{orgId}:members`, so the answer is held to that org:
                 // naming a player from another one returns nothing rather than their guardians.
@@ -2201,6 +2208,10 @@ io.on('connection', (socket) => {
         } else if (kind === 'event' && sub === 'fixtures') {
             pushToSocket(socket, room, 'GAME_SUMMARIES_SYNC', await dataManager.getGameSummariesByEvent(id));
 
+        } else if (kind === 'event' && sub === 'row') {
+            // What a tournament's row in a list shows: how many games, how many live.
+            pushToSocket(socket, room, 'EVENT_ROW_UPDATED', await dataManager.getEventListRow(id));
+
         } else if (kind === 'event' && sub === 'divisions') {
             pushToSocket(socket, room, 'DIVISIONS_SYNC', await dataManager.getDivisions(id));
 
@@ -2208,10 +2219,6 @@ io.on('connection', (socket) => {
             pushToSocket(socket, room, 'EVENT_FACILITIES_SYNC', {
                 eventId: id,
                 facilityIds: await dataManager.getEventFacilities(id),
-        } else if (kind === 'event' && sub === 'row') {
-            // What a tournament's row in a list shows: how many games, how many live.
-            pushToSocket(socket, room, 'EVENT_ROW_UPDATED', await dataManager.getEventListRow(id));
-
             });
 
         } else if (kind === 'event' && sub === 'standings') {
@@ -2309,6 +2316,10 @@ io.on('connection', (socket) => {
                 // Spectator tier: score, clock, status, teams. No event feed.
                 const summary = await dataManager.getGameSummary(id);
                 if (summary) pushToSocket(socket, room, 'GAME_SUMMARY_UPDATED', summary);
+            } else if (sub === 'row') {
+                // A list's row: status, score and times. Who is playing comes with the list's read.
+                const row = await dataManager.getGameListRow(id);
+                if (row) pushToSocket(socket, room, 'GAME_ROW_UPDATED', row);
             } else if (sub === 'disputes') {
                 // Open disputes only. Split out of `:events`, which carried the scoring feed too.
                 pushToSocket(socket, room, 'ACTIVE_DISPUTES_SYNC', await gameEventManager.getActiveDisputes(id));
@@ -2316,10 +2327,6 @@ io.on('connection', (socket) => {
                 // The scoring feed only; open disputes are `game:{id}:disputes` (rule 4).
                 pushToSocket(socket, room, 'GAME_EVENTS_SYNC', await dataManager.getGameEvents(id));
             } else {
-            } else if (sub === 'row') {
-                // A list's row: status, score and times. Who is playing comes with the list's read.
-                const row = await dataManager.getGameListRow(id);
-                if (row) pushToSocket(socket, room, 'GAME_ROW_UPDATED', row);
                 // The full game record.
                 const game = await dataManager.getGame(id);
                 if (game) pushToSocket(socket, room, 'GAME_UPDATED', game);
@@ -3251,13 +3258,13 @@ io.on('connection', (socket) => {
             case SocketAction.SEND_MEMBER_INVITE:
                 // Invites a person the org has on record to create an account; the rules, and the
                 // publishing, are `sendMemberInvite`'s, shared with a guardian's own invite.
-                result = await sendMemberInvite(action.payload.memberId, action.payload.email, action.payload.resend);
+                result = await namingRecordHolder(authUserId, () => sendMemberInvite(action.payload.memberId, action.payload.email, action.payload.resend));
                 break;
             case SocketAction.SEND_DEPENDANT_INVITE:
                 // A guardian inviting their own child (`MEMBER-3`). The gate checked the link; the
                 // rules are the same as an admin's, including refusing a child the minors rule
                 // restricts and an address the guardian and child would share.
-                result = await sendMemberInvite(action.payload.playerProfileId, action.payload.email, action.payload.resend);
+                result = await namingRecordHolder(authUserId, () => sendMemberInvite(action.payload.playerProfileId, action.payload.email, action.payload.resend));
                 break;
             // --- Guardians (`MEMBER-3`) ---------------------------------------------------------
             // The gate has already checked the caller manages this org's people (or, for a minor's
@@ -3348,10 +3355,10 @@ io.on('connection', (socket) => {
                 break;
             }
             case SocketAction.DECIDE_ORG_APPLICATION: {
-                const { id: applicationId, decision, existingProfileId } = action.payload;
+                const { id: applicationId, decision, existingProfileId, existingGuardianProfileId } = action.payload;
                 if (decision !== 'approve' && decision !== 'decline') throw new Error(`"${decision}" is not a decision.`);
                 result = decision === 'approve'
-                    ? await membershipApplicationManager.approve(applicationId, authUserId!, existingProfileId)
+                    ? await membershipApplicationManager.approve(applicationId, authUserId!, existingProfileId, existingGuardianProfileId)
                     : await membershipApplicationManager.decline(applicationId, authUserId!);
                 const decided = result;
                 broadcast(orgApplicationsRoom(decided.orgId), 'ORG_APPLICATIONS_SYNC', await membershipApplicationManager.getPending(decided.orgId));
@@ -3402,7 +3409,7 @@ io.on('connection', (socket) => {
                 // linking an account is the claim flow's, and no client sends it (`PEOPLE-2`).
                 const { eventId: _appointingEventId, userId: _rejectedUserId, ...addPayload } = { ...action.payload };
                 // An uploaded picture is saved by addOrgProfile itself, around the database write.
-                result = await namingOrgIdHolder(authUserId, () => dataManager.addOrgProfile(addPayload), ' Search for them by name to add them.');
+                result = await namingRecordHolder(authUserId, () => dataManager.addOrgProfile(addPayload), ' Search for them by name to add them.');
                 break;
             }
             case SocketAction.UPDATE_ORG_PROFILE: {
@@ -3425,7 +3432,7 @@ io.on('connection', (socket) => {
                 // A new, replaced or removed picture is handled by updateOrgProfile itself: saved
                 // before the write, and the old one deleted after it only if nothing else uses it.
                 console.log(`DataManager: Updating org profile ${action.payload.id}`, { ...updateData, image: updateData.image?.startsWith('data:') ? '(upload)' : updateData.image });
-                result = await namingOrgIdHolder(authUserId, () => dataManager.updateOrgProfile(action.payload.id, updateData));
+                result = await namingRecordHolder(authUserId, () => dataManager.updateOrgProfile(action.payload.id, updateData));
                 if (result && result.orgId) {
                     // A guardian's name and contact details travel in their links (`MEMBER-3`).
                     await publishGuardianProfileChange(result.id);
@@ -3453,7 +3460,7 @@ io.on('connection', (socket) => {
                 if (result?.orgId) await broadcastOrgSummaries([result.orgId]);
                 break;
             case SocketAction.LINK_USER_PROFILE:
-                result = await dataManager.linkUserToProfile(action.payload.email, action.payload.orgProfileId);
+                result = await namingRecordHolder(authUserId, () => dataManager.linkUserToProfile(action.payload.email, action.payload.orgProfileId));
                 break;
             case SocketAction.CLAIM_ORG_VIA_TOKEN:
                 result = await dataManager.claimOrgViaToken(action.payload.token, action.payload.userId);

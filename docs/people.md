@@ -111,10 +111,32 @@ to **anyone can apply** in Settings; private and unclaimed organisations do not 
   organisation's admins and staff. The applicant sees it on the page, and can withdraw it.
 - **Admins and staff decide**, from a list at the top of People, there only while something is waiting,
   and counted on the People & Roles card. If someone with a similar name is on record, whoever decides
-  says whether that is them before Approve is available.
+  says whether that is them before Approve is available. For a child they are asked about the parent
+  applying as well (`MEMBER-7`), unless the parent's own record is already known.
+- **The same number is a match to ask about**, marked *Same cellphone*, even with a different name. It
+  is never linked by itself, because nothing verifies the number an applicant types. The applicant is
+  never told a number is on record. A number on a child's application is the parent's, so it says
+  nothing about the child.
 - **Approving** always gives the plain Member role. For a child it also records the applicant as primary
-  guardian, who holds no membership. Declining tells them by email, and the same person can be applied
-  for again after 30 days.
+  guardian, who holds no membership. A record the decider picked keeps what it says, and only fills what
+  it lacks. *Someone new* keeps the number they gave, even when another record has it. Declining tells
+  them by email, and the same person can be applied for again after 30 days.
+
+## 8. One email to a person; a number can be shared
+
+Decided 2026-11-03 (`MEMBER-7`), everywhere a person is written.
+
+- **An email belongs to one person in an organisation.** Access follows the address, so two people
+  sharing one would be one login holding both people's memberships and roles. The add and edit forms,
+  linking an address and sending an invite all refuse it, saying whose it is to Admin and Staff, and to
+  anyone else only that it is in use. It is compared ignoring case and spaces. The same person can use
+  it at another organisation. The database holds to this too (`idx_org_profiles_one_email`), so two
+  saves at once cannot both get through.
+- **A cellphone number is contact information, not identity.** People share a phone, and numbers change
+  hands, so a number is never refused, and never links or admits anyone. The add, edit and guardian
+  forms say *Also on record for …* while it is being typed, with who to Admin and Staff, and to a coach
+  only that someone does. The import warns on the row, as it did already
+  ([identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §8.2).
 
 ## 6. Not settled here
 

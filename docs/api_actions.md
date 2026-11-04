@@ -500,6 +500,10 @@ someone else in the organisation holds, and change nobody. Admin and Staff are t
 else that it is in use. `ADD_ORG_PROFILE` used to update the holder instead. It ignores `userId`, as
 `UPDATE_ORG_PROFILE` does: only the claim flow links an account.
 
+**Emails and numbers** (2026-11-03, `MEMBER-7`, [people.md](file:///c:/Fred/Coding/SK/docs/people.md) §8):
+`ADD_ORG_PROFILE`, `UPDATE_ORG_PROFILE`, `LINK_USER_PROFILE` and the invites refuse an `email` someone else
+in the organisation has, told the same way as an org ID. A `cellphone` someone else has is saved; `get_data cellphone_on_record` is how a form says so.
+
 All four go through [wss/profileGate.ts](file:///c:/Fred/Coding/SK/server/src/wss/profileGate.ts),
 added 2026-09-03 (`PEOPLE-2`). **Before that they had no permission check at all**, and two of them
 handed over an admin membership to anybody signed in: `LINK_USER_PROFILE` sets a profile's email,
@@ -616,10 +620,16 @@ cached access so a restriction takes effect at once.
     for an organisation not taking applications, someone already in it, someone under its minor age where
     minors have no access of their own, one already waiting, and within 30 days of a decline.
 *   **`WITHDRAW_ORG_APPLICATION`** `{ id }`: the applicant's own, while it waits.
-*   **`DECIDE_ORG_APPLICATION`** `{ id, decision, existingProfileId? }` (Admin or Staff): approving writes
-    the record unless `existingProfileId` names one on record, the Member's membership, and for a child
-    the guardian link, all or none. Queue: `org:{id}:applications` (`ORG_APPLICATIONS_SYNC`, the whole list
+*   **`DECIDE_ORG_APPLICATION`** `{ id, decision, existingProfileId?, existingGuardianProfileId? }` (Admin
+    or Staff): approving writes the record unless `existingProfileId` names one on record, the Member's
+    membership, and for a child the guardian link, all or none. `existingGuardianProfileId` is the record
+    the parent applying already has (`MEMBER-7`), refused if it is another account's; one their own
+    account already has always wins. The queue's rows carry `possibleMatches` and, for a child,
+    `possibleGuardianMatches`, each marked `sameCellphone` where it applies. Queue: `org:{id}:applications` (`ORG_APPLICATIONS_SYNC`, the whole list
     on every change). The applicant's own: **`get_data my_org_applications`** `{ orgId }`.
+*   **`get_data cellphone_on_record`** `{ orgId, cellphone, excludeProfileId? }` → `{ cellphone, count, names }`
+    (`MEMBER-7`), for Admin, Staff and the organisation's coaches: who else has a number, compared with
+    `cellphoneKey`. `names` is empty for a coach, or this would look up who holds any number.
 *   **`get_data org_people_names`** `{ orgId }` → `{ id, membershipId, name, image }[]`, for Admin, Staff and
     the organisation's coaches: who a coach may pick for their team, with nothing else about them. A
     coach reads their own team's people from `team:{id}:members`, and those people's guardians from

@@ -1,5 +1,7 @@
 import { randomBytes } from 'crypto';
 import {
+  ApplicationPossibleMatch,
+  cellphoneKey,
   GUARDIAN_RELATIONSHIPS,
   guardianLinkProblem,
   isCalendarDate,
@@ -10,6 +12,7 @@ import {
   parseCellphone,
 } from '@sk/shared';
 import { BaseManager, Tx } from './BaseManager';
+import { rethrowEmailClash } from './UserManager';
 import { personNameMatchScore } from '../utils/orgNameMatch';
 
 /**
@@ -50,7 +53,7 @@ export class MembershipApplicationManager extends BaseManager {
   private async ownProfileIds(run: Tx, userId: string, orgId: string): Promise<string[]> {
     const res = await run(
       `SELECT op.id FROM org_profiles op
-        WHERE op.org_id = $2 AND (op.user_id = $1 OR LOWER(op.email) IN (
+        WHERE op.org_id = $2 AND (op.user_id = $1 OR LOWER(TRIM(op.email)) IN (
           SELECT LOWER(email) FROM users WHERE id = $1
           UNION SELECT LOWER(email) FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
         ))`,
@@ -136,6 +139,29 @@ export class MembershipApplicationManager extends BaseManager {
     return (await this.getApplication(id))!;
   }
 
+  /**
+   * Who on the records this might be: a similar name or the same number, always for the decider to say.
+   * Nothing verifies the number, so it never links anyone by itself (`MEMBER-7`). The same number comes
+   * first and the same birthday next, though a birthday alone never lists anyone.
+   */
+  private possibleMatches(people: any[], given: { name: string; birthdate?: string; cellphone?: string }): ApplicationPossibleMatch[] {
+    const number = given.cellphone ? cellphoneKey(given.cellphone) : null;
+    return people
+      .map(person => ({
+        person,
+        nameScore: personNameMatchScore(given.name, person.name),
+        sameCellphone: !!number && !!person.cellphone && cellphoneKey(person.cellphone) === number,
+      }))
+      .filter(m => m.nameScore > 0 || m.sameCellphone)
+      .map(m => ({ ...m, rank: m.nameScore + (m.person.birthdate === given.birthdate ? 100 : 0) + (m.sameCellphone ? 200 : 0) }))
+      .sort((a, b) => b.rank - a.rank)
+      .slice(0, 5)
+      .map(({ person, sameCellphone }) => ({
+        id: person.id, name: person.name, birthdate: person.birthdate ?? undefined, personOrgId: person.personOrgId ?? undefined,
+        ...(sameCellphone ? { sameCellphone } : {}),
+      }));
+  }
+
   /** The queue: everything waiting, oldest first, each with who it might already be on the organisation's records. */
   async getPending(orgId: string): Promise<MembershipApplication[]> {
     const rows: MembershipApplication[] = (await this.query(
@@ -145,21 +171,22 @@ export class MembershipApplicationManager extends BaseManager {
     if (!rows.length) return rows;
 
     const people = (await this.query(
-      `SELECT id, name, to_char(birthdate, 'YYYY-MM-DD') as "birthdate", identifier as "personOrgId", user_id as "userId"
+      `SELECT id, name, cellphone, to_char(birthdate, 'YYYY-MM-DD') as "birthdate", identifier as "personOrgId", user_id as "userId"
          FROM org_profiles WHERE org_id = $1`,
       [orgId]
     )).rows;
     for (const row of rows) {
       const own = await this.ownProfileIds((t, p) => this.query(t, p), row.applicantUserId, orgId);
-      row.possibleMatches = people
-        // Someone's own record needs no asking, and nor can they take on another account's.
-        .filter(p => !own.includes(p.id) && (row.relationship || !p.userId || p.userId === row.applicantUserId))
-        .map(p => ({ person: p, nameScore: personNameMatchScore(row.name, p.name) }))
-        .filter(m => m.nameScore > 0)
-        // The same birthday puts them first, never in the list by itself.
-        .sort((a, b) => (b.nameScore + (b.person.birthdate === row.birthdate ? 100 : 0)) - (a.nameScore + (a.person.birthdate === row.birthdate ? 100 : 0)))
-        .slice(0, 5)
-        .map(({ person }) => ({ id: person.id, name: person.name, birthdate: person.birthdate ?? undefined, personOrgId: person.personOrgId ?? undefined }));
+      // Someone's own record needs no asking, and nor can they take on another account's.
+      const notOwn = people.filter(p => !own.includes(p.id));
+      const unclaimed = notOwn.filter(p => !p.userId || p.userId === row.applicantUserId);
+      if (row.relationship) {
+        // The number on a child's application is the parent's, so it says nothing about the child.
+        row.possibleMatches = this.possibleMatches(notOwn, { name: row.name, birthdate: row.birthdate });
+        row.possibleGuardianMatches = own.length ? [] : this.possibleMatches(unclaimed, { name: row.applicantName, cellphone: row.applicantCellphone });
+      } else {
+        row.possibleMatches = this.possibleMatches(unclaimed, { name: row.name, birthdate: row.birthdate, cellphone: row.applicantCellphone });
+      }
     }
     return rows;
   }
@@ -190,10 +217,11 @@ export class MembershipApplicationManager extends BaseManager {
 
   /**
    * Approve: the person's record, their membership, and for a child the applicant as guardian, all or
-   * none. `existingProfileId` is the record the decider said this is; without one a record is made,
-   * unless the applicant's own account already has one here.
+   * none. `existingProfileId` is the record the decider said this is, and `existingGuardianProfileId`
+   * the one they said the parent applying is (`MEMBER-7`); without one a record is made, unless the
+   * applicant's own account already has one here, which always wins.
    */
-  async approve(id: string, deciderUserId: string, existingProfileId?: string | null): Promise<MembershipApplication> {
+  async approve(id: string, deciderUserId: string, existingProfileId?: string | null, existingGuardianProfileId?: string | null): Promise<MembershipApplication> {
     await this.transaction(async (tx) => {
       const app = (await tx(
         `SELECT a.*, to_char(a.birthdate, 'YYYY-MM-DD') as birth, u.email as applicant_email
@@ -215,22 +243,32 @@ export class MembershipApplicationManager extends BaseManager {
         return profileId;
       };
 
-      let personId: string;
-      if (existingProfileId) {
-        const existing = (await tx('SELECT id, org_id, user_id FROM org_profiles WHERE id = $1 FOR UPDATE', [existingProfileId])).rows[0];
+      /** The record the decider named, if it can be who they said. */
+      const lockExisting = async (profileId: string, isApplicant: boolean) => {
+        const existing = (await tx('SELECT id, org_id, user_id FROM org_profiles WHERE id = $1 FOR UPDATE', [profileId])).rows[0];
         if (!existing || existing.org_id !== app.org_id) throw new ApplicationError('That person is not on this organisation’s records.');
-        if (!isChild && existing.user_id && existing.user_id !== app.applicant_user_id) {
+        if (isApplicant && existing.user_id && existing.user_id !== app.applicant_user_id) {
           throw new ApplicationError('That record belongs to another account, so it cannot be this applicant.');
         }
-        // What the record already says stands; the application only fills what it lacks.
-        await tx(
-          `UPDATE org_profiles SET birthdate = COALESCE(birthdate, $2),
-                  cellphone = CASE WHEN $3 THEN COALESCE(cellphone, $4) ELSE cellphone END,
-                  email = CASE WHEN $3 THEN COALESCE(email, $5) ELSE email END,
-                  user_id = CASE WHEN $3 THEN COALESCE(user_id, $6) ELSE user_id END
-            WHERE id = $1`,
-          [existingProfileId, app.birth, !isChild, app.applicant_cellphone, app.applicant_email, app.applicant_user_id]
-        );
+      };
+      /**
+       * The applicant's details and account onto a record of theirs. What it already says stands; the
+       * application only fills what it lacks. Not the address while another record of theirs has it,
+       * as no two people's may match (`MEMBER-7`).
+       */
+      const fillFromApplicant = (profileId: string) => tx(
+        `UPDATE org_profiles SET cellphone = COALESCE(cellphone, $2),
+                email = CASE WHEN $3 THEN COALESCE(email, $4) ELSE email END,
+                user_id = COALESCE(user_id, $5)
+          WHERE id = $1`,
+        [profileId, app.applicant_cellphone, !own.length, app.applicant_email, app.applicant_user_id]
+      );
+
+      let personId: string;
+      if (existingProfileId) {
+        await lockExisting(existingProfileId, !isChild);
+        await tx('UPDATE org_profiles SET birthdate = COALESCE(birthdate, $2) WHERE id = $1', [existingProfileId, app.birth]);
+        if (!isChild) await fillFromApplicant(existingProfileId);
         personId = existingProfileId;
       } else if (!isChild && own[0]) {
         personId = own[0];
@@ -252,11 +290,20 @@ export class MembershipApplicationManager extends BaseManager {
       }
 
       if (isChild) {
-        const guardianId = own[0] ?? await insertProfile(app.applicant_name, {
-          email: app.applicant_email, cellphone: app.applicant_cellphone, userId: app.applicant_user_id,
-        });
-        const child = (await tx('SELECT id, org_id as "orgId", email FROM org_profiles WHERE id = $1', [personId])).rows[0];
-        const problem = guardianLinkProblem({ id: guardianId, orgId: app.org_id, email: app.applicant_email }, child, app.org_id);
+        let guardianId: string = own[0];
+        if (!guardianId && existingGuardianProfileId) {
+          await lockExisting(existingGuardianProfileId, true);
+          // Before filling it, so the child's record is never given the parent's account.
+          if (existingGuardianProfileId === personId) throw new ApplicationError('A person cannot be their own guardian.');
+          await fillFromApplicant(existingGuardianProfileId);
+          guardianId = existingGuardianProfileId;
+        } else if (!guardianId) {
+          guardianId = await insertProfile(app.applicant_name, {
+            email: app.applicant_email, cellphone: app.applicant_cellphone, userId: app.applicant_user_id,
+          });
+        }
+        const people = (await tx('SELECT id, org_id as "orgId", email FROM org_profiles WHERE id = ANY($1)', [[guardianId, personId]])).rows;
+        const problem = guardianLinkProblem(people.find((p: any) => p.id === guardianId), people.find((p: any) => p.id === personId), app.org_id);
         if (problem) throw new ApplicationError(problem);
         const linked = await tx(
           'SELECT 1 FROM profile_guardians WHERE guardian_profile_id = $1 AND player_profile_id = $2 AND (end_date IS NULL OR end_date > NOW())',
@@ -276,7 +323,7 @@ export class MembershipApplicationManager extends BaseManager {
         `UPDATE org_membership_applications SET status = 'approved', decided_at = NOW(), decided_by_user_id = $2, org_profile_id = $3 WHERE id = $1`,
         [id, deciderUserId, personId]
       );
-    });
+    }).catch(rethrowEmailClash);
     return (await this.getApplication(id))!;
   }
 

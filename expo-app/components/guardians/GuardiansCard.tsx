@@ -11,6 +11,7 @@ import { SegmentedControl } from '../SegmentedControl';
 import { InviteModal, guardianAsPerson, isInvitePending, isOnScoreKeeper, useInviteCooldownHours } from '../InviteToScoreKeeper';
 import { sendAction } from '../../services/actions';
 import { useRequestScope } from '../../hooks/useRequestScope';
+import { CellphoneOnRecordNote } from '../people/CellphoneOnRecordNote';
 import { GuardianDraftFields } from './GuardianDraftFields';
 import { formatCellphone, sameCellphone } from '../../utils/phone';
 import {
@@ -306,6 +307,7 @@ function EditGuardianDialog({ link, onClose }: { link: ProfileGuardian | null; o
       <View className="gap-1.5">
         <FieldLabel label="Cell number" />
         <TextInput value={cellphone} onChangeText={setCellphone} keyboardType="phone-pad" accessibilityLabel="Guardian’s cell number" className={TEXT_INPUT} style={{ maxWidth: 240 }} />
+        {link ? <CellphoneOnRecordNote orgId={link.orgId} cellphone={cellphone} excludeProfileId={link.guardianProfileId} /> : null}
       </View>
       <View className="gap-1.5">
         <FieldLabel label="Relationship to this person" />

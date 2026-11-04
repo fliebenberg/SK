@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GUARDIAN_RELATIONSHIPS } from '@sk/shared';
 import { PersonnelAutocomplete } from '../PersonnelAutocomplete';
+import { CellphoneOnRecordNote } from '../people/CellphoneOnRecordNote';
 import { FieldLabel } from '../FieldLabel';
 import { TEXT_INPUT } from '../formStyles';
 import { SegmentedControl } from '../SegmentedControl';
@@ -88,6 +89,7 @@ export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, exclu
               keyboardType="phone-pad"
               className={TEXT_INPUT}
             />
+            <CellphoneOnRecordNote orgId={orgId} cellphone={draft.cellphone} />
           </View>
         </View>
       ) : null}

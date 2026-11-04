@@ -348,7 +348,8 @@ guardians only. Team placement is a separate import, later.
     name is already on record is added, with a warning that it may be the same person.
 *   **Never by cellphone** (decided 2026-09-30). A child's row often carries a parent's number, and
     brothers and sisters share it, so matching on it would merge them. A number already on record
-    for somebody else is a **warning** on the row instead.
+    for somebody else is a **warning** on the row instead. Confirmed for every form on 2026-11-03
+    (`MEMBER-7`, [people.md](file:///c:/Fred/Coding/SK/docs/people.md) §8): a number is never refused.
 *   **National IDs** are compared without spaces or dashes. A thirteen-digit one is taken to be a South
     African ID number and checked — its check digit, a real date, and agreement with the birthdate
     — and a failure is a **warning**, since a school may hold a number it cannot correct today.

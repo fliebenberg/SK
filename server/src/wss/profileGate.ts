@@ -2,7 +2,7 @@ import { SocketAction } from '@sk/shared';
 import pool from '../db';
 import { dataManager } from '../DataManager';
 import { accessManager } from '../managers/AccessManager';
-import { OrgIdInUseError } from '../managers/UserManager';
+import { EmailInUseError, OrgIdInUseError } from '../managers/UserManager';
 
 /**
  * Who may write a person record.
@@ -122,16 +122,18 @@ export async function enforceProfileAction(
 }
 
 /**
- * Run a profile write, and when its org ID is someone else's say whose to those who manage the
- * organisation's people. A coach or event organiser is told only that it is in use (`PEOPLE-8`), or
- * this would look up who holds any org ID.
+ * Run a profile write, and when its org ID or email is someone else's say whose to those who manage
+ * the organisation's people. A coach or event organiser is told only that it is in use (`PEOPLE-8`),
+ * or this would look up who holds any org ID or address.
  */
-export async function namingOrgIdHolder<T>(userId: string | null, write: () => Promise<T>, hint = ''): Promise<T> {
+export async function namingRecordHolder<T>(userId: string | null, write: () => Promise<T>, hint = ''): Promise<T> {
   try {
     return await write();
   } catch (error) {
-    if (error instanceof OrgIdInUseError && error.holderName && userId && (await accessManager.canManageOrgPeople(userId, error.orgId))) {
-      throw new Error(`Org ID ${error.identifier} already belongs to ${error.holderName}.${hint}`);
+    if ((error instanceof OrgIdInUseError || error instanceof EmailInUseError) && error.holderName && userId
+      && (await accessManager.canManageOrgPeople(userId, error.orgId))) {
+      const what = error instanceof OrgIdInUseError ? `Org ID ${error.identifier}` : error.email;
+      throw new Error(`${what} already belongs to ${error.holderName}.${hint}`);
     }
     throw error;
   }

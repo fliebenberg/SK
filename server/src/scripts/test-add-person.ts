@@ -14,6 +14,8 @@ import { fixtureIds } from './setup/fixtures/testOrgs';
  *  - `ADD_ORG_MEMBER` on someone already a member is refused and leaves their role, unless it says
  *    `keepExisting` (a team's "new person"), which succeeds and still leaves it. A repeated request
  *    is answered from the first, not refused.
+ *  - An email someone else in the organisation has is refused, as an org ID is; a number they have is
+ *    saved, and only pointed out (`MEMBER-7`).
  *
  * Needs a server on the same database: `PORT=3099 npx ts-node src/index.ts`, then
  * `SOCKET_URL=http://localhost:3099 npx ts-node src/scripts/test-add-person.ts`. Everything it makes
@@ -51,6 +53,10 @@ function connect(userId: string): Promise<Socket> {
 
 function send(socket: Socket, type: SocketAction, payload: any, requestId?: string): Promise<any> {
   return new Promise((resolve) => socket.emit('action', { type, payload, requestId }, resolve));
+}
+
+function read(socket: Socket, request: any): Promise<any> {
+  return new Promise((resolve) => socket.emit('get_data', request, resolve));
 }
 
 /** A signed-in person in St Aldric's, with the org role given. */
@@ -131,6 +137,27 @@ async function main() {
     expect((await send(admin, SocketAction.ADD_ORG_MEMBER, joining))?.status, 'error', 'a new request for them is refused');
     const placed = await send(admin, SocketAction.ADD_ORG_MEMBER, { orgProfileId: other.profileId, orgId: SAC, roleId: 'role-org-staff', keepExisting: true });
     expect(placed?.data?.roleId, 'role-org-member', 'keepExisting ignores the role asked for');
+
+    // --- An email someone else has, and a number someone else has (`MEMBER-7`) -----------------------
+    const holderEmail = `${holder.userId}@example.test`;
+    const sameEmail = { id: `${P}prof-email`, orgId: SAC, name: 'AP Same Email', email: holderEmail.toUpperCase() };
+    expect((await send(admin, SocketAction.ADD_ORG_PROFILE, sameEmail))?.message, `${holderEmail.toUpperCase()} already belongs to AP holder. Search for them by name to add them.`, 'an email in use is refused, and an admin told whose');
+    expect((await send(coachSocket, SocketAction.ADD_ORG_PROFILE, sameEmail))?.message, `${holderEmail.toUpperCase()} is already in use in this organisation. Each person needs their own email.`, 'a coach is told only that it is in use');
+    expect((await send(admin, SocketAction.UPDATE_ORG_PROFILE, { id: other.profileId, data: { email: holderEmail } }))?.message, `${holderEmail} already belongs to AP holder.`, 'an edit is refused the same way');
+    expect((await send(admin, SocketAction.LINK_USER_PROFILE, { email: holderEmail, orgProfileId: other.profileId }))?.message, `${holderEmail} already belongs to AP holder.`, 'and so is linking an address');
+    expect((await send(admin, SocketAction.SEND_MEMBER_INVITE, { memberId: `${P}prof-linked`, email: holderEmail }))?.status, 'error', 'an invite to it is refused too');
+
+    const number = '082 555 0999';
+    await query(`UPDATE org_profiles SET cellphone = $2 WHERE id = $1`, [holder.profileId, '+27825550999']);
+    const shared = await send(admin, SocketAction.ADD_ORG_PROFILE, { id: `${P}prof-shared`, orgId: SAC, name: 'AP Shares A Phone', cellphone: number });
+    expect(shared?.status, 'ok', 'a number someone else has is saved');
+    expect(shared?.data?.cellphone, '+27825550999', 'as given');
+    const asked = { type: 'cellphone_on_record', orgId: SAC, cellphone: '+27825550999', excludeProfileId: `${P}prof-shared` };
+    expect(await read(admin, asked), { cellphone: asked.cellphone, count: 1, names: ['AP holder'] }, 'an admin is told who else has it');
+    expect(await read(coachSocket, asked), { cellphone: asked.cellphone, count: 1, names: [] }, 'a coach only that someone does');
+    const memberSocket = await connect(other.userId);
+    sockets.push(memberSocket);
+    expect((await read(memberSocket, asked))?.status, 'error', 'a plain Member may not ask');
   } finally {
     sockets.forEach(s => s.disconnect());
     await cleanup();

@@ -32,3 +32,13 @@ export interface OrgProfile {
   /** The profile — a guardian's or an admin's — that last set `ownAccountAllowed`. */
   ownAccountSetBy?: string | null;
 }
+
+/**
+ * `get_data cellphone_on_record`: who else in the organisation has a number. A hint, as people do share
+ * a phone (`MEMBER-7`). `names` is empty for anyone but Admin and Staff, who still get the `count`.
+ */
+export interface CellphoneOnRecord {
+  cellphone: string;
+  count: number;
+  names: string[];
+}

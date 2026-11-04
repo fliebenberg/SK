@@ -71,8 +71,9 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20261012_tournament_scheduling.ts`: Tournament scheduling (Phase 7). `event_days` — a tournament's playing days, one row each with `day_starts` / `day_ends` (venue clock times; days need not follow each other; no backfill, so an existing tournament's hours read as not set). `division_days` — where a division differs on a day: `plays`, `first_game_start` (NULL: the tournament's), `last_game_ends` (NULL: calculated); a composite FK to `event_days` removes it with its day. `gap_between_games_min` (default 5) and `min_team_break_min` (default 0, no minimum) on `events`, the same nullable on `tournament_divisions` (NULL follows the tournament). `facility_shared_ground` — facilities on the same ground (D34), each pair once with the smaller id first, read both ways. `games.placed_by` (`scheduler` / `hand`) and an index on `games (facility_id, start_time)`.
     - `20261101_image_uploads.ts`: Adds `pending_uploads` — uploaded pictures no row uses yet, claimed by the save that uses them and otherwise deleted when their uploader leaves or after 24 hours ([okf/api_comms.md](file:///c:/Fred/Coding/SK/okf/api_comms.md) §Uploaded Images). Drops `org_profiles.image_config` and the `logoConfig` key of `organizations.settings`: pictures are cropped in the app, so no zoom or position is stored. A picture saved with a non-default zoom now shows uncropped. Dropping the column also put `org_profiles` back in the same column order as `init-db.ts` (`DB-3`).
     - `20261101_org_tertiary_color.ts`: Adds `organizations.tertiary_color` (nullable, `ORG-17`): an optional third colour, unset to start and painted as the secondary until set.
-    - `20261031_org_private.ts`: Adds `organizations.is_private` (`NOT NULL DEFAULT false`, `ORG-14`): a private organisation is seen only by its current members. Its own column, not a key in `settings`, because every org list and search filters on it; every existing organisation stays public. The rules are in [privateOrgs.ts](file:///c:/Fred/Coding/SK/server/src/managers/privateOrgs.ts) and [org-profile.md](file:///c:/Fred/Coding/SK/docs/org-profile.md) §5.3.
+    - `20261031_org_private.ts`: Adds `organizations.is_private` (`NOT NULL DEFAULT false`, `ORG-14`): a private organisation is seen only by its current members. Its own column, not a key in `settings`, because every org list and search filters on it; every existing organisation stays public. The rules are in [privateOrgs.ts](file:///c:/Fred/Coding/SK/server/src/managers/privateOrgs.ts) and [org-profile.md](file:///c:/Fred/Coding/SK/docs/org-profile.md) §5.3.
     - `20261101_membership_applications.ts`: Adds `organizations.membership_mode` (`invite` by default, or `apply`) and the `org_membership_applications` table (`MEMBER-1`): asking to join an organisation, which writes no profile or membership until an admin or staff member approves it.
+    - `20261104_one_email_per_org.ts`: Adds the unique index `idx_org_profiles_one_email` (`MEMBER-7`): an email is one person's within an organisation, as access follows it. Fails if two records already share one.
     - `20261031_end_team_manager_staff_roles.ts`: Data only. Ends every current team membership in the Manager or team Staff role (`PERM-10`): those roles carried no rights and were removed from `TeamManager.teamRoles`. Ended rather than deleted, so a team's history keeps who helped. See [permissions.md](file:///c:/Fred/Coding/SK/docs/permissions.md) §1.
 
 ## The tournaments schema
@@ -341,6 +342,12 @@ profile write runs `parseCellphone` ([phone.ts](file:///c:/Fred/Coding/SK/shared
 and refuses what it cannot read. Numbers saved before 2026-09-30 are still as typed (`PEOPLE-11`), so
 compare with `cellphoneKey`, never the raw column, and search on digits (`cellphoneSearchDigits`).
 Rules: [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §8.3.
+
+**Not unique, on purpose** (`MEMBER-7`): people share a phone, so a number is a hint and never an
+identity. `org_profiles.email` is the opposite: one person's within an organisation, because access
+follows it. `UserManager.assertEmailFree` and the import refuse a second with a useful message, and the
+unique index `idx_org_profiles_one_email` (on `org_id, LOWER(TRIM(email))`, leaving out blanks) holds
+when two saves arrive at once.
 
 ## Derived vs Stored Values
 

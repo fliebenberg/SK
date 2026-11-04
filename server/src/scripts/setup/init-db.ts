@@ -248,6 +248,12 @@ const createTables = async () => {
             ALTER TABLE org_profiles ADD COLUMN IF NOT EXISTS cellphone TEXT;
         `);
 
+        // An email is one person's within an organisation, as access follows it (`MEMBER-7`).
+        await client.query(`
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_org_profiles_one_email
+              ON org_profiles(org_id, LOWER(TRIM(email))) WHERE email IS NOT NULL AND TRIM(email) <> '';
+        `);
+
         // Team Memberships
         await client.query(`
             CREATE TABLE IF NOT EXISTS team_memberships (

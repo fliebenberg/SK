@@ -1,4 +1,4 @@
-import { OrgProfile, OrgMembership, User, UserEmail, OrgMember, OrgPeoplePage, PaginatedResponse, assertCalendarDates, cellphoneSearchDigits, parseCellphone } from "@sk/shared";
+import { OrgProfile, OrgMembership, User, UserEmail, OrgMember, OrgPeoplePage, PaginatedResponse, assertCalendarDates, cellphoneKey, cellphoneSearchDigits, normalizeEmail, parseCellphone } from "@sk/shared";
 import { randomBytes } from "crypto";
 import { BaseManager } from "./BaseManager";
 import { memberPrivilegedSql, restrictedReasonSql } from "./minorAccess";
@@ -41,13 +41,32 @@ function storedCellphone(value: unknown): string | null {
 
 /**
  * An org ID identifies one person in an organisation, so a write that would give it to a second is
- * refused rather than merged (`PEOPLE-7`). The message names nobody: `namingOrgIdHolder` in
+ * refused rather than merged (`PEOPLE-7`). The message names nobody: `namingRecordHolder` in
  * `profileGate` adds the name for those who may see it.
  */
 export class OrgIdInUseError extends Error {
   constructor(readonly orgId: string, readonly identifier: string, readonly holderName: string | null) {
     super(`Org ID ${identifier} is already in use.`);
   }
+}
+
+/**
+ * So is an email (`MEMBER-7`): access follows the address (`AccessManager`), so one login would hold
+ * both people's memberships and roles. A number may be shared; an address may not.
+ */
+export class EmailInUseError extends Error {
+  constructor(readonly orgId: string, readonly email: string, readonly holderName: string | null) {
+    super(`${email} is already in use in this organisation. Each person needs their own email.`);
+  }
+}
+
+/** Did this write hit the database's own guard on that rule? Only two saves at once get this far. */
+export const isEmailClash = (error: any): boolean => error?.code === '23505' && error?.constraint === 'idx_org_profiles_one_email';
+
+/** For a write with no one email to name: what to say when it hit that guard. */
+export function rethrowEmailClash(error: unknown): never {
+  if (isEmailClash(error)) throw new Error('Someone else in this organisation was just given one of these emails. Nothing was saved; check it and try again.');
+  throw error;
 }
 
 /**
@@ -269,6 +288,7 @@ export class UserManager extends BaseManager {
   async addOrgProfile(profile: Omit<OrgProfile, 'id'> & { id?: string }): Promise<OrgProfile> {
     assertCalendarDates(profile as Record<string, unknown>, PROFILE_DATE_FIELDS);
     const cellphone = storedCellphone(profile.cellphone);
+    if (profile.email) await this.assertEmailFree(profile.orgId, profile.email, profile.id);
     const id = profile.id || `op-${Date.now()}`;
     const image = await imageService.stage('profiles', profile.image || undefined);
     const processedImage = image.value ?? null;
@@ -295,14 +315,44 @@ export class UserManager extends BaseManager {
       );
     } catch (error) {
       await image.discard();
-      throw await this.orgIdClash(error, profile.orgId, profile.identifier);
+      throw await this.uniqueClash(error, profile.orgId, profile.identifier, profile.email);
     }
     await image.commit(null);
     return res.rows[0];
   }
 
-  /** The refusal for a write that hit `UNIQUE (org_id, identifier)`; any other error as it came. */
-  private async orgIdClash(error: any, orgId: string, identifier?: string | null): Promise<unknown> {
+  /** Refuse an address on someone else's record in this organisation. Compared normalised. */
+  async assertEmailFree(orgId: string, email: string, exceptProfileId?: string): Promise<void> {
+    const holder = (await this.query(
+      `SELECT name FROM org_profiles WHERE org_id = $1 AND LOWER(TRIM(email)) = $2 AND id IS DISTINCT FROM $3 ORDER BY name LIMIT 1`,
+      [orgId, normalizeEmail(email), exceptProfileId ?? null]
+    )).rows[0];
+    if (holder) throw new EmailInUseError(orgId, email.trim(), holder.name);
+  }
+
+  /**
+   * Who else in this organisation has this number. Only ever pointed out, never refused: people do
+   * share a phone (`MEMBER-7`). Compared in one form, as old numbers are as they were typed; the
+   * digits only narrow down which rows to compare.
+   */
+  async getCellphoneHolders(orgId: string, cellphone: string, exceptProfileId?: string): Promise<string[]> {
+    const parsed = parseCellphone(cellphone);
+    if (!parsed?.ok) return [];
+    const res = await this.query(
+      `SELECT name, cellphone FROM org_profiles
+        WHERE org_id = $1 AND id IS DISTINCT FROM $2 AND regexp_replace(COALESCE(cellphone, ''), '\\D', '', 'g') LIKE $3
+        ORDER BY name`,
+      [orgId, exceptProfileId ?? null, `%${parsed.value.slice(-7)}`]
+    );
+    return res.rows.filter((r: any) => cellphoneKey(r.cellphone) === parsed.value).map((r: any) => r.name);
+  }
+
+  /** The refusal for a write that hit the unique org ID or email, as two saves at once can; any other error as it came. */
+  private async uniqueClash(error: any, orgId: string, identifier?: string | null, email?: string | null): Promise<unknown> {
+    if (isEmailClash(error) && email) {
+      const holder = (await this.query('SELECT name FROM org_profiles WHERE org_id = $1 AND LOWER(TRIM(email)) = $2', [orgId, normalizeEmail(email)])).rows[0];
+      return new EmailInUseError(orgId, email.trim(), holder?.name ?? null);
+    }
     if (error?.code !== '23505' || error?.constraint !== 'org_profiles_org_id_identifier_key' || !identifier) return error;
     const holder = (await this.query('SELECT name FROM org_profiles WHERE org_id = $1 AND identifier = $2', [orgId, identifier])).rows[0];
     return new OrgIdInUseError(orgId, identifier, holder?.name ?? null);
@@ -317,6 +367,10 @@ export class UserManager extends BaseManager {
     if (typeof data.cellphone === 'string' && data.cellphone.trim()) {
       const current = (await this.query('SELECT cellphone FROM org_profiles WHERE id = $1', [id])).rows[0]?.cellphone;
       if (data.cellphone !== current) data = { ...data, cellphone: storedCellphone(data.cellphone) ?? undefined };
+    }
+    if (typeof data.email === 'string' && data.email.trim()) {
+      const current = (await this.query('SELECT org_id FROM org_profiles WHERE id = $1', [id])).rows[0];
+      if (current) await this.assertEmailFree(current.org_id, data.email, id);
     }
 
     const map: Record<string, string> = {
@@ -366,7 +420,7 @@ export class UserManager extends BaseManager {
     } catch (error) {
       await image.discard();
       const orgId = (await this.query('SELECT org_id FROM org_profiles WHERE id = $1', [id])).rows[0]?.org_id;
-      throw await this.orgIdClash(error, orgId, data.identifier);
+      throw await this.uniqueClash(error, orgId, data.identifier, data.email);
     }
     await image.commit(previousImage);
     return res.rows[0] || null;
@@ -734,10 +788,10 @@ export class UserManager extends BaseManager {
     // Look for an existing profile with user_id or matching emails IN THIS ORG
     const existingProfileRes = await this.query(`
       SELECT id FROM org_profiles
-      WHERE (user_id = $1 OR email = ANY($2))
+      WHERE (user_id = $1 OR LOWER(TRIM(email)) = ANY($2))
         AND org_id = $3
       LIMIT 1
-    `, [userId, emails, orgId]);
+    `, [userId, emails.map(email => normalizeEmail(email)), orgId]);
 
     if (existingProfileRes.rows.length > 0) {
       // Ensure user_id is set

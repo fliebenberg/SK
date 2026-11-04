@@ -122,7 +122,7 @@ async function setup() {
   await query(`UPDATE org_profiles SET email = $2 WHERE id = $1`, [ANIKA, MINOR_EMAIL]);
   await query(
     `INSERT INTO org_profiles (id, org_id, name, email) VALUES ($1, $2, 'Karin Kotzé', $3), ($4, $2, 'Kobus Kotzé', $5)`,
-    [PARENT, DKL, PARENT_EMAIL, PARENT_2, MINOR_EMAIL]
+    [PARENT, DKL, PARENT_EMAIL, PARENT_2, 'test-parent-2@guardians.test']
   );
   await query(
     `INSERT INTO team_memberships (id, org_profile_id, team_id, role_id, start_date)
@@ -206,9 +206,7 @@ async function main() {
     expect((await send(admin, SocketAction.ADD_PROFILE_GUARDIAN, addParent))?.status, 'error', 'the same guardian cannot be recorded twice');
     expect((await send(admin, SocketAction.ADD_PROFILE_GUARDIAN, { playerProfileId: ANIKA, guardianProfileId: ANIKA }))?.status, 'error', 'nobody is their own guardian');
     expect((await send(admin, SocketAction.ADD_PROFILE_GUARDIAN, { playerProfileId: ANIKA, guardianProfileId: SAC_PROFILE }))?.status, 'error', 'a guardian from another organisation is refused');
-    expect((await send(admin, SocketAction.ADD_PROFILE_GUARDIAN, { playerProfileId: ANIKA, guardianProfileId: PARENT_2 }))?.status, 'error', 'a guardian sharing the child’s email is refused');
 
-    await query(`UPDATE org_profiles SET email = 'test-parent-2@guardians.test' WHERE id = $1`, [PARENT_2]);
     const second = await send(admin, SocketAction.ADD_PROFILE_GUARDIAN, { playerProfileId: ANIKA, guardianProfileId: PARENT_2, isPrimary: true });
     expect(second?.status, 'ok', 'a second guardian can be recorded as the primary one');
     const primaries = (await query(`SELECT count(*)::int AS n FROM profile_guardians WHERE player_profile_id = $1 AND is_primary AND end_date IS NULL`, [ANIKA])).rows[0].n;

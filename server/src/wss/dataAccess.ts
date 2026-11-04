@@ -112,6 +112,8 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   org_claim_status:     { standalone: 'authenticated' },
   // Names and photos, to pick someone for a team: all a coach needs of the organisation (`PEOPLE-8`).
   org_people_names:     { standalone: 'runs-or-coaches-org' },
+  // Who else has a number, for a note on the person forms; names only to Admin and Staff (`MEMBER-7`).
+  cellphone_on_record:  { standalone: 'runs-or-coaches-org' },
   // The caller's own applications there: the identity comes from the handshake (`MEMBER-1`).
   my_org_applications:  { standalone: 'authenticated' },
   // Returns [] today, but classify by what it is, not by what it currently does,
@@ -327,9 +329,9 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // or not. Each answers only what the public pages already show — public events (`PUBLIC_EVENT`),
   // organisations, active teams and sites.
   home_nearby:          { standalone: 'public' },
+  home_nearby_orgs:     { standalone: 'public' },
   home_search:          { standalone: 'public' },
   approximate_location: { standalone: 'public' },
-  home_nearby_orgs:     { standalone: 'public' },
   place_name:           { standalone: 'public' },
   place_search:         { standalone: 'public' },
   // The caller's own organisations and teams: the identity comes from the handshake and the request

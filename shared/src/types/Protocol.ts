@@ -512,6 +512,8 @@ export interface DecideOrgApplicationPayload {
     decision: 'approve' | 'decline';
     /** Approving: the record this person already has here, if the decider says they have one. */
     existingProfileId?: string | null;
+    /** For a child: the record the parent applying already has here, if the decider says they do. */
+    existingGuardianProfileId?: string | null;
 }
 
 export interface ImportOrgPeoplePayload {
@@ -1425,6 +1427,7 @@ export type GetDataRequest =
   | { type: 'organizations' | 'teams' | 'games' | 'events' | 'sites' | 'leagues'; orgId: string }
   | { type: 'org_members'; orgId: string }
   | { type: 'org_people_names'; orgId: string }
+  | { type: 'cellphone_on_record'; orgId: string; cellphone: string; excludeProfileId?: string }
   | { type: 'my_org_applications'; orgId: string }
   | { type: 'possible_duplicate_orgs'; name: string }
   | { type: 'team_members'; teamId: string }
@@ -1460,10 +1463,10 @@ export type GetDataRequest =
       sportId?: string; divisionId?: string }
   // Home (`HOME-1`). The viewer's position travels only as `near`, which the server never logs.
   | { type: 'home_nearby'; near?: { lat: number; lng: number } | null }
+  | { type: 'home_nearby_orgs'; near?: { lat: number; lng: number } | null }
   | { type: 'home_search'; query: string; near?: { lat: number; lng: number } | null }
   // Home's place names and place search (`HOME-4`), from the server's own list of towns and suburbs.
   | { type: 'place_name'; near: { lat: number; lng: number } }
-  | { type: 'home_nearby_orgs'; near?: { lat: number; lng: number } | null }
   | { type: 'place_search'; query: string; near?: { lat: number; lng: number } | null }
   | { type: 'approximate_location' | 'home_mine' };
 

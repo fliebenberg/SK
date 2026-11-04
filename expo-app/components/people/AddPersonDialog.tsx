@@ -20,6 +20,7 @@ import { useRequestScope } from '../../hooks/useRequestScope';
 import { requestKeyFor, sendAction } from '../../services/actions';
 import { isCalendarDate } from '../../utils/dates';
 import { cellphoneProblem, formatCellphone } from '../../utils/phone';
+import { CellphoneOnRecordNote } from './CellphoneOnRecordNote';
 import { ORG_ID_HELP, OrgRole, ROLE_HELP, roleOptions } from './PersonDialogs';
 
 import { useActiveTheme } from '../../store/settingsStore';
@@ -215,6 +216,7 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
             accessibilityLabel="Cell number"
             className={TEXT_INPUT}
           />
+          <CellphoneOnRecordNote orgId={orgId} cellphone={person.cellphone} excludeProfileId={selected?.id} />
         </View>
       </View>
       <View className="flex-row flex-wrap gap-3">

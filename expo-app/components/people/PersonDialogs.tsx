@@ -6,6 +6,7 @@ import { FieldLabel } from '../FieldLabel';
 import { TEXT_INPUT } from '../formStyles';
 import { SegmentedControl } from '../SegmentedControl';
 import DatePicker from '../DatePicker';
+import { CellphoneOnRecordNote } from './CellphoneOnRecordNote';
 import { sendAction } from '../../services/actions';
 import { isCalendarDate } from '../../utils/dates';
 import { cellphoneProblem, formatCellphone, sameCellphone } from '../../utils/phone';
@@ -177,6 +178,7 @@ export function ContactDialog({ member, visible, onClose }: { member: OrgMember;
           className={TEXT_INPUT}
           style={{ maxWidth: 240 }}
         />
+        <CellphoneOnRecordNote orgId={member.orgId} cellphone={cellphone} excludeProfileId={member.id} />
       </View>
       <Problem text={problem} />
     </EditDialog>

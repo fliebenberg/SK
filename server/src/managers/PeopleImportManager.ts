@@ -16,6 +16,7 @@ import {
   normalizePeopleImportRow,
 } from '@sk/shared';
 import { BaseManager, Tx } from './BaseManager';
+import { rethrowEmailClash } from './UserManager';
 import { organizationManager } from './OrganizationManager';
 
 /**
@@ -173,7 +174,7 @@ export class PeopleImportManager extends BaseManager {
       if (plan.errors.length) return { report: plan.report, errors: plan.errors };
       await this.write(tx, orgId, plan.writes, actorProfileId);
       return { report: plan.report, errors: [], effects: plan.effects };
-    });
+    }).catch(rethrowEmailClash);
   }
 
   /**
@@ -522,12 +523,8 @@ export class PeopleImportManager extends BaseManager {
           target = { id: p.id, name: p.name, email: p.email, hasAccount: p.hasAccount, isSystemAdmin: false, personRowIndex: p.rowIndex };
         }
         if (!target && g.email) {
-          const same = byEmail.get(g.email) || [];
-          if (same.length > 1) {
-            errors.push(`${label}'s email ${g.email} belongs to more than one person on record (${same.map(p => p.name).join(', ')}). Link the right one on the player's profile instead.`);
-            continue;
-          }
-          if (same.length === 1) target = targetOf(same[0]);
+          const holder = byEmail.get(g.email)?.[0];
+          if (holder) target = targetOf(holder);
         }
         if (!target && !g.email) {
           // No email: the same name *and* cellphone number, and only if exactly one person has both.
