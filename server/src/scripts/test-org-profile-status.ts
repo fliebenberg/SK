@@ -184,6 +184,12 @@ async function run() {
     await guardianManager.addGuardian({ id: `${P}-link-5`, playerProfileId: CHILD_2, guardianProfileId: PARENT, relationship: 'parent' });
     expect(await isInactive(PARENT), false, 'linking brought them back');
 
+    // A member who is also a guardian: their own page says who they answer for (`PEOPLE-16`).
+    const memberGuardian = await read(staff, { type: 'org_person', orgId: DKL, membershipId: STAFF_PARENT_MEMBERSHIP });
+    expect(memberGuardian?.children?.map((c: any) => [c.id, c.membershipId]), [[CHILD, CHILD_MEMBERSHIP]], 'a member’s page names the children they answer for, to open');
+    expect((await read(staff, { type: 'org_person', orgId: DKL, membershipId: CHILD_2_MEMBERSHIP }))?.children, [], 'and nobody for a member who is not a guardian');
+    expect((await read(member, { type: 'org_person', orgId: DKL, membershipId: STAFF_PARENT_MEMBERSHIP }))?.children, undefined, 'a plain Member cannot read it');
+
     r = await send(admin, SocketAction.REMOVE_ORG_MEMBER, { id: CHILD_MEMBERSHIP });
     expect(r.status, 'ok', 'a member can be removed');
     expect(await isInactive(CHILD), true, 'with no part left, their org profile is inactive');

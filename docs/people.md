@@ -64,19 +64,24 @@ person at a glance, and opens their page.
   - **Guardians** shows only for a minor or someone who has a guardian. For anyone else, Add guardian
     is in the ⋯ menu. Each guardian's actions (invite, make primary, edit, remove) are in one ⋯ menu
     on their row.
+  - **Answers for** shows only for someone who is a guardian: each child, the relationship, and a
+    link to the child's page (`PEOPLE-16`). Admin and Staff only; a coach opening someone from their
+    team's roster does not get it, as what matters to a coach is the player, not who they look after.
   - **Member access** shows only for a minor or dependant, as before.
 - **⋯ menu**: Edit photo, Add guardian (when there is none), and Remove from organisation, set apart
-  and confirmed. Removing used to be a red Danger Zone box on the page.
+  and confirmed. Removing used to be a red Danger Zone box on the page. For someone who is a guardian,
+  the confirmation also says they stay on as a guardian (§9).
 - **Layout**: up to the app's page width (1440px, `<PageBody>`). Wide, Contact and Personal details on the left, the other cards on the
   right — or Contact and Personal side by side when there are no others. On a phone one column,
-  guardians and member access first.
+  guardians, answers for and member access first.
 
 ## 3a. The guardian page — `/admin/[orgId]/people/guardian/[profileId]`
 
 [\[profileId\].tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/people/guardian/%5BprofileId%5D.tsx),
 for a guardian with no membership, as the person page is keyed by membership. The same read-first cards
-without a role or member access, plus **Answers for**: each child, the relationship, and a link to the
-child's page. A guardian who is also a member opens their ordinary person page instead (`PEOPLE-16`).
+without a role or member access, plus the same **Answers for** card
+([AnswersForCard](file:///c:/Fred/Coding/SK/expo-app/components/guardians/AnswersForCard.tsx)). A
+guardian who is also a member opens their ordinary person page instead, which has that card too (§3).
 **Remove from organisation** in the ⋯ menu ends every link they have, once confirmed (§9).
 
 ## 4. Minor and Dependant

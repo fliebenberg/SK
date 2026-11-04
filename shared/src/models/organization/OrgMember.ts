@@ -38,8 +38,8 @@ export type OrgGuardianPerson = Omit<OrgMember, 'membershipId' | 'roleId' | 'sta
   children: OrgGuardianChild[];
 };
 
-/** One person's page: their member record, their guardians, and who last set their account's permission. */
-export type OrgPerson = OrgMember & { guardians: ProfileGuardian[]; ownAccountSetByName?: string | null };
+/** One person's page: their member record, their guardians, who they answer for, and who last set their account's permission. */
+export type OrgPerson = OrgMember & { guardians: ProfileGuardian[]; children: OrgGuardianChild[]; ownAccountSetByName?: string | null };
 
 export interface OrgMember extends OrgProfile {
   membershipId: string;

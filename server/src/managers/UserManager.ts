@@ -1,4 +1,4 @@
-import { OrgProfile, OrgMembership, User, UserEmail, OrgMember, OrgPeoplePage, OrgGuardianPerson, PaginatedResponse, assertCalendarDates, cellphoneKey, cellphoneSearchDigits, normalizeEmail, parseCellphone } from "@sk/shared";
+import { OrgProfile, OrgMembership, User, UserEmail, OrgMember, OrgPeoplePage, OrgGuardianChild, OrgGuardianPerson, PaginatedResponse, assertCalendarDates, cellphoneKey, cellphoneSearchDigits, normalizeEmail, parseCellphone } from "@sk/shared";
 import { randomBytes } from "crypto";
 import { BaseManager } from "./BaseManager";
 import { memberPrivilegedSql, restrictedReasonSql } from "./minorAccess";
@@ -521,7 +521,14 @@ export class UserManager extends BaseManager {
     );
     const row = res.rows[0];
     if (!row) return null;
-    const children = await this.query(
+    const children = await this.getChildrenOfGuardian(profileId);
+    if (!children.length) return null;
+    return withReason({ ...row, roleName: organizationManager.getOrganizationRole(row.roleId)?.name, children });
+  }
+
+  /** Who this org profile answers for, for the *Answers for* card on their page (`PEOPLE-16`). */
+  async getChildrenOfGuardian(profileId: string): Promise<OrgGuardianChild[]> {
+    const res = await this.query(
       `SELECT pg.id AS "linkId", c.id, c.name, c.image, pg.relationship, pg.is_primary AS "isPrimary",
               (SELECT om.id FROM org_memberships om
                 WHERE om.org_profile_id = c.id AND om.org_id = pg.org_id AND (om.end_date IS NULL OR om.end_date > NOW())
@@ -531,8 +538,7 @@ export class UserManager extends BaseManager {
         ORDER BY LOWER(c.name)`,
       [profileId],
     );
-    if (!children.rows.length) return null;
-    return withReason({ ...row, roleName: organizationManager.getOrganizationRole(row.roleId)?.name, children: children.rows });
+    return res.rows;
   }
 
   /**

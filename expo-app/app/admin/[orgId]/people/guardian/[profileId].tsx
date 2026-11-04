@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ActivityIndicator, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { OrgGuardianChild, OrgMember, SocketAction } from '@sk/shared';
+import { OrgMember, SocketAction } from '@sk/shared';
 import { ScreenHeader } from '../../../../../components/ScreenHeader';
 import { ReadCard } from '../../../../../components/ReadCard';
 import { OverflowMenu } from '../../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../../components/ConfirmationModal';
 import { InviteModal, InviteStatusCard, useInviteCooldownHours } from '../../../../../components/InviteToScoreKeeper';
-import { RELATIONSHIP_LABELS } from '../../../../../components/guardians/guardianDraft';
+import { AnswersForCard } from '../../../../../components/guardians/AnswersForCard';
 import { PersonBanner } from '../../../../../components/people/PersonBanner';
 import { ContactDialog, IdentityDialog, PersonalDialog } from '../../../../../components/people/PersonDialogs';
-import { PersonAvatar } from '../../../../../components/people/PersonBits';
 import { PageBody } from '../../../../../components/PageBody';
 import { useImageUpload } from '../../../../../hooks/useImageUpload';
 import { useOrgAccess } from '../../../../../hooks/useOrgAccess';
@@ -34,7 +33,6 @@ type Dialog = 'identity' | 'contact' | 'personal' | 'remove' | null;
  */
 export default function GuardianPage() {
   const isDark = useActiveTheme() === 'dark';
-  const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId, profileId } = useLocalSearchParams<{ orgId: string; profileId: string }>();
   const { width } = useWindowDimensions();
@@ -113,22 +111,7 @@ export default function GuardianPage() {
       <ValueRow icon="card-outline" label="National ID" value={guardian.nationalId} />
     </ReadCard>
   );
-  const children = (
-    <ReadCard label="Answers for">
-      <View>
-        {guardian.children.map((child, index) => (
-          <ChildRow
-            key={child.linkId}
-            child={child}
-            first={index === 0}
-            onPress={child.membershipId
-              ? () => router.push({ pathname: '/admin/[orgId]/people/[membershipId]', params: { orgId: orgId!, membershipId: child.membershipId! } })
-              : undefined}
-          />
-        ))}
-      </View>
-    </ReadCard>
-  );
+  const children = <AnswersForCard orgId={orgId!} people={guardian.children} />;
   const account = <InviteStatusCard person={person} cooldownHours={inviteCooldownHours} canInvite onInvite={() => setIsInviteOpen(true)} />;
 
   return (
@@ -195,28 +178,6 @@ export default function GuardianPage() {
         isProcessing={isRemoving}
       />
     </SafeAreaView>
-  );
-}
-
-function ChildRow({ child, first, onPress }: { child: OrgGuardianChild; first: boolean; onPress?: () => void }) {
-  const isDark = useActiveTheme() === 'dark';
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={!onPress}
-      activeOpacity={0.7}
-      accessibilityRole={onPress ? 'link' : undefined}
-      className={`flex-row items-center gap-3 py-2.5 ${first ? 'pt-0' : 'border-t border-line-soft'}`}
-    >
-      <PersonAvatar name={child.name} image={child.image} size={32} />
-      <View className="flex-1 min-w-0">
-        <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{child.name}</Text>
-        <Text className="font-inter text-xs text-ink-muted mt-0.5">
-          {RELATIONSHIP_LABELS[child.relationship]}{child.isPrimary ? ' · Primary' : ''}
-        </Text>
-      </View>
-      {onPress ? <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} /> : null}
-    </TouchableOpacity>
   );
 }
 

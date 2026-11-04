@@ -10,6 +10,7 @@ import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowM
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { InviteModal, InviteStatusCard, isOnScoreKeeper, useInviteCooldownHours } from '../../../../components/InviteToScoreKeeper';
 import { AddGuardianDialog, GuardiansCard } from '../../../../components/guardians/GuardiansCard';
+import { AnswersForCard } from '../../../../components/guardians/AnswersForCard';
 import { MinorAccessCard } from '../../../../components/guardians/MinorAccessCard';
 import { PersonBanner } from '../../../../components/people/PersonBanner';
 import { ContactDialog, IdentityDialog, OrgRole, PersonalDialog, rolesTheyMayGive } from '../../../../components/people/PersonDialogs';
@@ -42,9 +43,10 @@ type Dialog = 'identity' | 'contact' | 'personal' | 'guardian' | 'remove' | null
  * anyone but an Admin or Staff — gets the same page with no Edit links, no Invite and no ⋯ menu.
  *
  * Cards that would be empty for most people are left out rather than shown empty: the ScoreKeeper
- * account card only while they are not on the app (the banner says when they are), and the
- * Guardians card only for a minor or someone who has a guardian — for anyone else, Add guardian is
- * in the ⋯ menu.
+ * account card only while they are not on the app (the banner says when they are), the Guardians
+ * card only for a minor or someone who has a guardian — for anyone else, Add guardian is in the ⋯
+ * menu — and Answers for only for someone who is a guardian, and only for Admin and Staff: a coach
+ * reads the team's people, not who they look after (`PEOPLE-16`).
  */
 export default function PersonPage() {
   const isDark = useActiveTheme() === 'dark';
@@ -85,6 +87,7 @@ export default function PersonPage() {
   const canEdit = orgAccessOf.canManage || (!!member && teamRoster.some(r => r.id === member.id));
   const guardians = fromTeam ? (member && teamGuardians.get(member.id)) || [] : person?.guardians || [];
   const guardianship = member ? guardianshipOf(member.birthdate, minorsSettings, guardians.length > 0) : null;
+  const answersFor = person?.children ?? [];
   const close = () => setDialog(null);
   const back = () => safeBack(`/admin/${orgId}/people`);
 
@@ -171,6 +174,7 @@ export default function PersonPage() {
   const guardiansCard = guardians.length || guardianship === 'minor' ? (
     <GuardiansCard orgId={orgId!} playerProfileId={member.id} playerName={member.name} guardians={guardians} canEdit={canEdit} />
   ) : null;
+  const answersForCard = <AnswersForCard orgId={orgId!} people={answersFor} />;
   const access = (
     <MinorAccessCard
       player={member}
@@ -181,7 +185,7 @@ export default function PersonPage() {
     />
   );
   // The account card and the access card each decide for themselves whether to render.
-  const hasSideCards = !!guardiansCard || guardianship !== null || !isOnScoreKeeper(member);
+  const hasSideCards = !!guardiansCard || answersFor.length > 0 || guardianship !== null || !isOnScoreKeeper(member);
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
@@ -201,11 +205,11 @@ export default function PersonPage() {
             onEditPhoto={canEdit ? photoUpload.open : undefined}
           />
           {!isWide ? (
-            <View className="gap-3">{guardiansCard}{access}{contact}{account}{personal}</View>
+            <View className="gap-3">{guardiansCard}{answersForCard}{access}{contact}{account}{personal}</View>
           ) : hasSideCards ? (
             <View className="flex-row gap-4 items-start">
               <View className="gap-4" style={{ flex: 1.6 }}>{contact}{personal}</View>
-              <View className="gap-4" style={{ flex: 1 }}>{account}{guardiansCard}{access}</View>
+              <View className="gap-4" style={{ flex: 1 }}>{account}{guardiansCard}{answersForCard}{access}</View>
             </View>
           ) : (
             <View className="flex-row gap-4 items-start">
@@ -240,7 +244,7 @@ export default function PersonPage() {
         isOpen={dialog === 'remove'}
         onClose={close}
         title="Remove from organisation?"
-        description={`${member.name} will no longer be a member of this organisation, and will be taken off every team in it. Their guardians will no longer be linked to them. Their ScoreKeeper account, if they have one, is not affected.${removeError ? `\n\n${removeError}` : ''}`}
+        description={`${member.name} will no longer be a member of this organisation, and will be taken off every team in it. Their guardians will no longer be linked to them.${answersFor.length ? ' They stay on as a guardian.' : ''} Their ScoreKeeper account, if they have one, is not affected.${removeError ? `\n\n${removeError}` : ''}`}
         onConfirm={remove}
         confirmText={isRemoving ? 'Removing…' : 'Remove'}
         variant="danger"

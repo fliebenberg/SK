@@ -1791,7 +1791,11 @@ io.on('connection', (socket) => {
                 break;
             case 'org_person': {
                 const person = orgId && request.membershipId ? await dataManager.getOrgPerson(orgId, request.membershipId) : null;
-                callback(person ? { ...person, guardians: await guardianManager.getGuardiansForPlayer(person.id) } : null);
+                callback(person ? {
+                    ...person,
+                    guardians: await guardianManager.getGuardiansForPlayer(person.id),
+                    children: await userManager.getChildrenOfGuardian(person.id),
+                } : null);
                 break;
             }
             case 'org_guardian':
