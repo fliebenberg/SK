@@ -66,7 +66,7 @@ export interface NearbyOrganization {
 
 /** `get_data { type: 'home_nearby', near? }`: read again every few minutes while Home is on screen. */
 export interface HomeNearby {
-  /** Single matches on now, later today and in the coming week. */
+  /** Single matches on now, later today and in the coming month. */
   games: NearbyGame[];
   tournaments: NearbyTournament[];
   /** Nothing was within {@link HOME_RADIUS_KM}, so these are the closest there are. */

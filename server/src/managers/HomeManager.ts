@@ -25,7 +25,7 @@ import { ORG_VISIBLE, viewerOf } from './privateOrgs';
  * loggers).
  *
  * Distances are straight lines, worked out in the query. At today's size that is a scan of the
- * week's fixtures and every organisation; an index on the pins (PostGIS, or a bounding box first)
+ * month's fixtures and every organisation; an index on the pins (PostGIS, or a bounding box first)
  * is the next step when it stops being cheap.
  */
 
@@ -35,6 +35,17 @@ const EVENTS_LIMIT = 40;
 const BEYOND_LIMIT = 5;
 const ORGS_LIMIT = 20;
 const SEARCH_LIMIT = 10;
+/** How many days ahead to read. A little over the month the app shows: its calendar decides. */
+const WINDOW_DAYS = 32;
+
+/**
+ * The order for a query's `found` rows (`km`, `at`) ahead of the cap: within the radius or with no
+ * position at all, soonest first, a game with no time at all at the top; beyond it, closest first.
+ */
+const SOONEST_WITHIN_RADIUS = `
+  (km IS NULL OR km <= ${HOME_RADIUS_KM}) DESC,
+  CASE WHEN km IS NULL OR km <= ${HOME_RADIUS_KM} THEN at END NULLS FIRST,
+  km`;
 
 /** Straight-line kilometres from the viewer (`$1`, `$2`) to a pin; `NULL` when either is missing. */
 const KM = (lat: string, lng: string) => `(6371 * 2 * ASIN(SQRT(
@@ -97,12 +108,15 @@ function withinOrClosest<T extends { km: number | null }>(rows: T[], near: Viewe
 
 export class HomeManager extends BaseManager {
   /**
-   * Single matches and tournaments on now or in the coming week, closest first. With no position,
-   * the same lists by time.
+   * Single matches and tournaments on now or in the coming month. With no position, the same lists.
    *
    * The window is generous on both sides — the viewer's own calendar decides what is *today*, so
    * the app trims it. A match whose kick-off passed less than three hours ago and has not started
    * is still shown: it is late, not gone.
+   *
+   * **The cap keeps the soonest, not the closest.** Within the radius, what is on next matters more
+   * than a few kilometres, so a busy area loses the end of the month and never today's games. Only
+   * when nothing is within the radius does distance choose, to find the closest there are.
    *
    * A tournament comes with its counts rather than its fixtures: its row shows no more, and this is
    * read again every few minutes by everyone with Home open.
@@ -112,49 +126,60 @@ export class HomeManager extends BaseManager {
     const params = [near?.lat ?? null, near?.lng ?? null];
 
     const gamesRes = await this.query(`
-      SELECT g.id, ${KM('pin.lat', 'pin.lng')} AS km
-        FROM games g
-        JOIN events e ON e.id = g.event_id
-        LEFT JOIN facilities f ON f.id = COALESCE(g.facility_id, e.facility_id)
-        LEFT JOIN sites s ON s.id = COALESCE(g.site_id, e.site_id, f.site_id)
-        LEFT JOIN addresses sa ON sa.id = s.address_id
-        LEFT JOIN organizations ho ON ho.id = e.org_id
-        LEFT JOIN addresses hoa ON hoa.id = ho.address_id
-        CROSS JOIN LATERAL (
-          SELECT COALESCE(f.latitude, sa.latitude, hoa.latitude) AS lat,
-                 COALESCE(f.longitude, sa.longitude, hoa.longitude) AS lng
-        ) pin
-       WHERE e.type = 'SingleMatch'
-         AND ${PUBLIC_EVENT('e')}
-         AND e.status IS DISTINCT FROM 'Cancelled'
-         AND (g.status = 'Live' OR (g.status = 'Scheduled' AND (
-               COALESCE(g.scheduled_start_time, g.start_time) BETWEEN NOW() - INTERVAL '3 hours' AND NOW() + INTERVAL '8 days'
-               OR (COALESCE(g.scheduled_start_time, g.start_time) IS NULL
-                   AND e.start_date BETWEEN CURRENT_DATE - 1 AND CURRENT_DATE + 8))))
-         AND ($1::float8 IS NULL OR pin.lat IS NOT NULL)
-       ORDER BY km NULLS LAST, COALESCE(g.scheduled_start_time, g.start_time) NULLS LAST, g.id
+      SELECT id, km, at FROM (
+        SELECT g.id, ${KM('pin.lat', 'pin.lng')} AS km,
+               EXTRACT(EPOCH FROM COALESCE(g.scheduled_start_time, g.start_time, e.start_date::timestamptz))::float8 AS at
+          FROM games g
+          JOIN events e ON e.id = g.event_id
+          LEFT JOIN facilities f ON f.id = COALESCE(g.facility_id, e.facility_id)
+          LEFT JOIN sites s ON s.id = COALESCE(g.site_id, e.site_id, f.site_id)
+          LEFT JOIN addresses sa ON sa.id = s.address_id
+          LEFT JOIN organizations ho ON ho.id = e.org_id
+          LEFT JOIN addresses hoa ON hoa.id = ho.address_id
+          CROSS JOIN LATERAL (
+            SELECT COALESCE(f.latitude, sa.latitude, hoa.latitude) AS lat,
+                   COALESCE(f.longitude, sa.longitude, hoa.longitude) AS lng
+          ) pin
+         WHERE e.type = 'SingleMatch'
+           AND ${PUBLIC_EVENT('e')}
+           AND e.status IS DISTINCT FROM 'Cancelled'
+           AND (g.status = 'Live' OR (g.status = 'Scheduled' AND (
+                 COALESCE(g.scheduled_start_time, g.start_time) BETWEEN NOW() - INTERVAL '3 hours' AND NOW() + INTERVAL '${WINDOW_DAYS} days'
+                 OR (COALESCE(g.scheduled_start_time, g.start_time) IS NULL
+                     AND e.start_date BETWEEN CURRENT_DATE - 1 AND CURRENT_DATE + ${WINDOW_DAYS}))))
+           AND ($1::float8 IS NULL OR pin.lat IS NOT NULL)
+      ) found
+       ORDER BY ${SOONEST_WITHIN_RADIUS}, id
        LIMIT ${EVENTS_LIMIT}
     `, params);
 
     const tournamentsRes = await this.query(`
-      SELECT e.id, ${KM('pin.lat', 'pin.lng')} AS km
-        FROM events e
-        ${EVENT_PIN_JOINS}
-       WHERE e.type = 'Tournament'
-         AND ${PUBLIC_EVENT('e')}
-         AND e.status IS DISTINCT FROM 'Cancelled'
-         AND e.start_date <= CURRENT_DATE + 8
-         AND COALESCE(e.end_date, e.start_date) >= CURRENT_DATE - 1
-         AND ($1::float8 IS NULL OR pin.lat IS NOT NULL)
-       ORDER BY km NULLS LAST, e.start_date, e.id
+      SELECT id, km, at FROM (
+        SELECT e.id, ${KM('pin.lat', 'pin.lng')} AS km,
+               EXTRACT(EPOCH FROM e.start_date::timestamptz)::float8 AS at
+          FROM events e
+          ${EVENT_PIN_JOINS}
+         WHERE e.type = 'Tournament'
+           AND ${PUBLIC_EVENT('e')}
+           AND e.status IS DISTINCT FROM 'Cancelled'
+           AND e.start_date <= CURRENT_DATE + ${WINDOW_DAYS}
+           AND COALESCE(e.end_date, e.start_date) >= CURRENT_DATE - 1
+           AND ($1::float8 IS NULL OR pin.lat IS NOT NULL)
+      ) found
+       ORDER BY ${SOONEST_WITHIN_RADIUS}, id
        LIMIT ${EVENTS_LIMIT}
     `, params);
 
-    // One list of events, closest first, decides together whether anything is within the radius.
+    // One list of events decides together whether anything is within the radius, and the same rule
+    // as the queries' decides which are kept: the soonest if so, the closest if not.
     const candidates = [
-      ...gamesRes.rows.map((r: any) => ({ kind: 'game' as const, id: r.id as string, km: roundKm(r.km) })),
-      ...tournamentsRes.rows.map((r: any) => ({ kind: 'tournament' as const, id: r.id as string, km: roundKm(r.km) })),
-    ].sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity));
+      ...gamesRes.rows.map((r: any) => ({ kind: 'game' as const, id: r.id as string, km: roundKm(r.km), at: r.at as number | null })),
+      ...tournamentsRes.rows.map((r: any) => ({ kind: 'tournament' as const, id: r.id as string, km: roundKm(r.km), at: r.at as number | null })),
+    ];
+    const bySoonest = !near || candidates.some(c => c.km !== null && c.km <= HOME_RADIUS_KM);
+    candidates.sort((a, b) => bySoonest
+      ? (a.at ?? -Infinity) - (b.at ?? -Infinity)
+      : (a.km ?? Infinity) - (b.km ?? Infinity));
     const events = withinOrClosest(candidates, near, EVENTS_LIMIT);
     const gameKm = new Map(events.rows.filter(c => c.kind === 'game').map(c => [c.id, c.km]));
     const tournamentKm = new Map(events.rows.filter(c => c.kind === 'tournament').map(c => [c.id, c.km]));

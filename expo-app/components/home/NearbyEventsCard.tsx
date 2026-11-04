@@ -14,55 +14,69 @@ import { addCalendarDays, instantCalendarDate, todayCalendarDate } from '../../u
 /** Rows shown before *Show more*. */
 const FIRST_ROWS = 6;
 
-type Group = 'now' | 'today' | 'week';
-const GROUP_LABELS: Record<Group, string> = { now: '● On now', today: 'Later today', week: 'This week' };
-const GROUP_ORDER: Group[] = ['now', 'today', 'week'];
+type Group = 'now' | 'today' | 'week' | 'weeks';
+const GROUP_LABELS: Record<Group, string> = { now: '● On now', today: 'Later today', week: 'This week', weeks: 'Coming weeks' };
+const GROUP_ORDER: Group[] = ['now', 'today', 'week', 'weeks'];
+
+/** A group whose rows are on another day: they show their date, and have nothing to wait for yet. */
+const isAhead = (group: Group) => group === 'week' || group === 'weeks';
+
+/** Days ahead the card covers, today being the first: the next seven are *This week*. */
+const WEEK_DAYS = 6;
+const MONTH_DAYS = 30;
 
 type Item =
   | { kind: 'game'; key: string; group: Group; km: number | null; when: string; nearby: NearbyGame }
   | { kind: 'tournament'; key: string; group: Group; km: number | null; when: string; nearby: NearbyTournament };
 
 /**
- * Which group a single match belongs to, in the viewer's own calendar: live, later today, or in the
- * next six days. `null` for anything outside that — the server's window is generous on purpose.
+ * Which group a single match belongs to, in the viewer's own calendar: live, later today, in the
+ * next six days, or in the rest of the month. `null` for anything outside that — the server's window
+ * is generous on purpose.
  */
-function gameGroup({ game }: NearbyGame, today: string, weekEnd: string): Group | null {
+function gameGroup({ game }: NearbyGame, today: string, weekEnd: string, monthEnd: string): Group | null {
   if (game.status === 'Live') return 'now';
   const day = instantCalendarDate(game.scheduledStartTime || game.startTime);
-  if (!day || day < today || day > weekEnd) return null;
-  return day === today ? 'today' : 'week';
+  if (!day || day < today || day > monthEnd) return null;
+  if (day === today) return 'today';
+  return day <= weekEnd ? 'week' : 'weeks';
 }
 
 /** A tournament is on now while a game is live, later today while today is one of its days. */
-function tournamentGroup({ event, liveCount }: NearbyTournament, today: string, weekEnd: string): Group | null {
+function tournamentGroup({ event, liveCount }: NearbyTournament, today: string, weekEnd: string, monthEnd: string): Group | null {
   const last = event.endDate || event.startDate;
-  if (!event.startDate || last < today || event.startDate > weekEnd) return null;
+  if (!event.startDate || last < today || event.startDate > monthEnd) return null;
   if (liveCount > 0) return 'now';
-  return event.startDate <= today ? 'today' : 'week';
+  if (event.startDate <= today) return 'today';
+  return event.startDate <= weekEnd ? 'week' : 'weeks';
 }
 
 function itemsOf(nearby: HomeNearby | null, today: string): Item[] {
   if (!nearby) return [];
-  const weekEnd = addCalendarDays(today, 6) ?? today;
+  const weekEnd = addCalendarDays(today, WEEK_DAYS) ?? today;
+  const monthEnd = addCalendarDays(today, MONTH_DAYS) ?? today;
   const list: Item[] = [];
   for (const g of nearby.games) {
-    const group = gameGroup(g, today, weekEnd);
+    const group = gameGroup(g, today, weekEnd, monthEnd);
     if (group) list.push({ kind: 'game', key: g.game.id, group, km: g.km, when: g.game.scheduledStartTime || g.game.startTime || '', nearby: g });
   }
   for (const t of nearby.tournaments) {
-    const group = tournamentGroup(t, today, weekEnd);
+    const group = tournamentGroup(t, today, weekEnd, monthEnd);
     if (group) list.push({ kind: 'tournament', key: t.event.id, group, km: t.km, when: t.event.startDate || '', nearby: t });
   }
   return list.sort((a, b) =>
     GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group)
+    // What is still to come reads by time: soonest matters more than a few kilometres (decided 2026-11-04).
+    || (a.group !== 'now' ? a.when.localeCompare(b.when) : 0)
     || (a.km ?? Infinity) - (b.km ?? Infinity)
     || a.when.localeCompare(b.when));
 }
 
 /**
  * *On now & next near you* (`HOME-1`): single matches and tournaments, grouped by time — on now,
- * later today, this week — and closest first inside each group (decided 2026-10-22). When nothing
- * is within the radius the closest are shown, and the card says so once.
+ * later today, this week, coming weeks. On now is closest first, since all of it has started; the rest
+ * is soonest first (decided 2026-11-04). When nothing is within the radius the closest are shown, and
+ * the card says so once.
  */
 export function NearbyEventsCard({ nearby, isLoading, hasLocation, sports, live }: {
   nearby: HomeNearby | null;
@@ -81,7 +95,7 @@ export function NearbyEventsCard({ nearby, isLoading, hasLocation, sports, live 
   // has no score to wait for, and the list's next read catches a change to it. Judged from the list
   // as read, so that a score moving a row does not change what is held.
   const asRead = useMemo(() => itemsOf(nearby, today), [nearby, today]);
-  const worthRooms = (showAll ? asRead : asRead.slice(0, FIRST_ROWS)).filter(item => item.group !== 'week');
+  const worthRooms = (showAll ? asRead : asRead.slice(0, FIRST_ROWS)).filter(item => !isAhead(item.group));
   const gameRows = useGameRows(worthRooms.filter(item => item.kind === 'game').map(item => item.key), live);
   const eventRows = useEventRows(worthRooms.filter(item => item.kind === 'tournament').map(item => item.key), live);
 
@@ -110,7 +124,7 @@ export function NearbyEventsCard({ nearby, isLoading, hasLocation, sports, live 
   } else if (!items.length) {
     body = (
       <Text className="font-inter text-sm text-ink-muted py-1">
-        {hasLocation ? `Nothing on within ${HOME_RADIUS_KM} km this week.` : 'Nothing on this week.'}
+        {hasLocation ? `Nothing on within ${HOME_RADIUS_KM} km in the next month.` : 'Nothing on in the next month.'}
       </Text>
     );
   } else {
@@ -133,7 +147,7 @@ export function NearbyEventsCard({ nearby, isLoading, hasLocation, sports, live 
                   km={km}
                   game={game}
                   first={first}
-                  showDate={item.group === 'week'}
+                  showDate={isAhead(item.group)}
                   onPress={() => router.push(homeLinks.game(game.eventId, game.id) as any)}
                 />
               </View>

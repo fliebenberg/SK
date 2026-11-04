@@ -37,12 +37,16 @@ From top to bottom:
 
 - **Within 25 km, straight-line** (`HOME_RADIUS_KM`), not offered as a choice for now (decided
   2026-10-22).
-- **On now & next** is single matches and tournaments, **grouped by time** — on now, later today,
-  this week — and **closest first inside each group** (decided 2026-10-22). Sorting by distance alone
-  would put next Friday's game above one live now down the road. The groups follow the viewer's own
-  calendar, so the server sends a generous window and the app trims it
+- **On now & next** is single matches and tournaments for the **next month** (decided 2026-11-04,
+  it was a week), **grouped by time** — on now, later today, this week, coming weeks. Sorting by
+  distance alone would put next Friday's game above one live now down the road. **On now is closest
+  first**, since all of it has started; **the other groups are soonest first** (decided 2026-11-04),
+  since people want what is on next more than what is a few kilometres nearer. The groups follow the viewer's own calendar, so the server sends a generous window and the app
+  trims it
   ([NearbyEventsCard.tsx](file:///c:/Fred/Coding/SK/expo-app/components/home/NearbyEventsCard.tsx)).
-  The rows are the Fixtures & Events list's own
+- **Six rows, then *Show more***, up to 40. **The cap of 40 keeps the soonest**, not the closest, so
+  a busy area loses the end of the month and never today's games.
+- The rows are the Fixtures & Events list's own
   ([EventRows.tsx](file:///c:/Fred/Coding/SK/expo-app/components/events/EventRows.tsx)), with the
   distance added.
 - **Organisations near you**, closest first, each on the same card as the Organisations page
