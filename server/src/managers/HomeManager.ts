@@ -189,17 +189,14 @@ export class HomeManager extends BaseManager {
       eventManager.getEventsByIds([...tournamentKm.keys()]),
       this.query(`
         SELECT event_id AS "eventId", COUNT(*)::int AS "gameCount",
-               (COUNT(*) FILTER (WHERE status = 'Live'))::int AS "liveCount",
-               MIN(id::text) FILTER (WHERE status = 'Live') AS "liveGameId"
+               (COUNT(*) FILTER (WHERE status = 'Live'))::int AS "liveCount"
           FROM games WHERE event_id = ANY($1) GROUP BY event_id`, [[...tournamentKm.keys()]]),
     ]);
     const counts = new Map<string, any>(tournamentCounts.rows.map((r: any) => [r.eventId, r]));
-    const liveGames = await eventManager.getGameSummariesByIds(tournamentCounts.rows.map((r: any) => r.liveGameId).filter(Boolean));
-    const liveGameById = new Map(liveGames.map(g => [g.id, g]));
 
     const siteIds = new Set<string>();
     const facilityIds = new Set<string>();
-    for (const g of [...gameSummaries, ...liveGames]) {
+    for (const g of gameSummaries) {
       if (g.siteId) siteIds.add(g.siteId);
       if (g.facilityId) facilityIds.add(g.facilityId);
     }
@@ -215,7 +212,6 @@ export class HomeManager extends BaseManager {
         event,
         gameCount: counts.get(event.id)?.gameCount ?? 0,
         liveCount: counts.get(event.id)?.liveCount ?? 0,
-        liveGame: liveGameById.get(counts.get(event.id)?.liveGameId) ?? null,
         km: tournamentKm.get(event.id) ?? null,
       })),
       eventsBeyondRadius: events.beyond,

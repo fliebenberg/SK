@@ -39,8 +39,6 @@ export interface NearbyTournament {
   event: Event;
   gameCount: number;
   liveCount: number;
-  /** One of its live games, for the hero's preview. */
-  liveGame: GameSummary | null;
   km: number | null;
 }
 

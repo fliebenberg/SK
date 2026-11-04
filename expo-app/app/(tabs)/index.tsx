@@ -75,7 +75,7 @@ export default function Home() {
         <PageBody className={isWide ? 'gap-4' : 'gap-3'} onLayout={e => setContentWidth(e.nativeEvent.layout.width)}>
           {isAuthenticated
             ? (hasMine ? <MyHomeCard mine={mine!} sports={sports} live={isFocused} /> : null)
-            : <HomeHero nearby={nearby} sports={sports} isWide={isWide} live={isFocused} />}
+            : <HomeHero isWide={isWide} />}
           {isWide ? (
             <View className="flex-row gap-4">
               <View className="min-w-0" style={{ flex: WIDE_LEFT }}>

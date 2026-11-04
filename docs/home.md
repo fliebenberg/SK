@@ -16,7 +16,7 @@ From top to bottom:
 
 | Signed out | Signed in |
 | --- | --- |
-| **The hero**: a headline, *Create an account*, *Log in*, *What is ScoreKeeper? ›*, and — on a wide screen — the closest game live right now as a preview of what the app does (no live game, no preview) | **My organisations & teams** |
+| **The hero**: a headline, *Create an account*, *Log in* and *What is ScoreKeeper? ›* | **My organisations & teams** |
 | The search and the location, on one line on a wide screen and one under the other on a phone | the same |
 | *On now & next near you* and *Organisations near you*, side by side once the page's content is 900px wide (`LAYOUT.twoColumnsMinWidth`, measured, since the sidebar takes its share), and stacked under that | the same |
 
@@ -26,6 +26,9 @@ From top to bottom:
   corner only (design rule 29). A fixed dark band was tried and dropped: it was not a theme token and
   did not follow the theme. **The hero is to be refined in a session of its own** (decided
   2026-10-22).
+- **On a wide screen *Create an account*, *Log in* and *What is ScoreKeeper?* are on the right of the
+  hero**, beside the text. On a phone they follow it. The hero used to preview the closest live game;
+  that was taken out on 2026-11-04 (user). *On now & next near you* shows live games just below it.
 - **The sign-in pitch is said once**, in the hero. It promises only what an account gives today.
   What an account should add for a member of the public is `FIX-37`.
 - *What is ScoreKeeper?* opens today's old landing page until the info page (`HOME-2`) replaces it.
@@ -68,8 +71,8 @@ From top to bottom:
   clients do not fall into step) while Home is on screen, to pick up what has been added or has
   dropped off. Coming back to Home after longer than that reads at once. Organisations are read once
   a visit (`home_nearby_orgs`): they barely change.
-- **Only rows on screen that can change now hold a room**: live, or on today. A single match, the
-  hero's preview and a team's game under *My organisations & teams* hold `game:{id}:row`, with the
+- **Only rows on screen that can change now hold a room**: live, or on today. A single match and a
+  team's game under *My organisations & teams* hold `game:{id}:row`, with the
   status, score and times; a tournament holds `event:{id}:row`, with how many games and how many live
   ([useListRows.ts](file:///c:/Fred/Coding/SK/expo-app/hooks/useListRows.ts)). A row merges over what
   the read gave it, so it moves between *On now* and *Later today* on its own. Going to another tab
