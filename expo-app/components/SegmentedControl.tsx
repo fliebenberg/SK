@@ -35,7 +35,8 @@ export interface SegmentedControlProps<T extends string = string> {
 const IS_WEB = Platform.OS === 'web';
 
 /**
- * A switch between two to four options that change often.
+ * A switch between two to four options that change often, or five if every label still fits on one
+ * line on a phone (design rule 2).
  *
  * **The chosen option is raised out of the sunken track, in ink, with a `line-selected` edge — never
  * orange** (`UI-26`, 2026-10-04). Orange is for something to press, and for a filter narrowing a

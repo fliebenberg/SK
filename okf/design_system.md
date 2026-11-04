@@ -163,8 +163,9 @@ in the banner — and the same cards, without the statuses, once it is (2026-10-
     No form on the page and no floating save bar. Closing a dialog with unsaved edits asks first,
     inside the dialog; a failed save keeps it open.
 2.  **Show the value, not the options.** A single choice displays the chosen value. Its options
-    appear only while editing: a segmented control for two to four options that change often, a
-    dropdown for anything else.
+    appear only while editing: a segmented control for two to four options that change often (five
+    if every label still fits on one line on a phone, as on People's filter), a dropdown for anything
+    else.
 3.  **Conditional fields appear only when their condition holds, next to what triggered them** —
     *Describe it* beside Type = Other, and nowhere else.
 4.  **Lead with the record as others see it.** The most-read facts first, in their most
@@ -237,7 +238,7 @@ in the banner — and the same cards, without the statuses, once it is (2026-10-
     wide screen (only while the options overflow), a swipe on a phone, the chosen option scrolled into view — with an **All N ▾**
     fixed at its end that lists every option for a quick jump (with a search once there are many).
     One choice at a time is shown under it: the tournament's sports, then the chosen sport's
-    divisions. A segmented control is still the answer for two to four options (rule 2).
+    divisions. A segmented control is still the answer for two to four options, or five that fit (rule 2).
 23. **A page whose job changes with time says what is needed next, once, under its banner, and
     orders its cards by the moment** (the division page, 2026-10-09): one strip, amber while
     something is missing, green when the next step is ready, with its one action; Teams lead while
