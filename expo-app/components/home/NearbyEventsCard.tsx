@@ -6,6 +6,7 @@ import { TournamentCard } from '../tournament/TournamentBits';
 import { MatchRow, TournamentRow } from '../events/EventRows';
 import { GroupHeading, ShowMore } from './HomeBits';
 import { homeLinks } from './homeLinks';
+import { useEventRows, useGameRows } from '../../hooks/useListRows';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
 import { addCalendarDays, instantCalendarDate, todayCalendarDate } from '../../utils/dates';
@@ -33,11 +34,29 @@ function gameGroup({ game }: NearbyGame, today: string, weekEnd: string): Group 
 }
 
 /** A tournament is on now while a game is live, later today while today is one of its days. */
-function tournamentGroup({ event, games }: NearbyTournament, today: string, weekEnd: string): Group | null {
+function tournamentGroup({ event, liveCount }: NearbyTournament, today: string, weekEnd: string): Group | null {
   const last = event.endDate || event.startDate;
   if (!event.startDate || last < today || event.startDate > weekEnd) return null;
-  if (games.some(g => g.status === 'Live')) return 'now';
+  if (liveCount > 0) return 'now';
   return event.startDate <= today ? 'today' : 'week';
+}
+
+function itemsOf(nearby: HomeNearby | null, today: string): Item[] {
+  if (!nearby) return [];
+  const weekEnd = addCalendarDays(today, 6) ?? today;
+  const list: Item[] = [];
+  for (const g of nearby.games) {
+    const group = gameGroup(g, today, weekEnd);
+    if (group) list.push({ kind: 'game', key: g.game.id, group, km: g.km, when: g.game.scheduledStartTime || g.game.startTime || '', nearby: g });
+  }
+  for (const t of nearby.tournaments) {
+    const group = tournamentGroup(t, today, weekEnd);
+    if (group) list.push({ kind: 'tournament', key: t.event.id, group, km: t.km, when: t.event.startDate || '', nearby: t });
+  }
+  return list.sort((a, b) =>
+    GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group)
+    || (a.km ?? Infinity) - (b.km ?? Infinity)
+    || a.when.localeCompare(b.when));
 }
 
 /**
@@ -45,34 +64,37 @@ function tournamentGroup({ event, games }: NearbyTournament, today: string, week
  * later today, this week — and closest first inside each group (decided 2026-10-22). When nothing
  * is within the radius the closest are shown, and the card says so once.
  */
-export function NearbyEventsCard({ nearby, isLoading, hasLocation, sports }: {
+export function NearbyEventsCard({ nearby, isLoading, hasLocation, sports, live }: {
   nearby: HomeNearby | null;
   isLoading: boolean;
   hasLocation: boolean;
   sports: Sport[];
+  /** Home is the tab on screen, so its rows are worth keeping live. */
+  live: boolean;
 }) {
   const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
   const [showAll, setShowAll] = useState(false);
   const today = todayCalendarDate();
 
+  // Only a row on screen that can change now holds a room: live, or on today. Next Thursday's match
+  // has no score to wait for, and the list's next read catches a change to it. Judged from the list
+  // as read, so that a score moving a row does not change what is held.
+  const asRead = useMemo(() => itemsOf(nearby, today), [nearby, today]);
+  const worthRooms = (showAll ? asRead : asRead.slice(0, FIRST_ROWS)).filter(item => item.group !== 'week');
+  const gameRows = useGameRows(worthRooms.filter(item => item.kind === 'game').map(item => item.key), live);
+  const eventRows = useEventRows(worthRooms.filter(item => item.kind === 'tournament').map(item => item.key), live);
+
   const items = useMemo(() => {
-    if (!nearby) return [];
-    const weekEnd = addCalendarDays(today, 6) ?? today;
-    const list: Item[] = [];
-    for (const g of nearby.games) {
-      const group = gameGroup(g, today, weekEnd);
-      if (group) list.push({ kind: 'game', key: g.game.id, group, km: g.km, when: g.game.scheduledStartTime || g.game.startTime || '', nearby: g });
-    }
-    for (const t of nearby.tournaments) {
-      const group = tournamentGroup(t, today, weekEnd);
-      if (group) list.push({ kind: 'tournament', key: t.event.id, group, km: t.km, when: t.event.startDate || '', nearby: t });
-    }
-    return list.sort((a, b) =>
-      GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group)
-      || (a.km ?? Infinity) - (b.km ?? Infinity)
-      || a.when.localeCompare(b.when));
-  }, [nearby, today]);
+    if (!nearby || (!gameRows.size && !eventRows.size)) return asRead;
+    return itemsOf({
+      ...nearby,
+      games: nearby.games
+        .filter(g => gameRows.get(g.game.id) !== null)
+        .map(g => ({ ...g, game: { ...g.game, ...gameRows.get(g.game.id) } })),
+      tournaments: nearby.tournaments.map(t => ({ ...t, ...eventRows.get(t.event.id) })),
+    }, today);
+  }, [nearby, today, asRead, gameRows, eventRows]);
 
   const sportName = (id?: string) => sports.find(s => s.id === id)?.name || '';
   const siteName = (id?: string | null) => (id && nearby?.siteNames[id]) || '';
@@ -117,7 +139,7 @@ export function NearbyEventsCard({ nearby, isLoading, hasLocation, sports }: {
               </View>
             );
           }
-          const { event, games, km } = item.nearby;
+          const { event, gameCount, liveCount, km } = item.nearby;
           return (
             <View key={item.key}>
               {heading}
@@ -125,7 +147,9 @@ export function NearbyEventsCard({ nearby, isLoading, hasLocation, sports }: {
                 {...rowProps}
                 km={km}
                 event={event}
-                games={games}
+                games={[]}
+                gameCount={gameCount}
+                liveCount={liveCount}
                 sportIds={event.sportIds || []}
                 isPast={false}
                 first={first}

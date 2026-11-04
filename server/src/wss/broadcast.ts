@@ -74,6 +74,15 @@ export function broadcast(topic: string, type: string, data: any) {
 }
 
 /**
+ * Whether anyone is in `topic`, so a publisher with a query to run for it can skip that when nobody
+ * is. `true` when it cannot tell: the integration scripts' hand-rolled `io` has no `sockets`.
+ */
+export function roomHasListeners(topic: string): boolean {
+  const rooms = (getIo() as any)?.sockets?.adapter?.rooms;
+  return rooms ? (rooms.get(topic)?.size ?? 0) > 0 : true;
+}
+
+/**
  * Push to one socket only — the state a room hands over on join. Carries the
  * same envelope as a broadcast so the client applies it through the same path.
  */

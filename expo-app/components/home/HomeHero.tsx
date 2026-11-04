@@ -5,6 +5,7 @@ import { GameSummary, HomeNearby, Sport } from '@sk/shared';
 import { Button } from '../Button';
 import { FixtureCrest, RowTag, fixtureSideNames, sideScores } from '../events/EventBits';
 import { homeLinks } from './homeLinks';
+import { useGameRows } from '../../hooks/useListRows';
 import { formatDistance } from '../../utils/distance';
 
 /**
@@ -16,9 +17,15 @@ import { formatDistance } from '../../utils/distance';
  * In the theme's own colours, with the accent in the bottom-right corner only (design rule 29).
  * **To be refined in a session of its own** (decided 2026-10-22).
  */
-export function HomeHero({ nearby, sports, isWide }: { nearby: HomeNearby | null; sports: Sport[]; isWide: boolean }) {
+export function HomeHero({ nearby, sports, isWide, live: keepLive }: { nearby: HomeNearby | null; sports: Sport[]; isWide: boolean; live: boolean }) {
   const router = useRouter();
-  const live = isWide ? closestLiveGame(nearby) : null;
+  const closest = isWide ? closestLiveGame(nearby) : null;
+  const rows = useGameRows(closest ? [closest.game.id] : [], keepLive);
+  const row = closest ? rows.get(closest.game.id) : undefined;
+  // Once it stops being live it leaves the preview; the list's next read finds another.
+  const live = closest && row !== null && (row?.status ?? 'Live') === 'Live'
+    ? { ...closest, game: { ...closest.game, ...row } }
+    : null;
 
   return (
     <View className="rounded-2xl border border-line bg-card overflow-hidden" style={{ padding: isWide ? 28 : 16 }}>
@@ -59,8 +66,7 @@ function closestLiveGame(nearby: HomeNearby | null): { game: GameSummary; km: nu
   const single = nearby.games.find(g => g.game.status === 'Live');
   if (single) return single;
   for (const t of nearby.tournaments) {
-    const game = t.games.find(g => g.status === 'Live');
-    if (game) return { game, km: t.km };
+    if (t.liveGame) return { game: t.liveGame, km: t.km };
   }
   return null;
 }

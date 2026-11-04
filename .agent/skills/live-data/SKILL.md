@@ -8,6 +8,19 @@ description: How real-time data reaches a client — rooms as the read boundary,
 Four rules. All four are load-bearing; breaking any one of them has already caused a
 bug in this repo.
 
+Two principles sit over them (decided 2026-11-03, after Home's once-a-minute poll):
+
+- **Live information comes through rooms, never a poll.** A timed read is only for finding out
+  *what* to show, as often as that really changes: Home's list every few minutes, varied so that
+  clients do not fall into step. See *A row in a list* below.
+- **Nothing is read while the app is not in front of someone.** A timer that reads stops when its
+  screen is not on screen (`useIsFocused`, since a tab stays mounted) or the app is hidden
+  (`useAppActive`). After five hidden minutes the app closes its connection altogether
+  ([idleDisconnect.ts](file:///c:/Fred/Coding/SK/expo-app/services/idleDisconnect.ts)), and every
+  screen joins and reads again on return. Five, because an open idle connection costs little and
+  coming back to a closed one costs every room and read again: someone who jumps to another tab and
+  back should not pay that.
+
 **First decide whether the list should be live at all.** A list that may be very long is static, and
 so is a short one that does not need live data; a static list is read a page at a time with
 `get_data`. If it is not clear, ask the user. The rule and every list's kind are in
@@ -52,7 +65,14 @@ twice. Use [`useLiveRoom`](file:///c:/Fred/Coding/SK/expo-app/hooks/useLiveRoom.
 which never issues a query.
 
 `useSocketQuery` remains correct for genuine one-shot reads (a form's dropdown options,
-a report) — data that no room owns.
+a report) — data that no room owns. Asking for what another screen is already asking costs nothing:
+the socket service shares the answer, and keeps `sports` and `roles` for a while (`LIVE-11`). So a
+screen need not pass reference data around to save a read.
+
+**A hold outlasts a dropped connection (`LIVE-13`).** Without a connection nothing is sent, and the
+room is joined when the socket connects. So an effect that subscribes does not list `isConnected`, and
+a screen keeps what it has while the connection is away. An effect that reads does list it, since
+nothing else brings that data up to date on return: when a screen does both, they are two effects.
 
 **The push reaches only the socket that joined, once.** The client reference-counts room
 holders and sends `join_room` for the first one only, and each screen reduces a room's messages
@@ -223,3 +243,20 @@ room hands over every recorded event in the match.
 Because the summary names each participant's org, a client rendering a fixture needs **no**
 teams or organizations lookup — and the label cannot go stale, since a rename republishes
 the summary.
+
+## A row in a list
+
+A live thing has a room per level of detail, and a list wants the lightest. **When a list holds a
+room per row, that room carries only what changes on the row while it is on**, in as few bytes as
+possible; the list's own read brings what does not change, such as who is playing.
+
+- `game:{id}:row` — `GameListRow`: status, score, period and times, with no sides. It is still a whole
+  object under keep-the-latest (rule 1): the object is simply small.
+- `event:{id}:row` — `EventListRow`: how many games, how many live. It says nothing when a score
+  changes neither, and costs no query while nobody is in the room.
+
+Hold a room only for a row **on screen that can change now**. Every join costs its access check and
+its push, on every reconnect, so a room for each of forty rows is a stampede when the server
+restarts. Use [`useGameRows` / `useEventRows`](file:///c:/Fred/Coding/SK/expo-app/hooks/useListRows.ts),
+which join and leave only the difference as the list changes. A new kind of live thing shown in a
+list gets its own light room on this pattern. Lists still on a whole fixtures room: `LIVE-23`.

@@ -10,6 +10,15 @@ export interface EmitOptions {
   suppressToast?: boolean;
 }
 
+interface ReadWaiter {
+  callback: (...args: any[]) => void;
+  suppressToast?: boolean;
+}
+
+/** Reads kept for a while after answering: reference data, the same for everyone (`LIVE-11`). */
+const REFERENCE_READS = new Set(['sports', 'roles']);
+const REFERENCE_READ_MS = 5 * 60_000;
+
 /** Local wall-clock time for a log line, to the millisecond. Metro prints none of its own. */
 const logClock = () => {
   const now = new Date();
@@ -87,11 +96,11 @@ class WebSocketService {
     }
   }
 
-  connect() {
-    if (this.socket && this.socket.connected) {
-      return;
-    }
-
+  /**
+   * The socket, built once and not yet connected, so that a screen can listen and hold rooms before
+   * the first connection, and keep doing so through a dropped one (`LIVE-13`).
+   */
+  private ensureSocket(): Socket {
     if (!this.socket) {
       this.socket = io(this.url, {
         autoConnect: false,
@@ -112,12 +121,13 @@ class WebSocketService {
         useWsStore.getState().setConnected(true);
         this.syncTime();
 
-        // Re-subscribe to all active rooms upon connect/reconnect. Each re-join pushes the
-        // room's state afresh, so whatever was logged on the old connection is superseded.
+        // Rooms stay held through a disconnect, and this is what joins them on the new connection,
+        // the first one included. Each join pushes the room's state afresh, so whatever was logged
+        // on the old connection is superseded.
         this.rooms.resetLogs();
         for (const room of this.rooms.heldRooms()) {
           if (this.socket && this.socket.connected) {
-            this.log('log', `Re-joining room on connect: ${room}`);
+            this.log('log', `Joining held room on connect: ${room}`);
             this.socket.emit('join_room', room);
           }
         }
@@ -140,6 +150,8 @@ class WebSocketService {
       this.socket.on('disconnect', (reason) => {
         this.log('log', `Disconnected from Socket.io server (${reason})`);
         this.socketId = null;
+        // Answers to these will not come, so a new read must not wait on them. Each still times out.
+        this.readsOut.clear();
         useWsStore.getState().setConnected(false);
       });
 
@@ -148,8 +160,12 @@ class WebSocketService {
         useWsStore.getState().setConnected(false);
       });
     }
+    return this.socket;
+  }
 
-    this.socket.connect();
+  connect() {
+    const socket = this.ensureSocket();
+    if (!socket.connected) socket.connect();
   }
 
   disconnect() {
@@ -169,12 +185,8 @@ class WebSocketService {
    * Fire-and-forget emit. Private because the room events are the only thing that ever used it
    * and they must not be reachable from a screen — see `emit`.
    */
-  private send(event: string, data: any) {
-    if (this.socket && this.socket.connected) {
-      this.socket.emit(event, data);
-    } else {
-      this.log('warn', 'Cannot emit event. Socket is not connected.');
-    }
+  private sendIfConnected(event: string, data: any) {
+    if (this.socket && this.socket.connected) this.socket.emit(event, data);
   }
 
   /**
@@ -188,6 +200,10 @@ class WebSocketService {
    * Hold a room. The first holder makes the socket join it; the last one to let go makes it
    * leave. Pages call this and the returned release function and need not care which they are.
    *
+   * A hold does not depend on the connection: without one nothing is sent, and the room is joined
+   * when the socket connects. So a subscribing effect does not list `isConnected` (`LIVE-13`), and a
+   * dropped connection costs one push per room rather than every screen rebuilding its state.
+   *
    * `onReplay` receives what the room has already delivered when the room was held before this
    * call — the same messages the caller's `'update'` listener would have seen had it been there
    * for the join push. A caller that passes no handler gets the old behaviour and, if it arrives
@@ -198,12 +214,12 @@ class WebSocketService {
 
     if (isFirst) {
       this.log('log', `Subscribing to room: ${room}`);
-      this.send('join_room', room);
+      this.sendIfConnected('join_room', room);
     } else if (replay === 'overflow') {
       // The log grew past what is worth replaying. Socket.io's join is idempotent, so asking
       // again costs one re-push of the room's state, which every holder absorbs as a replace.
       this.log('log', `Re-joining room for a late subscriber (replay log overflowed): ${room}`);
-      this.send('join_room', room);
+      this.sendIfConnected('join_room', room);
     } else if (replay && onReplay) {
       if (replay.length) this.log('log', `Replaying ${replay.length} message(s) to a late subscriber: ${room}`);
       for (const message of replay) onReplay(message);
@@ -212,8 +228,66 @@ class WebSocketService {
     return () => {
       if (this.rooms.unsubscribe(room, token)) {
         this.log('log', `Unsubscribing from room: ${room}`);
-        this.send('leave_room', room);
+        this.sendIfConnected('leave_room', room);
       }
+    };
+  }
+
+  /**
+   * Reads waiting on the same answer, by request (`LIVE-11`): a second screen asking what is already
+   * being asked is added here rather than sent again, which is most of what a screen opening or a
+   * connection returning would otherwise repeat.
+   */
+  private readsOut = new Map<string, ReadWaiter[]>();
+
+  /** `sports` and `roles` as last read, by request (`LIVE-11`). They change rarely and are large. */
+  private referenceReads = new Map<string, { at: number; response: unknown }>();
+
+  /** Sport and age group changes go over REST as well as actions (api.ts), so it says when. */
+  forgetReferenceReads() {
+    this.referenceReads.clear();
+  }
+
+  /**
+   * One `get_data` read, shared. `taken` when it answered the read from what is held or added it to
+   * one already out; otherwise it hands back what to send it with, which answers everyone waiting.
+   */
+  private shareRead(data: any, callback: (...args: any[]) => void, options?: EmitOptions) {
+    const key = JSON.stringify(data);
+    const isReference = REFERENCE_READS.has(data?.type);
+
+    const held = isReference ? this.referenceReads.get(key) : undefined;
+    if (held && Date.now() - held.at < REFERENCE_READ_MS) {
+      // Later, as a read from the server always is: a caller may set up after asking.
+      setTimeout(() => callback(held.response), 0);
+      return { taken: true as const };
+    }
+
+    const waiting = this.readsOut.get(key);
+    if (waiting) {
+      waiting.push({ callback, suppressToast: options?.suppressToast });
+      return { taken: true as const };
+    }
+
+    const waiters: ReadWaiter[] = [{ callback, suppressToast: options?.suppressToast }];
+    this.readsOut.set(key, waiters);
+    return {
+      taken: false as const,
+      // Anyone still wanting to hear of a failure is reason enough to say so.
+      options: { get suppressToast() { return waiters.every(waiter => waiter.suppressToast); } },
+      callback: (...args: any[]) => {
+        if (this.readsOut.get(key) === waiters) this.readsOut.delete(key);
+        const res = args[0];
+        if (isReference && res && !res.error) this.referenceReads.set(key, { at: Date.now(), response: res });
+        for (const waiter of waiters) {
+          try {
+            waiter.callback(...args);
+          } catch (error) {
+            // One screen's bad handler must not take the answer from the others.
+            this.log('error', `A reader of ${key} threw`, error);
+          }
+        }
+      },
     };
   }
 
@@ -237,6 +311,21 @@ class WebSocketService {
         `Use subscribeToRoom() / the returned release function, or the useLiveRoom hook.`
       );
       return;
+    }
+
+    // A change may be what the next read is asking about, so it must not be answered by a read sent
+    // before it, or by a copy held from before it.
+    if (event === 'action') {
+      this.readsOut.clear();
+      this.forgetReferenceReads();
+    }
+
+    if (event === 'get_data' && callback) {
+      const shared = this.shareRead(data, callback, options);
+      if (shared.taken) return;
+      if (!this.socket?.connected) this.readsOut.delete(JSON.stringify(data));
+      callback = shared.callback;
+      options = shared.options;
     }
 
     if (this.socket && this.socket.connected) {
@@ -298,9 +387,7 @@ class WebSocketService {
   }
 
   on(event: string, callback: (...args: any[]) => void) {
-    if (this.socket) {
-      this.socket.on(event, callback);
-    }
+    this.ensureSocket().on(event, callback);
   }
 
   off(event: string, callback?: (...args: any[]) => void) {

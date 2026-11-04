@@ -1,9 +1,12 @@
 import { eventManager } from '../managers/EventManager';
 import { accessManager } from '../managers/AccessManager';
-import { broadcast } from './broadcast';
+import { gameListRowOf } from '@sk/shared';
+import { broadcast, roomHasListeners } from './broadcast';
 import {
   divisionFixturesRoom,
   eventFixturesRoom,
+  eventRowRoom,
+  gameRowRoom,
   gameSummaryRoom,
   orgEventsRoom,
   orgFixturesRoom,
@@ -58,6 +61,29 @@ export async function publishGameSummary(gameId: string): Promise<void> {
   if (!summary) return;
   const rooms = await fixtureRooms(gameId);
   rooms.forEach(room => broadcast(room, 'GAME_SUMMARY_UPDATED', summary));
+  broadcast(gameRowRoom(gameId), 'GAME_ROW_UPDATED', gameListRowOf(summary));
+  await publishEventRow(summary.eventId);
+}
+
+/** What each `event:{id}:row` last said, so that a score, which changes neither count, sends nothing. */
+const lastEventRow = new Map<string, string>();
+
+/**
+ * Publish a tournament's game counts, if anyone is listening and they have changed. Call after a
+ * game under it is added, removed or changes status; `publishGameSummary` does.
+ */
+export async function publishEventRow(eventId: string): Promise<void> {
+  const room = eventRowRoom(eventId);
+  if (!roomHasListeners(room)) {
+    // Someone joining later is handed the counts as they are then, so this one is out of date.
+    lastEventRow.delete(eventId);
+    return;
+  }
+  const row = await eventManager.getEventListRow(eventId);
+  const said = `${row.gameCount}:${row.liveCount}`;
+  if (lastEventRow.get(eventId) === said) return;
+  lastEventRow.set(eventId, said);
+  broadcast(room, 'EVENT_ROW_UPDATED', row);
 }
 
 /**
@@ -67,6 +93,12 @@ export async function publishGameSummary(gameId: string): Promise<void> {
  */
 export function publishGameRemoved(gameId: string, rooms: string[]): void {
   rooms.forEach(room => broadcast(room, 'GAME_SUMMARY_REMOVED', { id: gameId }));
+  broadcast(gameRowRoom(gameId), 'GAME_ROW_REMOVED', { id: gameId });
+  // Its event is named by the rooms captured before the delete; the row is gone by now.
+  for (const room of rooms) {
+    const [kind, eventId, sub] = room.split(':');
+    if (kind === 'event' && sub === 'fixtures') void publishEventRow(eventId).catch(err => console.error(`[Fixtures] Event row for ${eventId}:`, err));
+  }
 }
 
 /** Snapshot the audience for a game that is about to be deleted. */

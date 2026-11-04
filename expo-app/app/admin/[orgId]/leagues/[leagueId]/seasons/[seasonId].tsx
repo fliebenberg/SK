@@ -188,12 +188,19 @@ export default function SeasonDetails() {
 
     loadData();
 
-    // Subscribe to Room updates
+    return () => {
+      active = false;
+    };
+  }, [isConnected, seasonId, orgId]);
+
+  // Subscribe to Room updates
+  useEffect(() => {
+    if (!seasonId) return;
+
     const room = `season:${seasonId}:standings`;
 
     // Dynamic standing merge handler: NO redundant fetches!
     const handleUpdate = (event: any) => {
-      if (!active) return;
       if (event) {
         if (event.type === 'STANDINGS_UPDATED' && Array.isArray(event.data)) {
           setStandings(event.data);
@@ -207,11 +214,10 @@ export default function SeasonDetails() {
     const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
 
     return () => {
-      active = false;
       unsubscribe();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, seasonId, orgId]);
+  }, [seasonId]);
 
   /**
    * Measured against the baseline the fields were seeded from, never against the live `season` —

@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { ScrollView, useWindowDimensions, View } from 'react-native';
+import { useIsFocused } from 'expo-router';
 import { PageBody } from '../../components/PageBody';
 import { HomeHero } from '../../components/home/HomeHero';
 import { HomeSearchBox } from '../../components/home/HomeBits';
 import { LocationCard, SetLocationDialog } from '../../components/home/LocationCard';
 import { NearbyEventsCard } from '../../components/home/NearbyEventsCard';
 import { MyHomeCard, NearbyOrgsCard, SearchResultsCard } from '../../components/home/HomeCards';
-import { useHomeLocation, useHomeNearby, useHomeSearch, useMyHome } from '../../hooks/useHome';
+import { useHomeLocation, useHomeNearby, useHomeNearbyOrgs, useHomeSearch, useMyHome } from '../../hooks/useHome';
+import { useAppActive } from '../../hooks/useAppActive';
 import { useSports } from '../../hooks/useEventRooms';
 import { useAuthStore } from '../../store/authStore';
 
@@ -29,8 +31,13 @@ export default function Home() {
 
   const { location, resolving, permission, locating, locateMe, setTypedPlace } = useHomeLocation();
   const near = location?.near ?? null;
-  const { nearby, isLoading } = useHomeNearby(near, !resolving);
-  const { mine } = useMyHome();
+  // A tab stays mounted when the viewer moves to another, so being mounted does not mean on screen.
+  const isFocused = useIsFocused();
+  const appActive = useAppActive();
+  const onScreen = isFocused && appActive;
+  const { nearby, isLoading } = useHomeNearby(near, !resolving, onScreen);
+  const { nearbyOrgs, isLoading: orgsLoading } = useHomeNearbyOrgs(near, !resolving);
+  const { mine } = useMyHome(onScreen);
   const [query, setQuery] = useState('');
   const { results, isSearching } = useHomeSearch(query, near);
   const [settingLocation, setSettingLocation] = useState(false);
@@ -41,8 +48,8 @@ export default function Home() {
 
   // Still finding out where to look counts as loading, so a card never says "nothing" too early.
   const loading = isLoading || resolving;
-  const events = <NearbyEventsCard nearby={nearby} isLoading={loading} hasLocation={hasLocation} sports={sports} />;
-  const orgs = <NearbyOrgsCard nearby={nearby} isLoading={loading} hasLocation={hasLocation} />;
+  const events = <NearbyEventsCard nearby={nearby} isLoading={loading} hasLocation={hasLocation} sports={sports} live={isFocused} />;
+  const orgs = <NearbyOrgsCard nearby={nearbyOrgs} isLoading={orgsLoading || resolving} hasLocation={hasLocation} />;
   const cards = isWide ? (
     <View className="flex-row gap-4 items-start">
       <View className="min-w-0" style={{ flex: 1.35 }}>{events}</View>
@@ -57,8 +64,8 @@ export default function Home() {
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <PageBody className={isWide ? 'gap-4' : 'gap-3'}>
           {isAuthenticated
-            ? (hasMine ? <MyHomeCard mine={mine!} sports={sports} /> : null)
-            : <HomeHero nearby={nearby} sports={sports} isWide={isWide} />}
+            ? (hasMine ? <MyHomeCard mine={mine!} sports={sports} live={isFocused} /> : null)
+            : <HomeHero nearby={nearby} sports={sports} isWide={isWide} live={isFocused} />}
           <HomeSearchBox value={query} onChange={setQuery} />
           {searching ? (
             <SearchResultsCard query={query} results={results} isSearching={isSearching} sports={sports} />

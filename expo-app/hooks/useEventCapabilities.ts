@@ -53,11 +53,18 @@ export function useEventCapabilities(eventId?: string | null) {
 
     load();
 
+    return () => {
+      active = false;
+    };
+  }, [isConnected, eventId, userId]);
+
+  useEffect(() => {
+    if (!eventId || !userId) return;
+
     // The push carries the freshly computed capabilities, so this is a merge rather than a nudge
     // to refetch — rule 1 of the live-data skill. It is filtered to this event because one socket
     // may hold grants on several.
     const handleUpdate = (message: any) => {
-      if (!active) return;
       if (message?.type === 'EVENT_CAPABILITIES_UPDATED' && message.data?.eventId === eventId) {
         setCapabilities(message.data);
       }
@@ -66,11 +73,10 @@ export function useEventCapabilities(eventId?: string | null) {
     wsService.on('update', handleUpdate);
     const unsubscribe = wsService.subscribeToRoom(`user:${userId}:capabilities`, handleUpdate);
     return () => {
-      active = false;
       unsubscribe();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, eventId, userId]);
+  }, [eventId, userId]);
 
   return { capabilities, isLoading };
 }
@@ -96,12 +102,11 @@ const EMPTY_GRANTS: EventGrants = { eventIds: [], sports: [], divisions: [] };
  * `EVENT_CAPABILITIES_UPDATED` — two reads on a single screen open, and more as consumers mounted.
  */
 export function useMyEventGrants() {
-  const isConnected = useWsStore((state: any) => state.isConnected);
   const userId = useAuthStore((state: any) => state.user?.id);
   const [grants, setGrants] = useState<EventGrants>(EMPTY_GRANTS);
 
   useEffect(() => {
-    if (!isConnected || !userId) {
+    if (!userId) {
       setGrants(EMPTY_GRANTS);
       return;
     }
@@ -125,7 +130,7 @@ export function useMyEventGrants() {
       unsubscribe();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, userId]);
+  }, [userId]);
 
   return grants;
 }

@@ -756,10 +756,16 @@ server's loggers redact and nothing stores; a `near` that is not two numbers in 
 
 #### `get_data` — `{ type: 'home_nearby', near? }`
 *   **Access**: public.
-*   **Returns**: `HomeNearby` — single matches and tournaments on now or in the coming week, and
-    organisations, each with its distance; the closest few with `eventsBeyondRadius` /
-    `organizationsBeyondRadius` when nothing is within 25 km; the names of the sites and facilities
-    the rows mention. Without `near`, the same by time, and organisations by size.
+*   **Returns**: `HomeNearby` — single matches and tournaments on now or in the coming week, each
+    with its distance, a tournament with its game and live counts and one live game rather than its
+    fixtures; the closest few with `eventsBeyondRadius` when nothing is within 25 km; the names of the
+    sites and facilities the rows mention. Without `near`, the same by time.
+
+#### `get_data` — `{ type: 'home_nearby_orgs', near? }`
+*   **Access**: public.
+*   **Returns**: `HomeNearbyOrganizations` — organisations, closest first with their distance; the
+    closest few with `organizationsBeyondRadius` when nothing is within 25 km. Without `near`, by
+    size. A private organisation only for its members (`ORG-14`).
 
 #### `get_data` — `{ type: 'home_search', query, near? }`
 *   **Access**: public.

@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { AgeGroup, AgeGroupAdminView, EventSection, EventTemplate } from '@sk/shared';
 import { useToastStore } from '../store/toastStore';
+import { wsService } from './websocket';
 
 const getApiUrl = () => {
   const envUrl = process.env.EXPO_PUBLIC_WS_URL;
@@ -82,6 +83,11 @@ async function apiFetch<T>(
       }
 
       throw err;
+    }
+
+    // Sports and age groups are kept on the client for a while, and this is how they are edited.
+    if (options?.method && options.method !== 'GET' && /\/api\/admin\/(sports|age-groups)/.test(url)) {
+      wsService.forgetReferenceReads();
     }
 
     return await response.json();

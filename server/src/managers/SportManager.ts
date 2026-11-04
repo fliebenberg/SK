@@ -13,14 +13,27 @@ export interface SportWriteData {
   eventTemplates?: any[];
 }
 
+/** How long the `sports` table is kept (`LIVE-11`), for a change made outside this process. */
+const SPORTS_ROWS_MS = 60_000;
+
 export class SportManager extends BaseManager {
+  /**
+   * The table's rows as last read: everyone's first read, and large for the templates they carry.
+   * This class makes every write to it, and clears them. Age groups are not kept, since anyone
+   * creating a team can add one, and it is one small read.
+   */
+  private sportRows: { at: number; rows: any[] } | null = null;
+
   async getSports(): Promise<Sport[]> {
-    // Fetch info strictly from DB including default_settings and event_templates
-    const res = await this.query(
-      `SELECT id, name, category_id as "categoryId", participant_type as "participantType", match_topology as "matchTopology", facility_term as "facilityTerm", period_term as "periodTerm", default_settings as "defaultSettings", event_sections as "eventSections", event_templates as "eventTemplates" 
-       FROM sports`
-    );
-    const dbSports = res.rows;
+    if (!this.sportRows || Date.now() - this.sportRows.at >= SPORTS_ROWS_MS) {
+      // Fetch info strictly from DB including default_settings and event_templates
+      const res = await this.query(
+        `SELECT id, name, category_id as "categoryId", participant_type as "participantType", match_topology as "matchTopology", facility_term as "facilityTerm", period_term as "periodTerm", default_settings as "defaultSettings", event_sections as "eventSections", event_templates as "eventTemplates"
+         FROM sports`
+      );
+      this.sportRows = { at: Date.now(), rows: res.rows };
+    }
+    const dbSports = this.sportRows.rows;
     const ageGroups = await ageGroupManager.getBySport();
 
     return dbSports.map(dbSport => ({
@@ -79,6 +92,7 @@ export class SportManager extends BaseManager {
         JSON.stringify(data.eventTemplates || [])
       ]
     );
+    this.sportRows = null;
     await ageGroupManager.addStarterList(data.id);
     return this.getSport(data.id);
   }
@@ -112,6 +126,7 @@ export class SportManager extends BaseManager {
         id
       ]
     );
+    this.sportRows = null;
     return this.getSport(id);
   }
 }

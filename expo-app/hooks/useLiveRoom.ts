@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { wsService } from '../services/websocket';
-import { useWsStore } from '../store/wsStore';
 
 /**
- * Subscribe to a room and hold whatever it publishes.
+ * Subscribe to a room and hold whatever it publishes. The hold outlasts a dropped connection
+ * (`LIVE-13`): the screen keeps what it has, and the room's push on reconnecting brings it up to date.
  *
  * The room's join push *is* the initial load — this hook never issues a
  * `get_data`, and neither should a screen that uses it. Every update carries
@@ -69,7 +69,6 @@ export function useLiveRoom<T = any>(
   const [items, setItems] = useState<T[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
-  const isConnected = useWsStore((state: any) => state.isConnected);
 
   // Read through refs so a caller need not memoise its reducer for the
   // subscription to stay put — re-joining a room on every render would undo
@@ -80,7 +79,7 @@ export function useLiveRoom<T = any>(
   getIdRef.current = getId;
 
   useEffect(() => {
-    if (!isConnected || !room || !enabled) return;
+    if (!room || !enabled) return;
 
     let active = true;
     setIsLoading(true);
@@ -103,6 +102,8 @@ export function useLiveRoom<T = any>(
 
       const action = reduceRef.current(message);
       if (action.kind === 'ignore') return;
+      // The hold outlasts a change of who is signed in: the same room may let them in now.
+      setAccessDenied(false);
 
       if (action.kind === 'replace') {
         setItems(action.items || []);
@@ -156,7 +157,7 @@ export function useLiveRoom<T = any>(
       unsubscribe();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, room, enabled]);
+  }, [room, enabled]);
 
   return { items, isLoading, accessDenied, setItems };
 }

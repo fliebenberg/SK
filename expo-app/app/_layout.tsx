@@ -11,7 +11,7 @@ import { useActiveTheme } from '../store/settingsStore';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Orbitron_400Regular, Orbitron_700Bold } from '@expo-google-fonts/orbitron';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { wsService } from '../services/websocket';
@@ -23,6 +23,8 @@ import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { startResultQueue } from '../services/resultQueue';
+import { startIdleDisconnect } from '../services/idleDisconnect';
+import { useAppActive } from '../hooks/useAppActive';
 import { ToastContainer } from '../components/ToastContainer';
 import { View } from 'react-native';
 import { themeColor } from '../constants/Colors';
@@ -46,6 +48,7 @@ export default function RootLayout() {
   const { user, isAuthenticated, setMemberships, markMembershipsResolved } = useAuthStore();
   const isHydrated = useAuthStore(state => state.isHydrated);
   const isConnected = useWsStore(state => state.isConnected);
+  const appActive = useAppActive();
 
   // Where uploaded images are served from comes from the server (MEDIA-1). Nothing that shows an
   // image renders until it is known; loadAssetConfig never throws and gives up after a few seconds.
@@ -64,12 +67,18 @@ export default function RootLayout() {
   const needsFreshAssetToken = isAuthenticated && !(assetToken && assetToken.expiresAt - launchedAt > 60 * 60 * 1000);
   const imagesReady = assetsReady && isHydrated && (isSessionVerified || !needsFreshAssetToken);
 
-  // Tokens last 24–36 hours; renew well before, for an app left open.
+  // Tokens last 24–36 hours; renew well before, for an app left open. Not while it is hidden: nothing
+  // reads on a timer then (live-data skill), and one that has been away long renews on its return.
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !appActive) return;
     const timer = setInterval(() => { refreshAssetToken(); }, 30 * 60 * 1000);
     return () => clearInterval(timer);
-  }, [isAuthenticated, refreshAssetToken]);
+  }, [isAuthenticated, appActive, refreshAssetToken]);
+
+  // A hidden app lets go of its connection after a while, and takes it up again on return.
+  useEffect(() => startIdleDisconnect(() => {
+    if (useAuthStore.getState().isAuthenticated) useAuthStore.getState().refreshAssetToken();
+  }), []);
 
   useEffect(() => {
     async function prepare() {
@@ -92,34 +101,39 @@ export default function RootLayout() {
     prepare();
   }, [loaded, isHydrated, assetsReady]);
 
+  /**
+   * Route guards block until memberships resolve, and a room push has no ack and no timeout — so
+   * unlike a query there is nothing to fail. A refused join has to release them explicitly, and so
+   * does a push that simply never arrives, or the app sits on its splash screen forever. The wait is
+   * counted from having a connection, since that is when the join is sent.
+   */
+  const releaseGuards = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
-    if (loaded && isConnected && isAuthenticated && user?.id) {
+    if (!loaded || !isConnected || !isAuthenticated || !user?.id) return;
+    releaseGuards.current = setTimeout(() => {
+      console.warn('[RootLayout] No membership push within 10s. Releasing route guards.');
+      markMembershipsResolved();
+    }, 10000);
+    return () => clearTimeout(releaseGuards.current);
+  }, [loaded, isConnected, isAuthenticated, user?.id]);
+
+  useEffect(() => {
+    if (loaded && isAuthenticated && user?.id) {
       // `user:{id}:memberships` — one room, one dataset (rule 4). It used to be `user:{id}`,
       // which also carried notifications and event capabilities, and the memberships themselves
       // were read with a `get_data` because the broadcast carried `{}` (`LIVE-15`). The join push
       // is the load now, so there is no query here at all.
       const room = `user:${user.id}:memberships`;
-      console.log(`[RootLayout] User authenticated and WS connected. Joining room ${room}`);
-
-      /**
-       * Route guards block until memberships resolve, and a room push has no ack and no timeout —
-       * so unlike a query there is nothing to fail. A refused join has to release them explicitly,
-       * and so does a push that simply never arrives, or the app sits on its splash screen forever.
-       */
-      const releaseGuards = setTimeout(() => {
-        console.warn('[RootLayout] No membership push within 10s. Releasing route guards.');
-        markMembershipsResolved();
-      }, 10000);
 
       const handleUpdate = (update: any) => {
         if (!update || update.topic !== room) return;
         if (update.type === 'ROOM_ACCESS_DENIED' || update.type === 'ROOM_ACCESS_REVOKED') {
-          clearTimeout(releaseGuards);
+          clearTimeout(releaseGuards.current);
           markMembershipsResolved();
           return;
         }
         if (update.type !== 'USER_MEMBERSHIPS_UPDATED') return;
-        clearTimeout(releaseGuards);
+        clearTimeout(releaseGuards.current);
         if (Array.isArray(update.data?.orgs)) {
           console.log(`[RootLayout] Memberships received.`);
           setMemberships(update.data.orgs, update.data.teams || [], update.data.dependants || []);
@@ -132,12 +146,11 @@ export default function RootLayout() {
       const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
 
       return () => {
-        clearTimeout(releaseGuards);
         unsubscribe();
         wsService.off('update', handleUpdate);
       };
     }
-  }, [loaded, isConnected, isAuthenticated, user?.id]);
+  }, [loaded, isAuthenticated, user?.id]);
 
   if (!loaded || !imagesReady) {
     return null;

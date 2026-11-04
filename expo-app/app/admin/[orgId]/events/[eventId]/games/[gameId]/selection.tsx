@@ -292,7 +292,7 @@ export default function GameSelectionScreen() {
 
   // Real-Time Room Subscription & Delta Update Listener
   useEffect(() => {
-    if (!isConnected || !gameId) return;
+    if (!gameId) return;
     const room = `game:${gameId}`;
     const unsubscribeRoom = wsService.subscribeToRoom(room);
 
@@ -335,7 +335,7 @@ export default function GameSelectionScreen() {
       unsubscribeRoom();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, gameId, currentParticipant?.id]);
+  }, [gameId, currentParticipant?.id]);
 
   // Check dirty state
   const isDirty = useMemo(() => {

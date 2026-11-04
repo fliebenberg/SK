@@ -99,12 +99,19 @@ export default function PublicLeagueStandings() {
 
     loadSeasonDetails();
 
-    // Subscribe to standings updates in real-time
+    return () => {
+      active = false;
+    };
+  }, [isConnected, selectedSeasonId]);
+
+  // Subscribe to standings updates in real-time
+  useEffect(() => {
+    if (!selectedSeasonId) return;
+
     const room = `season:${selectedSeasonId}:standings`;
 
     // Merge directly on update: strictly NO server refetch!
     const handleUpdate = (event: any) => {
-      if (!active) return;
       if (event && event.type === 'STANDINGS_UPDATED' && Array.isArray(event.data)) {
         setStandings(event.data);
       }
@@ -116,11 +123,10 @@ export default function PublicLeagueStandings() {
     const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
 
     return () => {
-      active = false;
       unsubscribe();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, selectedSeasonId]);
+  }, [selectedSeasonId]);
 
   const getSportName = (sportId: string) => {
     const s = sports.find(x => x.id === sportId);

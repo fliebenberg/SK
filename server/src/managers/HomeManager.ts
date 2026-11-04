@@ -1,6 +1,7 @@
 import {
   HOME_RADIUS_KM,
   HomeNearby,
+  HomeNearbyOrganizations,
   HomeSearchResult,
   MyHome,
   MyHomeRunEvent,
@@ -96,19 +97,19 @@ function withinOrClosest<T extends { km: number | null }>(rows: T[], near: Viewe
 
 export class HomeManager extends BaseManager {
   /**
-   * Single matches and tournaments on now or in the coming week, and organisations, closest first.
-   * With no position, the same lists by time, and organisations by size.
+   * Single matches and tournaments on now or in the coming week, closest first. With no position,
+   * the same lists by time.
    *
    * The window is generous on both sides — the viewer's own calendar decides what is *today*, so
    * the app trims it. A match whose kick-off passed less than three hours ago and has not started
    * is still shown: it is late, not gone.
+   *
+   * A tournament comes with its counts rather than its fixtures: its row shows no more, and this is
+   * read again every few minutes by everyone with Home open.
    */
-  async getNearby(nearInput: unknown, viewerId?: string | null): Promise<HomeNearby> {
+  async getNearby(nearInput: unknown): Promise<HomeNearby> {
     const near = readViewerPosition(nearInput);
     const params = [near?.lat ?? null, near?.lng ?? null];
-    // A private organisation is listed only for those who belong to it (`ORG-14`); its games and
-    // tournaments are not public events at all (`PUBLIC_EVENT`).
-    const orgParams = [...params, viewerOf(viewerId)];
 
     const gamesRes = await this.query(`
       SELECT g.id, ${KM('pin.lat', 'pin.lng')} AS km
@@ -149,17 +150,6 @@ export class HomeManager extends BaseManager {
        LIMIT ${EVENTS_LIMIT}
     `, params);
 
-    const orgsRes = await this.query(`
-      SELECT ${ORG_FIELDS}, ${KM('a.latitude', 'a.longitude')} AS km
-        FROM organizations o
-        LEFT JOIN addresses a ON a.id = o.address_id
-       WHERE o.is_active IS DISTINCT FROM false
-         AND ${ORG_VISIBLE('o', '$3')}
-         AND ($1::float8 IS NULL OR a.latitude IS NOT NULL)
-       ORDER BY km NULLS LAST, "teamCount" DESC, o.name
-       LIMIT ${ORGS_LIMIT}
-    `, orgParams);
-
     // One list of events, closest first, decides together whether anything is within the radius.
     const candidates = [
       ...gamesRes.rows.map((r: any) => ({ kind: 'game' as const, id: r.id as string, km: roundKm(r.km) })),
@@ -169,21 +159,22 @@ export class HomeManager extends BaseManager {
     const gameKm = new Map(events.rows.filter(c => c.kind === 'game').map(c => [c.id, c.km]));
     const tournamentKm = new Map(events.rows.filter(c => c.kind === 'tournament').map(c => [c.id, c.km]));
 
-    const [gameSummaries, tournamentEvents, tournamentGames] = await Promise.all([
+    const [gameSummaries, tournamentEvents, tournamentCounts] = await Promise.all([
       eventManager.getGameSummariesByIds([...gameKm.keys()]),
       eventManager.getEventsByIds([...tournamentKm.keys()]),
-      eventManager.getGameSummariesByEvents([...tournamentKm.keys()]),
+      this.query(`
+        SELECT event_id AS "eventId", COUNT(*)::int AS "gameCount",
+               (COUNT(*) FILTER (WHERE status = 'Live'))::int AS "liveCount",
+               MIN(id::text) FILTER (WHERE status = 'Live') AS "liveGameId"
+          FROM games WHERE event_id = ANY($1) GROUP BY event_id`, [[...tournamentKm.keys()]]),
     ]);
-
-    const orgs = withinOrClosest(
-      orgsRes.rows.map((r: any): NearbyOrganization => ({ ...r, km: roundKm(r.km) })),
-      near,
-      ORGS_LIMIT
-    );
+    const counts = new Map<string, any>(tournamentCounts.rows.map((r: any) => [r.eventId, r]));
+    const liveGames = await eventManager.getGameSummariesByIds(tournamentCounts.rows.map((r: any) => r.liveGameId).filter(Boolean));
+    const liveGameById = new Map(liveGames.map(g => [g.id, g]));
 
     const siteIds = new Set<string>();
     const facilityIds = new Set<string>();
-    for (const g of [...gameSummaries, ...tournamentGames]) {
+    for (const g of [...gameSummaries, ...liveGames]) {
       if (g.siteId) siteIds.add(g.siteId);
       if (g.facilityId) facilityIds.add(g.facilityId);
     }
@@ -197,15 +188,40 @@ export class HomeManager extends BaseManager {
       games: gameSummaries.map(game => ({ game, km: gameKm.get(game.id) ?? null })),
       tournaments: tournamentEvents.map(event => ({
         event,
-        games: tournamentGames.filter(g => g.eventId === event.id),
+        gameCount: counts.get(event.id)?.gameCount ?? 0,
+        liveCount: counts.get(event.id)?.liveCount ?? 0,
+        liveGame: liveGameById.get(counts.get(event.id)?.liveGameId) ?? null,
         km: tournamentKm.get(event.id) ?? null,
       })),
-      organizations: orgs.rows,
       eventsBeyondRadius: events.beyond,
-      organizationsBeyondRadius: orgs.beyond,
       siteNames: Object.fromEntries(sites.rows.map((r: any) => [r.id, r.name])),
       facilityNames: Object.fromEntries(facilities.rows.map((r: any) => [r.id, r.name])),
     };
+  }
+
+  /**
+   * Organisations closest first, or by size with no position. A private one is listed only for those
+   * who belong to it (`ORG-14`).
+   */
+  async getNearbyOrganizations(nearInput: unknown, viewerId?: string | null): Promise<HomeNearbyOrganizations> {
+    const near = readViewerPosition(nearInput);
+    const res = await this.query(`
+      SELECT ${ORG_FIELDS}, ${KM('a.latitude', 'a.longitude')} AS km
+        FROM organizations o
+        LEFT JOIN addresses a ON a.id = o.address_id
+       WHERE o.is_active IS DISTINCT FROM false
+         AND ${ORG_VISIBLE('o', '$3')}
+         AND ($1::float8 IS NULL OR a.latitude IS NOT NULL)
+       ORDER BY km NULLS LAST, "teamCount" DESC, o.name
+       LIMIT ${ORGS_LIMIT}
+    `, [near?.lat ?? null, near?.lng ?? null, viewerOf(viewerId)]);
+
+    const orgs = withinOrClosest(
+      res.rows.map((r: any): NearbyOrganization => ({ ...r, km: roundKm(r.km) })),
+      near,
+      ORGS_LIMIT
+    );
+    return { organizations: orgs.rows, organizationsBeyondRadius: orgs.beyond };
   }
 
   /**

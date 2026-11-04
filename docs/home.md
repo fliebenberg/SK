@@ -60,8 +60,17 @@ From top to bottom:
 - **Which events are public** goes through one stand-in, `PUBLIC_EVENT` in
   [eventVisibility.ts](file:///c:/Fred/Coding/SK/server/src/managers/eventVisibility.ts), which lets
   every event through until the organisers can make a tournament public (`FIX-38`).
-- Home **reads again every minute** while it is open, so a live score moves. It is a one-shot read
-  rather than a room: no room owns "what is near a point".
+- **The list is a read, and what moves on it comes through rooms.** No room owns "what is near a
+  point", so `home_nearby` says what to show, and is read again every 4–6 minutes (it varies, so
+  clients do not fall into step) while Home is on screen, to pick up what has been added or has
+  dropped off. Coming back to Home after longer than that reads at once. Organisations are read once
+  a visit (`home_nearby_orgs`): they barely change.
+- **Only rows on screen that can change now hold a room**: live, or on today. A single match, the
+  hero's preview and a team's game under *My organisations & teams* hold `game:{id}:row`, with the
+  status, score and times; a tournament holds `event:{id}:row`, with how many games and how many live
+  ([useListRows.ts](file:///c:/Fred/Coding/SK/expo-app/hooks/useListRows.ts)). A row merges over what
+  the read gave it, so it moves between *On now* and *Later today* on its own. Going to another tab
+  lets go of the rooms and stops the reads, though the tab stays mounted.
 
 ## 3. Your location
 
@@ -138,7 +147,8 @@ next. Nobody else's can be asked for: `home_mine` answers for the signed-in call
 
 | `get_data` type | Access | Answers |
 | --- | --- | --- |
-| `home_nearby` `{ near? }` | public | `HomeNearby`: games, tournaments and organisations, with distances |
+| `home_nearby` `{ near? }` | public | `HomeNearby`: games and tournaments, with distances; a tournament with its counts and one live game, not its fixtures |
+| `home_nearby_orgs` `{ near? }` | public | `HomeNearbyOrganizations`: organisations, with distances |
 | `home_search` `{ query, near? }` | public | `HomeSearchResult` |
 | `approximate_location` | public | `ApproximateLocation` or `null` |
 | `place_name` `{ near }` | public | `PlaceName` (`{ label }`) or `null` |

@@ -34,10 +34,13 @@ export interface NearbyGame {
   km: number | null;
 }
 
-/** A tournament near the viewer, with its fixtures for the row's live count and number of games. */
+/** A tournament near the viewer, with what its row shows of its games. */
 export interface NearbyTournament {
   event: Event;
-  games: GameSummary[];
+  gameCount: number;
+  liveCount: number;
+  /** One of its live games, for the hero's preview. */
+  liveGame: GameSummary | null;
   km: number | null;
 }
 
@@ -61,21 +64,23 @@ export interface NearbyOrganization {
   isPrivate?: boolean;
 }
 
-/** `get_data { type: 'home_nearby', near? }`. */
+/** `get_data { type: 'home_nearby', near? }`: read again every few minutes while Home is on screen. */
 export interface HomeNearby {
   /** Single matches on now, later today and in the coming week. */
   games: NearbyGame[];
   tournaments: NearbyTournament[];
-  organizations: NearbyOrganization[];
-  /**
-   * Nothing was within {@link HOME_RADIUS_KM}, so these are the closest there are. Separate for the
-   * two lists, since a town can have organisations but nothing on this week.
-   */
+  /** Nothing was within {@link HOME_RADIUS_KM}, so these are the closest there are. */
   eventsBeyondRadius: boolean;
-  organizationsBeyondRadius: boolean;
   /** Names for the rows' Where, by id: every site and facility the games and tournaments name. */
   siteNames: Record<string, string>;
   facilityNames: Record<string, string>;
+}
+
+/** `get_data { type: 'home_nearby_orgs', near? }`: read once a visit, since these barely change. */
+export interface HomeNearbyOrganizations {
+  organizations: NearbyOrganization[];
+  /** Nothing was within {@link HOME_RADIUS_KM}, so these are the closest there are. */
+  organizationsBeyondRadius: boolean;
 }
 
 export interface HomeSearchTeam {

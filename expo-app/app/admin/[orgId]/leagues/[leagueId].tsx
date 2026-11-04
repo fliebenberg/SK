@@ -93,7 +93,6 @@ export default function LeagueDetails() {
     if (!isConnected || !leagueId) return;
 
     let active = true;
-    setIsLoading(true);
 
     // Fetch League details
     wsService.emit('get_data', { type: 'league', id: leagueId }, (res: any) => {
@@ -108,6 +107,17 @@ export default function LeagueDetails() {
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
       if (active && Array.isArray(res)) setSports(res);
     });
+
+    return () => {
+      active = false;
+    };
+  }, [isConnected, leagueId]);
+
+  useEffect(() => {
+    if (!leagueId) return;
+
+    let active = true;
+    setIsLoading(true);
 
     // Real-Time Room Subscriptions. The room hands the seasons over on join (`LIVE-14`), so there
     // is no `get_data seasons` here — joining *is* the load, live-data rule 2.
@@ -147,7 +157,7 @@ export default function LeagueDetails() {
       unsubscribe();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, leagueId]);
+  }, [leagueId]);
 
   const hasLeagueChanges = league ? (
     leagueName.trim() !== league.name ||

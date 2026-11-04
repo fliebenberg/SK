@@ -3,7 +3,7 @@ import { Event, EventOrgHistory, Game, GameParticipant, GameClockState, GameEven
 import { getPeriodLabel, assertCalendarDates, hasLeft, isDualEvent } from "@sk/shared";
 import { BaseManager, Tx } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
-import type { PastEventRow, PastFixturesPage, PastGamesPage, SiteGameCounts, TeamSeasonResults } from "@sk/shared";
+import type { EventListRow, GameListRow, PastEventRow, PastFixturesPage, PastGamesPage, SiteGameCounts, TeamSeasonResults } from "@sk/shared";
 import { INVITATION_LIST, LISTED, NOT_LISTED } from "./eventVisibility";
 
 /** A static list's page, from what a client asked for: at most 100 (okf/live_rooms.md). */
@@ -390,6 +390,28 @@ export class EventManager extends BaseManager {
     if (!gameIds.length) return [];
     const res = await this.query(`SELECT ${this.GAME_SUMMARY_COLUMNS} FROM games g WHERE g.id = ANY($1)`, [gameIds]);
     return res.rows;
+  }
+
+  /** A game as a list's row wants it, for `game:{id}:row`: the same values as its summary, without the sides. */
+  async getGameListRow(gameId: string): Promise<GameListRow | undefined> {
+    const res = await this.query(`
+      SELECT g.id, g.status,
+             g.scheduled_start_time as "scheduledStartTime", g.start_time as "startTime", g.finish_time as "finishTime",
+             (g.custom_settings->>'timeTbd')::boolean as "timeTbd",
+             CASE WHEN (g.final_score_data->>'notProvided')::boolean THEN NULL
+                  ELSE COALESCE(g.final_score_data->'scores', g.live_state->'scores') END as "scores",
+             COALESCE((g.final_score_data->>'notProvided')::boolean, false) as "resultNotProvided",
+             g.live_state->>'periodLabel' as "periodLabel"
+        FROM games g WHERE g.id = $1`, [gameId]);
+    return res.rows[0];
+  }
+
+  /** What a tournament's row in a list shows of its games, for `event:{id}:row`. */
+  async getEventListRow(eventId: string): Promise<EventListRow> {
+    const res = await this.query(`
+      SELECT $1::text as id, COUNT(*)::int as "gameCount", (COUNT(*) FILTER (WHERE status = 'Live'))::int as "liveCount"
+        FROM games WHERE event_id = $1`, [eventId]);
+    return res.rows[0];
   }
 
   /** Summaries of every game under the events named, in one read. */

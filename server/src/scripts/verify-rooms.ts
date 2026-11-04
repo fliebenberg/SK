@@ -170,6 +170,7 @@ function buildProbes(ids: Awaited<ReturnType<typeof resolveIds>>): Probe[] {
 
     { label: 'event:{id}', room: eventId ? `event:${eventId}` : null, expect: 'EVENT_UPDATED' },
     { label: 'event:{id}:fixtures', room: eventId ? `event:${eventId}:fixtures` : null, expect: 'GAME_SUMMARIES_SYNC' },
+    { label: 'event:{id}:row', room: eventId ? `event:${eventId}:row` : null, expect: 'EVENT_ROW_UPDATED' },
     { label: 'event:{id}:divisions', room: eventId ? `event:${eventId}:divisions` : null, expect: 'DIVISIONS_SYNC' },
     { label: 'event:{id}:facilities', room: eventId ? `event:${eventId}:facilities` : null, expect: 'EVENT_FACILITIES_SYNC' },
     { label: 'event:{id}:standings', room: eventId ? `event:${eventId}:standings` : null, expect: 'EVENT_STANDINGS_UPDATED' },
@@ -186,6 +187,7 @@ function buildProbes(ids: Awaited<ReturnType<typeof resolveIds>>): Probe[] {
 
     { label: 'game:{id}', room: gameId ? `game:${gameId}` : null, expect: 'GAME_UPDATED' },
     { label: 'game:{id}:summary', room: gameId ? `game:${gameId}:summary` : null, expect: 'GAME_SUMMARY_UPDATED' },
+    { label: 'game:{id}:row', room: gameId ? `game:${gameId}:row` : null, expect: 'GAME_ROW_UPDATED' },
     { label: 'game:{id}:events', room: gameId ? `game:${gameId}:events` : null, expect: 'GAME_EVENTS_SYNC' },
     { label: 'game:{id}:disputes', room: gameId ? `game:${gameId}:disputes` : null, expect: 'ACTIVE_DISPUTES_SYNC' },
 

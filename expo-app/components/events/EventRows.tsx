@@ -172,11 +172,13 @@ export function MatchRow({ game, event, competition, showDate, isWide, orgId, km
 }
 
 /** A tournament: its name and format, the sports, where, and how many games — or that it is on now. */
-export function TournamentRow({ event, games, gameCount, sportIds, isPast, isWide, canCreate, km, sportName, siteName, today, first, away, convening, invitation, onPress }: RowBase & {
+export function TournamentRow({ event, games, gameCount, liveCount: givenLiveCount, sportIds, isPast, isWide, canCreate, km, sportName, siteName, today, first, away, convening, invitation, onPress }: RowBase & {
   event: Event;
   games: GameSummary[];
-  /** How many it has, when its games are not on the client: a past tournament's (`LIST-1`). */
+  /** How many it has, when its games are not on the client: a past tournament's (`LIST-1`), or Home's. */
   gameCount?: number;
+  /** How many are live, when its games are not on the client. */
+  liveCount?: number;
   sportIds: string[];
   isPast: boolean;
   /** This organisation's invitation, when it does not host — its answer leads the row (`FIX-30`). */
@@ -184,7 +186,7 @@ export function TournamentRow({ event, games, gameCount, sportIds, isPast, isWid
 }) {
   const isDark = useActiveTheme() === 'dark';
   const tile = calendarRangeTile(event.startDate, event.endDate);
-  const liveCount = games.filter(g => g.status === 'Live').length;
+  const liveCount = givenLiveCount ?? games.filter(g => g.status === 'Live').length;
   const dayOf = eventDayOfRange(event.startDate, event.endDate, today);
   const sports = sportIds.map(sportName).filter(Boolean).join(', ');
   const kind = [eventFormatLabel(event.format), sports].filter(Boolean).join(' · ');

@@ -45,6 +45,8 @@ export const facilityRoom = (facilityId: string) => `facility:${facilityId}`;
 /** The `Event` record itself. */
 export const eventRoom = (eventId: string) => `event:${eventId}`;
 export const eventFixturesRoom = (eventId: string) => `event:${eventId}:fixtures`;
+/** What a tournament's row in a list shows: how many games, how many live (`EventListRow`). */
+export const eventRowRoom = (eventId: string) => `event:${eventId}:row`;
 export const eventDivisionsRoom = (eventId: string) => `event:${eventId}:divisions`;
 export const eventFacilitiesRoom = (eventId: string) => `event:${eventId}:facilities`;
 export const eventStandingsRoom = (eventId: string) => `event:${eventId}:standings`;
@@ -78,6 +80,8 @@ export const divisionStageEntrantsRoom = (divisionId: string) => `division:${div
 /** The full `Game`. Spectator tier is `gameSummaryRoom`. */
 export const gameRoom = (gameId: string) => `game:${gameId}`;
 export const gameSummaryRoom = (gameId: string) => `game:${gameId}:summary`;
+/** What changes on a game's row in a list: status, score and times (`GameListRow`). No sides. */
+export const gameRowRoom = (gameId: string) => `game:${gameId}:row`;
 /** The recorded scoring feed. Disputes are `gameDisputesRoom`. */
 export const gameEventsRoom = (gameId: string) => `game:${gameId}:events`;
 export const gameDisputesRoom = (gameId: string) => `game:${gameId}:disputes`;

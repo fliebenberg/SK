@@ -233,7 +233,7 @@ async function main() {
     expect([strangerHome.organizations.length, strangerHome.teams.length, strangerHome.sites.length], [0, 0, 0], 'Home search hides it, its teams and its site from a stranger');
     const memberHome = await read(member, { type: 'home_search', query: 'Zebrafish' });
     expect(memberHome.organizations.some((o: any) => o.id === ORG), true, 'Home search shows it to a member');
-    const nearby = await read(visitor, { type: 'home_nearby' });
+    const nearby = await read(visitor, { type: 'home_nearby_orgs' });
     expect(nearby.organizations.some((o: any) => o.id === ORG), false, 'Home nearby leaves it out for a visitor');
 
     expect(refused(await read(stranger, { type: 'organization', id: ORG })), true, 'a stranger cannot read it');

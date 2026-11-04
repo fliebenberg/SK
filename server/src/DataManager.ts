@@ -171,6 +171,8 @@ export class DataManager {
   getTeamsRecentResults = (orgId: string, teamIds: unknown, limit: unknown) => eventManager.getTeamsRecentResults(orgId, teamIds, limit);
   getSiteGameCounts = (siteId: string) => eventManager.getSiteGameCounts(siteId);
   getGameSummary = (id: string) => eventManager.getGameSummary(id);
+  getGameListRow = (id: string) => eventManager.getGameListRow(id);
+  getEventListRow = (id: string) => eventManager.getEventListRow(id);
   getGameSummariesByEvent = (eventId: string) => eventManager.getGameSummariesByEvent(eventId);
   addGame = (game: AddGamePayload) => eventManager.addGame(game);
   updateGameStatus = (id: string, status: Game['status']) => eventManager.updateGameStatus(id, status);

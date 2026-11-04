@@ -112,6 +112,38 @@ export interface GameSummary {
   updatedAt?: string;
 }
 
+/**
+ * What changes on a game's row in a list while the match is on, and nothing else: the payload of
+ * `game:{id}:row`. Who is playing, and where, come with the list's own read; they do not change
+ * during a match, so sending them with every score would be most of the message.
+ *
+ * It merges over the row's `GameSummary` as `{ ...summary, ...row }`.
+ */
+export interface GameListRow {
+  id: string;
+  status: GameSummary['status'];
+  scheduledStartTime?: Instant;
+  startTime?: Instant;
+  finishTime?: Instant;
+  timeTbd?: boolean;
+  scores?: Record<string, number>;
+  resultNotProvided?: boolean;
+  periodLabel?: string;
+}
+
+/** The list row of a summary already in hand. */
+export function gameListRowOf(summary: GameSummary): GameListRow {
+  const { id, status, scheduledStartTime, startTime, finishTime, timeTbd, scores, resultNotProvided, periodLabel } = summary;
+  return { id, status, scheduledStartTime, startTime, finishTime, timeTbd, scores, resultNotProvided, periodLabel };
+}
+
+/** What a tournament's row in a list shows of its games: the payload of `event:{id}:row`. */
+export interface EventListRow {
+  id: string;
+  gameCount: number;
+  liveCount: number;
+}
+
 /** Score for one side, 0 when the game has not been scored yet. */
 export function getParticipantScore(summary: GameSummary | undefined, participantId: string | undefined): number {
   if (!summary || !participantId) return 0;

@@ -54,6 +54,8 @@ Decided 2026-11-01. The app keeps both kinds, and every list is one or the other
 | A tournament's divisions, stages, entrants and venues | Live | Short, and change while it is being run |
 | A tournament's or division's fixtures, standings and adjustments | Live | Bounded by the tournament, and results are the point |
 | A game's match events | Live | Live scoring |
+| Home's *On now & next* | Static list, live rows | Read every few minutes for what to show; only rows on screen that are live or on today hold a light room (`game:{id}:row`, `event:{id}:row`), since "near a point" is not a room |
+| Home's organisations | Static | Read once a visit; they barely change |
 | A person's notifications, memberships and grants | Live | Short, and only their own |
 
 The people import's preview is neither: it pages through the file just uploaded, already on the device, so it reads nothing from the server.
@@ -68,7 +70,7 @@ should be merged, and it says it by convention rather than by declaration — wh
 
 ## The rooms
 
-39 room names are joinable, and each carries **one dataset** (rule 4). `Join push` is what the
+41 room names are joinable, and each carries **one dataset** (rule 4). `Join push` is what the
 joining socket receives immediately; that push **is** the initial load, so a screen that joins must
 not also query for the same data.
 
@@ -121,6 +123,7 @@ membership opens none of these rooms (`MEMBER-3`; see
 | --- | --- | --- | --- |
 | `event:{id}` | public | `EVENT_UPDATED` | `EVENT_ADDED`, `EVENT_UPDATED` |
 | `event:{id}:fixtures` | public | `GAME_SUMMARIES_SYNC` | `GAME_ADDED/UPDATED/DELETED`, `GAME_SUMMARY_UPDATED`, `GAME_SUMMARY_REMOVED` |
+| `event:{id}:row` | public | `EVENT_ROW_UPDATED` (`EventListRow`: game count, live count) | `EVENT_ROW_UPDATED`, only when a count changes and someone is in the room |
 | `event:{id}:divisions` | public | `DIVISIONS_SYNC` | `DIVISION_ADDED/UPDATED/DELETED` |
 | `event:{id}:facilities` | public | `EVENT_FACILITIES_SYNC` | `EVENT_FACILITIES_SYNC` |
 | `event:{id}:standings` | public | `EVENT_STANDINGS_UPDATED` | `EVENT_STANDINGS_UPDATED` |
@@ -163,6 +166,7 @@ coach of a team playing in it (`MEMBER-3`).
 | Room | Access | Join push | Published afterwards |
 | --- | --- | --- | --- |
 | `game:{id}:summary` | public | `GAME_SUMMARY_UPDATED` | `GAME_SUMMARY_UPDATED`, `GAME_SUMMARY_REMOVED` |
+| `game:{id}:row` | public | `GAME_ROW_UPDATED` (`GameListRow`: status, score, period, times; no sides) | `GAME_ROW_UPDATED`, `GAME_ROW_REMOVED` |
 | `game:{id}` | staff, a grant, or a duty | `GAME_UPDATED` (full `Game`) | `GAME_UPDATED` (always the full `Game`, clock actions included), `GAME_DELETED`, `GAME_RESET`, `GAME_EVENT_ADDED`, `GAME_EVENT_UPDATED`, `GAME_ROSTER_UPDATED` |
 | `game:{id}:events` | public (since 2026-10-22, `FIX-39`: players are public until `PEOPLE-4`) | `GAME_EVENTS_SYNC` | `GAME_EVENT_ADDED/UPDATED/REMOVED`, `GAME_EVENTS_BATCH_UPDATED`, `GAME_EVENTS_SYNC`, `GAME_RESET` |
 | `game:{id}:disputes` | staff, a grant, or a duty | `ACTIVE_DISPUTES_SYNC` | `DISPUTE_STARTED`, `DISPUTE_VOTE_UPDATED`, `DISPUTE_RESOLVED` |
@@ -213,10 +217,10 @@ in the room is idempotent under "keep the latest for this key". Sorting all type
 
 | Class | Key | Collapse rule | Types |
 | --- | --- | --- | --- |
-| **Snapshot** | the collection | keep only the latest; everything before it is dead | `EVENTS_SYNC`, `GAME_SUMMARIES_SYNC`, `DIVISIONS_SYNC`, `TEAMS_SYNC`, `SITES_SYNC`, `FACILITIES_SYNC`, `ORG_MEMBERS_SYNC`, `ORG_REFERRALS_SYNC`, `TEAM_MEMBERS_SYNC`, `DIVISION_GAMES_SYNC`, `GAME_EVENTS_SYNC`, `ACTIVE_DISPUTES_SYNC`, `NOTIFICATIONS_SYNC`, `LEAGUES_SYNC`, `SEASONS_SYNC`, `STANDINGS_UPDATED` |
+| **Snapshot** | the collection | keep only the latest; everything before it is dead | `EVENTS_SYNC`, `GAME_SUMMARIES_SYNC`, `DIVISIONS_SYNC`, `TEAMS_SYNC`, `SITES_SYNC`, `FACILITIES_SYNC`, `ORG_MEMBERS_SYNC`, `ORG_REFERRALS_SYNC`, `TEAM_MEMBERS_SYNC`, `DIVISION_GAMES_SYNC`, `GAME_EVENTS_SYNC`, `ACTIVE_DISPUTES_SYNC`, `NOTIFICATIONS_SYNC`, `LEAGUES_SYNC`, `SEASONS_SYNC`, `STANDINGS_UPDATED`, `EVENT_ROW_UPDATED` |
 | **Scoped snapshot** | a scope id inside the payload | keep the latest **per scope id** | `EVENT_ENTRANTS_SYNC` (eventId), `DIVISION_ENTRANTS_SYNC` (divisionId), `EVENT_TEAMS_SYNC` (eventId), `DIVISION_TEAMS_SYNC` (divisionId), `STAGE_ENTRANTS_SYNC` (stageId), `STAGES_SYNC` (divisionId), `STAGE_FIXTURES_SYNC` (stageId), `EVENT_FACILITIES_SYNC`, `DIVISION_FACILITIES_SYNC`, `DIVISION_ADJUSTMENTS_SYNC`, `EVENT_STANDINGS_UPDATED`, `DIVISION_STANDINGS_UPDATED` |
-| **Whole-entity upsert** | `data.id` | keep the latest per id | `ORGANIZATION_UPDATED`, `EVENT_ADDED/UPDATED`, `TEAM_*`, `SITE_*`, `FACILITY_*`, `LEAGUE_*`, `SEASON_*`, `DIVISION_UPDATED`, `GAME_SUMMARY_UPDATED`, `GAME_ADDED/UPDATED`, `GAME_EVENT_ADDED/UPDATED`, `TEAM_MEMBER_UPDATED`, `ORG_MEMBER_UPDATED`, `NOTIFICATION_ADDED` |
-| **Removal** | `data.id` | keep the latest per id, ordered against upserts for that id | `*_DELETED`, `GAME_SUMMARY_REMOVED`, `GAME_EVENT_REMOVED` |
+| **Whole-entity upsert** | `data.id` | keep the latest per id | `ORGANIZATION_UPDATED`, `EVENT_ADDED/UPDATED`, `TEAM_*`, `SITE_*`, `FACILITY_*`, `LEAGUE_*`, `SEASON_*`, `DIVISION_UPDATED`, `GAME_SUMMARY_UPDATED`, `GAME_ROW_UPDATED`, `GAME_ADDED/UPDATED`, `GAME_EVENT_ADDED/UPDATED`, `TEAM_MEMBER_UPDATED`, `ORG_MEMBER_UPDATED`, `NOTIFICATION_ADDED` |
+| **Removal** | `data.id` | keep the latest per id, ordered against upserts for that id | `*_DELETED`, `GAME_SUMMARY_REMOVED`, `GAME_ROW_REMOVED`, `GAME_EVENT_REMOVED` |
 
 **The result: every room is storable — no room needs a message log.** Every type above is
 idempotent under keep-the-latest-per-key, so a central store can hand a late subscriber its data

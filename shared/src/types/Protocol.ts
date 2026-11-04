@@ -1463,6 +1463,7 @@ export type GetDataRequest =
   | { type: 'home_search'; query: string; near?: { lat: number; lng: number } | null }
   // Home's place names and place search (`HOME-4`), from the server's own list of towns and suburbs.
   | { type: 'place_name'; near: { lat: number; lng: number } }
+  | { type: 'home_nearby_orgs'; near?: { lat: number; lng: number } | null }
   | { type: 'place_search'; query: string; near?: { lat: number; lng: number } | null }
   | { type: 'approximate_location' | 'home_mine' };
 

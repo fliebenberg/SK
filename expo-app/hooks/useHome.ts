@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { ApproximateLocation, HomeNearby, HomeSearchResult, MyHome, ViewerPosition } from '@sk/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ApproximateLocation, HomeNearby, HomeNearbyOrganizations, HomeSearchResult, MyHome, ViewerPosition } from '@sk/shared';
 import { roundViewerPosition } from '@sk/shared';
 import { wsService } from '../services/websocket';
 import { useWsStore } from '../store/wsStore';
@@ -14,8 +14,12 @@ import { distanceKm } from '../utils/distance';
  * signed-in viewer's own organisations and teams.
  */
 
-/** How often Home reads again while it is open, so a live score does not sit still. */
-const REFRESH_MS = 60_000;
+/**
+ * How often Home reads its list again while it is on screen, to pick up what has been added or has
+ * dropped off. Scores do not wait for this: they come through the rows' rooms (`useListRows`). It
+ * varies so that clients which connected together, as after a server restart, do not stay in step.
+ */
+const refreshDelayMs = () => 4 * 60_000 + Math.random() * 2 * 60_000;
 /** The device has to move this far before Home looks somewhere new. */
 const MOVED_KM = 1;
 
@@ -135,24 +139,49 @@ export function useHomeLocation() {
 }
 
 function isHomeNearby(value: any): value is HomeNearby {
-  return !!value && Array.isArray(value.games) && Array.isArray(value.tournaments) && Array.isArray(value.organizations);
+  return !!value && Array.isArray(value.games) && Array.isArray(value.tournaments);
 }
 
-/** Read again every minute while mounted, so live scores move. */
-function useRefresh(refetch: () => void, enabled: boolean) {
+/**
+ * Read again every few minutes while `onScreen`. Coming back to a read that has gone stale reads at
+ * once. `refetch` changes when the connection or the question does, and the query reads then by
+ * itself, so that counts as a read.
+ */
+function useRefresh(refetch: () => void, onScreen: boolean) {
+  const lastRead = useRef(0);
+  useEffect(() => { lastRead.current = Date.now(); }, [refetch]);
   useEffect(() => {
-    if (!enabled) return;
-    const handle = setInterval(refetch, REFRESH_MS);
-    return () => clearInterval(handle);
-  }, [refetch, enabled]);
+    if (!onScreen) return;
+    let handle: ReturnType<typeof setTimeout>;
+    const after = (delay: number) => {
+      handle = setTimeout(() => {
+        lastRead.current = Date.now();
+        refetch();
+        after(refreshDelayMs());
+      }, delay);
+    };
+    after(Math.max(0, lastRead.current + refreshDelayMs() - Date.now()));
+    return () => clearTimeout(handle);
+  }, [refetch, onScreen]);
 }
 
 /** What is on near a position — or, with none, across the country by time. */
-export function useHomeNearby(near: ViewerPosition | null, enabled: boolean) {
+export function useHomeNearby(near: ViewerPosition | null, enabled: boolean, onScreen: boolean) {
   const { data, isLoading, refetch } = useSocketQuery<HomeNearby>('home_nearby', { near }, { enabled, suppressToast: true });
-  useRefresh(refetch, enabled);
+  useRefresh(refetch, enabled && onScreen);
   const nearby = isHomeNearby(data) ? data : null;
   return { nearby, isLoading: isLoading && !nearby };
+}
+
+function isNearbyOrganizations(value: any): value is HomeNearbyOrganizations {
+  return !!value && Array.isArray(value.organizations);
+}
+
+/** Organisations near a position, read once a visit: they do not change from one minute to the next. */
+export function useHomeNearbyOrgs(near: ViewerPosition | null, enabled: boolean) {
+  const { data, isLoading } = useSocketQuery<HomeNearbyOrganizations>('home_nearby_orgs', { near }, { enabled, suppressToast: true });
+  const nearbyOrgs = isNearbyOrganizations(data) ? data : null;
+  return { nearbyOrgs, isLoading: isLoading && !nearbyOrgs };
 }
 
 function isMyHome(value: any): value is MyHome {
@@ -160,10 +189,10 @@ function isMyHome(value: any): value is MyHome {
 }
 
 /** The signed-in viewer's organisations and teams. */
-export function useMyHome() {
+export function useMyHome(onScreen: boolean) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const { data, isLoading, refetch } = useSocketQuery<MyHome>('home_mine', {}, { enabled: isAuthenticated, suppressToast: true });
-  useRefresh(refetch, isAuthenticated);
+  useRefresh(refetch, isAuthenticated && onScreen);
   const mine = isAuthenticated && isMyHome(data) ? data : null;
   return { mine, isLoading: isAuthenticated && isLoading && !mine };
 }

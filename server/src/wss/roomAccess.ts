@@ -140,6 +140,8 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
       switch (sub) {
         // The summary tier is the spectator view: score, clock, status, teams.
         case 'summary':
+        // The same values without the sides, for a row in a list.
+        case 'row':
           return { access: 'public', subject: 'game', keptByPlayers: 'game' };
         // The scoring feed — tries, goals, cards, each naming its player — is public since
         // 2026-10-22 (`FIX-39`): players are shown until `PEOPLE-4` gives a way to hide them, and
@@ -187,7 +189,7 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
       // `division:{id}`.
       // The event room used to carry five datasets. These four are the public ones, split out by
       // rule 4; the roster below is `member` and was already separate.
-      if (sub === 'fixtures' || sub === 'divisions' || sub === 'facilities' || sub === 'standings') {
+      if (sub === 'fixtures' || sub === 'row' || sub === 'divisions' || sub === 'facilities' || sub === 'standings') {
         return { access: 'public', subject: 'event' };
       }
       // The teams taking part, as the public sees them (`FIX-25`): team entrants only, with nothing

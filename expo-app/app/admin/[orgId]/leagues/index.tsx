@@ -65,7 +65,6 @@ export default function OrgLeagues() {
     if (!isConnected || !orgId) return;
 
     let active = true;
-    setIsLoading(true);
 
     // ... keeping other loads
     wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
@@ -75,6 +74,17 @@ export default function OrgLeagues() {
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
       if (active && Array.isArray(res)) setSports(res);
     });
+
+    return () => {
+      active = false;
+    };
+  }, [isConnected, orgId]);
+
+  useEffect(() => {
+    if (!orgId) return;
+
+    let active = true;
+    setIsLoading(true);
 
     // Real-Time Sync Subscription. The room hands the leagues over on join (`LIVE-14`), so there
     // is no `get_data leagues` here — joining *is* the load, live-data rule 2.
@@ -114,7 +124,7 @@ export default function OrgLeagues() {
       unsubscribe();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, orgId]);
+  }, [orgId]);
 
   // Create League Handler
   const handleCreateLeague = () => {

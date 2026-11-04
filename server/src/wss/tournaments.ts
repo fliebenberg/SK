@@ -3,7 +3,7 @@ import { tournamentManager } from '../managers/TournamentManager';
 import { accessManager } from '../managers/AccessManager';
 import { dataManager } from '../DataManager';
 import { broadcast } from './broadcast';
-import { publishGameSummary } from './fixtures';
+import { publishEventRow, publishGameSummary } from './fixtures';
 import {
   divisionAdjustmentsRoom,
   divisionEntrantsRoom,
@@ -113,6 +113,8 @@ export function publishAdjustments(divisionId: string, adjustments: any[]): void
  */
 export function publishStageFixtures(divisionId: string, stageId: string, games: GameSummary[]): void {
   broadcast(divisionFixturesRoom(divisionId), 'STAGE_FIXTURES_SYNC', { stageId, games });
+  // Generating a draw publishes no summary per fixture, and the tournament's count has moved.
+  if (games[0]) void publishEventRow(games[0].eventId).catch(err => console.error(`[Fixtures] Event row for ${games[0].eventId}:`, err));
 }
 
 /**

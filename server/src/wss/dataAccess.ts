@@ -329,6 +329,7 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   home_nearby:          { standalone: 'public' },
   home_search:          { standalone: 'public' },
   approximate_location: { standalone: 'public' },
+  home_nearby_orgs:     { standalone: 'public' },
   place_name:           { standalone: 'public' },
   place_search:         { standalone: 'public' },
   // The caller's own organisations and teams: the identity comes from the handshake and the request

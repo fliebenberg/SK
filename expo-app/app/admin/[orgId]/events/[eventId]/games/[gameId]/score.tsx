@@ -47,7 +47,8 @@ export default function ScoreGameScreen() {
   useEffect(() => {
     if (!isConnected || !gameId) return;
 
-    setIsLoading(true);
+    // Coming back from a dropped connection reads again behind the scoring screen, not instead of it.
+    if (game?.id !== gameId) setIsLoading(true);
 
     if (eventId) {
       wsService.emit('get_data', { type: 'event', id: eventId }, (resEvent: Event) => {
@@ -61,6 +62,10 @@ export default function ScoreGameScreen() {
       }
       setIsLoading(false);
     });
+  }, [isConnected, gameId]);
+
+  useEffect(() => {
+    if (!gameId) return;
 
     const handleUpdate = (evt: { type: string; data: any }) => {
       if (['GAME_UPDATED', 'GAME_RESET'].includes(evt.type) && (evt.data?.id === gameId || evt.data?.gameId === gameId)) {
@@ -90,7 +95,7 @@ export default function ScoreGameScreen() {
       unsubscribeEvents();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, gameId]);
+  }, [gameId]);
 
   if (isLoading || !game) {
     return (

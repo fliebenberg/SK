@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { HOME_RADIUS_KM, HomeNearby, HomeSearchResult, MyHome, Sport } from '@sk/shared';
+import { GameSummary, HOME_RADIUS_KM, HomeNearbyOrganizations, HomeSearchResult, MyHome, Sport } from '@sk/shared';
 import { TournamentCard } from '../tournament/TournamentBits';
 import { OrgListCard } from '../org/OrgListCard';
 import { opponentOf, scoresFor } from '../teams/TeamBits';
 import { GroupHeading, HomeRow, IconMark, ShowMore } from './HomeBits';
 import { homeLinks } from './homeLinks';
+import { useGameRows } from '../../hooks/useListRows';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
 import { formatDistance } from '../../utils/distance';
-import { fixtureDateParts, formatDateRange } from '../../utils/dates';
+import { fixtureDateParts, formatDateRange, instantCalendarDate, todayCalendarDate } from '../../utils/dates';
 
 /** Organisations shown before *Show more*. */
 const FIRST_ORGS = 5;
@@ -20,7 +21,7 @@ const Distance = ({ km }: { km: number | null }) =>
 
 /** *Organisations near you*, closest first (`HOME-1`). */
 export function NearbyOrgsCard({ nearby, isLoading, hasLocation }: {
-  nearby: HomeNearby | null;
+  nearby: HomeNearbyOrganizations | null;
   isLoading: boolean;
   hasLocation: boolean;
 }) {
@@ -149,16 +150,23 @@ const RUN_SCOPE_LABELS: Record<string, string> = {
   division: 'Convenor',
 };
 
-export function MyHomeCard({ mine, sports }: { mine: MyHome; sports: Sport[] }) {
+/** A team's game holds a room only while it can change now: it is live, or on today. */
+const worthRoom = (game: GameSummary, today: string) =>
+  game.status === 'Live' || instantCalendarDate(game.scheduledStartTime || game.startTime) === today;
+
+export function MyHomeCard({ mine, sports, live }: { mine: MyHome; sports: Sport[]; live: boolean }) {
   const router = useRouter();
   const sportName = (id: string) => sports.find(s => s.id === id)?.name || '';
+  const today = todayCalendarDate();
+  const gameRows = useGameRows(mine.teams.flatMap(team => (team.game && worthRoom(team.game, today) ? [team.game.id] : [])), live);
 
   const orgRows = mine.organizations.map(org => (
     <OrgListCard key={org.id} org={org} place={org.locality} extraFlags={org.liveCount ? [`● ${org.liveCount} live`] : []} />
   ));
 
   const teamRows = mine.teams.map((team, i) => {
-    const game = team.game;
+    const row = team.game ? gameRows.get(team.game.id) : undefined;
+    const game = team.game && row !== null ? { ...team.game, ...row } : null;
     const role = TEAM_ROLE_LABELS[team.roleId];
     let subtitle = [team.orgName, sportName(team.sportId), role].filter(Boolean).join(' · ');
     let end: React.ReactNode;

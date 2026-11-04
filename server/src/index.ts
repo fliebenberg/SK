@@ -1842,7 +1842,10 @@ io.on('connection', (socket) => {
             // Home (`HOME-1`). The viewer's position arrives as `near`; it is used for this answer
             // and not kept, and the log lines above redact it.
             case 'home_nearby':
-                callback(await homeManager.getNearby(request.near, socket.data?.userId));
+                callback(await homeManager.getNearby(request.near));
+                break;
+            case 'home_nearby_orgs':
+                callback(await homeManager.getNearbyOrganizations(request.near, socket.data?.userId));
                 break;
             case 'home_search':
                 callback(await homeManager.search(request.query, request.near, socket.data?.userId));
@@ -2205,6 +2208,10 @@ io.on('connection', (socket) => {
             pushToSocket(socket, room, 'EVENT_FACILITIES_SYNC', {
                 eventId: id,
                 facilityIds: await dataManager.getEventFacilities(id),
+        } else if (kind === 'event' && sub === 'row') {
+            // What a tournament's row in a list shows: how many games, how many live.
+            pushToSocket(socket, room, 'EVENT_ROW_UPDATED', await dataManager.getEventListRow(id));
+
             });
 
         } else if (kind === 'event' && sub === 'standings') {
@@ -2309,6 +2316,10 @@ io.on('connection', (socket) => {
                 // The scoring feed only; open disputes are `game:{id}:disputes` (rule 4).
                 pushToSocket(socket, room, 'GAME_EVENTS_SYNC', await dataManager.getGameEvents(id));
             } else {
+            } else if (sub === 'row') {
+                // A list's row: status, score and times. Who is playing comes with the list's read.
+                const row = await dataManager.getGameListRow(id);
+                if (row) pushToSocket(socket, room, 'GAME_ROW_UPDATED', row);
                 // The full game record.
                 const game = await dataManager.getGame(id);
                 if (game) pushToSocket(socket, room, 'GAME_UPDATED', game);
