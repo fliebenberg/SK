@@ -11,51 +11,43 @@ import { DevicePermission, canOpenSettings, openAppSettings } from '../../servic
 import type { HomeLocation } from '../../hooks/useHome';
 
 /**
- * *Your location* (`HOME-1`, mockups/home-near-you.html): two lines — the heading with where Home
- * is looking on the right, then how that was found with *Set my location* under it — and the
- * dialog that sets it.
+ * Where Home is looking, with *Set my location* under it (`HOME-1`, docs/home.md §3) — and the
+ * dialog that sets it. On a wide screen the card sits at the right of the search, so its two lines
+ * keep to the right; on a phone it has a line of its own and they keep to the left.
  */
-export function LocationCard({ location, resolving, onSet }: {
+export function LocationCard({ location, resolving, onSet, isWide, className = '' }: {
   location: HomeLocation | null;
   resolving: boolean;
   onSet: () => void;
+  isWide: boolean;
+  className?: string;
 }) {
   const isDark = useActiveTheme() === 'dark';
+  const approximate = location?.source === 'approximate';
   const where = !location
     ? null
     : location.label
-    ? `Near ${location.label}`
+    ? `Near ${location.label}${approximate ? ' (approximate)' : ''}`
+    : approximate
+    ? 'Approximate location'
     : 'Your current location';
-  const how = !location
-    ? 'Set it to see what is on around you'
-    : location.source === 'approximate'
-    ? 'Approximate, from your connection'
-    : location.source === 'device'
-    ? `From this device · within ${HOME_RADIUS_KM} km`
-    : `The place you chose · within ${HOME_RADIUS_KM} km`;
-  const action = location && location.source !== 'approximate' ? 'Change location' : 'Set my location';
+  const action = location && !approximate ? 'Change location' : 'Set my location';
 
   return (
-    <View className="rounded-2xl border border-line bg-card px-4 py-3.5">
-      <View className="flex-row items-center justify-between gap-3">
-        <Text className="font-inter-bold text-lg text-ink">Your location</Text>
-        {resolving && !location ? (
-          <ActivityIndicator size="small" color={themeColor(isDark, 'ink-muted')} />
-        ) : (
-          <View className="flex-row items-center gap-1 flex-shrink min-w-0">
-            <Ionicons name="location" size={15} color={themeColor(isDark, where ? 'primary' : 'ink-muted')} />
-            <Text className={`flex-shrink text-right font-inter-bold text-[15px] ${where ? 'text-ink' : 'text-ink-muted'}`} numberOfLines={1}>
-              {where || 'Not set'}
-            </Text>
-          </View>
-        )}
-      </View>
-      <View className="flex-row items-center justify-between gap-3 mt-0.5">
-        <Text className="flex-shrink font-inter text-[13px] text-ink-muted" numberOfLines={1}>{how}</Text>
-        <TouchableOpacity onPress={onSet} accessibilityRole="button" hitSlop={8}>
-          <Text className="font-inter-bold text-[13px] text-primary-ink">{action}</Text>
-        </TouchableOpacity>
-      </View>
+    <View className={`justify-center gap-0.5 rounded-2xl border border-line bg-card px-4 py-2.5 ${isWide ? 'items-end' : 'items-start'} ${className}`}>
+      {resolving && !location ? (
+        <ActivityIndicator size="small" color={themeColor(isDark, 'ink-muted')} />
+      ) : (
+        <View className="flex-row items-center gap-1 max-w-full">
+          <Ionicons name="location" size={15} color={themeColor(isDark, where ? 'primary' : 'ink-muted')} />
+          <Text className={`flex-shrink font-inter-bold text-[15px] ${where ? 'text-ink' : 'text-ink-muted'}`} numberOfLines={1}>
+            {where || 'Location not set'}
+          </Text>
+        </View>
+      )}
+      <TouchableOpacity onPress={onSet} accessibilityRole="button" hitSlop={8}>
+        <Text className="font-inter-bold text-[13px] text-primary-ink">{action}</Text>
+      </TouchableOpacity>
     </View>
   );
 }

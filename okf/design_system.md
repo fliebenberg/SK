@@ -75,6 +75,10 @@ The whole app moved onto the tokens on 2026-10-04, and `npm run check:colors -- 
     once its *content* is `LAYOUT.threeColumnsMinWidth` (**1200px**) wide — measured with `onLayout`,
     not from the window, since the sidebar takes its share (the tournament Overview). A grid of tiles
     fits as many across as its width allows (the division tiles: about 160px each, two to six).
+*   **The sidebar closes itself on a narrow window.** Under `LAYOUT.sidebarOpenMinWidth` (**1280px**)
+    it is the icon rail, opening on hover, with no way to pin it. A touch screen gets a menu button
+    on the rail instead of the hover. Home's cards go side by side once
+    its content is `LAYOUT.twoColumnsMinWidth` (**900px**) wide, and stack under that.
 
 ## Light Mode Accessibility
 

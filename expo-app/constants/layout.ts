@@ -23,4 +23,15 @@ export const LAYOUT = {
    * because the sidebar takes its share of the window.
    */
   threeColumnsMinWidth: 1200,
+  /**
+   * The content width at which Home puts its two cards side by side; under it they stack. The
+   * narrower column then still has room for an organisation's card on one line. Measured, as above.
+   */
+  twoColumnsMinWidth: 900,
+  /**
+   * The window width from which the sidebar may stay open. Under it the sidebar is always the icon
+   * rail, opening on hover, whatever the person chose: at 256px it takes too much of the page. Their
+   * choice is kept for when the window is wide again.
+   */
+  sidebarOpenMinWidth: 1280,
 };

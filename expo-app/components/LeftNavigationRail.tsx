@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { orgColors } from '@sk/shared';
-import { View, Text, TouchableOpacity, ScrollView, Platform, Image, Animated, Easing } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, ScrollView, Platform, Image, Animated, Easing, useWindowDimensions } from 'react-native';
 import { useRouter, useSegments, useGlobalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme, useSettingsStore } from '../store/settingsStore';
@@ -16,6 +16,7 @@ import { AnimatedBox } from './AnimatedBox';
 import { WorkspaceTile } from './org/WorkspaceTile';
 import { themeColor } from '../constants/Colors';
 import { getWorkspaceNavItems, currentWorkspacePage } from '../constants/workspaceNav';
+import { LAYOUT } from '../constants/layout';
 
 // Rail geometry. These are the `w-16` / `w-64` classes as numbers, because the
 // hover animation interpolates between them and a class cannot be interpolated.
@@ -24,6 +25,10 @@ const PANEL_WIDTH = 256;
 
 const HOVER_OPEN_MS = 220;
 const HOVER_CLOSE_MS = 170;
+
+// Whether the device has a mouse. Without one the collapsed rail has a menu button instead of opening
+// on hover: a touch browser fakes a hover on a tap, which would open the panel and leave it stuck.
+const CAN_HOVER = Platform.OS === 'web' && typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover)').matches;
 
 export function LeftNavigationRail() {
   const router = useRouter();
@@ -34,9 +39,13 @@ export function LeftNavigationRail() {
   const { user, isAuthenticated } = useAuthStore();
   const hasFamily = useAuthStore(state => (state.dependants || []).length > 0);
 
-  const isSidebarMinimized = useSettingsStore((state) => state.getEffectivePreference('sidebarMinimized') ?? false);
+  // Too narrow to stay open: the icon rail, with no way to pin it. What they chose is left alone.
+  const { width } = useWindowDimensions();
+  const canStayOpen = width >= LAYOUT.sidebarOpenMinWidth;
+  const prefersMinimized = useSettingsStore((state) => state.getEffectivePreference('sidebarMinimized') ?? false);
+  const isSidebarMinimized = prefersMinimized || !canStayOpen;
   const setLocalOverride = useSettingsStore((state) => state.setLocalOverride);
-  const [isHovered, setIsHovered] = useState(false);
+  const [isFlyoutOpen, setIsFlyoutOpen] = useState(false);
   const hoverAnim = useRef(new Animated.Value(0)).current;
 
   // The fly-out is built from <AnimatedBox> rather than Animated.View, and styled with
@@ -45,15 +54,15 @@ export function LeftNavigationRail() {
   // none of them passes one. AnimatedBox's doc comment has the why.
   useEffect(() => {
     const animation = Animated.timing(hoverAnim, {
-      toValue: isHovered ? 1 : 0,
-      duration: isHovered ? HOVER_OPEN_MS : HOVER_CLOSE_MS,
-      easing: isHovered ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
+      toValue: isFlyoutOpen ? 1 : 0,
+      duration: isFlyoutOpen ? HOVER_OPEN_MS : HOVER_CLOSE_MS,
+      easing: isFlyoutOpen ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
       // Width drives layout, which the native driver cannot touch.
       useNativeDriver: false,
     });
     animation.start();
     return () => animation.stop();
-  }, [isHovered, hoverAnim]);
+  }, [isFlyoutOpen, hoverAnim]);
 
   // The fly-out grows over the page rather than pushing it across: only the resting
   // rail's width is reserved in the layout (see the wrapper below).
@@ -80,12 +89,15 @@ export function LeftNavigationRail() {
 
   const toggleMinimized = useCallback(() => {
     setLocalOverride('sidebarMinimized', !isSidebarMinimized);
+    if (!CAN_HOVER) setIsFlyoutOpen(false);
   }, [isSidebarMinimized, setLocalOverride]);
 
   const { orgId } = useGlobalSearchParams<{ orgId?: string }>();
   const { triggerDiscardPrompt } = useUnsavedChangesStore();
 
   const confirmThenNavigate = useCallback((action: () => void) => {
+    // With a mouse the panel closes as the pointer leaves it; on a touch screen, once a choice is made.
+    if (!CAN_HOVER) setIsFlyoutOpen(false);
     triggerDiscardPrompt(action);
   }, [triggerDiscardPrompt]);
 
@@ -173,17 +185,28 @@ export function LeftNavigationRail() {
           </TouchableOpacity>
 
           {/* Pin / Collapse Toggle Button */}
-          <TouchableOpacity
-            onPress={toggleMinimized}
-            className="p-1.5 rounded-lg hover:bg-sunken active:opacity-85"
-            {...(Platform.OS === 'web' ? { title: isSidebarMinimized ? 'Pin Sidebar Open' : 'Collapse Sidebar' } : {})}
-          >
-            <Ionicons 
-              name={isSidebarMinimized ? "chevron-forward-outline" : "chevron-back-outline"} 
-              size={20} 
-              color={themeColor(isDark, 'ink-muted')} 
-            />
-          </TouchableOpacity>
+          {canStayOpen ? (
+            <TouchableOpacity
+              onPress={toggleMinimized}
+              className="p-1.5 rounded-lg hover:bg-sunken active:opacity-85"
+              {...(Platform.OS === 'web' ? { title: isSidebarMinimized ? 'Pin Sidebar Open' : 'Collapse Sidebar' } : {})}
+            >
+              <Ionicons
+                name={isSidebarMinimized ? "chevron-forward-outline" : "chevron-back-outline"}
+                size={20}
+                color={themeColor(isDark, 'ink-muted')}
+              />
+            </TouchableOpacity>
+          ) : !CAN_HOVER ? (
+            <TouchableOpacity
+              onPress={() => setIsFlyoutOpen(false)}
+              className="p-1.5 rounded-lg active:opacity-85"
+              accessibilityRole="button"
+              accessibilityLabel="Close menu"
+            >
+              <Ionicons name="chevron-back-outline" size={20} color={themeColor(isDark, 'ink-muted')} />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* NAVIGATION LINKS */}
@@ -343,6 +366,17 @@ export function LeftNavigationRail() {
           <Text className="font-orbitron-bold text-base text-primary-ink">SK</Text>
         </TouchableOpacity>
 
+        {!CAN_HOVER ? (
+          <TouchableOpacity
+            onPress={() => setIsFlyoutOpen(true)}
+            className="w-10 h-10 rounded-xl items-center justify-center mb-4 active:opacity-85"
+            accessibilityRole="button"
+            accessibilityLabel="Open menu"
+          >
+            <Ionicons name="menu" size={22} color={themeColor(isDark, 'ink-muted')} />
+          </TouchableOpacity>
+        ) : null}
+
         {/* Org Logo (If in Org Workspace). The way out sits above it, where the open rail's
             Exit link sits above the workspace card, so it does not jump when the rail opens. */}
         {navConfig.isOrg && (
@@ -443,10 +477,15 @@ export function LeftNavigationRail() {
     </View>
   );
 
-  const webHoverHandlers = Platform.OS === 'web' ? {
-    onMouseEnter: () => setIsHovered(true),
-    onMouseLeave: () => setIsHovered(false),
+  const webHoverHandlers = CAN_HOVER ? {
+    onMouseEnter: () => setIsFlyoutOpen(true),
+    onMouseLeave: () => setIsFlyoutOpen(false),
   } : {};
+
+  // On a touch screen the open panel sits over a dimmed page, and a tap outside it closes it. The
+  // wrapper spans the window while it is open, because Android gives a view no touches outside its
+  // parent; the negative margin keeps the page where it is.
+  const coversPage = !CAN_HOVER && isFlyoutOpen;
 
   if (isSidebarMinimized) {
     // The `card` and `line` tokens as values, since this container cannot use classes (see the
@@ -457,7 +496,15 @@ export function LeftNavigationRail() {
     return (
       // Reserves the resting rail's width, so the page never resizes; the fly-out is
       // absolutely positioned inside it and widens over the page.
-      <View style={{ width: RAIL_WIDTH, height: '100%', zIndex: 40 }}>
+      <View style={{ width: coversPage ? width : RAIL_WIDTH, marginRight: coversPage ? RAIL_WIDTH - width : 0, height: '100%', zIndex: 40 }}>
+        {coversPage ? (
+          <Pressable
+            onPress={() => setIsFlyoutOpen(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close menu"
+            className="absolute inset-0 bg-overlay/40"
+          />
+        ) : null}
         <AnimatedBox
           {...webHoverHandlers}
           style={{
@@ -479,7 +526,7 @@ export function LeftNavigationRail() {
         >
           {/* Resting icon rail */}
           <AnimatedBox
-            pointerEvents={isHovered ? 'none' : 'auto'}
+            pointerEvents={isFlyoutOpen ? 'none' : 'auto'}
             style={{
               position: 'absolute',
               top: 0,
@@ -494,7 +541,7 @@ export function LeftNavigationRail() {
 
           {/* Full panel, revealed as the rail widens */}
           <AnimatedBox
-            pointerEvents={isHovered ? 'auto' : 'none'}
+            pointerEvents={isFlyoutOpen ? 'auto' : 'none'}
             style={{
               position: 'absolute',
               top: 0,

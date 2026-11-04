@@ -4,7 +4,7 @@ import { USERS, signIn } from './support';
 /**
  * Home (`HOME-1`, docs/home.md, option B on `mockups/home-near-you.html`): the same page for
  * everyone. Logged out it leads with the hero; signed in with *My organisations & teams*. Both have
- * the one search, *Your location* and what is near there.
+ * the one search, the location and what is near there.
  */
 const visible = (page: Page, text: string | RegExp) =>
   page.getByText(text, typeof text === 'string' ? { exact: true } : undefined).filter({ visible: true }).first();
@@ -18,7 +18,7 @@ test.describe('Home, logged out', () => {
     await expect(visible(page, 'Create an account')).toBeVisible();
     await expect(visible(page, 'Log in')).toBeVisible();
     await expect(visible(page, 'What is ScoreKeeper? ›')).toBeVisible();
-    await expect(visible(page, 'Your location')).toBeVisible();
+    await expect(visible(page, 'Set my location')).toBeVisible();
     await expect(page.getByText('My organisations & teams', { exact: true })).toHaveCount(0);
   });
 
@@ -38,7 +38,7 @@ test.describe('Home, logged out', () => {
     await expect(visible(page, 'Centurion, Gauteng')).toBeVisible();
     await visible(page, 'Doringkloof').click();
     await expect(visible(page, 'Near Doringkloof')).toBeVisible();
-    await expect(visible(page, 'The place you chose · within 25 km')).toBeVisible();
+    await expect(visible(page, 'Change location')).toBeVisible();
   });
 });
 
@@ -47,13 +47,24 @@ test.describe('Home, with location allowed', () => {
 
   test('looks where the device is and lists the organisations near it, closest first @phone', async ({ page }) => {
     await page.goto('/');
-    await expect(visible(page, 'From this device · within 25 km')).toBeVisible();
+    await expect(visible(page, 'Change location')).toBeVisible();
     // Named from the server's place list, on web as on the phones.
     await expect(visible(page, /^Near .+, Centurion$/)).toBeVisible();
     await expect(visible(page, 'Organisations near you')).toBeVisible();
     await expect(visible(page, 'Test Hoërskool Doringkloof')).toBeVisible();
     // Riverbend is in Pietermaritzburg, far outside 25 km.
     await expect(page.getByText('Test Riverbend High School', { exact: true })).toHaveCount(0);
+  });
+});
+
+test.describe('Home, on a touch tablet', () => {
+  test.use({ viewport: { width: 900, height: 1200 }, hasTouch: true, isMobile: true });
+
+  test('the collapsed sidebar opens from its menu button, which has no hover to rely on', async ({ page }) => {
+    await page.goto('/');
+    await page.getByLabel('Open menu').tap();
+    await visible(page, 'Organisations').tap();
+    await expect(page).toHaveURL(/\/organizations/);
   });
 });
 
@@ -65,6 +76,6 @@ test.describe('Home, signed in', () => {
     await expect(visible(page, 'My organisations & teams')).toBeVisible();
     await expect(visible(page, 'Admin')).toBeVisible();
     await expect(page.getByText('Create an account', { exact: true })).toHaveCount(0);
-    await expect(visible(page, 'Your location')).toBeVisible();
+    await expect(visible(page, 'Set my location')).toBeVisible();
   });
 });

@@ -66,8 +66,9 @@ export function BrandedListCard({
             </View>
           ) : null}
         </View>
-        <View className="flex-row items-start gap-2.5 mt-1" style={{ minHeight: 16 }}>
-          <Text style={{ color: ink.subtext }} className="flex-1 min-w-0 font-inter text-xs leading-4">
+        {/* Short of room, the detail drops to a line of its own rather than squeezing the place to a letter a line. */}
+        <View className="flex-row flex-wrap items-start gap-x-2.5 mt-1" style={{ minHeight: 16 }}>
+          <Text style={{ color: ink.subtext, flex: 1, minWidth: 90 }} className="font-inter text-xs leading-4">
             {subtitle}
           </Text>
           {detail}

@@ -17,9 +17,8 @@ From top to bottom:
 | Signed out | Signed in |
 | --- | --- |
 | **The hero**: a headline, *Create an account*, *Log in*, *What is ScoreKeeper? ›*, and — on a wide screen — the closest game live right now as a preview of what the app does (no live game, no preview) | **My organisations & teams** |
-| The search | The search |
-| *Your location* | *Your location* |
-| *On now & next near you* and *Organisations near you*, side by side on a wide screen | the same |
+| The search and the location, on one line on a wide screen and one under the other on a phone | the same |
+| *On now & next near you* and *Organisations near you*, side by side once the page's content is 900px wide (`LAYOUT.twoColumnsMinWidth`, measured, since the sidebar takes its share), and stacked under that | the same |
 
 - **Every block shares the page's left and right edges**, inside the app's standard page padding
   (decided 2026-10-22; whether phones should go edge to edge is `UI-35`).
@@ -78,8 +77,12 @@ From top to bottom:
 
 ## 3. Your location
 
-Two lines in a card: *Your location* and where Home is looking ("Near Pretoria"), then how that was
-found and **Set my location** (**Change location** once one is set). Where Home looks is, in order:
+Two lines in a card: where Home is looking ("Near Pretoria"), with **Set my location** under it
+(**Change location** once one is set). There is no heading and no line on how it was found (decided
+2026-11-04); the place says enough, and the dialog gives the 25 km. On a wide screen the card sits to
+the right of the search, the two lined up with the columns of cards below, and stays there during a
+search. On a phone it is under the search, and a search's results take its place. Where Home looks
+is, in order:
 
 1. **A town or suburb the viewer typed** in the dialog, searched in our own place list
    (`place_search`, below) — not Google, so a keystroke costs nothing. Home needs no more than a
@@ -90,10 +93,10 @@ found and **Set my location** (**Change location** once one is set). Where Home 
    moved a kilometre. Whether the phone or browser asks again is its own decision: iPhone's *Allow
    Once* and Android's *Only this time* ask the next time, *While using the app* does not. Refused for
    good, the dialog says so and points to Settings.
-3. **The server's guess from the connection** (`approximate_location`), labelled *Approximate*. Asked
-   once a visit; no prompt.
+3. **The server's guess from the connection** (`approximate_location`), marked *(approximate)* after
+   the place. Asked once a visit; no prompt.
 
-Otherwise *Not set*, and the cards show what is on by time and the largest organisations.
+Otherwise *Location not set*, and the cards show what is on by time and the largest organisations.
 
 **Privacy (POPIA).** The location is kept **on the device only**
 ([locationStore.ts](file:///c:/Fred/Coding/SK/expo-app/store/locationStore.ts)). It leaves the device

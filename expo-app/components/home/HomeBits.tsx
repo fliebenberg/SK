@@ -66,11 +66,11 @@ export function IconMark({ name, size = 36 }: { name: React.ComponentProps<typeo
 }
 
 /** The one search on Home: organisations, teams and sites. */
-export function HomeSearchBox({ value, onChange }: { value: string; onChange: (text: string) => void }) {
+export function HomeSearchBox({ value, onChange, className = '' }: { value: string; onChange: (text: string) => void; className?: string }) {
   const isDark = useActiveTheme() === 'dark';
   const active = value.trim().length > 0;
   return (
-    <View className={`flex-row items-center gap-2.5 rounded-2xl border px-4 py-3 ${active ? 'bg-primary-soft border-primary-line' : 'bg-card border-line'}`}>
+    <View className={`flex-row items-center gap-2.5 rounded-2xl border px-4 py-3 ${active ? 'bg-primary-soft border-primary-line' : 'bg-card border-line'} ${className}`}>
       <Ionicons name="search" size={18} color={themeColor(isDark, active ? 'primary-ink' : 'ink-muted')} />
       <TextInput
         value={value}
