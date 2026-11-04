@@ -153,6 +153,10 @@ for — until following exists (`FIX-37`). An organisation shows its role (Admin
 everywhere) and how many of its games are live; a team shows the game it is playing now or plays
 next. Nobody else's can be asked for: `home_mine` answers for the signed-in caller.
 
+The organisations sit in the same columns as the Organisations page's cards (decided 2026-11-04): up
+to three across on a wide screen, two on a tablet, one on a phone, so a few of them do not stretch
+across the whole page. Teams keep their full-width rows (`UI-42`).
+
 ## 6. The reads
 
 | `get_data` type | Access | Answers |

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Text, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GameSummary, HOME_RADIUS_KM, HomeNearbyOrganizations, HomeSearchResult, MyHome, Sport } from '@sk/shared';
 import { TournamentCard } from '../tournament/TournamentBits';
@@ -160,8 +160,14 @@ export function MyHomeCard({ mine, sports, live }: { mine: MyHome; sports: Sport
   const today = todayCalendarDate();
   const gameRows = useGameRows(mine.teams.flatMap(team => (team.game && worthRoom(team.game, today) ? [team.game.id] : [])), live);
 
+  // The same columns as the Organisations page's cards.
+  const { width } = useWindowDimensions();
+  const columns = width >= 1280 ? 3 : width >= 768 ? 2 : 1;
+
   const orgRows = mine.organizations.map(org => (
-    <OrgListCard key={org.id} org={org} place={org.locality} extraFlags={org.liveCount ? [`● ${org.liveCount} live`] : []} />
+    <View key={org.id} style={{ width: `${100 / columns}%`, paddingHorizontal: 6, paddingBottom: 12 }}>
+      <OrgListCard org={org} place={org.locality} extraFlags={org.liveCount ? [`● ${org.liveCount} live`] : []} />
+    </View>
   ));
 
   const teamRows = mine.teams.map((team, i) => {
@@ -220,7 +226,7 @@ export function MyHomeCard({ mine, sports, live }: { mine: MyHome; sports: Sport
         {groups > 1 && runRows.length ? <GroupHeading label="Tournaments I run" first /> : null}
         {runRows}
         {groups > 1 && orgRows.length ? <GroupHeading label="Organisations" first={!runRows.length} /> : null}
-        {orgRows.length ? <View className="gap-2.5 pt-1">{orgRows}</View> : null}
+        {orgRows.length ? <View className="flex-row flex-wrap pt-1" style={{ marginHorizontal: -6, marginBottom: -12 }}>{orgRows}</View> : null}
         {groups > 1 && teamRows.length ? <GroupHeading label="Teams" first={false} /> : null}
         {teamRows}
       </View>
