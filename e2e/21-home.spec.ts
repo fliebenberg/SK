@@ -35,8 +35,8 @@ test.describe('Home, logged out', () => {
     await visible(page, 'Set my location').click();
     await expect(visible(page, 'Use my location')).toBeVisible();
     await page.getByPlaceholder('Type a town or suburb').fill('doringk');
-    await expect(visible(page, 'Centurion, Gauteng')).toBeVisible();
-    await visible(page, 'Doringkloof').click();
+    // By its whole row: the organisation card behind the sheet can show the same suburb.
+    await page.getByRole('button', { name: 'Doringkloof Centurion, Gauteng' }).click();
     await expect(visible(page, 'Near Doringkloof')).toBeVisible();
     await expect(visible(page, 'Change location')).toBeVisible();
   });
