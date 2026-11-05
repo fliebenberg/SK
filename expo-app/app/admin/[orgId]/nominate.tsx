@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenHeader } from '../../../components/ScreenHeader';
 import { ReadCard } from '../../../components/ReadCard';
+import { ReadFailure } from '../../../components/ReadFailure';
 import { NominateAdminModal } from '../../../components/NominateAdminModal';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
@@ -41,8 +42,9 @@ export default function NominateAdmin() {
   const { width } = useWindowDimensions();
   const { org, isLoading } = useOrgSummary(orgId);
   const isUnclaimed = org?.isClaimed === false;
-  const { data: nominations, refetch } = useSocketQuery<any[]>('org_referrals', { orgId }, { enabled: isUnclaimed });
-  const { status: claimStatus, refresh: refreshClaimStatus } = useOrgClaimStatus(orgId, isUnclaimed);
+  const { data: nominations, error: nominationsError, refetch } = useSocketQuery<any[]>('org_referrals', { orgId }, { enabled: isUnclaimed, suppressToast: true });
+  const { status: claimStatus, error: claimStatusError, refresh: refreshClaimStatus } = useOrgClaimStatus(orgId, isUnclaimed, { suppressToast: true });
+  const hasNominations = Array.isArray(nominations) && nominations.length > 0;
   const [isNominating, setIsNominating] = useState(false);
   /** A pending nomination whose invitation is to be sent again (`ORG-7`), awaiting confirmation. */
   const [resendTarget, setResendTarget] = useState<{ email: string; sentAt: string } | null>(null);
@@ -102,8 +104,13 @@ export default function NominateAdmin() {
                   </Text>
                 </View>
 
+                {claimStatusError ? (
+                  <ReadFailure title="Whether you can take the role yourself could not be checked." reason={claimStatusError} onRetry={refreshClaimStatus} />
+                ) : null}
+
                 <ReadCard label="Nominations">
-                  {Array.isArray(nominations) && nominations.length > 0 ? (
+                  {nominationsError ? <ReadFailure what="Nominations" reason={nominationsError} onRetry={refetch} stale={hasNominations} /> : null}
+                  {hasNominations ? (
                     <View>
                       {nominations.map((ref: any, i: number) => {
                         const style = STATUS_STYLE[ref.status] || STATUS_STYLE.voided;
@@ -136,7 +143,7 @@ export default function NominateAdmin() {
                         );
                       })}
                     </View>
-                  ) : (
+                  ) : nominationsError ? null : (
                     <Text className="font-inter text-sm text-ink-muted">No one has been nominated yet.</Text>
                   )}
                 </ReadCard>
@@ -151,6 +158,8 @@ export default function NominateAdmin() {
         onClose={() => setIsNominating(false)}
         org={{ id: orgId, name: org?.name || '' }}
         status={claimStatus}
+        statusError={claimStatusError}
+        onRetryStatus={refreshClaimStatus}
         onNominated={() => { refetch(); refreshClaimStatus(); }}
         onTookOver={() => refreshClaimStatus()}
       />

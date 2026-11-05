@@ -9,11 +9,12 @@ import { useStaticRead } from './useStaticRead';
  *
  * Only the organisation's current fixtures are on the client, so `games` is what is coming up. How
  * many games the site and each facility have ever had and events based there, whoever's, is read
- * from the server (`LIST-1`), for whether they can be deleted.
+ * from the server (`LIST-1`), for whether they can be deleted. With `countsError` set those counts
+ * are not known (`SYNC-9`), and the page does not offer deleting.
  */
 export function useSiteGames(orgId: string | null | undefined, siteId: string | null | undefined, facilities: Facility[]) {
   const { games: all, events: allEvents, eventNames, isLoading } = useOrgFixtures(orgId);
-  const { data: counts } = useStaticRead<SiteGameCounts>('site_game_counts', siteId ? { siteId } : null);
+  const { data: counts, error: countsError, retry: retryCounts } = useStaticRead<SiteGameCounts>('site_game_counts', siteId ? { siteId } : null, { suppressToast: true });
   const facilityIds = useMemo(() => new Set(facilities.map(f => f.id)), [facilities]);
   const games = useMemo(
     () => (siteId ? all.filter(g => g.siteId === siteId || (!!g.facilityId && facilityIds.has(g.facilityId))) : []),
@@ -29,5 +30,7 @@ export function useSiteGames(orgId: string | null | undefined, siteId: string | 
     eventNames,
     gamesByFacility,
     isLoading,
+    countsError,
+    retryCounts,
   };
 }

@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { wsService } from '../../../../../../../services/websocket';
+import { readData } from '../../../../../../../services/reads';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { SocketAction, Event, Game } from '@sk/shared';
 
@@ -11,7 +12,7 @@ import { useAuthStore } from '../../../../../../../store/authStore';
 import { useGameCapabilities } from '../../../../../../../hooks/useGameCapabilities';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
-import { DynamicScoringProvider } from '../../../../../../../components/sports/shared/DynamicScoringContext';
+import { DynamicScoringProvider, ScoringReadNote } from '../../../../../../../components/sports/shared/DynamicScoringContext';
 import { DynamicScoringDialog } from '../../../../../../../components/sports/shared/DynamicScoringDialog';
 import { DynamicScoringPanels } from '../../../../../../../components/sports/shared/DynamicScoringPanels';
 import { SportComponentRegistry } from '../../../../../../../components/sports/SportComponentRegistry';
@@ -23,6 +24,8 @@ import RugbyGameStats from '../../../../../../../components/sports/rugby/RugbyGa
 import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { Tabs } from '../../../../../../../components/Tabs';
 import { AccessDenied } from '../../../../../../../components/AccessDenied';
+import { ReadFailure } from '../../../../../../../components/ReadFailure';
+import { ScreenHeader } from '../../../../../../../components/ScreenHeader';
 import { useActiveTheme } from '../../../../../../../store/settingsStore';
 import { themeColor } from '../../../../../../../constants/Colors';
 
@@ -31,8 +34,8 @@ export default function ScoreGameScreen() {
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId, eventId, gameId } = useLocalSearchParams<{ orgId: string; eventId: string; gameId: string }>();
-  const { capabilities } = useEventCapabilities(eventId);
-  const { capabilities: gameCapabilities } = useGameCapabilities(gameId);
+  const { capabilities, isLoading: capabilitiesLoading, error: capabilitiesError, retry: retryCapabilities } = useEventCapabilities(eventId, { suppressToast: true });
+  const { capabilities: gameCapabilities, isLoading: gameCapabilitiesLoading, error: gameCapabilitiesError, retry: retryGameCapabilities } = useGameCapabilities(gameId, { suppressToast: true });
   const isConnected = useWsStore((state: any) => state.isConnected);
 
   const user = useAuthStore((state: any) => state.user);
@@ -42,6 +45,10 @@ export default function ScoreGameScreen() {
   const [game, setGame] = useState<Game | null>(null);
   const [event, setEvent] = useState<Event | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [gameError, setGameError] = useState<string | null>(null);
+  const [eventLoading, setEventLoading] = useState(!!eventId);
+  const [eventError, setEventError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [activeTab, setActiveTab] = useState<'feed' | 'team1' | 'team2' | 'stats'>('feed');
 
   useEffect(() => {
@@ -49,20 +56,37 @@ export default function ScoreGameScreen() {
 
     // Coming back from a dropped connection reads again behind the scoring screen, not instead of it.
     if (game?.id !== gameId) setIsLoading(true);
+    setGameError(null);
+
+    let active = true;
+    const options = { suppressToast: true, stillWanted: () => active };
 
     if (eventId) {
-      wsService.emit('get_data', { type: 'event', id: eventId }, (resEvent: Event) => {
-        if (resEvent) setEvent(resEvent);
+      setEventLoading(true);
+      setEventError(null);
+      void readData<Event | null>('event', { id: eventId }, options).then(result => {
+        if (!active) return;
+        if (result.ok) {
+          if (result.data) setEvent(result.data);
+        } else {
+          setEventError(result.message);
+        }
+        setEventLoading(false);
       });
     }
 
-    wsService.emit('get_data', { type: 'game', id: gameId }, (resGame: Game) => {
-      if (resGame) {
-        setGame(resGame);
+    void readData<Game | null>('game', { id: gameId }, options).then(result => {
+      if (!active) return;
+      if (result.ok) {
+        if (result.data) setGame(result.data);
+      } else {
+        setGameError(result.message);
       }
       setIsLoading(false);
     });
-  }, [isConnected, gameId]);
+
+    return () => { active = false; };
+  }, [isConnected, gameId, attempt]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -97,13 +121,31 @@ export default function ScoreGameScreen() {
     };
   }, [gameId]);
 
-  if (isLoading || !game) {
+  const backToGame = () => safeBack(`/admin/${orgId}/events/${eventId}/games/${gameId}`);
+  const retryReads = () => {
+    if (gameError || eventError) setAttempt(n => n + 1);
+    if (capabilitiesError) retryCapabilities();
+    if (gameCapabilitiesError) retryGameCapabilities();
+  };
+  const spinner = (
+    <SafeAreaView className="flex-1 bg-canvas justify-center items-center">
+      <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+      <Text className="font-orbitron text-xs text-ink-muted mt-4 uppercase tracking-widest">
+        Loading Control Room...
+      </Text>
+    </SafeAreaView>
+  );
+
+  if (isLoading) return spinner;
+  if (!game) {
     return (
-      <SafeAreaView className="flex-1 bg-canvas justify-center items-center">
-        <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
-        <Text className="font-orbitron text-xs text-ink-muted mt-4 uppercase tracking-widest">
-          Loading Control Room...
-        </Text>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
+        <ScreenHeader title="Game Control Room" onBack={backToGame} />
+        <View className="flex-1 items-center justify-center p-6">
+          {gameError
+            ? <ReadFailure what="This game" reason={gameError} onRetry={retryReads} />
+            : <Text className="font-inter text-sm text-ink-muted text-center">This game was not found.</Text>}
+        </View>
       </SafeAreaView>
     );
   }
@@ -123,11 +165,24 @@ export default function ScoreGameScreen() {
   });
   // An appointed timekeeper gets the timekeeping section alone (`PERM-7`).
   const timekeeperOnly = !permissions.canScore && !!gameCapabilities?.canKeepTime;
+  // Permissions only widen with what these say, so without them "may not score" is not yet known.
+  const rightsError = eventError || capabilitiesError || gameCapabilitiesError;
 
   // Being signed into the workspace is not enough to score: the control room is
   // for org admins/staff and coaches of a participating team. Everyone else is
   // sent to the read-only match view.
   if (!permissions.canScore && !timekeeperOnly) {
+    if (eventLoading || capabilitiesLoading || gameCapabilitiesLoading) return spinner;
+    if (rightsError) {
+      return (
+        <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
+          <ScreenHeader title="Game Control Room" onBack={backToGame} />
+          <View className="flex-1 items-center justify-center p-6">
+            <ReadFailure title="Your right to score this match could not be checked." reason={rightsError} onRetry={retryReads} />
+          </View>
+        </SafeAreaView>
+      );
+    }
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <AccessDenied
@@ -147,7 +202,7 @@ export default function ScoreGameScreen() {
   const p2 = game.participants?.[1];
 
   return (
-    <DynamicScoringProvider game={game}>
+    <DynamicScoringProvider game={game} showReadNote={false}>
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         {/* HEADER BAR */}
         <View className="flex-row items-center justify-between px-4 py-2.5 border-b border-line-soft bg-card z-10">
@@ -165,6 +220,10 @@ export default function ScoreGameScreen() {
         </View>
 
         <ScrollView className="flex-1 px-4 py-2" contentContainerStyle={{ paddingBottom: 30 }}>
+          {/* What did not load, above what is held: scoring carries on underneath. */}
+          {gameError ? <ReadFailure what="The game" reason={gameError} onRetry={retryReads} stale /> : null}
+          {timekeeperOnly && rightsError ? <ReadFailure title="You may have more than the clock here, but your rights could not be checked." reason={rightsError} onRetry={retryReads} className="mb-2" /> : null}
+          <ScoringReadNote />
           <View className="flex-col lg:flex-row gap-3 items-start justify-center max-w-7xl mx-auto w-full">
             {/* MAIN SCORING COLUMN (TIMER, SCOREBOARD, DISPUTES & SCORER PANELS) */}
             <View className="w-full flex-1 max-w-3xl">

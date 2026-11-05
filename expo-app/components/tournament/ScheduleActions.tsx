@@ -27,8 +27,10 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 export function scheduleReadiness({ event, division, sport }: { event: Event; division: TournamentDivision; sport?: Sport | null }):
   { ok: true; minutes: number } | { ok: false; reason: string } {
   if (!(event.days || []).length) return { ok: false, reason: "The tournament has no playing days yet. Set them under When on the tournament page." };
-  const minutes = fixtureMinutes(sport?.defaultSettings as any);
-  if (minutes == null) return { ok: false, reason: `${sport?.name || 'This sport'} has no game length yet. Set its period length and number of periods in the sport editor.` };
+  // Not told apart, this sends someone to the sport editor because a read failed (`SYNC-9`).
+  if (!sport) return { ok: false, reason: "The sport's details have not loaded, so its game length is not known yet." };
+  const minutes = fixtureMinutes(sport.defaultSettings as any);
+  if (minutes == null) return { ok: false, reason: `${sport.name} has no game length yet. Set its period length and number of periods in the sport editor.` };
   if (!divisionDayLines(event, division).some(l => !l.muted)) return { ok: false, reason: 'This division plays on none of the tournament\'s days. Change that under its When.' };
   return { ok: true, minutes };
 }

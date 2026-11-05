@@ -61,6 +61,7 @@ export function DynamicScoringDialog() {
     homeRoster,
     awayRoster,
     isLoadingRosters,
+    rostersError,
     templates,
     scoringState,
     cancelDynamicFlow,
@@ -378,6 +379,9 @@ export function DynamicScoringDialog() {
               </View>
             ) : (
               <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
+                {rostersError && !roster.length ? (
+                  <Text className="font-inter text-sm text-warning-ink py-2">The team sheet did not load, so there are no players to choose from. {rostersError}</Text>
+                ) : null}
                 <RosterGrid roster={roster} onSelect={setSelectedPlayerId} selectedPlayerId={selectedPlayerId} />
               </ScrollView>
             )}

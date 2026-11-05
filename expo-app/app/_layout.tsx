@@ -22,6 +22,7 @@ import { useAuthStore } from '../store/authStore';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 import { OfflineBanner } from '../components/OfflineBanner';
+import { SportsReadFailure } from '../components/SportsReadFailure';
 import { startResultQueue } from '../services/resultQueue';
 import { startIdleDisconnect } from '../services/idleDisconnect';
 import { useAppActive } from '../hooks/useAppActive';
@@ -197,6 +198,7 @@ function ThemeManager({ children }: { children: React.ReactNode }) {
       <View className="flex-1">
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <OfflineBanner />
+        <SportsReadFailure />
         {children}
         <ToastContainer />
       </View>

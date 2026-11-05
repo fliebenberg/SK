@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   DEFAULT_SCORING_SYSTEM,
@@ -22,8 +22,8 @@ import { pickableSites } from '../sites/SiteBits';
 import { TEXT_INPUT } from '../formStyles';
 import { sendAction } from '../../services/actions';
 import { useToastStore } from '../../store/toastStore';
-import { useWsStore } from '../../store/wsStore';
-import { wsService } from '../../services/websocket';
+import { useSocketQuery } from '../../hooks/useSocketQuery';
+import { ReadFailure } from '../ReadFailure';
 import { formatDateRange, isCalendarDate } from '../../utils/dates';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
@@ -356,28 +356,57 @@ export function SportsDialog({ visible, event, orgId, sports, divisionCount, onC
   );
 }
 
+/**
+ * `OrganizerPicker` once the list is known: until then it would say *Nobody has been appointed yet* and
+ * offer to appoint over a list nobody has seen (`SYNC-9`).
+ */
+function OrganizersOnceRead({ isLoading, error, held, onRetry, children }: {
+  isLoading: boolean;
+  error: string | null;
+  /** A list from an earlier read is there to show. */
+  held: boolean;
+  onRetry: () => void;
+  children: React.ReactNode;
+}) {
+  if (isLoading) return <ActivityIndicator />;
+  if (error && !held) return <ReadFailure what="Organisers" reason={error} onRetry={onRetry} />;
+  return (
+    <>
+      {error ? <ReadFailure what="Organisers" reason={error} onRetry={onRetry} stale /> : null}
+      {children}
+    </>
+  );
+}
+
 /** The tournament's organisers (D33), appointed and removed in place by `OrganizerPicker`. */
-export function OrganizersDialog({ visible, event, orgId, organizers, onChange, onClose }: {
+export function OrganizersDialog({ visible, event, orgId, organizers, isLoading, error, held, onRetry, onChange, onClose }: {
   visible: boolean;
   event: Event;
   orgId: string;
   organizers: TournamentOrganizer[];
+  /** The page reads the list: still waiting with nothing to show. */
+  isLoading: boolean;
+  error: string | null;
+  held: boolean;
+  onRetry: () => void;
   onChange: (next: TournamentOrganizer[]) => void;
   onClose: () => void;
 }) {
   return (
     <EditDialog visible={visible} title="Organisers" onClose={onClose} doneLabel="Done">
-      <OrganizerPicker
-        eventId={event.id}
-        hostOrgId={event.orgId}
-        actingOrgId={orgId}
-        organizers={organizers}
-        onChange={onChange}
-        canManage
-        label="Tournament organisers"
-        help="Other people who will help run this tournament. An organiser can edit it, enter results and manage its divisions — they do not need to be an admin of your organisation, and they can come from any organisation taking part."
-        hasParticipatingOrgs={(event.participatingOrgs || []).length > 0}
-      />
+      <OrganizersOnceRead isLoading={isLoading} error={error} held={held} onRetry={onRetry}>
+        <OrganizerPicker
+          eventId={event.id}
+          hostOrgId={event.orgId}
+          actingOrgId={orgId}
+          organizers={organizers}
+          onChange={onChange}
+          canManage
+          label="Tournament organisers"
+          help="Other people who will help run this tournament. An organiser can edit it, enter results and manage its divisions — they do not need to be an admin of your organisation, and they can come from any organisation taking part."
+          hasParticipatingOrgs={(event.participatingOrgs || []).length > 0}
+        />
+      </OrganizersOnceRead>
     </EditDialog>
   );
 }
@@ -399,36 +428,32 @@ export function SportOrganizersDialog({ visible, event, orgId, sport, onClose }:
   sport: Sport | null;
   onClose: () => void;
 }) {
-  const isConnected = useWsStore((state: any) => state.isConnected);
-  const [organizers, setOrganizers] = useState<TournamentOrganizer[]>([]);
   const sportId = sport?.id;
-
-  useEffect(() => {
-    if (!visible || !isConnected || !sportId) return;
-    let active = true;
-    setOrganizers([]);
-    wsService.emit('get_data', { type: 'sport_organizers', eventId: event.id, sportId }, (res: any) => {
-      if (active) setOrganizers(Array.isArray(res) ? res : []);
-    });
-    return () => { active = false; };
-  }, [visible, isConnected, event.id, sportId]);
+  const { data, isLoading, error, refetch, setData } = useSocketQuery<TournamentOrganizer[]>(
+    'sport_organizers',
+    { eventId: event.id, sportId },
+    { enabled: visible && !!sportId, suppressToast: true }
+  );
 
   if (!sport) return null;
   return (
     <EditDialog visible={visible} title={`${sport.name} organisers`} onClose={onClose} doneLabel="Done">
-      <OrganizerPicker
-        eventId={event.id}
-        sportId={sport.id}
-        hostOrgId={event.orgId}
-        actingOrgId={orgId}
-        organizers={organizers}
-        onChange={setOrganizers}
-        canManage
-        label={`${sport.name} organisers`}
-        help={`People responsible for running the ${sport.name} at this tournament. They run every ${sport.name} division — including ones added later — and may add and remove ${sport.name} divisions, but not change anything else about the tournament. Added and removed at once.`}
-        optional
-        hasParticipatingOrgs={(event.participatingOrgs || []).length > 0}
-      />
+      {/* The spinner whenever it reads: what is held may be another sport's list. */}
+      <OrganizersOnceRead isLoading={isLoading} error={error} held={!!data} onRetry={refetch}>
+        <OrganizerPicker
+          eventId={event.id}
+          sportId={sport.id}
+          hostOrgId={event.orgId}
+          actingOrgId={orgId}
+          organizers={Array.isArray(data) ? data : []}
+          onChange={setData}
+          canManage
+          label={`${sport.name} organisers`}
+          help={`People responsible for running the ${sport.name} at this tournament. They run every ${sport.name} division — including ones added later — and may add and remove ${sport.name} divisions, but not change anything else about the tournament. Added and removed at once.`}
+          optional
+          hasParticipatingOrgs={(event.participatingOrgs || []).length > 0}
+        />
+      </OrganizersOnceRead>
     </EditDialog>
   );
 }

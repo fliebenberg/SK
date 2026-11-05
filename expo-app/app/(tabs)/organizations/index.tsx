@@ -11,7 +11,7 @@ import { AddOrgDialog } from '../../../components/org/AddOrgDialog';
 import { OrgListCard } from '../../../components/org/OrgListCard';
 import { themeColor } from '../../../constants/Colors';
 import { usePagedList } from '../../../hooks/usePagedList';
-import { wsService } from '../../../services/websocket';
+import { readData } from '../../../services/reads';
 import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme, useSettingsStore } from '../../../store/settingsStore';
 
@@ -59,9 +59,10 @@ export default function OrganizationsPage() {
   const handleOrgCreated = (org: { id: string }) => {
     router.push(`/admin/${org.id}` as any);
     if (user?.id) {
-      wsService.emit('get_data', { type: 'user_memberships', id: user.id }, (membershipRes: any) => {
-        if (membershipRes) {
-          setMemberships(membershipRes.orgs, membershipRes.teams);
+      // A failure is toasted, and keeps the memberships held: only an answer may replace them.
+      void readData<any>('user_memberships', { id: user.id }).then(result => {
+        if (result.ok && result.data) {
+          setMemberships(result.data.orgs, result.data.teams);
         }
       });
     }

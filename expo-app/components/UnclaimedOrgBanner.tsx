@@ -22,7 +22,7 @@ import { themeColor } from '../constants/Colors';
 export function UnclaimedOrgBanner({ org }: { org: { id: string; name: string; isClaimed?: boolean } | null }) {
   const isDark = useActiveTheme() === 'dark';
   const unclaimed = !!org && org.isClaimed === false;
-  const { status, addPending, refresh } = useOrgClaimStatus(org?.id, unclaimed);
+  const { status, error: statusError, addPending, refresh } = useOrgClaimStatus(org?.id, unclaimed, { suppressToast: true });
   const [isOpen, setIsOpen] = useState(false);
 
   if (!org) return null;
@@ -74,6 +74,8 @@ export function UnclaimedOrgBanner({ org }: { org: { id: string; name: string; i
         onClose={() => setIsOpen(false)}
         org={org}
         status={status}
+        statusError={statusError}
+        onRetryStatus={refresh}
         onNominated={addPending}
         onTookOver={refresh}
       />

@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Organization, SocketAction } from '@sk/shared';
 import { ScreenHeader } from '../../../components/ScreenHeader';
 import { ReadCard, ReadCardEmpty } from '../../../components/ReadCard';
+import { ReadFailure } from '../../../components/ReadFailure';
 import { OrgProfileBanner } from '../../../components/org/OrgProfileBanner';
 import { IdentityDialog } from '../../../components/org/IdentityDialog';
 import { AboutDialog } from '../../../components/org/AboutDialog';
@@ -50,7 +51,7 @@ export default function OrgProfile() {
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
   const { org, isLoading } = useOrgSummary(orgId);
-  const { data: sports } = useSocketQuery<any[]>('sports');
+  const { data: sports, error: sportsError, refetch: refetchSports } = useSocketQuery<any[]>('sports', {}, { suppressToast: true });
   const { isAdmin: canEdit } = useOrgAccess(orgId);
   const [dialog, setDialog] = useState<Dialog>(null);
   /** The org as just saved with a new address, while asking whether the timezone should follow it. */
@@ -124,6 +125,8 @@ export default function OrgProfile() {
             </View>
           ))}
         </View>
+      ) : sportsError && !sports ? (
+        <ReadFailure what="Sports" reason={sportsError} onRetry={refetchSports} />
       ) : (
         <ReadCardEmpty text="No sports yet." action={canEdit ? 'Add sports' : undefined} onPress={() => setDialog('sports')} />
       )}

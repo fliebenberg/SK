@@ -59,6 +59,8 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
   const [guardianOpen, setGuardianOpen] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  /** Whether they are already on record is unknown, and a second record is what the search is there to stop. */
+  const [searchFailure, setSearchFailure] = useState<string | null>(null);
   const scope = useRequestScope();
   const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
 
@@ -171,7 +173,7 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
       onClose={onClose}
       onSave={save}
       saveLabel={team ? 'Add' : 'Add person'}
-      saveDisabled={!person.name.trim()}
+      saveDisabled={!person.name.trim() || (!!searchFailure && !selected)}
       isSaving={isSaving}
       isDirty={isDirty}
     >
@@ -184,7 +186,13 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
           onChangeText={name => { set({ name }); if (selected) setSelected(null); }}
           onSelectPerson={pick}
           includeInactive
+          onSearchFailure={setSearchFailure}
         />
+        {searchFailure && !selected ? (
+          <Text className="font-inter text-xs text-warning-ink">
+            Could not check whether {person.name.trim() || 'this person'} is already on record, so they cannot be added yet. {searchFailure} Edit the name or use Try again in the list above.
+          </Text>
+        ) : null}
         {selected?.inactiveAt ? (
           <Text className="font-inter text-xs text-ink-muted">
             {selected.name} left this organisation. Adding them brings back their record and history.

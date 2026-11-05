@@ -50,7 +50,9 @@ import { useDivisionEntrants } from '../../../../../../../hooks/useDivisionEntra
 import { useEventEntrants } from '../../../../../../../hooks/useEventEntrants';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
-import { wsService } from '../../../../../../../services/websocket';
+import { useSocketQuery } from '../../../../../../../hooks/useSocketQuery';
+import { readData } from '../../../../../../../services/reads';
+import { ReadFailure } from '../../../../../../../components/ReadFailure';
 import { sendAction } from '../../../../../../../services/actions';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../../../store/authStore';
@@ -66,6 +68,10 @@ import { useActiveTheme } from '../../../../../../../store/settingsStore';
 import { useTournamentData } from '../../../../../../../hooks/useTournamentData';
 import { hasPin } from '../../../../../../../services/places';
 import { openDirections } from '../../../../../../../utils/share';
+
+const NO_ORGANIZERS: TournamentOrganizer[] = [];
+const NO_ORGS: OrgBadge[] = [];
+const NO_TEAMS: CandidateTeam[] = [];
 
 /**
  * A division of a tournament (`FIX-27`, agreed 2026-10-09 on `mockups/division-read-first.html`,
@@ -178,23 +184,29 @@ export default function DivisionScreen() {
 
   // The organisations that may enter, and their teams: a one-shot read, as no room owns that set.
   // Addressed by division too, so a division organiser is answered.
-  const [candidates, setCandidates] = useState<{ teams: CandidateTeam[]; orgs: OrgBadge[] }>({ teams: [], orgs: [] });
+  // `null` until the first answer: Add teams and Replace open only then, as with nothing read they
+  // would say no organisation has a team free.
+  const [candidates, setCandidates] = useState<{ teams: CandidateTeam[]; orgs: OrgBadge[] } | null>(null);
+  const [candidatesError, setCandidatesError] = useState<string | null>(null);
+  const [candidatesTry, setCandidatesTry] = useState(0);
   useEffect(() => {
     if (!isConnected || !canEdit || !eventId) return;
     let live = true;
-    wsService.emit('get_data', { type: 'event_candidate_teams', eventId, divisionId }, (res: EventCandidateTeams | null) => {
-      if (live && res) setCandidates({ teams: res.teams || [], orgs: res.orgs || [] });
+    setCandidatesError(null);
+    void readData<EventCandidateTeams | null>('event_candidate_teams', { eventId, divisionId }, { suppressToast: true, stillWanted: () => live }).then(result => {
+      if (!live) return;
+      if (!result.ok) { setCandidatesError(result.message); return; }
+      const res = result.data;
+      setCandidates(held => (res ? { teams: res.teams || [], orgs: res.orgs || [] } : held || { teams: [], orgs: [] }));
     });
     return () => { live = false; };
-  }, [isConnected, canEdit, eventId, divisionId, entrants.length]);
+  }, [isConnected, canEdit, eventId, divisionId, entrants.length, candidatesTry]);
 
-  const [organizers, setOrganizers] = useState<TournamentOrganizer[]>([]);
-  useEffect(() => {
-    if (!isConnected || !divisionId || !canEdit) return;
-    let live = true;
-    wsService.emit('get_data', { type: 'division_organizers', divisionId }, (res: any) => { if (live && Array.isArray(res)) setOrganizers(res); });
-    return () => { live = false; };
-  }, [isConnected, divisionId, canEdit]);
+  const organizersRead = useSocketQuery<TournamentOrganizer[]>('division_organizers', { divisionId }, { enabled: !!divisionId && canEdit, suppressToast: true });
+  const organizers = Array.isArray(organizersRead.data) ? organizersRead.data : NO_ORGANIZERS;
+  const setOrganizers = organizersRead.setData;
+  // Known once answered, or with an earlier answer to show; only then may the card say *None*.
+  const organizersKnown = !!organizersRead.data || (!organizersRead.isLoading && !organizersRead.error);
 
   const { sites, facilities } = useOrgSites(event?.orgId);
   // The Where map's markers, as on its full map: the division's courts, or the tournament's when it has none.
@@ -397,24 +409,28 @@ export default function DivisionScreen() {
 
   /* -- the cards ---------------------------------------------------------------------------- */
   const teamsCard = (
-    <DivisionTeamsCard
-      key="teams"
-      division={division}
-      event={event}
-      orgId={orgId}
-      entrants={canEdit ? entrants : []}
-      games={games}
-      orgs={candidates.orgs}
-      teams={candidates.teams}
-      eventEntrants={eventEntrants}
-      canEdit={canEdit}
-      drawn={drawn}
-      started={started}
-      adding={adding}
-      onAdding={setAdding}
-      replacing={replacing}
-      onReplacing={setReplacing}
-    />
+    <React.Fragment key="teams">
+      {candidatesError ? (
+        <ReadFailure what="The teams that can be added" reason={candidatesError} onRetry={() => setCandidatesTry(n => n + 1)} stale={!!candidates} />
+      ) : null}
+      <DivisionTeamsCard
+        division={division}
+        event={event}
+        orgId={orgId}
+        entrants={canEdit ? entrants : []}
+        games={games}
+        orgs={candidates?.orgs || NO_ORGS}
+        teams={candidates?.teams || NO_TEAMS}
+        eventEntrants={eventEntrants}
+        canEdit={canEdit}
+        drawn={drawn}
+        started={started}
+        adding={adding && !!candidates}
+        onAdding={setAdding}
+        replacing={candidates ? replacing : null}
+        onReplacing={setReplacing}
+      />
+    </React.Fragment>
   );
   const ownGaps = division.gapBetweenGamesMin != null || division.minTeamBreakMin != null;
   /*
@@ -543,8 +559,11 @@ export default function DivisionScreen() {
     </TournamentCard>
   ) : null;
   const organisersCard = canEdit ? (
-    <TournamentCard key="organisers" title="Organisers" right={<EditLink onPress={() => setDialog('organisers')} />}>
-      <Text className="font-inter text-sm text-ink">{organizers.length ? organizers.map(o => o.name).join(' · ') : 'None — the tournament\'s organisers run it'}</Text>
+    <TournamentCard key="organisers" title="Organisers" right={organizersKnown ? <EditLink onPress={() => setDialog('organisers')} /> : undefined}>
+      {organizersRead.error ? <ReadFailure what="Organisers" reason={organizersRead.error} onRetry={organizersRead.refetch} stale={organizersKnown} /> : null}
+      {organizersKnown ? (
+        <Text className="font-inter text-sm text-ink">{organizers.length ? organizers.map(o => o.name).join(' · ') : 'None — the tournament\'s organisers run it'}</Text>
+      ) : organizersRead.error ? null : <ActivityIndicator />}
     </TournamentCard>
   ) : null;
   const detailsCard = <React.Fragment key="details">{whereCard}{whenCard}{organisersCard}</React.Fragment>;

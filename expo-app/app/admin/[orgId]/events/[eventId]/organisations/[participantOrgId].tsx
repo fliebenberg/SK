@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   CandidateTeam,
   Event,
+  EventCandidateTeams,
   EventOrgBadge,
   EventOrgHistory,
   hasLeft,
@@ -29,8 +30,9 @@ import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../../../store/unsavedChangesStore';
 import { useAuthStore } from '../../../../../../store/authStore';
 import { useWsStore } from '../../../../../../store/wsStore';
-import { wsService } from '../../../../../../services/websocket';
+import { readData } from '../../../../../../services/reads';
 import { PageBody } from '../../../../../../components/PageBody';
+import { ReadFailure } from '../../../../../../components/ReadFailure';
 import { managesOrg } from '../../../../../../utils/orgAccess';
 
 /**
@@ -73,7 +75,7 @@ export default function OrganisationInTournamentScreen() {
   const myUserId = useAuthStore((state: any) => state.user?.id);
   const canWriteInto = useCanWriteInto();
 
-  const { capabilities, isLoading: loadingCapabilities } = useEventCapabilities(eventId);
+  const { capabilities, isLoading: loadingCapabilities, error: capabilitiesError, retry: retryCapabilities } = useEventCapabilities(eventId, { suppressToast: true });
   const canEdit = !!capabilities?.canEditEvent;
   // The organisation's own members: its page is theirs too, once it is invited (`FIX-30`).
   const memberships = useAuthStore((state: any) => state.orgMemberships) || [];
@@ -102,13 +104,20 @@ export default function OrganisationInTournamentScreen() {
   // Its own teams, for asking to add one (the candidate set is the organisers').
   const { teams: ownTeams } = useOrgTeams(isOwnOrg && !canEdit ? participantOrgId : null);
   const [candidateTeams, setCandidateTeams] = useState<CandidateTeam[]>([]);
+  const [candidatesError, setCandidatesError] = useState<string | null>(null);
+  const [candidatesTry, setCandidatesTry] = useState(0);
   // The teams that could be entered: a one-shot read, as no room owns that set (`FIX-2`).
   useEffect(() => {
     if (!isConnected || !canEdit || !eventId) return;
     let live = true;
-    wsService.emit('get_data', { type: 'event_candidate_teams', eventId }, (res: any) => { if (live && res) setCandidateTeams(res.teams || []); });
+    setCandidatesError(null);
+    void readData<EventCandidateTeams | null>('event_candidate_teams', { eventId }, { suppressToast: true, stillWanted: () => live }).then(result => {
+      if (!live) return;
+      if (!result.ok) setCandidatesError(result.message);
+      else if (result.data) setCandidateTeams(result.data.teams || []);
+    });
     return () => { live = false; };
-  }, [isConnected, canEdit, eventId]);
+  }, [isConnected, canEdit, eventId, candidatesTry]);
 
   // The host may be off the list (it can run a tournament it does not play in) and still opens here.
   const { org: hostOrg } = useOrgSummary(event?.orgId);
@@ -121,12 +130,20 @@ export default function OrganisationInTournamentScreen() {
 
   // Who invited and who answered: names, so a read of their own rather than on the public event.
   const [history, setHistory] = useState<EventOrgHistory | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyTry, setHistoryTry] = useState(0);
   useEffect(() => {
     if (!isConnected || !(canEdit || isOwnOrg) || !eventId || !participantOrgId) return;
     let live = true;
-    wsService.emit('get_data', { type: 'event_org_history', eventId, participantOrgId }, (res: any) => { if (live) setHistory(res || null); });
+    setHistoryError(null);
+    void readData<EventOrgHistory | null>('event_org_history', { eventId, participantOrgId }, { suppressToast: true, stillWanted: () => live }).then(result => {
+      if (!live) return;
+      if (result.ok) setHistory(result.data || null);
+      // The server refuses a plain member of the organisation these names: for them that is not a fault.
+      else if (result.noAnswer || canEdit || adminsOwnOrg) setHistoryError(result.message);
+    });
     return () => { live = false; };
-  }, [isConnected, canEdit, isOwnOrg, eventId, participantOrgId, org?.invitation, org?.answeredAt, org?.invitedAt]);
+  }, [isConnected, canEdit, isOwnOrg, adminsOwnOrg, eventId, participantOrgId, org?.invitation, org?.answeredAt, org?.invitedAt, historyTry]);
 
   /* -- teams ------------------------------------------------------------------------------- */
   const teams = useOrgTeamPicks({ org, orgId, divisions, sportIds: event?.sportIds || NO_SPORTS, entrants, candidateTeams });
@@ -139,6 +156,17 @@ export default function OrganisationInTournamentScreen() {
   const [dialog, setDialog] = useState<null | 'remove' | 'nominate'>(null);
 
   const mayOpen = canEdit || (isOwnOrg && !!ownStatus && ownStatus !== 'not_invited');
+  // Whether they run the tournament could not be asked: not grounds for turning them away (`SYNC-9`).
+  if (!loadingCapabilities && !eventLoading && event && !mayOpen && capabilitiesError) {
+    return (
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
+        <ScreenHeader title="Organisation" context={event.name} onBack={backToTournament} />
+        <View className="flex-1 items-center justify-center p-6">
+          <ReadFailure title="Your access to this page could not be checked." reason={capabilitiesError} onRetry={retryCapabilities} />
+        </View>
+      </SafeAreaView>
+    );
+  }
   if (!loadingCapabilities && !eventLoading && event && !mayOpen) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
@@ -204,7 +232,9 @@ export default function OrganisationInTournamentScreen() {
       />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 120 }}>
         <PageBody className="gap-4">
+          {capabilitiesError && !canEdit ? <ReadFailure title="Whether you run this tournament did not load." reason={capabilitiesError} onRetry={retryCapabilities} /> : null}
           {sideBySide ? <View className="flex-row gap-4 items-stretch">{banner}{response}</View> : <>{banner}{response}</>}
+          {historyError ? <ReadFailure what="Who invited and who answered" reason={historyError} onRetry={() => setHistoryTry(n => n + 1)} stale={!!history} /> : null}
 
           {canEdit ? (
             <View className="rounded-2xl border border-line bg-card p-4 gap-2">
@@ -223,6 +253,9 @@ export default function OrganisationInTournamentScreen() {
                   options={[{ key: 'all', label: 'All divisions' }, { key: 'entered', label: 'Entered' }]}
                 />
               </View>
+              {candidatesError && !hasLeft(org.invitation) ? (
+                <ReadFailure what="Teams that can be entered" reason={candidatesError} onRetry={() => setCandidatesTry(n => n + 1)} stale={candidateTeams.length > 0} />
+              ) : null}
               {hasLeft(org.invitation) ? (
                 <Text className="font-inter text-[13px] text-ink-muted">{org.invitation === 'declined' ? 'Declined' : 'Withdrawn'}: its teams were taken out of their divisions.</Text>
               ) : <OrgTeamsByDivision

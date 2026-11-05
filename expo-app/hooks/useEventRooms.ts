@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { create } from 'zustand';
 import { Event, EventStandings, GameSummary, Sport, TournamentDivision, TournamentEntrant } from '@sk/shared';
 import { useLiveRoom } from './useLiveRoom';
 import { useWsStore } from '../store/wsStore';
-import { wsService } from '../services/websocket';
+import { readData } from '../services/reads';
 
 /**
  * One hook per event room, each the only place its messages are read (2026-10-09). The tournament
@@ -114,15 +115,41 @@ export function useEventPublicTeams(eventId?: string | null, enabled = true) {
   return items;
 }
 
-/** Every sport: global reference data that no room owns, so a one-shot read. */
+/** The sports, shared by every `useSports` on screen, so one failure is said once and a retry reaches them all. */
+export const useSportsStore = create<{ sports: Sport[]; error: string | null }>(() => ({ sports: [], error: null }));
+
+let sportsReading: Promise<void> | null = null;
+let sportsWanted = 0;
+
+/**
+ * Reads the sports, sharing a read already under way. A failure keeps what is held; with nothing held,
+ * `SportsReadFailure` says so at the top of the app, since the screens only hold a list (`SYNC-9`).
+ */
+export function readSports() {
+  if (!sportsReading) {
+    sportsReading = readData<Sport[]>('sports', {}, { suppressToast: true, stillWanted: () => sportsWanted > 0 })
+      .then(result => {
+        if (!result.ok) useSportsStore.setState({ error: result.message });
+        else if (Array.isArray(result.data)) useSportsStore.setState({ sports: result.data, error: null });
+        else useSportsStore.setState({ error: 'The server sent an answer the app could not read.' });
+      })
+      .finally(() => { sportsReading = null; });
+  }
+  return sportsReading;
+}
+
+/**
+ * Every sport: global reference data that no room owns, so a one-shot read, asked again when the
+ * connection returns or the next hook mounts.
+ */
 export function useSports() {
   const isConnected = useWsStore((state: any) => state.isConnected);
-  const [sports, setSports] = useState<Sport[]>([]);
+  const sports = useSportsStore(state => state.sports);
   useEffect(() => {
     if (!isConnected) return;
-    let live = true;
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => { if (live && Array.isArray(res)) setSports(res); });
-    return () => { live = false; };
+    sportsWanted++;
+    void readSports();
+    return () => { sportsWanted--; };
   }, [isConnected]);
   return sports;
 }

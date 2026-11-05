@@ -12,7 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
 
-import { wsService } from '../services/websocket';
+import { readData } from '../services/reads';
+import { ReadFailure } from './ReadFailure';
 import { usePagedList } from '../hooks/usePagedList';
 import { themeColor } from '../constants/Colors';
 
@@ -106,6 +107,9 @@ export function PersonPickerModal({
     has nobody". Instead the tab is dropped and the picker opens on the search, which covers the host.
   */
   const [rosterAvailable, setRosterAvailable] = useState(true);
+  /* A failed search is not "Nobody found" (`SYNC-9`). */
+  const [searchFailure, setSearchFailure] = useState<string | null>(null);
+  const [searchAttempt, setSearchAttempt] = useState(0);
 
   /* Reopening should not show the last visit's typing or the wrong scope. */
   useEffect(() => {
@@ -113,6 +117,7 @@ export function PersonPickerModal({
     setScope('org');
     setTerm('');
     setResults([]);
+    setRosterAvailable(true);
   }, [visible]);
 
   /** The browsable list: the first page, narrowed on the server as they type. */
@@ -120,39 +125,54 @@ export function PersonPickerModal({
     type: 'org_people', noun: 'people', params: { orgId: hostOrgId }, search: term, page: 1,
     enabled: visible && !!hostOrgId && scope === 'org',
   });
+  /* Only a refusal means the list is not theirs to read. No answer says nothing about that: the tab
+     stays, and says what went wrong. */
+  const rosterRefused = hostList.refused;
+  const rosterFailure = hostList.error && !rosterRefused ? hostList.error : null;
   useEffect(() => {
-    if (!hostList.error) return;
+    if (!rosterRefused) return;
     setRosterAvailable(false);
     setScope(current => (current === 'org' ? 'event' : current));
-  }, [hostList.error]);
+  }, [rosterRefused]);
 
   /** The searchable scopes. Debounced, and silent below two characters like every other search here. */
   useEffect(() => {
     if (!visible || scope === 'org') return;
+    setSearchFailure(null);
     if (term.trim().length < 2) {
       setResults([]);
       return;
     }
+    let active = true;
     setIsLoading(true);
     const handle = setTimeout(() => {
-      wsService.emit(
-        'get_data',
+      void readData<PickablePerson[]>(
+        'organizer_candidates',
         {
-          type: 'organizer_candidates',
           eventId,
           ...(sportId ? { sportId } : {}),
           ...(divisionId ? { divisionId } : {}),
           query: term.trim(),
           global: scope === 'global',
         },
-        (found: any) => {
-          setIsLoading(false);
-          setResults(Array.isArray(found) ? found : []);
+        { suppressToast: true, stillWanted: () => active },
+      ).then(result => {
+        if (!active) return;
+        setIsLoading(false);
+        if (result.ok) {
+          setResults(Array.isArray(result.data) ? result.data : []);
+        } else {
+          setResults([]);
+          setSearchFailure(result.message);
         }
-      );
+      });
     }, 300);
-    return () => clearTimeout(handle);
-  }, [visible, scope, term, eventId, sportId, divisionId]);
+    return () => {
+      active = false;
+      clearTimeout(handle);
+      setIsLoading(false);
+    };
+  }, [visible, scope, term, eventId, sportId, divisionId, searchAttempt]);
 
   /* The org scope filters what is already loaded; the others show what came back. */
   const people = scope === 'org' ? hostList.items : results;
@@ -241,7 +261,11 @@ export function PersonPickerModal({
           </View>
 
           <ScrollView className="px-5 py-3" style={{ maxHeight: 320 }}>
-            {needsQuery ? (
+            {scope === 'org' && rosterFailure ? (
+              <ReadFailure title={rosterFailure} reason="" onRetry={hostList.retry} />
+            ) : scope !== 'org' && searchFailure ? (
+              <ReadFailure title="The search did not work." reason={searchFailure} onRetry={() => setSearchAttempt(n => n + 1)} />
+            ) : needsQuery ? (
               <Text className="font-inter text-xs text-ink-muted py-6 text-center">
                 Type at least two letters to search
                 {scope === 'global' ? ' every organisation' : ' the organisations taking part'}.

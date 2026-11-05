@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Organization, Sport, Team, sortAgeGroups } from '@sk/shared';
 import { ScreenHeader } from '../../../components/ScreenHeader';
+import { ReadFailure } from '../../../components/ReadFailure';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import CustomSelect from '../../../components/CustomSelect';
 import { TeamCrest } from '../../../components/teams/TeamBits';
@@ -46,8 +47,9 @@ export default function OrgTeams() {
     [orgTeams, access.workspace, access.dutyTeamIds.join(',')]
   );
   const { org } = useOrgSummary(orgId);
-  const { data: sportsData } = useSocketQuery<Sport[]>('sports');
+  const { data: sportsData, error: sportsError, refetch: refetchSports } = useSocketQuery<Sport[]>('sports', {}, { suppressToast: true });
   const sports = sportsData || [];
+  const sportsFailed = !!sportsError && !sportsData;
 
   const [search, setSearch] = useState('');
   const [sportFilter, setSportFilter] = useState(ALL);
@@ -55,7 +57,7 @@ export default function OrgTeams() {
   const [showInactive, setShowInactive] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
 
-  const sportName = (id: string) => sports.find(s => s.id === id)?.name || 'Other';
+  const sportName = (id: string) => sports.find(s => s.id === id)?.name || (sportsFailed ? 'Sport not loaded' : 'Other');
   /** Where an age group sits in its sport's own order, so U13 and U11 read in the order the sport lists them. */
   const ageRank = useMemo(() => {
     const rank = new Map<string, number>();
@@ -160,6 +162,8 @@ export default function OrgTeams() {
             {shownActive.length === 1 ? '1 team' : `${shownActive.length} teams`}
           </Text>
 
+          {sportsFailed && teams.length ? <ReadFailure what="Sport names" reason={sportsError!} onRetry={refetchSports} /> : null}
+
           {groups.map(group => (
             <View key={group.id} className="gap-2">
               {group.name ? <GroupHeading label={group.name} count={group.teams.length} /> : null}
@@ -202,6 +206,7 @@ export default function OrgTeams() {
           orgId={orgId!}
           supportedSportIds={org?.supportedSportIds}
           sports={sports}
+          sportsFailure={sportsFailed ? { reason: sportsError!, retry: refetchSports } : null}
           onAdded={open}
         />
       ) : null}

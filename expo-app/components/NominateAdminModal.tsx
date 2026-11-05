@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { OrgClaimStatus, OrgProfile, isValidEmail } from '@sk/shared';
 import { Button } from './Button';
 import { PersonnelAutocomplete } from './PersonnelAutocomplete';
+import { ReadFailure } from './ReadFailure';
 import { nominateOrgContact, takeOrgAdmin, NominationOutcome, NominationAnswered } from '../services/nominations';
 import { useActiveTheme } from '../store/settingsStore';
 
@@ -35,6 +36,9 @@ export interface NominateAdminModalProps {
   org: { id: string; name: string };
   /** From `useOrgClaimStatus`; `null` while it loads, which offers nominating alone. */
   status: OrgClaimStatus | null;
+  /** The status could not be read, so `null` does not mean nothing is pending (`SYNC-9`). */
+  statusError?: string | null;
+  onRetryStatus?: () => void;
   /** An invitation went, or the caller was recorded as a nominator of a pending one. */
   onNominated?: (email: string) => void;
   /** The caller took the admin role. */
@@ -49,7 +53,7 @@ const ANSWERED_COPY: Record<NominationAnswered, (email: string, org: string) => 
 
 type Done = { kind: 'nominated'; email: string; outcome: NominationOutcome } | { kind: 'took-over' };
 
-export function NominateAdminModal({ visible, onClose, org, status, onNominated, onTookOver }: NominateAdminModalProps) {
+export function NominateAdminModal({ visible, onClose, org, status, statusError, onRetryStatus, onNominated, onTookOver }: NominateAdminModalProps) {
   const isDark = useActiveTheme() === 'dark';
   const successColor = themeColor(isDark, 'success-ink');
 
@@ -187,6 +191,14 @@ export function NominateAdminModal({ visible, onClose, org, status, onNominated,
       <Text className="font-inter text-xs text-ink-muted leading-5">
         {`${org.name} doesn't have an administrator on ScoreKeeper yet. Nominate someone who runs it and we'll invite them to claim it, manage its teams and keep its schedules up to date.`}
       </Text>
+
+      {statusError && !status ? (
+        <ReadFailure
+          title="Could not check your invitations for this organisation, or whether you can take on the admin role."
+          reason={statusError}
+          onRetry={onRetryStatus}
+        />
+      ) : null}
 
       {status?.canTakeOver && (
         <View className="bg-primary-soft border border-primary-line rounded-xl p-3.5 gap-2.5">

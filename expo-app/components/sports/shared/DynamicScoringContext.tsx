@@ -1,11 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, captureEventLabels, findOutcome, getTriggerFor, hasOutcomes, isScoringTemplate, reasonRequiresPlayer, TriggerTeam } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
+import { readData, ReadResult } from '../../../services/reads';
 import { newRequestId, requestKeyFor, sendAction } from '../../../services/actions';
 import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
 import { useAuthStore } from '../../../store/authStore';
 import { useSportStore } from '../../../store/sportStore';
+import { useWsStore } from '../../../store/wsStore';
 import { ConfirmationModal } from '../../ConfirmationModal';
+import { ReadFailure } from '../../ReadFailure';
 import { getUndoExpiryMs, getUndoNowMs } from '../../../utils/undoWindow';
 import { actingProfileId } from '../../../utils/actingProfile';
 
@@ -39,7 +42,37 @@ export interface EventTemplateItem {
   pendingOutcomeLabel?: string;
 }
 
+/** The screen's reads that can fail, in the order a note names them, and what each is called there. */
+type ScoringRead = 'sport' | 'events' | 'rosters' | 'disputes' | 'teams';
+const SCORING_READS: ScoringRead[] = ['sport', 'events', 'rosters', 'disputes', 'teams'];
+const SCORING_READ_NAMES: Record<ScoringRead, string> = {
+  sport: 'The scoring options',
+  events: 'Match events',
+  rosters: 'The team sheets',
+  disputes: 'Open disputes',
+  teams: 'The team names',
+};
+
+/** "Match events", "Match events and the team sheets": the start of one sentence. */
+const namesOf = (reads: ScoringRead[]) => {
+  const names = reads.map((read, i) => {
+    const name = SCORING_READ_NAMES[read];
+    return i ? name[0].toLowerCase() + name.slice(1) : name;
+  });
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+};
+
+/** The server always answers a team sheet with a list, and with `null` only when reading it threw. */
+const UNREADABLE_SHEET = 'The server could not read the team sheet.';
+
 interface DynamicScoringContextType {
+  /** What did not load and why, as one note: `null` when everything on screen is what the server said. */
+  readFailure: { what: string; reason: string } | null;
+  /** Each read's own failure, so that a list can say it did not load rather than that it is empty. */
+  eventsError: string | null;
+  rostersError: string | null;
+  /** Asks again for whatever failed, and only that. */
+  retryReads: () => void;
   game: Game;
   homeTeam?: any;
   awayTeam?: any;
@@ -73,12 +106,36 @@ const DynamicScoringContext = createContext<DynamicScoringContextType | null>(nu
  * `spectator`: the public game page's match events (`FIX-39`, 2026-10-22). It reads only what is
  * public — the scoring feed and the team sheets — and leaves out the full record, the open disputes
  * and the team's members, which an anonymous socket is refused.
+ *
+ * **A failed read changes nothing and interrupts nobody (`SYNC-9`).** Scoring goes on at a ground on a
+ * poor connection, so a failed read keeps what is held, is never cached, and adds to one quiet note
+ * with a *Try again* — no dialog. The note sits above the children, unless `showReadNote` is false
+ * because the screen places {@link ScoringReadNote} itself. A connection coming back asks again.
  */
-export function DynamicScoringProvider({ game, spectator = false, children }: { game: Game; spectator?: boolean; children: React.ReactNode }) {
+export function DynamicScoringProvider({ game, spectator = false, showReadNote = true, children }: { game: Game; spectator?: boolean; showReadNote?: boolean; children: React.ReactNode }) {
   // A team's members fill names a team sheet lacks, or stand in for one: the members' read only.
-  const readTeamMembers = (teamId: string, done: (members: any[]) => void) => {
-    if (spectator) { done([]); return; }
-    wsService.emit('get_data', { type: 'team_members', teamId, gameId: game.id }, done);
+  const readTeamMembers = (teamId: string, stillWanted: () => boolean): Promise<ReadResult<any[]>> =>
+    spectator
+      ? Promise.resolve({ ok: true, data: [] })
+      : readData<any[]>('team_members', { teamId, gameId: game.id }, { suppressToast: true, stillWanted });
+  const isConnected = useWsStore((state: any) => state.isConnected);
+  const [failedReads, setFailedReads] = useState<Partial<Record<ScoringRead, string>>>({});
+  const [attempts, setAttempts] = useState<Record<ScoringRead, number>>({ sport: 0, events: 0, rosters: 0, disputes: 0, teams: 0 });
+  /** Records how a read ended: its failure, or `null` once it has been answered. */
+  const noteRead = (read: ScoringRead, failure: string | null) => setFailedReads(prev => {
+    if ((prev[read] ?? null) === failure) return prev;
+    const next = { ...prev };
+    if (failure) next[read] = failure; else delete next[read];
+    return next;
+  });
+  const retryReads = () => {
+    const failed = Object.keys(failedReads) as ScoringRead[];
+    if (!failed.length) return;
+    setAttempts(prev => {
+      const next = { ...prev };
+      failed.forEach(read => { next[read]++; });
+      return next;
+    });
   };
   // The request scope of the event being captured — see the ADD_GAME_EVENT send below.
   const addRequestScope = useRef(newRequestId());
@@ -132,182 +189,186 @@ export function DynamicScoringProvider({ game, spectator = false, children }: { 
     };
   }, [game.id, spectator]);
 
+  // The connection coming back asks again for whatever failed while it was away.
+  useEffect(() => {
+    if (isConnected) retryReads();
+  }, [isConnected]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // 2. Fetch general team objects
   useEffect(() => {
-    if (homeTeamId) {
-      wsService.emit('get_data', { type: 'team', id: homeTeamId }, (t: any) => {
-        if (t) setHomeTeam(t);
-      });
-    }
-    if (awayTeamId) {
-      wsService.emit('get_data', { type: 'team', id: awayTeamId }, (t: any) => {
-        if (t) setAwayTeam(t);
-      });
-    }
-  }, [homeTeamId, awayTeamId]);
+    let active = true;
+    const sides: [string | undefined, (team: any) => void][] = [[homeTeamId, setHomeTeam], [awayTeamId, setAwayTeam]];
+    void Promise.all(sides.map(async ([id, setTeam]) => {
+      if (!id) return null;
+      const result = await readData<any>('team', { id }, { suppressToast: true, stillWanted: () => active });
+      if (!result.ok) return result.message;
+      if (active && result.data) setTeam(result.data);
+      return null;
+    })).then(failures => {
+      if (active) noteRead('teams', failures.find(Boolean) || null);
+    });
+    return () => { active = false; };
+  }, [homeTeamId, awayTeamId, attempts.teams]);
 
   // 3. Fetch sport definition
   useEffect(() => {
+    let active = true;
+    const options = { suppressToast: true, stillWanted: () => active };
     let resolvedSportId = (game.sportId || game.customSettings?.sportId || '').replace(/^sport-/, '');
 
+    // Only an answer says the sport is missing; a failed read leaves the cache and the sport held.
+    const readSport = async (id: string, missing: string) => {
+      const result = await readData<Sport | null>('sport', { id }, options);
+      if (!active) return;
+      if (!result.ok) { noteRead('sport', result.message); return; }
+      noteRead('sport', null);
+      if (result.data) {
+        setSport(result.data);
+        useSportStore.getState().setCachedSport(result.data);
+      } else {
+        setErrorMessage(missing);
+      }
+    };
+
     if (resolvedSportId) {
-      wsService.emit('get_data', { type: 'sport', id: resolvedSportId }, (resSport: Sport) => {
-        if (resSport) {
-          setSport(resSport);
-          useSportStore.getState().setCachedSport(resSport);
-        } else {
-          setErrorMessage(`Failed to load sport definition for sport ID "${resolvedSportId}". Please ensure the sport configuration is properly seeded.`);
-        }
-      });
+      void readSport(resolvedSportId, `Failed to load sport definition for sport ID "${resolvedSportId}". Please ensure the sport configuration is properly seeded.`);
     } else if (game.eventId) {
-      wsService.emit('get_data', { type: 'event', id: game.eventId }, (resEvent: any) => {
-        const eventSportId = (resEvent?.sportIds?.[0] || '').replace(/^sport-/, '');
+      void readData<any>('event', { id: game.eventId }, options).then(result => {
+        if (!active) return;
+        if (!result.ok) { noteRead('sport', result.message); return; }
+        const eventSportId = (result.data?.sportIds?.[0] || '').replace(/^sport-/, '');
         if (eventSportId) {
-          wsService.emit('get_data', { type: 'sport', id: eventSportId }, (resSport: Sport) => {
-            if (resSport) {
-              setSport(resSport);
-              useSportStore.getState().setCachedSport(resSport);
-            } else {
-              setErrorMessage(`Failed to load sport definition for event sport ID "${eventSportId}".`);
-            }
-          });
+          void readSport(eventSportId, `Failed to load sport definition for event sport ID "${eventSportId}".`);
         } else {
+          noteRead('sport', null);
           setErrorMessage(`Game ${game.id} has no associated sportId or parent event sport configuration.`);
         }
       });
     } else {
       setErrorMessage(`Game ${game.id} has no sportId configured.`);
     }
-  }, [game.sportId, game.customSettings?.sportId, game.eventId]);
+    return () => { active = false; };
+  }, [game.sportId, game.customSettings?.sportId, game.eventId, attempts.sport]);
 
   // 4. Fetch active disputes
   useEffect(() => {
     if (spectator) return;
-    wsService.emit('get_data', { type: 'active_disputes', id: game.id }, (disputeData: GameDispute[]) => {
-      if (Array.isArray(disputeData)) {
-        setDisputes(disputeData.filter((d: any) => !d.status || d.status === 'OPEN'));
+    let active = true;
+    void readData<GameDispute[]>('active_disputes', { id: game.id }, { suppressToast: true, stillWanted: () => active }).then(result => {
+      if (!active) return;
+      noteRead('disputes', result.ok ? null : result.message);
+      if (result.ok && Array.isArray(result.data)) {
+        setDisputes(result.data.filter((d: any) => !d.status || d.status === 'OPEN'));
       }
     });
-  }, [game.id]);
+    return () => { active = false; };
+  }, [game.id, attempts.disputes]);
 
   // 5. Fetch game events
   useEffect(() => {
-    setIsLoadingEvents(true);
-    wsService.emit('get_data', { type: 'game_events', id: game.id }, (data: GameEvent[]) => {
-      if (data && Array.isArray(data)) {
-        const sorted = [...data].sort(
+    let active = true;
+    // Trying again does not hide what has arrived from the room in the meantime.
+    if (!attempts.events || !events.length) setIsLoadingEvents(true);
+    void readData<GameEvent[]>('game_events', { id: game.id }, { suppressToast: true, stillWanted: () => active }).then(result => {
+      if (!active) return;
+      noteRead('events', result.ok ? null : result.message);
+      if (result.ok && result.data && Array.isArray(result.data)) {
+        const sorted = [...result.data].sort(
           (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
         );
         setEvents(sorted);
       }
       setIsLoadingEvents(false);
     });
-  }, [game.id]);
+    return () => { active = false; };
+  }, [game.id, attempts.events]);
 
   // 6. Fetch Roster and Member data
   useEffect(() => {
+    let active = true;
+    const stillWanted = () => active;
     let activeFetches = 0;
-    
-    if (homeParticipantId) {
-      activeFetches++;
-      setIsLoadingRosters(true);
-      wsService.emit('get_data', { type: 'game_roster', id: homeParticipantId }, (data: any[]) => {
-        const hasGameRoster = Array.isArray(data) && data.length > 0;
-        if (hasGameRoster) {
-          const sorted = [...data].sort((a, b) => (parseInt(a.position) || 999) - (parseInt(b.position) || 999));
-          setHomeRoster(sorted);
-          activeFetches--;
-          if (activeFetches === 0) setIsLoadingRosters(false);
-          
-          if (homeTeamId) {
-            readTeamMembers(homeTeamId, (members: any[]) => {
-              if (Array.isArray(members) && members.length > 0) {
-                const memberMap = new Map(
-                  members.map((m: any) => [m.orgProfileId || m.id, m.name || m.orgProfileName])
-                );
-                const enriched = sorted.map((item: any) => ({
-                  ...item,
-                  name: item.name || item.orgProfileName || memberMap.get(item.orgProfileId) || item.name,
-                }));
-                setHomeRoster(enriched);
-              }
-            });
-          }
-        } else if (homeTeamId) {
-          readTeamMembers(homeTeamId, (members: any[]) => {
-            if (Array.isArray(members) && members.length > 0) {
-              const fallback = members.map((m: any) => ({
-                id: m.orgProfileId || m.id,
-                orgProfileId: m.orgProfileId || m.id,
-                name: m.name || m.orgProfileName,
-                position: m.position,
-                isReserve: false,
-              }));
-              setHomeRoster(fallback);
-            } else {
-              setHomeRoster([]);
-            }
-            activeFetches--;
-            if (activeFetches === 0) setIsLoadingRosters(false);
-          });
-        } else {
-          setHomeRoster([]);
-          activeFetches--;
-          if (activeFetches === 0) setIsLoadingRosters(false);
-        }
-      });
-    }
+    let failure: string | null = null;
 
-    if (awayParticipantId) {
-      activeFetches++;
-      setIsLoadingRosters(true);
-      wsService.emit('get_data', { type: 'game_roster', id: awayParticipantId }, (data: any[]) => {
-        const hasGameRoster = Array.isArray(data) && data.length > 0;
-        if (hasGameRoster) {
-          const sorted = [...data].sort((a, b) => (parseInt(a.position) || 999) - (parseInt(b.position) || 999));
-          setAwayRoster(sorted);
-          activeFetches--;
-          if (activeFetches === 0) setIsLoadingRosters(false);
+    const settled = () => {
+      activeFetches--;
+      if (activeFetches === 0) {
+        setIsLoadingRosters(false);
+        noteRead('rosters', failure);
+      }
+    };
 
-          if (awayTeamId) {
-            readTeamMembers(awayTeamId, (members: any[]) => {
-              if (Array.isArray(members) && members.length > 0) {
-                const memberMap = new Map(
-                  members.map((m: any) => [m.orgProfileId || m.id, m.name || m.orgProfileName])
-                );
-                const enriched = sorted.map((item: any) => ({
-                  ...item,
-                  name: item.name || item.orgProfileName || memberMap.get(item.orgProfileId) || item.name,
-                }));
-                setAwayRoster(enriched);
-              }
-            });
-          }
-        } else if (awayTeamId) {
-          readTeamMembers(awayTeamId, (members: any[]) => {
-            if (Array.isArray(members) && members.length > 0) {
-              const fallback = members.map((m: any) => ({
-                id: m.orgProfileId || m.id,
-                orgProfileId: m.orgProfileId || m.id,
-                name: m.name || m.orgProfileName,
-                position: m.position,
-                isReserve: false,
-              }));
-              setAwayRoster(fallback);
-            } else {
-              setAwayRoster([]);
+    const readSide = async (teamId: string | undefined, participantId: string, setRoster: (roster: any[]) => void) => {
+      const sheet = await readData<any[]>('game_roster', { id: participantId }, { suppressToast: true, stillWanted });
+      if (!active) return;
+      // Not knowing the sheet is not having none: the whole team must not stand in for it.
+      if (!sheet.ok || !Array.isArray(sheet.data)) {
+        failure = sheet.ok ? UNREADABLE_SHEET : sheet.message;
+        settled();
+        return;
+      }
+
+      if (sheet.data.length > 0) {
+        const sorted = [...sheet.data].sort((a, b) => (parseInt(a.position) || 999) - (parseInt(b.position) || 999));
+        setRoster(sorted);
+        settled();
+
+        if (teamId) {
+          const members = await readTeamMembers(teamId, stillWanted);
+          if (!active) return;
+          if (!members.ok) {
+            // The sheet stands. It only matters if it has names still to fill.
+            if (sorted.some((item: any) => !item.name && !item.orgProfileName)) {
+              failure = members.message;
+              noteRead('rosters', failure);
             }
-            activeFetches--;
-            if (activeFetches === 0) setIsLoadingRosters(false);
-          });
-        } else {
-          setAwayRoster([]);
-          activeFetches--;
-          if (activeFetches === 0) setIsLoadingRosters(false);
+            return;
+          }
+          if (Array.isArray(members.data) && members.data.length > 0) {
+            const memberMap = new Map(
+              members.data.map((m: any) => [m.orgProfileId || m.id, m.name || m.orgProfileName])
+            );
+            const enriched = sorted.map((item: any) => ({
+              ...item,
+              name: item.name || item.orgProfileName || memberMap.get(item.orgProfileId) || item.name,
+            }));
+            setRoster(enriched);
+          }
         }
-      });
-    }
-  }, [game.id, homeParticipantId, awayParticipantId, homeTeamId, awayTeamId]);
+      } else if (teamId) {
+        const members = await readTeamMembers(teamId, stillWanted);
+        if (!active) return;
+        if (!members.ok) {
+          failure = members.message;
+        } else if (Array.isArray(members.data) && members.data.length > 0) {
+          const fallback = members.data.map((m: any) => ({
+            id: m.orgProfileId || m.id,
+            orgProfileId: m.orgProfileId || m.id,
+            name: m.name || m.orgProfileName,
+            position: m.position,
+            isReserve: false,
+          }));
+          setRoster(fallback);
+        } else {
+          setRoster([]);
+        }
+        settled();
+      } else {
+        setRoster([]);
+        settled();
+      }
+    };
+
+    if (homeParticipantId) activeFetches++;
+    if (awayParticipantId) activeFetches++;
+    // Trying again does not hide the sheets that are held.
+    if (activeFetches && (!attempts.rosters || !homeRoster.length || !awayRoster.length)) setIsLoadingRosters(true);
+    if (!activeFetches) setIsLoadingRosters(false);
+    if (homeParticipantId) void readSide(homeTeamId, homeParticipantId, setHomeRoster);
+    if (awayParticipantId) void readSide(awayTeamId, awayParticipantId, setAwayRoster);
+
+    return () => { active = false; };
+  }, [game.id, homeParticipantId, awayParticipantId, homeTeamId, awayTeamId, attempts.rosters]);
 
   // 7. Derive profileMap from rosters
   useEffect(() => {
@@ -368,6 +429,8 @@ export function DynamicScoringProvider({ game, spectator = false, children }: { 
         if (!targetGameId || targetGameId === game.id) {
           const syncEvents = Array.isArray(evt.data) ? evt.data : evt.data?.events;
           if (Array.isArray(syncEvents)) {
+            // The room has handed over the whole feed, so a failed read of it no longer matters.
+            noteRead('events', null);
             const sorted = [...syncEvents].sort(
               (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
             );
@@ -433,6 +496,7 @@ export function DynamicScoringProvider({ game, spectator = false, children }: { 
           setDisputes((prev) => prev.filter((d) => d.id !== resolvedId));
         }
       } else if (evt.type === 'ACTIVE_DISPUTES_SYNC' && Array.isArray(evt.data)) {
+        noteRead('disputes', null);
         setDisputes(evt.data.filter((d: any) => !d.status || d.status === 'OPEN'));
       }
     };
@@ -445,6 +509,15 @@ export function DynamicScoringProvider({ game, spectator = false, children }: { 
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const templates: EventTemplateItem[] = (sport?.eventTemplates || []) as EventTemplateItem[];
+
+  // A sport or team that is held, as from the cache, is all the screen needs of a read that failed.
+  const unread = SCORING_READS.filter(read => {
+    if (!failedReads[read]) return false;
+    if (read === 'sport') return !sport;
+    if (read === 'teams') return (!!homeTeamId && !homeTeam) || (!!awayTeamId && !awayTeam);
+    return true;
+  });
+  const readFailure = unread.length ? { what: namesOf(unread), reason: failedReads[unread[0]]! } : null;
 
   const startDynamicFlow = (templateId: string, side: 'home' | 'away', initialData: any = {}) => {
     // A new event being captured: a new request scope, so it can never be answered with the last one.
@@ -780,6 +853,10 @@ export function DynamicScoringProvider({ game, spectator = false, children }: { 
   return (
     <DynamicScoringContext.Provider
       value={{
+        readFailure,
+        eventsError: failedReads.events ?? null,
+        rostersError: failedReads.rosters ?? null,
+        retryReads,
         game,
         homeTeam,
         awayTeam,
@@ -801,6 +878,7 @@ export function DynamicScoringProvider({ game, spectator = false, children }: { 
         updateFinalScore,
       }}
     >
+      {showReadNote ? <ScoringReadNote /> : null}
       {children}
       {updateDisputeTarget && (
         <ConfirmationModal
@@ -839,6 +917,13 @@ export function DynamicScoringProvider({ game, spectator = false, children }: { 
       )}
     </DynamicScoringContext.Provider>
   );
+}
+
+/** What did not load on a scoring screen, once, with a way to ask again (`SYNC-9`). */
+export function ScoringReadNote() {
+  const ctx = useContext(DynamicScoringContext);
+  if (!ctx?.readFailure) return null;
+  return <ReadFailure title={`${ctx.readFailure.what} did not load.`} reason={ctx.readFailure.reason} onRetry={ctx.retryReads} className="mb-2" />;
 }
 
 export function useOptionalSharedDynamicScoring(): DynamicScoringContextType | null {

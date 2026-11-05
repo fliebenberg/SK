@@ -10,10 +10,11 @@ import { EntrantBadge } from './DivisionEntries';
 import { sendAction } from '../../services/actions';
 import { useAuthStore } from '../../store/authStore';
 import { useOrgTeams } from '../../hooks/useOrgTeams';
+import { useSocketQuery } from '../../hooks/useSocketQuery';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
-import { wsService } from '../../services/websocket';
-import { useWsStore } from '../../store/wsStore';
+import { readData } from '../../services/reads';
+import { ReadFailure } from '../ReadFailure';
 import { formatInstantDate, formatKickoffTime } from '../../utils/dates';
 import { managesOrg } from '../../utils/orgAccess';
 
@@ -72,17 +73,18 @@ interface EventLineup {
   asCoach: boolean;
 }
 
+const NO_LINEUPS: EventLineup[] = [];
+
 /** The viewer's teams' games still to play in a tournament, read again when the page comes back. */
 function useEventLineups(eventId: string | null, userId?: string) {
-  const isConnected = useWsStore((state: any) => state.isConnected);
-  const [lineups, setLineups] = useState<EventLineup[]>([]);
-  const load = useCallback(() => {
-    if (!isConnected || !eventId || !userId) return;
-    wsService.emit('get_data', { type: 'event_lineups', eventId, userId }, (data: any) => setLineups(Array.isArray(data) ? data : []));
-  }, [isConnected, eventId, userId]);
-  useEffect(() => { load(); }, [load]);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-  return { lineups, reload: load };
+  const { data, error, refetch } = useSocketQuery<EventLineup[]>('event_lineups', { eventId, userId }, { enabled: !!eventId && !!userId, suppressToast: true });
+  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
+  return { lineups: Array.isArray(data) ? data : NO_LINEUPS, error, reload: refetch };
+}
+
+/** The games could not be read, so the list may be short of team tasks (`SYNC-9`): the card's and the page's. */
+export function TodoReadFailure({ reason, onRetry }: { reason: string; onRetry?: () => void }) {
+  return <ReadFailure title="Team picks may be missing from this list." reason={reason} onRetry={onRetry} />;
 }
 
 /** A line of the list: one task, or more than three teams to answer as one. */
@@ -112,11 +114,11 @@ export function useTournamentTodo({ event, divisions, entrants, canEdit, sports,
   games?: GameSummary[];
   /** The acting workspace, whose teams' coaches the team tasks name. */
   orgId?: string;
-}): { tasks: TodoTask[]; rows: TodoRow[]; reload: () => void } {
+}): { tasks: TodoTask[]; rows: TodoRow[]; reload: () => void; error: string | null } {
   const orgMemberships = useAuthStore((state: any) => state.orgMemberships) || [];
   const teamMemberships = useAuthStore((state: any) => state.teamMemberships) || [];
   const userId = useAuthStore((state: any) => state.user?.id) as string | undefined;
-  const { lineups, reload } = useEventLineups(canEdit ? null : event.id, userId);
+  const { lineups, reload, error } = useEventLineups(canEdit ? null : event.id, userId);
   const { teams } = useOrgTeams(canEdit ? null : orgId);
   const listed = useMemo(() => {
     if (canEdit) return { tasks: [], rows: [] };
@@ -215,19 +217,19 @@ export function useTournamentTodo({ event, divisions, entrants, canEdit, sports,
     }
     return { tasks, rows };
   }, [canEdit, entrants, divisions, event, orgMemberships, teamMemberships, sports, lineups, teams, games]);
-  return { ...listed, reload };
+  return { ...listed, reload, error };
 }
-
-/** A `get_data` read as a promise. */
-const read = (request: any) => new Promise<any>(resolve => wsService.emit('get_data', request, resolve));
 
 /**
  * Confirming a team's proposed games (`FIX-32`): each saves its proposal as the game's own team,
- * through `sendAction`, stopping at the first that fails.
+ * through `sendAction`, stopping at the first that fails — a proposal that cannot be read included,
+ * which `readData` has said.
  */
 async function confirmProposals(list: Array<{ gameId: string; participantId: string }>): Promise<void> {
   for (const side of list) {
-    const proposal = await read({ type: 'game_roster_proposal', id: side.participantId });
+    const read = await readData<any>('game_roster_proposal', { id: side.participantId });
+    if (!read.ok) return;
+    const proposal = read.data;
     if (!proposal?.items?.length) continue;
     const items = proposal.items.map((r: any) => ({ orgProfileId: r.orgProfileId, position: r.position || undefined, jerseyNumber: r.jerseyNumber || undefined, isReserve: !!r.isReserve }));
     const result = await sendAction(SocketAction.SAVE_GAME_ROSTER, { gameId: side.gameId, participantId: side.participantId, items });
@@ -477,11 +479,14 @@ export function todoTitle(tasks: TodoTask[]) {
 
 /**
  * The Overview's card: the viewer's own tasks, at most five, then what is left — *2 more for
- * coaches · See all 9 ›*. Nothing to do, no card.
+ * coaches · See all 9 ›*. Nothing to do, no card — unless the games could not be read, when nobody
+ * knows that (`SYNC-9`).
  */
-export function TodoCard({ tasks, rows, orgId, eventName, orgName, onAnswerEach, onOpenGame, onChanged, onSeeAll }: {
+export function TodoCard({ tasks, rows, error, orgId, eventName, orgName, onAnswerEach, onOpenGame, onChanged, onSeeAll }: {
   tasks: TodoTask[];
   rows: TodoRow[];
+  /** `useTournamentTodo`'s: the games did not load. `onChanged` reads them again. */
+  error?: string | null;
   orgId: string;
   eventName: string;
   orgName: (orgId?: string) => string;
@@ -490,7 +495,7 @@ export function TodoCard({ tasks, rows, orgId, eventName, orgName, onAnswerEach,
   onChanged?: () => void;
   onSeeAll: () => void;
 }) {
-  if (!rows.length) return null;
+  if (!rows.length && !error) return null;
   const own = rows.filter(r => r.mine);
   const shown = own.slice(0, TODO_CARD_LIMIT);
   const coaches = rows.length - own.length;
@@ -498,12 +503,13 @@ export function TodoCard({ tasks, rows, orgId, eventName, orgName, onAnswerEach,
   const left = [coaches ? `${coaches} more for coaches` : '', moreOfMine ? `${moreOfMine} more of yours` : ''].filter(Boolean).join(' · ');
   return (
     <View testID="todo-card" className="rounded-2xl border border-warning-line bg-card p-4 gap-1">
-      <Text className="font-inter-bold text-[18px] text-ink">{todoTitle(tasks)}</Text>
+      <Text className="font-inter-bold text-[18px] text-ink">{tasks.length ? todoTitle(tasks) : 'To do'}</Text>
+      {error ? <TodoReadFailure reason={error} onRetry={onChanged} /> : null}
       {shown.length ? (
         <TodoRows rows={shown} orgId={orgId} eventName={eventName} orgName={orgName} onAnswerEach={onAnswerEach} onOpenGame={onOpenGame} onChanged={onChanged} />
-      ) : (
+      ) : rows.length ? (
         <Text className="font-inter text-sm text-ink-muted py-1">Nothing for you — what is left is your coaches'.</Text>
-      )}
+      ) : null}
       {rows.length > shown.length ? (
         <View className="flex-row flex-wrap items-center justify-between gap-2 border-t border-line-soft pt-2.5 mt-1">
           <Text className="font-inter text-[13px] text-ink-muted">{left}</Text>

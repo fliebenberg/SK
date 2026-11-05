@@ -107,15 +107,26 @@ contents in a report — payloads carry people's details.
 
 ## Rule 4 — `get_data` and REST
 
-- `get_data` answers the data unwrapped, so **validate the shape** (`Array.isArray(res)`, a known
-  field) before using it; a refusal arrives as `{ status: 'error' }` and is toasted by the wrapper.
-  Never treat a refusal object as data.
-- **A failed read is not an empty answer** (`SYNC-9`). `useSocketQuery` tells them apart: `error` is a
-  sentence to show, `data` keeps the last answer to the same question, and no answer is retried once
-  and then logged. It toasts the final failure unless `suppressToast` is set, and **`suppressToast`
-  means the screen draws `error` itself**. A screen must not show its "nothing here" text while
-  `error` is set. Reading `wsService.emit('get_data', …)` directly, the second callback argument
-  (`NoAnswer`) is what separates no answer from the server answering `null`.
+- `get_data` answers the data unwrapped, so **validate the shape** of `result.data`
+  (`Array.isArray`, a known field) before using it.
+- **Every read goes through [`readData`](file:///c:/Fred/Coding/SK/expo-app/services/reads.ts)**, or
+  a hook built on it: `useSocketQuery`, `useStaticRead`, `usePagedList`. `check:actions` fails on
+  `emit('get_data', …)` anywhere else. It resolves (never rejects) to `{ ok: true, data }` or
+  `{ ok: false, message, noAnswer }`, retries no answer once, and logs it.
+- **A failed read is not an empty answer** (`SYNC-9`). Only an `ok` result may produce "none", "not
+  found", "invalid", "no access" or a default. On failure, keep what is held and overwrite no state,
+  baseline or cache: a failed team sheet read that became an empty sheet could have been saved over
+  the real one. Hooks expose this as `error`, with `data` keeping the last answer to the same question.
+- **Show it where the content would have been**, with
+  [`ReadFailure`](file:///c:/Fred/Coding/SK/expo-app/components/ReadFailure.tsx) and a retry. A failure
+  is toasted unless `suppressToast` is set, and **`suppressToast` means the screen draws the failure
+  itself**: a box and a toast is saying it twice. Only an optional extra may stay quiet, and only if
+  nothing on screen becomes false.
+- **A failure that leaves a decision unsafe blocks it, and says why**: a duplicate check that failed
+  blocks creating the organisation (decided 2026-11-05, user), and a team sheet that was not read
+  blocks saving one.
+- **On the server, a `get_data` that throws answers `{ status: 'error', message }`**, never `null`,
+  which means there is nothing.
 - REST calls go through `apiService` / `apiFetch`, which throws on failure. `await` inside
   `try/catch`, and on catch keep the user's input — the toast is already shown.
 

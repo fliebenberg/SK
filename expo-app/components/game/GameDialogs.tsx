@@ -6,8 +6,9 @@ import CustomSelect from '../CustomSelect';
 import DatePicker from '../DatePicker';
 import { FixtureCrest } from '../events/EventBits';
 import { sideLabel } from './GameBits';
+import { ReadFailure } from '../ReadFailure';
 import { sendAction } from '../../services/actions';
-import { wsService } from '../../services/websocket';
+import { readData } from '../../services/reads';
 import { useAuthStore } from '../../store/authStore';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
@@ -75,17 +76,29 @@ export function WhoPlayedDialog({ visible, side, summary, orgId, eventId, divisi
   const [teamId, setTeamId] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
+  const [readAttempt, setReadAttempt] = useState(0);
 
   useEffect(() => {
     if (!visible || !side) return;
     setTeamId(side.teamId || '');
     setError(null);
+  }, [visible, side?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!visible || !side) return;
+    setReadError(null);
     let active = true;
-    wsService.emit('get_data', { type: 'event_candidate_teams', eventId, divisionId: summary.divisionId }, (res: any) => {
-      if (active && res && Array.isArray(res.teams)) setTeams(res.teams);
+    void readData<{ teams?: CandidateTeam[] } | null>('event_candidate_teams', { eventId, divisionId: summary.divisionId }, {
+      suppressToast: true,
+      stillWanted: () => active,
+    }).then(result => {
+      if (!active) return;
+      if (!result.ok) { setReadError(result.message); return; }
+      if (result.data && Array.isArray(result.data.teams)) setTeams(result.data.teams);
     });
     return () => { active = false; };
-  }, [visible, side?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [visible, side?.id, readAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The side's own organisation's teams in this sport: who could have turned out for it.
   const choices = useMemo(() => {
@@ -110,7 +123,8 @@ export function WhoPlayedDialog({ visible, side, summary, orgId, eventId, divisi
   const drawn = side.entrantLabel || sideLabel(side);
 
   return (
-    <EditDialog visible={visible} title={`Who played for ${drawn}?`} onClose={onClose} onSave={save} isSaving={saving} saveDisabled={!teamId}>
+    <EditDialog visible={visible} title={`Who played for ${drawn}?`} onClose={onClose} onSave={save} isSaving={saving} saveDisabled={!teamId || (!!readError && !choices.length)}>
+      {readError ? <ReadFailure what="The teams to choose from" reason={readError} onRetry={() => setReadAttempt(n => n + 1)} stale={choices.length > 0} /> : null}
       <View className="gap-1.5">
         {choices.map(t => {
           const on = t.id === teamId;
@@ -173,6 +187,10 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
   const [form, setForm] = useState<{ orgIds: [string, string]; teamIds: [string, string]; date: string; time: string; tbd: boolean; siteId: string; facilityId: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** A read the form needs failed: the two organisations or a chosen one's teams. */
+  const [orgsError, setOrgsError] = useState<string | null>(null);
+  const [teamsError, setTeamsError] = useState<string | null>(null);
+  const [readAttempt, setReadAttempt] = useState(0);
 
   const site = sites.find(s => s.id === form?.siteId);
   const timeZone = venueTimeZone(site as any, hostOrg as any);
@@ -193,13 +211,25 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
     });
     setError(null);
     setFound([]);
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The match's two organisations, apart from the form above so that trying again keeps what is typed.
+  useEffect(() => {
+    if (!visible) return;
+    const [a, b] = summary.participants || [];
+    let active = true;
+    setOrgsError(null);
     [a?.orgId || hostOrgId, b?.orgId].forEach(id => {
       if (!id) return;
-      wsService.emit('get_data', { type: 'organization', id }, (res: any) => {
-        if (res?.id) setKnownOrgs(prev => ({ ...prev, [res.id]: res }));
+      void readData<Organization | null>('organization', { id }, { suppressToast: true, stillWanted: () => active }).then(result => {
+        if (!active) return;
+        if (!result.ok) { setOrgsError(result.message); return; }
+        const org = result.data;
+        if (org?.id) setKnownOrgs(prev => ({ ...prev, [org.id]: org }));
       });
     });
-  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { active = false; };
+  }, [visible, readAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A search, not a list of every organisation, which could only ever be its first page (`ORG-18`).
   useEffect(() => {
@@ -207,8 +237,13 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
     if (!visible || !text) { setFound([]); return; }
     let active = true;
     const timer = setTimeout(() => {
-      wsService.emit('get_data', { type: 'search_similar_orgs', name: text }, (res: any) => {
-        if (!active || !Array.isArray(res)) return;
+      // Toasted, not boxed: the search is in the select's own sheet, over the dialog.
+      void readData<Organization[]>('search_similar_orgs', { name: text }, { stillWanted: () => active }).then(result => {
+        if (!active) return;
+        // The last search's results do not answer this one.
+        if (!result.ok) { setFound([]); return; }
+        const res = result.data;
+        if (!Array.isArray(res)) return;
         setFound(res);
         setKnownOrgs(prev => ({ ...prev, ...Object.fromEntries(res.map((o: Organization) => [o.id, o])) }));
       });
@@ -219,13 +254,19 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
   // Each chosen organisation's teams in this sport.
   useEffect(() => {
     if (!form) return;
+    let active = true;
+    setTeamsError(null);
     form.orgIds.filter(Boolean).forEach(id => {
       if (teamsByOrg[id]) return;
-      wsService.emit('get_data', { type: 'teams', orgId: id }, (res: any) => {
+      void readData<Team[]>('teams', { orgId: id }, { suppressToast: true, stillWanted: () => active }).then(result => {
+        if (!active) return;
+        if (!result.ok) { setTeamsError(result.message); return; }
+        const res = result.data;
         if (Array.isArray(res)) setTeamsByOrg(prev => ({ ...prev, [id]: res }));
       });
     });
-  }, [form?.orgIds.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { active = false; };
+  }, [form?.orgIds.join(), readAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startAt = form && form.date ? venueInputsToInstant(form.date as any, form.tbd ? null : form.time, timeZone) : null;
   const warnings = useGameClashes({
@@ -314,6 +355,9 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
 
   return (
     <EditDialog visible={visible} title="Edit match" onClose={onClose} onSave={save} isSaving={saving} saveDisabled={!ready}>
+      {orgsError || teamsError ? (
+        <ReadFailure what="The organisations and their teams" reason={(orgsError || teamsError)!} onRetry={() => setReadAttempt(n => n + 1)} />
+      ) : null}
       <View className="gap-1.5">
         {label('Teams')}
         {teamRow(0)}

@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { OrgMember, SocketAction } from '@sk/shared';
 import { ScreenHeader } from '../../../../../components/ScreenHeader';
 import { ReadCard } from '../../../../../components/ReadCard';
+import { ReadFailure } from '../../../../../components/ReadFailure';
 import { OverflowMenu } from '../../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../../components/ConfirmationModal';
 import { InviteModal, InviteStatusCard, useInviteCooldownHours } from '../../../../../components/InviteToScoreKeeper';
@@ -40,7 +41,7 @@ export default function GuardianPage() {
   const isNarrow = width < 640;
 
   const { canManage } = useOrgAccess(orgId);
-  const { guardian, isLoading } = useOrgGuardian(canManage ? orgId : null, profileId);
+  const { guardian, isLoading, error, retry } = useOrgGuardian(canManage ? orgId : null, profileId);
   const inviteCooldownHours = useInviteCooldownHours();
 
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -67,7 +68,9 @@ export default function GuardianPage() {
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Guardian" backLabel="People" onBack={back} />
         <View className="flex-1 items-center justify-center px-6">
-          {isLoading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+          {isLoading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : error ? (
+            <ReadFailure what="This person" reason={error} onRetry={retry} />
+          ) : (
             <Text className="font-inter text-sm text-ink-muted text-center">
               This person is not a guardian in the organisation any more.
             </Text>
@@ -139,6 +142,7 @@ export default function GuardianPage() {
       />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}>
         <PageBody className="gap-4">
+          {error ? <ReadFailure what="This person's details" reason={error} onRetry={retry} stale /> : null}
           <PersonBanner
             member={person}
             guardianship={null}

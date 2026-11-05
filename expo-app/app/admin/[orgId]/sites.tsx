@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Facility, Site, Sport } from '@sk/shared';
 import { ScreenHeader } from '../../../components/ScreenHeader';
+import { ReadFailure } from '../../../components/ReadFailure';
 import { AmenityIcons, SiteAddressLine, SiteMark, addressText, siteAmenities, siteSports } from '../../../components/sites/SiteBits';
 import { SiteDialog } from '../../../components/sites/SiteDialogs';
 import { useOrgSites } from '../../../hooks/useOrgSites';
@@ -35,8 +36,9 @@ export default function OrgSites() {
   const { canManage: canEdit } = useOrgAccess(orgId);
 
   const { sites, facilities, isLoading } = useOrgSites(orgId);
-  const { data: sportsData } = useSocketQuery<Sport[]>('sports');
+  const { data: sportsData, error: sportsError, refetch: refetchSports } = useSocketQuery<Sport[]>('sports', {}, { suppressToast: true });
   const sports = sportsData || [];
+  const sportsFailed = !!sportsError && !sportsData;
 
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -94,7 +96,7 @@ export default function OrgSites() {
   const list = (items: Site[]) => (
     <View className="rounded-2xl border border-line bg-card overflow-hidden">
       {items.map((site, i) => (
-        <SiteRow key={site.id} site={site} facilities={facilitiesBySite.get(site.id) || []} sports={sports} isWide={isWide} first={i === 0} onPress={() => open(site)} />
+        <SiteRow key={site.id} site={site} facilities={facilitiesBySite.get(site.id) || []} sports={sports} sportsFailed={sportsFailed} isWide={isWide} first={i === 0} onPress={() => open(site)} />
       ))}
     </View>
   );
@@ -119,6 +121,8 @@ export default function OrgSites() {
           <Text className="font-inter text-sm text-ink-muted px-1">
             {shownActive.length === 1 ? '1 site' : `${shownActive.length} sites`}
           </Text>
+
+          {sportsFailed && sites.length ? <ReadFailure what="Sport names" reason={sportsError!} onRetry={refetchSports} /> : null}
 
           {shownActive.length ? list(shownActive) : (
             <View className="items-center justify-center py-12 gap-2">
@@ -154,10 +158,12 @@ export default function OrgSites() {
   );
 }
 
-function SiteRow({ site, facilities, sports, isWide, first, onPress }: {
+function SiteRow({ site, facilities, sports, sportsFailed, isWide, first, onPress }: {
   site: Site;
   facilities: Facility[];
   sports: Sport[];
+  /** The sports did not load, so the row cannot say a facility has none. */
+  sportsFailed: boolean;
   isWide: boolean;
   first: boolean;
   onPress: () => void;
@@ -197,7 +203,7 @@ function SiteRow({ site, facilities, sports, isWide, first, onPress }: {
       </View>
       <View style={{ width: 340 }} className="gap-1">
         <Text className={`font-inter text-sm ${sportNames ? 'text-ink-soft' : 'text-ink-muted'}`} numberOfLines={1}>
-          {sportNames || (facilities.length ? 'No sports set' : 'No facilities yet')}
+          {sportNames || (!facilities.length ? 'No facilities yet' : sportsFailed ? '' : 'No sports set')}
         </Text>
         <AmenityIcons categories={amenities} dim={inactive} />
       </View>

@@ -12,6 +12,7 @@ import { facilityIcon } from '../address/facilityMarker';
 import { AddressDraft, hasPin } from '../../services/places';
 import { sendAction } from '../../services/actions';
 import { FACILITY_CATEGORIES, isPlayingArea } from './SiteBits';
+import { ReadFailure } from '../ReadFailure';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
 
@@ -226,7 +227,7 @@ const formOf = (facility: Facility | null | undefined, site: Site): FacilityForm
  * (`VENUE-3`). The starred sport is the one whose icon marks it on the map (`primarySportId`); a
  * chosen sport is starred by tapping it again. Sports and surface are for playing areas only.
  */
-export function FacilityDialog({ visible, onClose, site, facility, others, sports, orgSportIds }: {
+export function FacilityDialog({ visible, onClose, site, facility, others, sports, orgSportIds, sportsError, onRetrySports }: {
   visible: boolean;
   onClose: () => void;
   site: Site;
@@ -237,6 +238,9 @@ export function FacilityDialog({ visible, onClose, site, facility, others, sport
   sports: Sport[];
   /** The sports the organisation plays — the ones offered, with any already on the facility. */
   orgSportIds?: string[];
+  /** The list of sports did not load, so an empty choice does not mean none are played (`SYNC-9`). */
+  sportsError?: string | null;
+  onRetrySports?: () => void;
 }) {
   const isDark = useActiveTheme() === 'dark';
   const [form, setForm] = useState<FacilityForm>(() => formOf(facility, site));
@@ -363,6 +367,8 @@ export function FacilityDialog({ visible, onClose, site, facility, others, sport
                   );
                 })}
               </View>
+            ) : sportsError ? (
+              <ReadFailure what="The sports" reason={sportsError} onRetry={onRetrySports} />
             ) : (
               <Text className="font-inter text-sm text-ink-muted">This organisation plays no sports yet. Choose them in Settings first.</Text>
             )}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { PaginatedResponse } from '@sk/shared';
 import { onActionSucceeded } from '../services/actions';
-import { wsService } from '../services/websocket';
+import { readData } from '../services/reads';
 import { useWsStore } from '../store/wsStore';
 
 const PAGE_SIZE = 100;
@@ -33,6 +33,7 @@ export function usePagedList<T, R extends PaginatedResponse<T> = PaginatedRespon
   const [result, setResult] = useState<R | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refused, setRefused] = useState(false);
   const latest = useRef(0);
 
   // Typing waits for a pause; changing tab or page does not.
@@ -52,16 +53,21 @@ export function usePagedList<T, R extends PaginatedResponse<T> = PaginatedRespon
       return;
     }
     const asked = ++latest.current;
+    const isCurrent = () => asked === latest.current;
     setIsLoading(true);
     setError(null);
-    wsService.emit('get_data', { ...JSON.parse(filters), type, search: term.trim(), page, limit: PAGE_SIZE }, (res: any) => {
-      if (asked !== latest.current) return;
+    setRefused(false);
+    // The list's screen draws `error`, so no toast as well.
+    const request = { ...JSON.parse(filters), search: term.trim(), page, limit: PAGE_SIZE };
+    void readData<R>(type, request, { suppressToast: true, stillWanted: isCurrent }).then(reply => {
+      if (!isCurrent()) return;
       setIsLoading(false);
-      if (res && Array.isArray(res.items)) {
-        setResult(res);
+      if (reply.ok && Array.isArray(reply.data?.items)) {
+        setResult(reply.data);
       } else {
         setResult(null);
-        setError(res?.message ? `Can't load ${noun}: ${res.message}` : `Can't load ${noun}: the server didn't answer.`);
+        setRefused(!reply.ok && !reply.noAnswer);
+        setError(`Can't load ${noun}: ${reply.ok ? 'the server sent an answer the app could not read.' : reply.message}`);
       }
     });
   }, [enabled, isConnected, type, noun, filters, term, page, attempt]);
@@ -85,6 +91,8 @@ export function usePagedList<T, R extends PaginatedResponse<T> = PaginatedRespon
     limit: result?.limit ?? PAGE_SIZE,
     isLoading,
     error,
+    /** The server answered no, rather than not answering: the list is not this viewer's to read. */
+    refused,
     /** Whether what is showing is for the search as typed, rather than one still on its way. */
     isSettled: term === search,
     term,

@@ -4,8 +4,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Organization } from '@sk/shared';
 import { FixtureCrest } from '../events/EventBits';
 import { Tick } from '../tournament/OrganisationDialogs';
-import { wsService } from '../../services/websocket';
+import { ReadFailure } from '../ReadFailure';
+import { readData } from '../../services/reads';
 import { useActiveTheme } from '../../store/settingsStore';
+import { useWsStore } from '../../store/wsStore';
 import { themeColor } from '../../constants/Colors';
 
 /**
@@ -14,8 +16,9 @@ import { themeColor } from '../../constants/Colors';
  * than refused, because two schools may share a name (`orgNameMatch` on the server decides what is
  * close enough to ask).
  *
- * This is advice, so a check that fails says nothing and stands in nobody's way: it answers with no
- * matches, and the create itself is what reports a lost connection.
+ * **A check that fails blocks the save** (decided 2026-11-05, user; `SYNC-9`). "We could not check"
+ * is not "no matches", and a duplicate is expensive to undo, so `failure` says what went wrong and
+ * the save waits until the check has worked. It asks again when the connection returns.
  *
  * `answered` is what a dialog's save waits for: the check is back, and any matches have been ticked
  * away. The tick belongs to that list of matches, not to the dialog: a different list asks again.
@@ -23,24 +26,30 @@ import { themeColor } from '../../constants/Colors';
 export function usePossibleDuplicateOrgs(name: string, active: boolean, options?: { publicOnly?: boolean }) {
   const typed = name.trim();
   const publicOnly = !!options?.publicOnly;
-  const [answer, setAnswer] = useState<{ name: string; matches: Organization[] }>({ name: '', matches: [] });
+  const isConnected = useWsStore(state => state.isConnected);
+  const [answer, setAnswer] = useState<{ name: string; matches: Organization[]; failure?: string }>({ name: '', matches: [] });
   const [confirmedOf, setConfirmedOf] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!active || !typed) return;
     let live = true;
     const timer = setTimeout(() => {
-      wsService.emit('get_data', { type: 'possible_duplicate_orgs', name: typed }, (res: any) => {
+      void readData<Organization[]>('possible_duplicate_orgs', { name: typed }, { suppressToast: true, stillWanted: () => live }).then(result => {
         if (!live) return;
-        const found: Organization[] = Array.isArray(res) ? res : [];
-        setAnswer({ name: typed, matches: publicOnly ? found.filter(org => !org.isPrivate) : found });
-      }, undefined, { suppressToast: true });
+        if (!result.ok) {
+          setAnswer({ name: typed, matches: [], failure: result.message });
+        } else {
+          const found = Array.isArray(result.data) ? result.data : [];
+          setAnswer({ name: typed, matches: publicOnly ? found.filter(org => !org.isPrivate) : found });
+        }
+      });
     }, 350);
     return () => {
       live = false;
       clearTimeout(timer);
     };
-  }, [typed, active, publicOnly]);
+  }, [typed, active, publicOnly, isConnected, attempt]);
 
   // Fresh each time it opens.
   useEffect(() => {
@@ -53,11 +62,17 @@ export function usePossibleDuplicateOrgs(name: string, active: boolean, options?
   const matches = typed ? answer.matches : [];
   const key = matches.map(org => org.id).join();
   const confirmedNew = confirmedOf === key;
+  const failure = typed && answer.name === typed ? answer.failure ?? null : null;
   return {
     matches,
     confirmedNew,
     setConfirmedNew: (confirmed: boolean) => setConfirmedOf(confirmed ? key : null),
-    answered: !typed || (answer.name === typed && (!matches.length || confirmedNew)),
+    answered: !typed || (answer.name === typed && !failure && (!matches.length || confirmedNew)),
+    failure,
+    retry: () => {
+      setAnswer({ name: '', matches: [] });
+      setAttempt(n => n + 1);
+    },
   };
 }
 
@@ -67,15 +82,27 @@ export function usePossibleDuplicateOrgs(name: string, active: boolean, options?
  * claimed; on *Register an organisation* it is used instead (`chooseLabel`). One that cannot be chosen
  * says why (`unavailable`). The tick is what lets a different organisation with a similar name through.
  */
-export function PossibleDuplicateOrgs({ matches, onOpen, chooseLabel, unavailable, confirmedNew, onConfirmNew }: {
+export function PossibleDuplicateOrgs({ matches, onOpen, chooseLabel, unavailable, confirmedNew, onConfirmNew, failure, onRetry }: {
   matches: Organization[];
   onOpen: (org: Organization) => void;
   chooseLabel?: string;
   unavailable?: (org: Organization) => string | undefined;
   confirmedNew: boolean;
   onConfirmNew: (confirmed: boolean) => void;
+  /** The check itself failed, so saving waits. */
+  failure: string | null;
+  onRetry: () => void;
 }) {
   const isDark = useActiveTheme() === 'dark';
+  if (failure) {
+    return (
+      <ReadFailure
+        title="Could not check whether this organisation is already on ScoreKeeper."
+        reason={`${failure} You can save once the check has worked.`}
+        onRetry={onRetry}
+      />
+    );
+  }
   if (!matches.length) return null;
   return (
     <View testID="possible-duplicate-orgs" className="rounded-xl bg-warning-soft px-3 py-2.5 gap-1">

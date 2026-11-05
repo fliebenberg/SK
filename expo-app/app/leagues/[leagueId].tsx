@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeBack } from '../../hooks/useSafeBack';
@@ -7,10 +7,13 @@ import { GlassCard } from '../../components/GlassCard';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../store/settingsStore';
 import { wsService } from '../../services/websocket';
+import { readData } from '../../services/reads';
+import { useSocketQuery } from '../../hooks/useSocketQuery';
 import { useWsStore } from '../../store/wsStore';
 import { League, Season, LeagueStandingRow, Game, Sport } from '@sk/shared';
 import { finishedScoreLine } from '../../utils/matchScore';
 import CustomSelect from '../../components/CustomSelect';
+import { ReadFailure } from '../../components/ReadFailure';
 import { formatFixtureWhen } from '../../utils/dates';
 import { themeColor } from '../../constants/Colors';
 
@@ -29,7 +32,8 @@ export default function PublicLeagueStandings() {
 
   // Data States
   const [league, setLeague] = useState<League | null>(null);
-  const [sports, setSports] = useState<Sport[]>([]);
+  // Only the name beside the league's: it stays blank if this fails, so nothing false is on screen.
+  const { data: sports } = useSocketQuery<Sport[]>('sports', {}, { suppressToast: true });
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>('');
   
@@ -37,72 +41,112 @@ export default function PublicLeagueStandings() {
   const [standings, setStandings] = useState<LeagueStandingRow[]>([]);
   const [fixtures, setFixtures] = useState<Game[]>([]);
 
+  // What failed (`SYNC-9`), and the Try again of each.
+  const [leagueError, setLeagueError] = useState<string | null>(null);
+  const [seasonsError, setSeasonsError] = useState<string | null>(null);
+  const [standingsError, setStandingsError] = useState<string | null>(null);
+  const [fixturesError, setFixturesError] = useState<string | null>(null);
+  const [leagueAttempt, setLeagueAttempt] = useState(0);
+  const [seasonsAttempt, setSeasonsAttempt] = useState(0);
+  const [detailsAttempt, setDetailsAttempt] = useState(0);
+  /** The season each list holds: another season's must not stand in when this one's read fails. */
+  const answeredSeason = useRef<{ standings?: string; fixtures?: string }>({});
+
+  const retryLoad = () => {
+    if (leagueError) setLeagueAttempt(n => n + 1);
+    if (seasonsError) setSeasonsAttempt(n => n + 1);
+  };
+  const retryDetails = () => setDetailsAttempt(n => n + 1);
+
   // 1. Initial Load: League and Seasons list
   useEffect(() => {
     if (!isConnected || !leagueId) return;
 
     let active = true;
-    setIsLoadingLeague(true);
+    setLeagueError(null);
 
-    wsService.emit('get_data', { type: 'league', id: leagueId }, (res: any) => {
-      if (active && res) setLeague(res);
-    });
-
-    wsService.emit('get_data', { type: 'seasons', leagueId }, (res: any) => {
-      if (active) {
-        if (Array.isArray(res)) {
-          setSeasons(res);
-          // Set initial season (prefer active, otherwise first)
-          const activeSeason = res.find(s => s.status === 'ACTIVE');
-          if (activeSeason) {
-            setSelectedSeasonId(activeSeason.id);
-          } else if (res.length > 0) {
-            setSelectedSeasonId(res[0].id);
-          }
-        }
-        setIsLoadingLeague(false);
-      }
-    });
-
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-      if (active && Array.isArray(res)) setSports(res);
+    void readData<League | null>('league', { id: leagueId }, { suppressToast: true, stillWanted: () => active }).then(result => {
+      if (!active) return;
+      if (!result.ok) return setLeagueError(result.message);
+      if (result.data) setLeague(result.data);
     });
 
     return () => {
       active = false;
     };
-  }, [isConnected, leagueId]);
+  }, [isConnected, leagueId, leagueAttempt]);
+
+  useEffect(() => {
+    if (!isConnected || !leagueId) return;
+
+    let active = true;
+    setIsLoadingLeague(true);
+    setSeasonsError(null);
+
+    void readData<Season[]>('seasons', { leagueId }, { suppressToast: true, stillWanted: () => active }).then(result => {
+      if (!active) return;
+      if (!result.ok) {
+        setSeasonsError(result.message);
+      } else if (Array.isArray(result.data)) {
+        const res = result.data;
+        setSeasons(res);
+        // Set initial season (prefer active, otherwise first)
+        const activeSeason = res.find(s => s.status === 'ACTIVE');
+        if (activeSeason) {
+          setSelectedSeasonId(activeSeason.id);
+        } else if (res.length > 0) {
+          setSelectedSeasonId(res[0].id);
+        }
+      }
+      setIsLoadingLeague(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [isConnected, leagueId, seasonsAttempt]);
 
   // 2. Fetch Standings & Games whenever selected season changes, and subscribe to room
   useEffect(() => {
     if (!isConnected || !selectedSeasonId) return;
 
     let active = true;
+    const wanted = { suppressToast: true, stillWanted: () => active };
     setIsLoadingStandings(true);
+    setStandingsError(null);
+    setFixturesError(null);
 
-    const loadSeasonDetails = () => {
+    void Promise.all([
       // Fetch standings
-      wsService.emit('get_data', { type: 'season', id: selectedSeasonId }, (res: any) => {
-        if (active && res) {
-          setStandings(res.cachedStandings || []);
+      readData<Season | null>('season', { id: selectedSeasonId }, wanted).then(result => {
+        if (!active) return;
+        if (result.ok) {
+          answeredSeason.current.standings = selectedSeasonId;
+          setStandings(result.data?.cachedStandings || []);
+        } else {
+          if (answeredSeason.current.standings !== selectedSeasonId) setStandings([]);
+          setStandingsError(result.message);
         }
-      });
-
+      }),
       // Fetch linked games
-      wsService.emit('get_data', { type: 'season_games', id: selectedSeasonId }, (res: any) => {
-        if (active) {
-          if (Array.isArray(res)) setFixtures(res);
-          setIsLoadingStandings(false);
+      readData<Game[]>('season_games', { id: selectedSeasonId }, wanted).then(result => {
+        if (!active) return;
+        if (result.ok) {
+          answeredSeason.current.fixtures = selectedSeasonId;
+          setFixtures(Array.isArray(result.data) ? result.data : []);
+        } else {
+          if (answeredSeason.current.fixtures !== selectedSeasonId) setFixtures([]);
+          setFixturesError(result.message);
         }
-      });
-    };
-
-    loadSeasonDetails();
+      }),
+    ]).then(() => {
+      if (active) setIsLoadingStandings(false);
+    });
 
     return () => {
       active = false;
     };
-  }, [isConnected, selectedSeasonId]);
+  }, [isConnected, selectedSeasonId, detailsAttempt]);
 
   // Subscribe to standings updates in real-time
   useEffect(() => {
@@ -113,6 +157,9 @@ export default function PublicLeagueStandings() {
     // Merge directly on update: strictly NO server refetch!
     const handleUpdate = (event: any) => {
       if (event && event.type === 'STANDINGS_UPDATED' && Array.isArray(event.data)) {
+        // As good an answer as the read's, so a failed read has nothing left to say.
+        answeredSeason.current.standings = selectedSeasonId;
+        setStandingsError(null);
         setStandings(event.data);
       }
     };
@@ -129,8 +176,8 @@ export default function PublicLeagueStandings() {
   }, [selectedSeasonId]);
 
   const getSportName = (sportId: string) => {
-    const s = sports.find(x => x.id === sportId);
-    return s ? s.name : sportId;
+    const s = sports?.find(x => x.id === sportId);
+    return s ? s.name : sports ? sportId : '';
   };
 
   /** "19 Sep 2026 · 14:30", the one way the app writes a kick-off (`UI-13`). */
@@ -162,8 +209,18 @@ export default function PublicLeagueStandings() {
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
+      ) : seasonsError && !seasons.length ? (
+        <View className="px-6 py-6">
+          <ReadFailure what="This league" reason={seasonsError} onRetry={retryLoad} />
+        </View>
       ) : (
         <View className="flex-1">
+          {leagueError || seasonsError ? (
+            <View className="px-6 pt-3">
+              <ReadFailure what={seasonsError ? 'The seasons' : 'The league'} reason={(seasonsError || leagueError)!} onRetry={retryLoad} stale={!!seasonsError} />
+            </View>
+          ) : null}
+
           {/* Season Selector bar */}
           <View className="flex-row items-center justify-between px-6 py-3 bg-card border-b border-line gap-4">
             <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-widest">Active Season:</Text>
@@ -215,7 +272,11 @@ export default function PublicLeagueStandings() {
             </View>
           ) : (
             <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
-              {activeTab === 'standings' && (
+              {activeTab === 'standings' && standingsError && (
+                <ReadFailure what="The standings" reason={standingsError} onRetry={retryDetails} stale={standings.length > 0} />
+              )}
+
+              {activeTab === 'standings' && (!standingsError || standings.length > 0) && (
                 <GlassCard className="border border-line p-4 overflow-hidden">
                   <View className="overflow-x-auto">
                     <View className="min-w-[400px]">
@@ -260,6 +321,10 @@ export default function PublicLeagueStandings() {
 
               {activeTab === 'fixtures' && (
                 <View className="gap-4">
+                  {fixturesError ? (
+                    <ReadFailure what="The matches" reason={fixturesError} onRetry={retryDetails} stale={fixtures.length > 0} />
+                  ) : null}
+
                   {fixtures.map((game) => (
                     <GlassCard key={game.id} className="border border-line p-4">
                       <View className="flex-row justify-between items-center mb-2">
@@ -287,7 +352,7 @@ export default function PublicLeagueStandings() {
                     </GlassCard>
                   ))}
 
-                  {fixtures.length === 0 && (
+                  {fixtures.length === 0 && !fixturesError && (
                     <View className="items-center justify-center py-10 bg-card border border-line rounded-2xl">
                       <Ionicons name="calendar-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="opacity-45 mb-2" />
                       <Text className="font-orbitron-bold text-xs text-ink-muted">No Matches Scheduled</Text>

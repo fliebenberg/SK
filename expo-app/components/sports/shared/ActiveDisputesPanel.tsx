@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { GameDispute, SocketAction } from '@sk/shared';
-import { wsService } from '../../../services/websocket';
+import { readData } from '../../../services/reads';
 import { sendAction } from '../../../services/actions';
 import { Ionicons } from '@expo/vector-icons';
 import { useOptionalSharedDynamicScoring } from './DynamicScoringContext';
@@ -114,13 +114,20 @@ export function ActiveDisputesPanel({ gameId, game }: ActiveDisputesPanelProps) 
     (d) => d.gameId === gameId && (!d.status || d.status === 'OPEN')
   );
 
-  // Trigger JIT resolution on server when countdown reaches 0
+  // One nudge at a time: this effect runs every second while a dispute stays expired.
+  const nudging = useRef(false);
+
+  // Trigger JIT resolution on server when countdown reaches 0. Only a nudge, whose answer is not used
+  // and which is tried again next second, so a failure is not worth telling the scorer about.
   useEffect(() => {
-    gameDisputes.forEach((d) => {
+    const anyExpired = gameDisputes.some((d) => {
       const expiresAt = d.expiresAt ? new Date(d.expiresAt).getTime() : 0;
-      if (expiresAt > 0 && Date.now() >= expiresAt) {
-        wsService.emit('get_data', { type: 'active_disputes', id: gameId }, () => {});
-      }
+      return expiresAt > 0 && Date.now() >= expiresAt;
+    });
+    if (!anyExpired || nudging.current) return;
+    nudging.current = true;
+    void readData('active_disputes', { id: gameId }, { suppressToast: true }).then(() => {
+      nudging.current = false;
     });
   }, [now, gameDisputes.length, gameId]);
 

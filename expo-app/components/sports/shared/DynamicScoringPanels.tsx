@@ -16,7 +16,7 @@ import { DynamicScoringPanel } from './DynamicScoringPanel';
  * the generic path is what every sport gets for free.
  */
 export function DynamicScoringPanels({ role }: { role?: string }) {
-  const { sport } = useSharedDynamicScoring();
+  const { sport, readFailure } = useSharedDynamicScoring();
   const sections = getEventSections(sport);
 
   if (sections.length === 0) {
@@ -25,6 +25,8 @@ export function DynamicScoringPanels({ role }: { role?: string }) {
         <Text className="font-inter text-xs text-ink-muted text-center leading-relaxed">
           {sport
             ? `${sport.name} has no event sections configured, so there is nothing to record. Add them in system admin under Sports.`
+            : readFailure
+            ? `${readFailure.what} did not load, so scoring is not available yet.`
             : 'Loading sport configuration…'}
         </Text>
       </View>

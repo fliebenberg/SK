@@ -10,10 +10,11 @@ import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { sendAction } from '../../../../services/actions';
-import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, League, Sport, Organization } from '@sk/shared';
+import { useSocketQuery } from '../../../../hooks/useSocketQuery';
+import { SocketAction, League, Sport } from '@sk/shared';
 import { getOrgLogoUrl } from '../../../../services/assets';
 import CustomSelect from '../../../../components/CustomSelect';
+import { ReadFailure } from '../../../../components/ReadFailure';
 import { AgeGroupPicker } from '../../../../components/AgeGroupPicker';
 import { useImageUpload } from '../../../../hooks/useImageUpload';
 import { themeColor } from '../../../../constants/Colors';
@@ -23,13 +24,15 @@ export default function OrgLeagues() {
   const safeBack = useSafeBack();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
-  const isConnected = useWsStore((state: any) => state.isConnected);
 
   // States
   const [isLoading, setIsLoading] = useState(true);
   const [leagues, setLeagues] = useState<League[]>([]);
-  const [sports, setSports] = useState<Sport[]>([]);
-  const [org, setOrg] = useState<Organization | null>(null);
+  // Drawn here where the names would be, and in the form where the sport is chosen.
+  const { data: sportsRead, error: sportsError, refetch: refetchSports } = useSocketQuery<Sport[]>('sports', {}, { suppressToast: true });
+  const sports = sportsRead ?? [];
+  /** No list of sports to choose from, because the read failed. */
+  const sportsFailed = !!sportsError && !sportsRead;
   const [searchQuery, setSearchQuery] = useState('');
 
   // Creation Modal State
@@ -61,25 +64,6 @@ export default function OrgLeagues() {
   };
 
   // Fetch Data & Subscribe
-  useEffect(() => {
-    if (!isConnected || !orgId) return;
-
-    let active = true;
-
-    // ... keeping other loads
-    wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-      if (active && res) setOrg(res);
-    });
-
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-      if (active && Array.isArray(res)) setSports(res);
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [isConnected, orgId]);
-
   useEffect(() => {
     if (!orgId) return;
 
@@ -182,7 +166,7 @@ export default function OrgLeagues() {
 
   const getSportName = (sportId: string) => {
     const s = sports.find(x => x.id === sportId);
-    return s ? s.name : sportId;
+    return s ? s.name : sportsRead ? sportId : '';
   };
 
   return (
@@ -225,6 +209,8 @@ export default function OrgLeagues() {
 
           {/* List */}
           <View className="gap-4">
+            {sportsFailed ? <ReadFailure what="The sports" reason={sportsError} onRetry={refetchSports} /> : null}
+
             {filteredLeagues.map((league) => (
               <GlassCard key={league.id} className="border border-line p-4">
                 <View className="flex-row justify-between items-center">
@@ -250,11 +236,13 @@ export default function OrgLeagues() {
                       </View>
                       
                       <View className="flex-row flex-wrap items-center gap-2">
-                        <View className="bg-sunken px-2.5 py-1 rounded-full">
-                          <Text className="font-inter-bold text-[9px] text-ink-soft uppercase tracking-wider">
-                            {getSportName(league.sportId)}{league.ageGroup ? ` • ${league.ageGroup}` : ''}
-                          </Text>
-                        </View>
+                        {getSportName(league.sportId) || league.ageGroup ? (
+                          <View className="bg-sunken px-2.5 py-1 rounded-full">
+                            <Text className="font-inter-bold text-[9px] text-ink-soft uppercase tracking-wider">
+                              {[getSportName(league.sportId), league.ageGroup].filter(Boolean).join(' • ')}
+                            </Text>
+                          </View>
+                        ) : null}
                         <View className="bg-primary-soft px-2.5 py-1 rounded-full border border-primary-line">
                           <Text className="font-inter-bold text-[9px] text-primary-ink uppercase tracking-wider">
                             {league.joinPolicy}
@@ -346,16 +334,20 @@ export default function OrgLeagues() {
 
             <View className="gap-1">
               <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Sport</Text>
-              <CustomSelect
-                value={selectedSportId}
-                onChange={(sportId) => {
-                  // An age group belongs to one sport, so choosing another clears it.
-                  if (sportId !== selectedSportId) setNewLeagueAgeGroupId(null);
-                  setSelectedSportId(sportId);
-                }}
-                options={sports.map(s => ({ value: s.id, label: s.name }))}
-                placeholder="Select a Sport"
-              />
+              {sportsFailed ? (
+                <ReadFailure what="The sports" reason={`${sportsError} A league cannot be created without one.`} onRetry={refetchSports} />
+              ) : (
+                <CustomSelect
+                  value={selectedSportId}
+                  onChange={(sportId) => {
+                    // An age group belongs to one sport, so choosing another clears it.
+                    if (sportId !== selectedSportId) setNewLeagueAgeGroupId(null);
+                    setSelectedSportId(sportId);
+                  }}
+                  options={sports.map(s => ({ value: s.id, label: s.name }))}
+                  placeholder="Select a Sport"
+                />
+              )}
             </View>
 
             <View className="gap-1">
@@ -394,7 +386,7 @@ export default function OrgLeagues() {
               <Button
                 title={isProcessing ? "Saving..." : "Create League"}
                 onPress={handleCreateLeague}
-                disabled={isProcessing}
+                disabled={isProcessing || sportsFailed}
                 className="flex-1 py-3 rounded-xl"
               />
             </View>

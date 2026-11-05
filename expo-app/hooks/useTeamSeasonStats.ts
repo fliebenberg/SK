@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
-import { wsService } from '../services/websocket';
-import { useWsStore } from '../store/wsStore';
+import { useSocketQuery } from './useSocketQuery';
 
 /** One player's season (`team_season_stats`): games played, and what they scored, by kind. */
 export interface PlayerSeason {
@@ -29,18 +27,15 @@ const EMPTY: TeamSeasonStats = { players: [], mainScore: null, gamesCounted: 0, 
 /**
  * A team's players over one season (a calendar year, 2026-10-22): games played from team sheets,
  * scores and cards from match events — worked out by the server, which holds both. Read once per
- * team and season; it changes only as games are played.
+ * team and season; it changes only as games are played. Empty figures only mean none when `error` is
+ * empty (`SYNC-9`); the page draws `error`.
  */
 export function useTeamSeasonStats(teamId?: string | null, season?: number | null) {
-  const isConnected = useWsStore((state: any) => state.isConnected);
-  const [stats, setStats] = useState<TeamSeasonStats>(EMPTY);
-  useEffect(() => {
-    if (!isConnected || !teamId || !season) return;
-    let live = true;
-    wsService.emit('get_data', { type: 'team_season_stats', teamId, season }, (res: any) => {
-      if (live) setStats(res && Array.isArray(res.players) ? res : EMPTY);
-    });
-    return () => { live = false; };
-  }, [isConnected, teamId, season]);
-  return stats;
+  const { data, error, refetch } = useSocketQuery<TeamSeasonStats>(
+    'team_season_stats',
+    { teamId, season },
+    { enabled: !!teamId && !!season, suppressToast: true },
+  );
+  const stats = data && Array.isArray(data.players) ? data : EMPTY;
+  return { ...stats, error, retry: refetch };
 }

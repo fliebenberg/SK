@@ -5,8 +5,8 @@ import { useOrgAccess } from '../../../../hooks/useOrgAccess';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { wsService } from '../../../../services/websocket';
 import { requestKeyFor, sendAction } from '../../../../services/actions';
+import { readData } from '../../../../services/reads';
 import { useRequestScope } from '../../../../hooks/useRequestScope';
 import { useToastStore } from '../../../../store/toastStore';
 import { SocketAction } from '@sk/shared';
@@ -49,14 +49,10 @@ export default function CreateEvent() {
    *
    * The names are read at save time rather than tracked while the form is open: `MatchForm` owns
    * every list it offers and reports its answers as ids, and mirroring its team lists here just to
-   * build one string is how the two would drift. Two reads, once, on a button press.
+   * build one string is how the two would drift. Two reads, once, on a button press. If either fails
+   * nothing is saved: a match must not be named "Team vs Team" because a read did (`SYNC-9`).
    */
-  const resolveTeamName = (teamId: string): Promise<string> =>
-    new Promise(resolve => {
-      wsService.emit('get_data', { type: 'team', id: teamId }, (res: any) =>
-        resolve(res?.name || 'Team')
-      );
-    });
+  const readTeam = (teamId: string) => readData<{ name?: string } | null>('team', { id: teamId }, { suppressToast: true });
 
   // Kept across retries of one save, so a retry after the game fails does not create a second
   // match (SYNC-3): the event is answered from the server's replay rather than created again.
@@ -75,13 +71,16 @@ export default function CreateEvent() {
     }
     setIsProcessing(true);
 
-    const [homeName, awayName] = await Promise.all([
-      resolveTeamName(form.homeTeamId),
-      resolveTeamName(form.awayTeamId),
-    ]);
+    const [homeTeam, awayTeam] = await Promise.all([readTeam(form.homeTeamId), readTeam(form.awayTeamId)]);
+    if (!homeTeam.ok || !awayTeam.ok) {
+      const reason = !homeTeam.ok ? homeTeam.message : !awayTeam.ok ? awayTeam.message : '';
+      useToastStore.getState().showError(`The team names did not load, so nothing was saved. ${reason}`, 'Match Not Saved');
+      setIsProcessing(false);
+      return;
+    }
 
     const eventPayload = {
-      name: `${homeName} vs ${awayName}`,
+      name: `${homeTeam.data?.name || 'Team'} vs ${awayTeam.data?.name || 'Team'}`,
       type: 'SingleMatch' as const,
       startDate: form.gameDate,
       siteId: form.siteId || undefined,

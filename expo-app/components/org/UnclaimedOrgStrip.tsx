@@ -22,7 +22,7 @@ import { useAuthStore } from '../../store/authStore';
 export function UnclaimedOrgStrip({ org }: { org: { id: string; name: string; isClaimed?: boolean } }) {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const unclaimed = org.isClaimed === false;
-  const { status, addPending, refresh } = useOrgClaimStatus(org.id, unclaimed && isAuthenticated);
+  const { status, error: statusError, addPending, refresh } = useOrgClaimStatus(org.id, unclaimed && isAuthenticated, { suppressToast: true });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
 
@@ -58,6 +58,8 @@ export function UnclaimedOrgStrip({ org }: { org: { id: string; name: string; is
           onClose={() => setDialogOpen(false)}
           org={org}
           status={status}
+          statusError={statusError}
+          onRetryStatus={refresh}
           onNominated={addPending}
           onTookOver={refresh}
         />

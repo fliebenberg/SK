@@ -26,7 +26,8 @@ export default function OrgControlDashboard() {
   const access = useOrgAccess(orgId);
   const applications = useOrgApplications(orgId, access.canManage);
 
-  const { data: sportsList } = useSocketQuery('sports');
+  // Only for the count, which comes from the organisation's own ids: a failure changes nothing on screen.
+  const { data: sportsList, isLoading: isSportsLoading } = useSocketQuery('sports', {}, { suppressToast: true });
   const { org: orgData, isLoading: isOrgLoading } = useOrgSummary(orgId);
 
   const sportsMap = useMemo(() => {
@@ -39,7 +40,7 @@ export default function OrgControlDashboard() {
     return map;
   }, [sportsList]);
 
-  const isLoading = isOrgLoading || !sportsList || !orgData;
+  const isLoading = isOrgLoading || (isSportsLoading && !sportsList) || !orgData;
 
   if (isLoading) {
     return (

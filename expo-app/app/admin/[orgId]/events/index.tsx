@@ -34,6 +34,7 @@ import { useStaticRead } from '../../../../hooks/useStaticRead';
 import { useLiveRoom } from '../../../../hooks/useLiveRoom';
 import { usePagedList } from '../../../../hooks/usePagedList';
 import { ListPager } from '../../../../components/ListPager';
+import { ReadFailure } from '../../../../components/ReadFailure';
 import { useOrgSites } from '../../../../hooks/useOrgSites';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useMyEventGrants } from '../../../../hooks/useEventCapabilities';
@@ -206,7 +207,7 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   });
 
   const { sites, facilities } = useOrgSites(orgId);
-  const { data: sportsData } = useSocketQuery<Sport[]>('sports');
+  const { data: sportsData, error: sportsError, refetch: refetchSports } = useSocketQuery<Sport[]>('sports', {}, { suppressToast: true });
   const myGrants = useMyEventGrants();
   const grants = publicView ? NO_GRANTS : myGrants;
 
@@ -259,9 +260,10 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   const pastRows = useMemo(() => new Map(pastEvents.items.map(r => [r.eventId, r])), [pastEvents.items]);
 
   /* The room holds what is current (`LIST-2`), so an organisation may have only past events. */
-  const { data: anyPast } = useStaticRead<PastFixturesPage<PastEventRow>>(
+  const { data: anyPast, error: anyPastError, retry: retryAnyPast } = useStaticRead<PastFixturesPage<PastEventRow>>(
     'org_past_events',
     orgId && !nowNext && !events.length && !eventsLoading ? { orgId, before: todayCalendarDate(), limit: 1 } : null,
+    { suppressToast: true },
   );
   const hasEvents = events.length > 0 || (anyPast?.total ?? 0) > 0;
 
@@ -542,7 +544,10 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
     () => new Set<string>((teamMemberships || []).filter((m: any) => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach').map((m: any) => m.teamId)),
     [teamMemberships]
   );
-  const { entries: teamInvites } = useTeamEntries({ orgId: !publicView && (isAdmin || coachTeamIds.size) ? orgId : null });
+  const { entries: teamInvites, error: teamInvitesError, refresh: retryTeamInvites } = useTeamEntries(
+    { orgId: !publicView && (isAdmin || coachTeamIds.size) ? orgId : null },
+    { suppressToast: true },
+  );
   const teamToAnswer = teamInvites.filter(e =>
     isAdmin ? !toAnswer.some(ev => ev.id === e.eventId) : !!e.teamId && coachTeamIds.has(e.teamId));
   const invitationCount = (isAdmin || !coachTeamIds.size ? toAnswer.length : 0) + teamToAnswer.length;
@@ -828,6 +833,13 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
     );
   };
 
+  // The rows and the filter name their sports from this; without it they say nothing, or "Unknown sport".
+  const sportsFailure = sportsError && !sportsData
+    ? <ReadFailure what="The sport names" reason={sportsError} onRetry={refetchSports} />
+    : teamInvitesError
+    ? <ReadFailure what="Your teams' tournament invitations" reason={teamInvitesError} onRetry={retryTeamInvites} />
+    : null;
+
   const body = (() => {
     if (accessDenied) {
       return (
@@ -837,6 +849,10 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
           <Text className="font-inter text-sm text-ink-muted text-center">You do not have permission to see this organisation's fixtures.</Text>
         </View>
       );
+    }
+    // Not knowing whether there are past events is not the same as there being none (`SYNC-9`).
+    if (!hasEvents && anyPastError) {
+      return <ReadFailure what="The events" reason={anyPastError} onRetry={retryAnyPast} />;
     }
     if (!hasEvents) {
       return (
@@ -984,6 +1000,7 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
     ) : (
       <View className="gap-3">
         {toolbar}
+        {sportsFailure}
         {body}
         {pastLink}
         {filtersDialog}
@@ -1003,6 +1020,7 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
           <PageBody className="gap-3">
             {invitationsBox}
             {toolbar}
+            {sportsFailure}
             {body}
             {/* A phone has no Upcoming / Past switch in its toolbar, so the upcoming list ends with the way to the results. */}
             {pastLink}

@@ -9,6 +9,7 @@ import { GameOfficialsCard } from '../../../../../../../components/game/GameOffi
 import { Tabs } from '../../../../../../../components/Tabs';
 import { OverflowMenu, OverflowMenuItem } from '../../../../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../../../../components/ConfirmationModal';
+import { ReadFailure } from '../../../../../../../components/ReadFailure';
 import { AccessDenied } from '../../../../../../../components/AccessDenied';
 import { RecordResultModal } from '../../../../../../../components/RecordResultModal';
 import { PendingResultNote } from '../../../../../../../components/PendingResultNote';
@@ -22,13 +23,14 @@ import { useGameSummary } from '../../../../../../../hooks/useGameSummary';
 import { useGameLineups, useLineupProposals } from '../../../../../../../hooks/useGameLineups';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { useGameCapabilities } from '../../../../../../../hooks/useGameCapabilities';
+import { useSocketQuery } from '../../../../../../../hooks/useSocketQuery';
 import { useEventDivisions, useEventFacilityIds, useEventFixtures, useEventRecord, useSports } from '../../../../../../../hooks/useEventRooms';
 import { awardsPoints } from '../../../../../../../components/tournament/standingsBits';
 import { useOrgSites } from '../../../../../../../hooks/useOrgSites';
 import { useOrgSummary } from '../../../../../../../hooks/useOrgSummary';
 import { useResultSent } from '../../../../../../../services/resultQueue';
 import { sendAction } from '../../../../../../../services/actions';
-import { wsService } from '../../../../../../../services/websocket';
+import { readData } from '../../../../../../../services/reads';
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { useActiveTheme } from '../../../../../../../store/settingsStore';
@@ -73,37 +75,43 @@ export default function GamePage() {
   const isFixture = !!event && !isMatch;
   const sports = useSports();
   const sport = sports.find(s => s.id === summary?.sportId);
-  const { capabilities } = useEventCapabilities(eventId);
+  const { capabilities, error: capabilitiesError, retry: retryCapabilities } = useEventCapabilities(eventId, { suppressToast: true });
   // Appointed officials, whom no membership names (`PERM-6`); not asked on the public page.
-  const { capabilities: gameCapabilities } = useGameCapabilities(links.isPublic ? null : gameId);
+  const { capabilities: gameCapabilities, error: gameCapabilitiesError, retry: retryGameCapabilities } = useGameCapabilities(links.isPublic ? null : gameId, { suppressToast: true });
   const user = useAuthStore((s: any) => s.user);
   const orgMemberships = useAuthStore((s: any) => s.orgMemberships);
   const teamMemberships = useAuthStore((s: any) => s.teamMemberships);
 
   // The full record, for the result dialog and the match events; read again whenever the summary moves.
   const [game, setGame] = useState<Game | null>(null);
+  const [gameError, setGameError] = useState<string | null>(null);
+  const [gameAttempt, setGameAttempt] = useState(0);
   useEffect(() => {
     // The full record is the members' (it carries who scored); the public page has the summary (`FIX-39`).
     if (!isConnected || !gameId || links.isPublic) return;
-    wsService.emit('get_data', { type: 'game', id: gameId }, (res: any) => { if (res) setGame(res); });
-  }, [isConnected, gameId, summary?.updatedAt, summary?.status]);
+    let active = true;
+    setGameError(null);
+    void readData<Game | null>('game', { id: gameId }, { suppressToast: true, stillWanted: () => active }).then(result => {
+      if (!active) return;
+      if (!result.ok) { setGameError(result.message); return; }
+      if (result.data) setGame(result.data);
+    });
+    return () => { active = false; };
+  }, [isConnected, gameId, summary?.updatedAt, summary?.status, gameAttempt]);
   useResultSent(gameId, setGame);
 
   // The venue, for its name and whose ground it is (*Home*).
-  const [site, setSite] = useState<Site | null>(null);
-  const [facility, setFacility] = useState<Facility | null>(null);
-  useEffect(() => {
-    if (!isConnected) return;
-    if (summary?.siteId) wsService.emit('get_data', { type: 'site', id: summary.siteId }, (res: any) => setSite(res || null)); else setSite(null);
-    if (summary?.facilityId) wsService.emit('get_data', { type: 'facility', id: summary.facilityId }, (res: any) => setFacility(res || null)); else setFacility(null);
-  }, [isConnected, summary?.siteId, summary?.facilityId]);
+  const siteRead = useSocketQuery<Site>('site', { id: summary?.siteId }, { enabled: !!summary?.siteId, suppressToast: true });
+  const facilityRead = useSocketQuery<Facility>('facility', { id: summary?.facilityId }, { enabled: !!summary?.facilityId, suppressToast: true });
+  const site = summary?.siteId ? siteRead.data : null;
+  const facility = summary?.facilityId ? facilityRead.data : null;
 
   const sides = useMemo(() => (summary?.participants || []).slice(0, 2), [summary]);
   // A private organisation's game, read by someone who played in it and has since left (`ORG-14`):
   // its names stay, but nothing links to its tournament or division, which would refuse them.
   const canOpenOrg = useCanOpenOrg(event?.orgId, sides.some(p => p.orgIsPrivate));
   // The team sheets — public too, by decision until `PEOPLE-4` gives a way to hide players.
-  const { lineups, reload: reloadLineups } = useGameLineups(sides.map(p => p.id));
+  const { lineups, error: lineupsError, reload: reloadLineups } = useGameLineups(sides.map(p => p.id));
   const homeSides = useMemo(() => new Set(sides.filter(p => site?.orgId && p.orgId === site.orgId).map(p => p.id)), [sides, site]);
 
   const divisions = useEventDivisions(isFixture ? eventId : null);
@@ -153,8 +161,10 @@ export default function GamePage() {
   /* -- the buttons, in the order things happen; the next step is highlighted -- */
   const mySides = sides.filter((p, i) => (i === 0 ? permissions.canEditTeam1Lineup : permissions.canEditTeam2Lineup));
   const picked = mySides.length > 0 && mySides.every(p => (lineups[p.id] || []).length > 0);
+  // A sheet that did not load is not one still to pick: the button stays, as a way to the sheet, but says neither.
+  const sheetUnknown = !!lineupsError && mySides.some(p => !lineups[p.id]);
   const next = moment === 'live' ? 'score' : moment === 'done' ? 'correct'
-    : mySides.length && !picked ? 'pick' : permissions.canScore ? 'start' : null;
+    : mySides.length && !picked && !sheetUnknown ? 'pick' : permissions.canScore ? 'start' : null;
   const pickTeam = () => router.push(`/admin/${orgId}/events/${eventId}/games/${gameId}/selection${mySides.length === 1 && mySides[0].teamId ? `?teamId=${mySides[0].teamId}` : ''}` as any);
   const score = () => router.push(links.event(eventId, `/games/${gameId}/score`) as any);
   /*
@@ -162,7 +172,8 @@ export default function GamePage() {
    * as this game's, and stays the next step until done — nothing the coach has not looked at shows
    * as picked. *Change team* opens Pick team, starting from the proposal.
    */
-  const proposedSides = mySides.filter(p => !(lineups[p.id] || []).length && !!proposals[p.id]);
+  // Only a side known to have no sheet: confirming a proposal over one that did not load would replace it.
+  const proposedSides = mySides.filter(p => !!lineups[p.id] && !lineups[p.id]!.length && !!proposals[p.id]);
   const confirmProposals = async () => {
     setBusy(true);
     for (const p of proposedSides) {
@@ -181,7 +192,7 @@ export default function GamePage() {
         actions.push({ label: 'Confirm team', onPress: confirmProposals, primary: next === 'pick' });
         actions.push({ label: 'Change team', onPress: pickTeam });
       } else {
-        actions.push({ label: picked ? 'Change team' : 'Pick team', onPress: pickTeam, primary: next === 'pick' });
+        actions.push({ label: picked ? 'Change team' : sheetUnknown ? 'Team sheet' : 'Pick team', onPress: pickTeam, primary: next === 'pick' });
       }
     }
     if (permissions.canScore) {
@@ -253,19 +264,27 @@ export default function GamePage() {
   };
 
   /* -- the cards -- */
+  const venueError = siteRead.error || facilityRead.error;
+  const retryVenue = () => {
+    if (siteRead.error) siteRead.refetch();
+    if (facilityRead.error) facilityRead.refetch();
+  };
   const edit = canEdit ? () => setDialog(isMatch ? 'edit' : 'move') : undefined;
   const whoPlayed = canEdit && isFixture && moment !== 'cancelled' ? (id: string) => { setWhoSide(id); setDialog('who'); } : undefined;
   const whereCard = (
-    <WhereCard
-      moment={moment}
-      whenText={whenText}
-      siteName={site?.name}
-      facilityName={facility?.name}
-      facilityWord={facility?.category === 'indoor_hall' ? 'Court' : 'Field'}
-      sportName={sportName}
-      onEdit={edit && !started ? edit : undefined}
-      onPlace={edit && (moment === 'tbc' || moment === 'notPlaced') ? edit : undefined}
-    />
+    <>
+      {venueError ? <ReadFailure what="The venue" reason={venueError} onRetry={retryVenue} stale /> : null}
+      <WhereCard
+        moment={moment}
+        whenText={whenText}
+        siteName={siteRead.error && !site ? 'Did not load' : site?.name}
+        facilityName={facility?.name}
+        facilityWord={facility?.category === 'indoor_hall' ? 'Court' : 'Field'}
+        sportName={sportName}
+        onEdit={edit && !started ? edit : undefined}
+        onPlace={edit && (moment === 'tbc' || moment === 'notPlaced') ? edit : undefined}
+      />
+    </>
   );
   const divisionCard = isFixture && summary.divisionId && division && canOpenOrg ? (
     <DivisionCard divisionId={summary.divisionId} title={divisionName} summary={summary} showPoints={awardsPoints(event)} onOpen={openDivision} />
@@ -301,12 +320,40 @@ export default function GamePage() {
     ? <GameOfficialsCard gameId={gameId!} hostOrgId={event.orgId} />
     : null;
 
+  // A sheet that did not load is not *Not picked yet*: the failure takes the card's place until it does.
+  const sheetsMissing = !!lineupsError && sides.some(p => !lineups[p.id]);
+  const teamsCard = (props: Partial<React.ComponentProps<typeof TeamsCard>>) => (
+    <>
+      {lineupsError ? <ReadFailure what="The team sheets" reason={lineupsError} onRetry={reloadLineups} stale={!sheetsMissing} /> : null}
+      {sheetsMissing ? null : (
+        <TeamsCard summary={summary} lineups={lineups} proposals={proposals} homeSides={homeSides} started={started || moment === 'cancelled'} {...props} />
+      )}
+    </>
+  );
+
+  // What this viewer may do, and what the buttons and the match events need: said once, under the scoreboard.
+  const rightsError = capabilitiesError || gameCapabilitiesError;
+  const rightsMatter = !!rightsError && !(canEdit && permissions.canScore);
+  const recordMatters = !!gameError && (started || canEdit || permissions.canScore);
+  const retryDetails = () => {
+    if (capabilitiesError) retryCapabilities();
+    if (gameCapabilitiesError) retryGameCapabilities();
+    if (gameError) setGameAttempt(n => n + 1);
+  };
+  const detailsFailure = rightsMatter || recordMatters ? (
+    <ReadFailure
+      title={rightsMatter ? 'What you can do at this game did not load.' : game ? 'This game did not update.' : 'This game\'s full record did not load.'}
+      reason={(rightsMatter ? rightsError : gameError)!}
+      onRetry={retryDetails}
+    />
+  ) : null;
+
   let body: React.ReactNode;
   if (isWide) {
     body = (
       <View className="flex-row gap-4 items-start">
         <View className="flex-1 gap-3.5 min-w-0">
-          <TeamsCard summary={summary} lineups={lineups} proposals={proposals} homeSides={homeSides} started={started || moment === 'cancelled'} sideBySide onWhoPlayed={whoPlayed} />
+          {teamsCard({ sideBySide: true, onWhoPlayed: whoPlayed })}
           {divisionCard}
         </View>
         <View className="gap-3.5" style={{ width: 340 }}>
@@ -323,11 +370,11 @@ export default function GamePage() {
     body = (
       <View className="gap-2.5">
         <View className="rounded-xl border border-line bg-card overflow-hidden"><Tabs items={tabs} activeKey={shown} onChange={setTab} /></View>
-        {shown === 'teams' ? <TeamsCard summary={summary} lineups={lineups} proposals={proposals} homeSides={homeSides} started={started || moment === 'cancelled'} onWhoPlayed={whoPlayed} /> : null}
+        {shown === 'teams' ? teamsCard({ onWhoPlayed: whoPlayed }) : null}
         {shown === 'events' && feedGame ? <MatchEventsCard game={feedGame} height={520} spectator={links.isPublic} /> : null}
         {shown === 'overview' ? (
           <>
-            <TeamsCard summary={summary} lineups={lineups} proposals={proposals} homeSides={homeSides} started={started || moment === 'cancelled'} compact onOpen={() => setTab('teams')} />
+            {teamsCard({ compact: true, onOpen: () => setTab('teams') })}
             {started && feedGame ? <MatchEventsCard game={feedGame} height={280} spectator={links.isPublic} /> : null}
             {whereCard}
             {officialsCard}
@@ -350,6 +397,7 @@ export default function GamePage() {
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 80 }}>
         <PageBody className="gap-3.5">
           {scoreboard}
+          {detailsFailure}
           <PendingResultNote gameId={gameId} />
           {cancelledStrip}
           {body}

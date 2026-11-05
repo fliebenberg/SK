@@ -9,6 +9,7 @@ import { SegmentedControl } from '../SegmentedControl';
 import CustomSelect from '../CustomSelect';
 import { AgeGroupPicker } from '../AgeGroupPicker';
 import { guardianshipOf } from '../people/PersonBits';
+import { ReadFailure } from '../ReadFailure';
 import { usePagedList } from '../../hooks/usePagedList';
 import { useRequestScope } from '../../hooks/useRequestScope';
 import { requestKeyFor, sendAction } from '../../services/actions';
@@ -20,6 +21,12 @@ import { themeColor } from '../../constants/Colors';
 export interface TeamRole {
   id: string;
   name: string;
+}
+
+/** A dialog's options did not load (`SYNC-9`): said by the field, rather than as there being none. */
+export interface OptionsFailure {
+  reason: string;
+  retry: () => void;
 }
 
 const SHORT_NAME_HELP = 'A few letters shown on the team\'s crest and where there is no room for the full name, like U13A.';
@@ -37,12 +44,13 @@ const SHORT_NAME_HELP = 'A few letters shown on the team\'s crest and where ther
  * when a new team can only be one sport. An age group belongs to one sport, so changing the sport
  * clears it — and says so next to the field at that moment (rule 11).
  */
-export function TeamDetailsDialog({ visible, onClose, orgId, supportedSportIds, sports, team, onAdded }: {
+export function TeamDetailsDialog({ visible, onClose, orgId, supportedSportIds, sports, sportsFailure, team, onAdded }: {
   visible: boolean;
   onClose: () => void;
   orgId: string;
   supportedSportIds?: string[];
   sports: Sport[];
+  sportsFailure?: OptionsFailure | null;
   /** The team being edited; absent to add one. */
   team?: Team | null;
   /** After a new team is saved — the list opens it. */
@@ -178,6 +186,8 @@ export function TeamDetailsDialog({ visible, onClose, orgId, supportedSportIds, 
               options={choices.map(s => ({ value: s.id, label: s.name }))}
               placeholder="Choose a sport"
             />
+          ) : sportsFailure ? (
+            <ReadFailure what="Sports" reason={sportsFailure.reason} onRetry={sportsFailure.retry} />
           ) : (
             <Text className="font-inter text-sm text-warning-ink">
               This organisation plays no sports yet. Choose them in Settings first.
@@ -263,7 +273,7 @@ export function AddPlayersDialog({ visible, onClose, teamId, orgId, readType, pl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
-  const { items: matches, total, isLoading, error: listError, isSettled } = usePagedList<PickRow>({
+  const { items: matches, total, isLoading, error: listError, isSettled, retry: retryList } = usePagedList<PickRow>({
     type: readType, noun: 'people', params: { orgId }, search: query, page: 1, enabled: visible,
   });
 
@@ -363,7 +373,7 @@ export function AddPlayersDialog({ visible, onClose, teamId, orgId, readType, pl
             );
           })}
           {listError ? (
-            <Text className="font-inter text-sm text-danger-ink px-3 py-4">{listError}</Text>
+            <ReadFailure title={listError} reason="" onRetry={retryList} />
           ) : matches.length === 0 ? (
             <Text className="font-inter text-sm text-ink-muted px-3 py-4">{isLoading || !isSettled ? 'Looking…' : 'Nobody in the organisation matches.'}</Text>
           ) : total > matches.length ? (
@@ -373,9 +383,12 @@ export function AddPlayersDialog({ visible, onClose, teamId, orgId, readType, pl
           ) : null}
         </ScrollView>
       </View>
-      <TouchableOpacity onPress={onAddNew} accessibilityRole="button" className="self-start">
-        <Text className="font-inter-bold text-sm text-primary-ink">＋ Someone new to the organisation</Text>
-      </TouchableOpacity>
+      {/* A failed list is not nobody matching: they may well be in the organisation already. */}
+      {listError ? null : (
+        <TouchableOpacity onPress={onAddNew} accessibilityRole="button" className="self-start">
+          <Text className="font-inter-bold text-sm text-primary-ink">＋ Someone new to the organisation</Text>
+        </TouchableOpacity>
+      )}
       {error ? <Text className="font-inter text-sm text-danger-ink">{error}</Text> : null}
     </EditDialog>
   );
@@ -391,7 +404,7 @@ function staffRoleOptions(roles: TeamRole[]) {
 }
 
 /** One person from the organisation and their role on this team. */
-export function AddStaffDialog({ visible, onClose, teamId, orgId, readType, staffProfileIds, roles, onAddNew }: {
+export function AddStaffDialog({ visible, onClose, teamId, orgId, readType, staffProfileIds, roles, rolesFailure, onAddNew }: {
   visible: boolean;
   onClose: () => void;
   teamId: string;
@@ -400,6 +413,7 @@ export function AddStaffDialog({ visible, onClose, teamId, orgId, readType, staf
   /** Profiles already on this team's staff. */
   staffProfileIds: Set<string>;
   roles: TeamRole[];
+  rolesFailure?: OptionsFailure | null;
   /** Someone not in the organisation yet, in the role chosen so far. */
   onAddNew: (roleId: string) => void;
 }) {
@@ -419,7 +433,7 @@ export function AddStaffDialog({ visible, onClose, teamId, orgId, readType, staf
     setError(null);
   }, [visible]);
 
-  const { items, total } = usePagedList<PickRow>({
+  const { items, total, error: listError, retry: retryList } = usePagedList<PickRow>({
     type: readType, noun: 'people', params: { orgId }, search, page: 1, enabled: visible,
   });
   const people = useMemo(() => {
@@ -452,7 +466,7 @@ export function AddStaffDialog({ visible, onClose, teamId, orgId, readType, staf
       onClose={onClose}
       onSave={save}
       saveLabel="Add"
-      saveDisabled={!profileId || !roleId}
+      saveDisabled={!profileId || !roleId || !!rolesFailure}
       isSaving={isSaving}
       isDirty={!!profileId}
     >
@@ -468,20 +482,28 @@ export function AddStaffDialog({ visible, onClose, teamId, orgId, readType, staf
           onSearchChange={setSearch}
           note={total > items.length ? `${total - items.length} more. Type a name to narrow the list.` : null}
         />
+        {listError ? <ReadFailure title={listError} reason="" onRetry={retryList} /> : null}
       </View>
       <View className="gap-1.5">
         <FieldLabel label="Role on this team" />
-        <CustomSelect value={roleId} onChange={setRoleId} options={staffRoleOptions(roles)} />
+        {rolesFailure ? (
+          <ReadFailure what="Roles" reason={rolesFailure.reason} onRetry={rolesFailure.retry} />
+        ) : (
+          <CustomSelect value={roleId} onChange={setRoleId} options={staffRoleOptions(roles)} />
+        )}
       </View>
-      <TouchableOpacity onPress={() => onAddNew(roleId)} accessibilityRole="button" className="self-start">
-        <Text className="font-inter-bold text-sm text-primary-ink">＋ Someone new to the organisation</Text>
-      </TouchableOpacity>
+      {/* A failed list is not nobody matching: they may well be in the organisation already. */}
+      {listError ? null : (
+        <TouchableOpacity onPress={() => onAddNew(roleId)} accessibilityRole="button" className="self-start">
+          <Text className="font-inter-bold text-sm text-primary-ink">＋ Someone new to the organisation</Text>
+        </TouchableOpacity>
+      )}
       {error ? <Text className="font-inter text-sm text-danger-ink">{error}</Text> : null}
     </EditDialog>
   );
 }
 
-export function ChangeRoleDialog({ member, roles, onClose }: { member: TeamMember | null; roles: TeamRole[]; onClose: () => void }) {
+export function ChangeRoleDialog({ member, roles, rolesFailure, onClose }: { member: TeamMember | null; roles: TeamRole[]; rolesFailure?: OptionsFailure | null; onClose: () => void }) {
   const [roleId, setRoleId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -510,10 +532,15 @@ export function ChangeRoleDialog({ member, roles, onClose }: { member: TeamMembe
       onSave={save}
       isSaving={isSaving}
       isDirty={!!member && roleId !== member.roleId}
+      saveDisabled={!!rolesFailure}
     >
       <View className="gap-1.5">
         <FieldLabel label="Role on this team" />
-        <CustomSelect value={roleId} onChange={setRoleId} options={staffRoleOptions(roles)} />
+        {rolesFailure ? (
+          <ReadFailure what="Roles" reason={rolesFailure.reason} onRetry={rolesFailure.retry} />
+        ) : (
+          <CustomSelect value={roleId} onChange={setRoleId} options={staffRoleOptions(roles)} />
+        )}
       </View>
       {error ? <Text className="font-inter text-sm text-danger-ink">{error}</Text> : null}
     </EditDialog>

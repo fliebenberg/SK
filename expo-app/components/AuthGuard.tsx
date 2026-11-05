@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { orgAccess } from '../utils/orgAccess';
 
 import { AccessDenied } from './AccessDenied';
+import { ReadFailure } from './ReadFailure';
 import { useActiveTheme } from '../store/settingsStore';
 import { themeColor } from '../constants/Colors';
 
@@ -24,6 +25,9 @@ interface AuthGuardProps {
   admitted?: boolean;
   /** Still asking whether `admitted` holds. */
   admitting?: boolean;
+  /** The server could not be asked whether `admitted` holds: nobody is told they have no access on that. */
+  admitError?: string | null;
+  onRetryAdmit?: () => void;
 }
 
 const SessionResolving = () => {
@@ -47,7 +51,7 @@ const SessionResolving = () => {
  * This is a UX gate only — every action behind it must still be authorized on
  * the server, which is the actual security boundary.
  */
-export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage, admitted = false, admitting = false }: AuthGuardProps) {
+export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage, admitted = false, admitting = false, admitError = null, onRetryAdmit }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -99,6 +103,14 @@ export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage, 
         actionLabel="Back to Home"
         onAction={() => router.replace('/(tabs)' as any)}
       />
+    );
+  }
+
+  if (orgId && !isGlobalAdmin && !isOrgMember && admitError) {
+    return (
+      <View className="flex-1 items-center justify-center bg-canvas p-6">
+        <ReadFailure title="Your access to this page could not be checked." reason={admitError} onRetry={onRetryAdmit} />
+      </View>
     );
   }
 

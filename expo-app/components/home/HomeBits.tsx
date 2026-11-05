@@ -15,29 +15,6 @@ export function ShowMore({ open, onToggle }: { open: boolean; onToggle: () => vo
   );
 }
 
-/**
- * A read that failed, in the card it belongs to (`SYNC-9`). With nothing to show it takes the card's
- * place; with `stale`, it sits above the list last read and says that is what it is.
- */
-export function ReadFailure({ what, reason, onRetry, stale = false }: {
-  /** What did not load, as the start of a sentence: "Organisations". */
-  what: string;
-  reason: string;
-  onRetry: () => void;
-  stale?: boolean;
-}) {
-  return (
-    <View className={`gap-2 items-start rounded-xl bg-warning-soft px-3 py-2.5 ${stale ? 'mb-2' : ''}`}>
-      <Text className="font-inter text-[13px] text-warning-ink leading-5">
-        <Text className="font-inter-bold">{what} {stale ? 'did not update.' : 'did not load.'}</Text> {reason}
-      </Text>
-      <TouchableOpacity onPress={onRetry} accessibilityRole="button" className="px-4 py-2 rounded-xl bg-primary">
-        <Text className="font-inter-bold text-xs text-on-primary">Try again</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 /** A group's heading inside a card — "ON NOW", "LATER TODAY" — as the organisation page draws them. */
 export function GroupHeading({ label, first, tone = 'muted' }: { label: string; first: boolean; tone?: 'muted' | 'live' }) {
   return (

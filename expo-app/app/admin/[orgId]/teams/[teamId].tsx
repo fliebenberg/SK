@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GameSummary, SocketAction, Sport, TeamMember } from '@sk/shared';
 import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { EditLink } from '../../../../components/ReadCard';
+import { ReadFailure } from '../../../../components/ReadFailure';
 import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { InviteModal, isOnScoreKeeper, useInviteCooldownHours } from '../../../../components/InviteToScoreKeeper';
@@ -86,8 +87,8 @@ export default function TeamPage() {
   const { orgId: orgParam, teamId, tab: tabParam } = useLocalSearchParams<{ orgId: string; teamId: string; tab?: string }>();
   const links = useTournamentLinks(orgParam);
   const isPublic = links.isPublic;
-  const publicOrgId = useTeamOrgId(isPublic ? teamId : null);
-  const orgId = orgParam || publicOrgId || undefined;
+  const publicTeam = useTeamOrgId(isPublic ? teamId : null);
+  const orgId = orgParam || publicTeam.orgId || undefined;
   const [tab, setTab] = useState<Tab>(() => (TABS.some(t => t.key === tabParam) ? (tabParam as Tab) : 'overview'));
   const [season, setSeason] = useState<number>(currentSeason());
   const [resultsView, setResultsView] = useState<'stats' | 'list'>('stats');
@@ -110,13 +111,16 @@ export default function TeamPage() {
 
   const { teams, isLoading: isTeamsLoading } = useOrgTeams(orgId);
   const { roster: workspaceRoster } = useTeamRoster(isPublic ? null : teamId);
-  const squad = useTeamSquad(isPublic ? teamId : null);
-  const roster = isPublic ? squad : workspaceRoster;
-  const { games, eventNames, gameCount, seasons } = useTeamGames(orgId, teamId, season);
+  const publicSquad = useTeamSquad(isPublic ? teamId : null);
+  const roster = isPublic ? publicSquad.squad : workspaceRoster;
+  const rosterError = isPublic ? publicSquad.error : null;
+  const { games, eventNames, gameCount, seasons, error: gamesError, retry: retryGames } = useTeamGames(orgId, teamId, season);
   // Its places in tournaments, and invitations to answer (`FIX-31`): its coach, or an admin, answers.
-  const { entries: workspaceEntries, refresh: refreshEntries } = useTeamEntries({ teamId: isPublic ? null : teamId });
+  const { entries: workspaceEntries, error: workspaceEntriesError, refresh: refreshEntries } = useTeamEntries({ teamId: isPublic ? null : teamId }, { suppressToast: true });
   const publicEntries = useTeamCompetitions(isPublic ? teamId : null);
-  const teamEntries = isPublic ? publicEntries : workspaceEntries;
+  const teamEntries = isPublic ? publicEntries.entries : workspaceEntries;
+  const entriesError = isPublic ? publicEntries.error : workspaceEntriesError;
+  const retryEntries = isPublic ? publicEntries.retry : refreshEntries;
   const coachesThis = !!teamId && access.coachedTeamIds.includes(teamId);
   const canAnswer = !isPublic && (access.canManage || coachesThis);
   const { org } = useOrgSummary(orgId);
@@ -126,13 +130,14 @@ export default function TeamPage() {
   const peopleRead = runsOrg ? 'org_people' as const : 'org_people_names' as const;
   const { byPlayer: guardiansByPlayer } = useTeamGuardians(isPublic ? null : teamId);
   const { settings: minorsSettings } = useOrgMinorsSettings(isPublic ? null : orgId);
-  const { data: sportsData } = useSocketQuery<Sport[]>('sports');
-  const { data: rolesData } = useSocketQuery<any>('roles');
+  const { data: sportsData, error: sportsError, refetch: refetchSports } = useSocketQuery<Sport[]>('sports');
+  const { data: rolesData, error: rolesError, refetch: refetchRoles } = useSocketQuery<any>('roles');
   const inviteCooldownHours = useInviteCooldownHours();
   const sports = sportsData || [];
   const allTeamRoles: TeamRole[] = rolesData?.team || [];
   const teamRoles: TeamRole[] = allTeamRoles.filter(r => mayGiveRole(r.id));
   const orgRoles: OrgRole[] = rolesTheyMayGive(rolesData?.org || [], access.isAdmin);
+  const rolesFailure = rolesError && !rolesData ? { reason: rolesError, retry: refetchRoles } : null;
 
   const [query, setQuery] = useState('');
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -168,12 +173,15 @@ export default function TeamPage() {
   const matchingStaff = q ? staff.filter(m => nameOf(m).toLowerCase().includes(q) || roleName(m.roleId).toLowerCase().includes(q)) : staff;
 
   if (isTeamsLoading || !team) {
-    const loading = isTeamsLoading || (isPublic && !orgId);
+    // On the public page the organisation comes from the team, so its read decides until there is one.
+    const orgUnknown = isPublic && !orgId;
+    const failure = orgUnknown ? publicTeam.error : null;
+    const loading = !failure && (orgUnknown ? publicTeam.isLoading : isTeamsLoading);
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Team" backLabel="Teams" onBack={back} />
         <View className="flex-1 items-center justify-center px-6">
-          {loading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+          {failure ? <ReadFailure what="This team" reason={failure} onRetry={publicTeam.retry} /> : loading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
             <Text className="font-inter text-sm text-ink-muted text-center">This team does not exist any more.</Text>
           )}
         </View>
@@ -252,7 +260,10 @@ export default function TeamPage() {
           icon: 'pause-circle-outline',
           onPress: () => { setBusyError(null); setDialog('deactivate'); },
         },
-    gameCount
+    // Without its games read, nobody knows whether it has any.
+    gamesError
+      ? { label: 'Delete team', description: `Not available until its games can be checked. ${gamesError} Press to check again.`, icon: 'trash-outline', onPress: retryGames }
+      : gameCount
       ? { label: 'Delete team', description: `Not available: this team has ${gameCount === 1 ? 'a game' : `${gameCount} games`}. Deactivate it instead.`, icon: 'trash-outline', destructive: true, disabled: true, onPress: () => {} }
       : { label: 'Delete team', description: 'Deletes the team and its roster. This cannot be undone.', icon: 'trash-outline', destructive: true, onPress: () => { setBusyError(null); setDialog('delete'); } },
   ];
@@ -380,6 +391,9 @@ export default function TeamPage() {
   const toAnswer = canAnswer
     ? teamEntries.filter(e => e.status === 'invited' && !e.entriesLocked && e.orgInvitation !== 'declined' && e.orgInvitation !== 'withdrawn').length
     : 0;
+  const entriesFailure = entriesError
+    ? <ReadFailure what="Tournaments" reason={entriesError} onRetry={retryEntries} stale={teamEntries.length > 0} />
+    : null;
   const eventsCard = (
     <TeamEventsCard
       entries={teamEntries}
@@ -437,6 +451,18 @@ export default function TeamPage() {
   const coach = staff.find(m => m.roleId === 'role-coach');
   const seasonEntries = teamEntries.filter(e => seasonOf(e.eventStartDate) === season || e.status === 'invited');
 
+  const resultsFailure = gamesError
+    ? <ReadFailure what={`The ${season} results`} reason={gamesError} onRetry={retryGames} stale={results.length > 0} />
+    : null;
+  const squadFailure = rosterError
+    ? <ReadFailure what="The squad" reason={rosterError} onRetry={publicSquad.retry} stale={roster.length > 0} />
+    : null;
+  /** The failure stands in for the card: what it would say of an empty squad would not be true. */
+  const squadUnknown = !!rosterError && !roster.length;
+  const seasonStatsFailure = seasonStats.error
+    ? <ReadFailure what="The season's figures" reason={seasonStats.error} onRetry={seasonStats.retry} />
+    : null;
+
   const seasonSelect = (
     <CustomSelect
       compact
@@ -461,19 +487,25 @@ export default function TeamPage() {
   ) : null;
   const seasonCard = (
     <TournamentCardLike title={`${season} season`} right={results.length ? see('Results ›', 'results') : undefined}>
+      {resultsFailure}
       {results.length ? (
         <>
           <RecordStrip record={stats.record} />
           {stats.form.length ? <View className="flex-row items-center justify-between pt-1"><Text className="font-inter text-sm text-ink-muted">Form</Text><FormChips form={stats.form} /></View> : null}
         </>
-      ) : <CardNote text={`No results in ${season} yet.`} />}
+      ) : gamesError ? null : <CardNote text={`No results in ${season} yet.`} />}
     </TournamentCardLike>
   );
   const squadCard = (
     <TournamentCardLike title="Squad" right={see('Players ›', 'players')}>
-      <Line label="Players" value={String(players.length)} />
-      {top && mainScore ? <Line label={`Top ${mainScore.toLowerCase()} scorer`} value={`${top.name} · ${top.scores[mainScore]}`} /> : null}
-      <Line label="Coach" value={coach ? nameOf(coach) : 'None yet'} />
+      {squadFailure}
+      {squadUnknown ? null : (
+        <>
+          <Line label="Players" value={String(players.length)} />
+          {top && mainScore ? <Line label={`Top ${mainScore.toLowerCase()} scorer`} value={`${top.name} · ${top.scores[mainScore]}`} /> : null}
+          <Line label="Coach" value={coach ? nameOf(coach) : 'None yet'} />
+        </>
+      )}
     </TournamentCardLike>
   );
   const competitionsCard = seasonEntries.length ? (
@@ -485,6 +517,8 @@ export default function TeamPage() {
         </TouchableOpacity>
       ))}
     </TournamentCardLike>
+  ) : entriesError ? (
+    <TournamentCardLike title="Competitions">{entriesFailure}</TournamentCardLike>
   ) : null;
   const overview = isWide ? (
     <View className="flex-row gap-4 items-start">
@@ -518,6 +552,7 @@ export default function TeamPage() {
               {stats.byCompetition.map(c => <Line key={c.name} label={c.name} value={`P${c.record.played} ${pct(c.record)}`} />)}
             </View>
           ) : null}
+          {seasonStatsFailure}
           {seasonStats.gamesCounted ? (
             <Text className="font-inter text-xs text-ink-muted">
               {seasonStats.gamesWithEvents === seasonStats.gamesCounted
@@ -534,7 +569,7 @@ export default function TeamPage() {
       <GameList games={results} {...pick} empty={`No results in ${season} yet.`} />
     </SectionCard>
   );
-  const resultsTab = isWide ? (
+  const resultsCards = isWide ? (
     <View className="flex-row gap-4 items-start">
       <View className="min-w-0" style={{ flex: 1 }}>{statsCard}</View>
       <View className="min-w-0" style={{ flex: 1 }}>{resultsList}</View>
@@ -547,17 +582,20 @@ export default function TeamPage() {
       {resultsView === 'stats' ? statsCard : resultsList}
     </View>
   );
+  // With nothing held, the failure stands in for both cards: their "no results" would not be true.
+  const resultsTab = gamesError && !results.length ? resultsFailure : <View className="gap-3">{resultsFailure}{resultsCards}</View>;
 
   /* ---------------- Players and Competitions ---------------- */
   const playersTab = (
     <View className="gap-3">
       {players.length || staff.length ? searchBox : null}
-      {playersCard}
-      {staffCard}
+      {squadFailure}
+      {players.length ? seasonStatsFailure : null}
+      {squadUnknown ? null : <>{playersCard}{staffCard}</>}
     </View>
   );
-  const competitionsTab = teamEntries.length ? eventsCard : (
-    <SectionCard label="Competitions"><CardNote text="Not in any tournament yet." /></SectionCard>
+  const competitionsTab = teamEntries.length ? <View className="gap-3">{entriesFailure}{eventsCard}</View> : (
+    <SectionCard label="Competitions">{entriesFailure ?? <CardNote text="Not in any tournament yet." />}</SectionCard>
   );
 
   return (
@@ -598,6 +636,7 @@ export default function TeamPage() {
             orgId={orgId!}
             supportedSportIds={org?.supportedSportIds}
             sports={sports}
+            sportsFailure={sportsError && !sportsData ? { reason: sportsError, retry: refetchSports } : null}
             team={team}
           />
           <AddPlayersDialog
@@ -619,6 +658,7 @@ export default function TeamPage() {
             readType={peopleRead}
             staffProfileIds={new Set(staff.map(m => m.id))}
             roles={teamRoles}
+            rolesFailure={rolesFailure}
             onAddNew={roleId => { close(); setNewPersonRole(roleId); }}
           />
           <AddPersonDialog
@@ -628,7 +668,7 @@ export default function TeamPage() {
             onClose={() => setNewPersonRole(null)}
             team={newPersonRole ? { id: team.id, name: team.name, roleId: newPersonRole, roleName: newPersonRole === PLAYER_ROLE ? 'Player' : roleName(newPersonRole) } : undefined}
           />
-          <ChangeRoleDialog member={roleTarget} roles={teamRoles} onClose={() => setRoleTarget(null)} />
+          <ChangeRoleDialog member={roleTarget} roles={teamRoles} rolesFailure={rolesFailure} onClose={() => setRoleTarget(null)} />
           <InviteModal
             person={inviteTarget}
             guardians={inviteTarget ? guardiansByPlayer.get(inviteTarget.id) : undefined}

@@ -1042,6 +1042,7 @@ export function TournamentHome({
       {links.isPublic ? null : <TodoCard
         tasks={todo.tasks}
         rows={todo.rows}
+        error={todo.error}
         orgId={orgId}
         eventName={event.name}
         orgName={id => event.participatingOrgs?.find(o => o.id === id)?.name || 'Your organisation'}

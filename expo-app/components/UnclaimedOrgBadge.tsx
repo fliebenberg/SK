@@ -39,7 +39,7 @@ export interface UnclaimedOrgBadgeProps {
 export function UnclaimedOrgBadge({ org, size = 14, className = '', onHoverChange, autoPrompt = false }: UnclaimedOrgBadgeProps) {
   const isDark = useActiveTheme() === 'dark';
   const unclaimed = org.isClaimed === false;
-  const { status, addPending, refresh } = useOrgClaimStatus(org.id, unclaimed);
+  const { status, error: statusError, addPending, refresh } = useOrgClaimStatus(org.id, unclaimed, { suppressToast: true });
   const [hovered, setHovered] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const promptedForOrg = useRef<string | null>(null);
@@ -98,6 +98,8 @@ export function UnclaimedOrgBadge({ org, size = 14, className = '', onHoverChang
         onClose={() => setIsOpen(false)}
         org={org}
         status={status}
+        statusError={statusError}
+        onRetryStatus={refresh}
         onNominated={addPending}
         onTookOver={refresh}
       />

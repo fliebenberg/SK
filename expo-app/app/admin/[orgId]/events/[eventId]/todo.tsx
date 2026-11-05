@@ -9,7 +9,7 @@ import { PageBody } from '../../../../../components/PageBody';
 import CustomSelect from '../../../../../components/CustomSelect';
 import { SegmentedControl } from '../../../../../components/SegmentedControl';
 import { SectionPageHeading } from '../../../../../components/tournament/TournamentBits';
-import { TodoRow, TodoRows, useTournamentTodo } from '../../../../../components/tournament/TournamentTodo';
+import { TodoReadFailure, TodoRow, TodoRows, useTournamentTodo } from '../../../../../components/tournament/TournamentTodo';
 import { useTournamentData } from '../../../../../hooks/useTournamentData';
 import { useSafeBack } from '../../../../../hooks/useSafeBack';
 
@@ -56,7 +56,7 @@ function TodoPage({ orgId, event, data, onBack }: {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const { divisions, entrants, canEdit, sports, games } = data;
-  const { tasks, reload } = useTournamentTodo({ event, divisions, entrants, canEdit, sports, games, orgId });
+  const { tasks, reload, error } = useTournamentTodo({ event, divisions, entrants, canEdit, sports, games, orgId });
   const [whose, setWhose] = useState<Whose>('all');
   const [sportId, setSportId] = useState<string>(ALL);
   const [team, setTeam] = useState<string>(ALL);
@@ -96,6 +96,7 @@ function TodoPage({ orgId, event, data, onBack }: {
             <Text className="font-inter text-[13px] text-ink-muted">
               Everything still to do for {event.name}{hasCoaches ? ' — yours first, then your coaches’' : ''}.
             </Text>
+            {error ? <TodoReadFailure reason={error} onRetry={reload} /> : null}
             {rows.length > 1 ? (
               <View className={isWide ? 'flex-row flex-wrap items-center gap-2' : 'gap-2'}>
                 {hasCoaches ? (
@@ -135,7 +136,7 @@ function TodoPage({ orgId, event, data, onBack }: {
                 {group('Yours', shown.filter(r => r.mine))}
                 {group('Coaches’', shown.filter(r => !r.mine))}
               </>
-            ) : (
+            ) : error && !rows.length ? null : (
               <Text className="font-inter text-sm text-ink-muted">{rows.length ? 'Nothing here with these filters.' : 'Nothing to do.'}</Text>
             )}
           </View>

@@ -6,7 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/Button';
 import { GlassCard } from '../../components/GlassCard';
 import { OrgLogo } from '../../components/OrgLogo';
-import { wsService } from '../../services/websocket';
+import { readData } from '../../services/reads';
+import { ReadFailure } from '../../components/ReadFailure';
 import { sendAction } from '../../services/actions';
 import { SocketAction } from '@sk/shared';
 import { useWsStore } from '../../store/wsStore';
@@ -30,6 +31,9 @@ export default function ReferScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  /** The read failed, so nobody knows yet whether the link is good (`SYNC-9`). */
+  const [readFailure, setReadFailure] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   // Fetch token info from server on mount/connection
   useEffect(() => {
@@ -44,20 +48,24 @@ export default function ReferScreen() {
       return;
     }
 
+    let active = true;
     setIsLoading(true);
     setErrorMsg(null);
+    setReadFailure(null);
 
-    wsService.emit('get_data', { type: 'claim_info', token }, (res: any) => {
-      if (res && res.error) {
-        setErrorMsg(res.error);
-      } else if (!res) {
+    void readData<any>('claim_info', { token }, { suppressToast: true, stillWanted: () => active }).then(result => {
+      if (!active) return;
+      if (!result.ok) {
+        setReadFailure(result.message);
+      } else if (!result.data) {
         setErrorMsg('This invitation link is invalid or has expired.');
       } else {
-        setClaimInfo(res);
+        setClaimInfo(result.data);
       }
       setIsLoading(false);
     });
-  }, [token, isConnected]);
+    return () => { active = false; };
+  }, [token, isConnected, attempt]);
 
   const handleRefer = async () => {
     if (!email.trim() || !email.includes('@')) {
@@ -88,6 +96,15 @@ export default function ReferScreen() {
           <Text className="font-orbitron-bold text-ink-muted mt-4">
             LOADING DETAILS...
           </Text>
+        </View>
+      );
+    }
+
+    if (readFailure && !claimInfo) {
+      return (
+        <View className="py-12 gap-6">
+          <ReadFailure title="This invitation could not be checked." reason={readFailure} onRetry={() => setAttempt(n => n + 1)} />
+          <Button title="Back to Home" variant="ghost" onPress={() => router.push('/')} className="w-full" />
         </View>
       );
     }

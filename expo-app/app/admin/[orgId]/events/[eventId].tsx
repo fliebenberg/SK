@@ -6,9 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../store/settingsStore';
-import { wsService } from '../../../../services/websocket';
 import { sendAction } from '../../../../services/actions';
-import { useWsStore } from '../../../../store/wsStore';
+import { useSocketQuery } from '../../../../hooks/useSocketQuery';
+import { ReadFailure } from '../../../../components/ReadFailure';
 import { useAuthStore } from '../../../../store/authStore';
 import {
   SocketAction,
@@ -39,6 +39,8 @@ import { themeColor } from '../../../../constants/Colors';
 import { PageBody } from '../../../../components/PageBody';
 import { shareLink } from '../../../../utils/share';
 import { useTournamentLinks } from '../../../../components/tournament/tournamentLinks';
+
+const NO_ORGANIZERS: TournamentOrganizer[] = [];
 
 /**
  * One event, at whichever of its two altitudes applies.
@@ -80,7 +82,6 @@ export default function EventDetails() {
   }>();
   const links = useTournamentLinks(orgId);
   const isDark = useActiveTheme() === 'dark';
-  const isConnected = useWsStore((state: any) => state.isConnected);
   const secondary = themeColor(isDark, 'ink-muted');
 
   const user = useAuthStore((state: any) => state.user);
@@ -178,17 +179,9 @@ export default function EventDetails() {
    * to. The Basic Info *screen* reads the same thing for its picker — one extra round trip on a screen
    * that is only reached by an organiser, which is cheaper than teaching a room about it.
    */
-  const [organizers, setOrganizers] = useState<TournamentOrganizer[]>([]);
-  useEffect(() => {
-    if (!isConnected || !eventId || !canEdit) return;
-    let active = true;
-    wsService.emit('get_data', { type: 'event_organizers', eventId }, (res: any) => {
-      if (active && Array.isArray(res)) setOrganizers(res);
-    });
-    return () => {
-      active = false;
-    };
-  }, [isConnected, eventId, canEdit]);
+  const organizersRead = useSocketQuery<TournamentOrganizer[]>('event_organizers', { eventId }, { enabled: !!eventId && canEdit, suppressToast: true });
+  const organizers = Array.isArray(organizersRead.data) ? organizersRead.data : NO_ORGANIZERS;
+  const setOrganizers = organizersRead.setData;
 
 
   // ------------------------------------------------------------------------------------------
@@ -461,6 +454,10 @@ export default function EventDetails() {
             through its own dialog, so the tab is never dirty. */}
         {activeTab === 'setup' && (
           <PageBody onLayout={e => { overviewTop.current = e.nativeEvent.layout.y; }}>
+            {/* No organisers is no card, so a failed read says so here rather than leaving that impression. */}
+            {organizersRead.error ? (
+              <ReadFailure what="Organisers" reason={organizersRead.error} onRetry={organizersRead.refetch} stale={!!organizersRead.data} className="mb-4" />
+            ) : null}
             <TournamentHome
               event={event}
               orgId={orgId}
@@ -555,6 +552,10 @@ export default function EventDetails() {
           event={event}
           orgId={orgId}
           organizers={organizers}
+          isLoading={organizersRead.isLoading && !organizersRead.data}
+          error={organizersRead.error}
+          held={!!organizersRead.data}
+          onRetry={organizersRead.refetch}
           onChange={setOrganizers}
           onClose={() => setOrganizersOpen(false)}
         />

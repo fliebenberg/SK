@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Dependant, GameSummary, SocketAction, formatInviteWait, inviteCooldownRemainingHours, isValidEmail, normalizeEmail } from '@sk/shared';
 import { GlassCard } from '../../components/GlassCard';
 import { Button } from '../../components/Button';
+import { ReadFailure } from '../../components/ReadFailure';
 import { useAuthStore } from '../../store/authStore';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
 import { useStaticRead } from '../../hooks/useStaticRead';
@@ -139,9 +140,10 @@ function ChildFixtures({ child }: { child: Dependant }) {
     },
   });
 
-  const { data: pastResults } = useStaticRead<GameSummary[]>(
+  const { data: pastResults, error: pastError, retry: retryPast } = useStaticRead<GameSummary[]>(
     'teams_recent_results',
     child.teams.length ? { orgId: child.orgId, teamIds: child.teams.map(t => t.teamId), limit: 3 } : null,
+    { suppressToast: true },
   );
 
   const { upcoming, recent } = useMemo(() => {
@@ -166,10 +168,11 @@ function ChildFixtures({ child }: { child: Dependant }) {
   return (
     <View>
       <Text className={SECTION}>Fixtures</Text>
+      {pastError ? <ReadFailure what="Recent results" reason={pastError} onRetry={retryPast} stale={recent.length > 0} className="mb-2" /> : null}
       {isLoading ? (
         <Text className="font-inter text-xs text-ink-muted">Loading fixtures…</Text>
       ) : upcoming.length === 0 && recent.length === 0 ? (
-        <Text className="font-inter text-xs text-ink-muted">No fixtures scheduled.</Text>
+        pastError ? null : <Text className="font-inter text-xs text-ink-muted">No fixtures scheduled.</Text>
       ) : (
         <View className="gap-1.5">
           {upcoming.map(game => <FixtureRow key={game.id} game={game} />)}

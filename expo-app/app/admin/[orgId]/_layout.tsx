@@ -32,13 +32,21 @@ export default function OrgAdminLayout() {
   const { orgId, eventId, gameId } = useGlobalSearchParams<{ orgId?: string; eventId?: string; gameId?: string }>();
   // Someone with no role in this org may still run one of its tournaments, or officiate one of its
   // games (`PERM-8`): the server says so, and that opens those pages and nothing else of it.
-  const { capabilities: eventCaps, isLoading: eventLoading } = useEventCapabilities(eventId);
-  const { capabilities: gameCaps, isLoading: gameLoading } = useGameCapabilities(gameId);
+  // Quiet here: the guard draws a failure if it would otherwise turn someone away, and the screen inside
+  // says what it means for that screen.
+  const { capabilities: eventCaps, isLoading: eventLoading, error: eventError, retry: retryEvent } = useEventCapabilities(eventId, { suppressToast: true });
+  const { capabilities: gameCaps, isLoading: gameLoading, error: gameError, retry: retryGame } = useGameCapabilities(gameId, { suppressToast: true });
   const grant = !!(eventCaps?.canEditEvent || eventCaps?.convenesDivisionIds?.length || eventCaps?.convenesSportIds?.length)
     || !!(gameCaps?.canScore || gameCaps?.canKeepTime);
 
   return (
-    <AuthGuard orgId={orgId} admitted={grant} admitting={(!!eventId && eventLoading) || (!!gameId && gameLoading)}>
+    <AuthGuard
+      orgId={orgId}
+      admitted={grant}
+      admitting={(!!eventId && eventLoading) || (!!gameId && gameLoading)}
+      admitError={eventError || gameError}
+      onRetryAdmit={() => { if (eventError) retryEvent(); if (gameError) retryGame(); }}
+    >
       <OrgAdminWorkspace grant={grant} />
     </AuthGuard>
   );

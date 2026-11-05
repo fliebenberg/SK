@@ -57,6 +57,7 @@ export function EventLogFeed({ gameId, game, canManage = false, plain = false }:
     profileMap,
     homeRoster,
     awayRoster,
+    eventsError,
   } = useSharedDynamicScoring();
 
   const [activeFilters, setActiveFilters] = useState<Set<EventFilterCategory>>(
@@ -332,7 +333,9 @@ export function EventLogFeed({ gameId, game, canManage = false, plain = false }:
       {filteredEvents.length === 0 ? (
         <View className="flex-1 items-center justify-center py-10">
           <Text className="font-inter text-xs text-ink-muted italic">
-            {events.length === 0 ? (game?.status === 'Finished' ? 'Nothing was recorded during the match.' : 'Waiting for kickoff...') : 'No events match filters.'}
+            {events.length === 0
+              ? (eventsError ? 'The match events did not load.' : game?.status === 'Finished' ? 'Nothing was recorded during the match.' : 'Waiting for kickoff...')
+              : 'No events match filters.'}
           </Text>
         </View>
       ) : (

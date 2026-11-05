@@ -1,14 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { GAME_OFFICIAL_LABELS, GameOfficialEntry, GameOfficialRole, OrgProfile, SocketAction } from '@sk/shared';
 import { ReadCard, ReadCardEmpty } from '../ReadCard';
+import { ReadFailure } from '../ReadFailure';
 import { EditDialog, ReadRow } from '../EditDialog';
 import { FieldLabel } from '../FieldLabel';
 import { SegmentedControl } from '../SegmentedControl';
 import { PersonnelAutocomplete } from '../PersonnelAutocomplete';
 import { sendAction } from '../../services/actions';
-import { wsService } from '../../services/websocket';
-import { useWsStore } from '../../store/wsStore';
+import { useSocketQuery } from '../../hooks/useSocketQuery';
 
 const ROLE_OPTIONS: { key: GameOfficialRole; label: string }[] = [
   { key: 'SCORER', label: GAME_OFFICIAL_LABELS.SCORER },
@@ -25,22 +25,14 @@ const ROLE_HELP = 'A scorer and a match official may score the game. A timekeepe
  * or keep time.
  */
 export function GameOfficialsCard({ gameId, hostOrgId }: { gameId: string; hostOrgId: string }) {
-  const isConnected = useWsStore((state: any) => state.isConnected);
-  const [officials, setOfficials] = useState<GameOfficialEntry[]>([]);
+  const { data, isLoading, error: readError, refetch: load } = useSocketQuery<GameOfficialEntry[]>('game_officials', { gameId }, { suppressToast: true });
+  const officials = Array.isArray(data) ? data : [];
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [person, setPerson] = useState<OrgProfile | null>(null);
   const [role, setRole] = useState<GameOfficialRole>('SCORER');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const load = () => wsService.emit('get_data', { type: 'game_officials', gameId }, (res: any) => {
-    if (Array.isArray(res)) setOfficials(res);
-  });
-  useEffect(() => {
-    if (isConnected) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, gameId]);
 
   const open = () => { setName(''); setPerson(null); setRole('SCORER'); setError(null); setAdding(true); };
 
@@ -61,6 +53,7 @@ export function GameOfficialsCard({ gameId, hostOrgId }: { gameId: string; hostO
 
   return (
     <ReadCard label="Officials" onEdit={officials.length ? open : undefined} editLabel="Add" editIcon="add">
+      {readError ? <ReadFailure what="Officials" reason={readError} onRetry={load} stale={officials.length > 0} /> : null}
       {officials.length ? (
         <View>
           {officials.map((o, i) => (
@@ -78,6 +71,8 @@ export function GameOfficialsCard({ gameId, hostOrgId }: { gameId: string; hostO
             </View>
           ))}
         </View>
+      ) : readError ? null : isLoading ? (
+        <ReadCardEmpty text="Loading…" />
       ) : (
         <ReadCardEmpty text="Nobody appointed. Its teams' coaches and scorers can score it." action="Appoint someone" onPress={open} />
       )}

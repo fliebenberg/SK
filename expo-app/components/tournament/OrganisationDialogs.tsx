@@ -15,7 +15,8 @@ import { useOrgClaimStatus } from '../../hooks/useOrgClaimStatus';
 import { FixtureCrest } from '../events/EventBits';
 import { TEXT_INPUT } from '../formStyles';
 import { sendAction } from '../../services/actions';
-import { wsService } from '../../services/websocket';
+import { readData } from '../../services/reads';
+import { ReadFailure } from '../ReadFailure';
 import { useAuthStore } from '../../store/authStore';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
@@ -91,6 +92,8 @@ export function AddOrganisationsDialog({ visible, event, orgId, onClose, onRegis
   const [query, setQuery] = useState('');
   const [found, setFound] = useState<Organization[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchTry, setSearchTry] = useState(0);
   const [chosen, setChosen] = useState<Organization[]>([]);
   const [saving, setSaving] = useState(false);
   const takingPart = new Set((event.participatingOrgs || []).map(o => o.id));
@@ -107,17 +110,21 @@ export function AddOrganisationsDialog({ visible, event, orgId, onClose, onRegis
   // room owns (`FIX-2`), so it is a one-shot read.
   useEffect(() => {
     const text = query.trim();
-    if (!text) { setFound([]); return; }
+    setSearchError(null);
+    if (!text) { setFound([]); setSearching(false); return; }
     setSearching(true);
+    let active = true;
     const timer = setTimeout(() => {
-      wsService.emit('get_data', { type: 'search_similar_orgs', name: text }, (res: any) => {
+      void readData<Organization[]>('search_similar_orgs', { name: text }, { suppressToast: true, stillWanted: () => active }).then(result => {
+        if (!active) return;
         setSearching(false);
+        if (!result.ok) { setSearchError(result.message); return; }
         // A private organisation takes part in nobody else's tournament (`ORG-14`).
-        if (Array.isArray(res)) setFound(res.filter((o: Organization) => !o.isPrivate).slice(0, 12));
+        if (Array.isArray(result.data)) setFound(result.data.filter((o: Organization) => !o.isPrivate).slice(0, 12));
       });
     }, 350);
-    return () => clearTimeout(timer);
-  }, [query]);
+    return () => { active = false; clearTimeout(timer); };
+  }, [query, searchTry]);
 
   const isChosen = (id: string) => chosen.some(o => o.id === id);
   const toggle = (org: Organization) => setChosen(prev => (isChosen(org.id) ? prev.filter(o => o.id !== org.id) : [...prev, org]));
@@ -185,7 +192,11 @@ export function AddOrganisationsDialog({ visible, event, orgId, onClose, onRegis
           })}
         </View>
       ) : null}
-      {query.trim() && !searching ? (
+      {/* A failed search knows nothing about that name, so no Register: it would invite a duplicate. */}
+      {searchError ? (
+        <ReadFailure title="The search did not finish, so we cannot tell whether they are on ScoreKeeper." reason={searchError} onRetry={() => setSearchTry(n => n + 1)} />
+      ) : null}
+      {query.trim() && !searching && !searchError ? (
         <TouchableOpacity onPress={() => onRegister(query.trim())} accessibilityRole="button" className="flex-row items-center gap-2 rounded-xl border border-dashed border-line-strong px-3 py-2.5">
           <Text className="font-inter-bold text-[13px] text-primary-ink">＋ Register “{query.trim()}”</Text>
           <Text className="font-inter text-[13px] text-ink-muted">— not on ScoreKeeper yet</Text>
@@ -276,8 +287,8 @@ export function useCanWriteInto() {
 
 /** Nominating a contact for an organisation nobody manages, with its claim status read for the dialog. */
 export function NominateFor({ org, onClose }: { org: { id: string; name: string }; onClose: () => void }) {
-  const { status } = useOrgClaimStatus(org.id, true);
-  return <NominateAdminModal visible org={org} status={status} onClose={onClose} onNominated={onClose} />;
+  const { status, error, refresh } = useOrgClaimStatus(org.id, true, { suppressToast: true });
+  return <NominateAdminModal visible org={org} status={status} statusError={error} onRetryStatus={refresh} onClose={onClose} onNominated={onClose} />;
 }
 
 /* ---------------------------------------------------------------------------------------------

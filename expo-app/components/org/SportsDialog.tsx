@@ -3,6 +3,7 @@ import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Organization, SocketAction } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
+import { ReadFailure } from '../ReadFailure';
 import { TEXT_INPUT } from '../formStyles';
 import { sendAction } from '../../services/actions';
 import { useSocketQuery } from '../../hooks/useSocketQuery';
@@ -19,8 +20,8 @@ import { themeColor } from '../../constants/Colors';
  */
 export function SportsDialog({ org, visible, onClose }: { org: Organization; visible: boolean; onClose: () => void }) {
   const isDark = useActiveTheme() === 'dark';
-  const { data: sports } = useSocketQuery<any[]>('sports', {}, { enabled: visible });
-  const { data: teams } = useSocketQuery<any[]>('teams', { orgId: org.id }, { enabled: visible });
+  const { data: sports, error: sportsError, refetch: refetchSports } = useSocketQuery<any[]>('sports', {}, { enabled: visible, suppressToast: true });
+  const { data: teams, isLoading: isTeamsLoading, error: teamsError, refetch: refetchTeams } = useSocketQuery<any[]>('teams', { orgId: org.id }, { enabled: visible, suppressToast: true });
   const [selected, setSelected] = useState<string[]>(org.supportedSportIds || []);
   const [search, setSearch] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -37,6 +38,10 @@ export function SportsDialog({ org, visible, onClose }: { org: Organization; vis
 
   const original = org.supportedSportIds || [];
   const isDirty = [...selected].sort().join() !== [...original].sort().join();
+
+  // Without its teams, nobody knows what removing a sport would deactivate (`SYNC-9`).
+  const isRemoving = original.some(id => !selected.includes(id));
+  const teamsUnknown = isRemoving && (isTeamsLoading || !!teamsError);
 
   const affected = useMemo(() => {
     const removed = original.filter(id => !selected.includes(id));
@@ -74,10 +79,15 @@ export function SportsDialog({ org, visible, onClose }: { org: Organization; vis
       onClose={onClose}
       onSave={save}
       saveLabel={confirming ? 'Remove and deactivate' : 'Save'}
-      saveDisabled={!isDirty || !sports}
+      saveDisabled={!isDirty || !sports || teamsUnknown}
       isSaving={isSaving}
       isDirty={isDirty}
     >
+      {sportsError && !sports ? <ReadFailure what="Sports" reason={sportsError} onRetry={refetchSports} /> : null}
+      {teamsError && isRemoving ? (
+        <ReadFailure title="A sport cannot be removed until its teams have loaded." reason={teamsError} onRetry={refetchTeams} />
+      ) : null}
+
       <View className={`flex-row items-center gap-2 ${TEXT_INPUT}`}>
         <Ionicons name="search" size={16} color={themeColor(isDark, 'ink-muted')} />
         <TextInput

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Facility, GameSummary, SocketAction, Sport } from '@sk/shared';
 import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { EditLink, ReadCardEmpty } from '../../../../components/ReadCard';
+import { ReadFailure } from '../../../../components/ReadFailure';
 import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { JumpBar, useJumpSections } from '../../../../components/JumpBar';
@@ -30,8 +31,6 @@ import { themeColor } from '../../../../constants/Colors';
 import { PageBody } from '../../../../components/PageBody';
 import { useTournamentLinks } from '../../../../components/tournament/tournamentLinks';
 import { copyText, openDirections } from '../../../../utils/share';
-import { wsService } from '../../../../services/websocket';
-import { useWsStore } from '../../../../store/wsStore';
 import { useOrgAccess } from '../../../../hooks/useOrgAccess';
 
 type Dialog = 'name' | 'location' | 'facility' | 'deactivate' | 'delete' | null;
@@ -66,13 +65,8 @@ export default function SitePage() {
   const links = useTournamentLinks(orgParam);
   const isPublic = links.isPublic;
   // The public address names only the site; its organisation comes from the site itself.
-  const isConnected = useWsStore((s: any) => s.isConnected);
-  const [publicOrgId, setPublicOrgId] = useState<string | null>(null);
-  useEffect(() => {
-    if (!isPublic || !isConnected || !siteId) return;
-    wsService.emit('get_data', { type: 'site', id: siteId }, (res: any) => setPublicOrgId(res?.orgId || null));
-  }, [isPublic, isConnected, siteId]);
-  const orgId = orgParam || publicOrgId || undefined;
+  const publicSite = useSocketQuery<any>('site', { id: siteId }, { enabled: isPublic && !!siteId, suppressToast: true });
+  const orgId = orgParam || publicSite.data?.orgId || undefined;
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
   const isNarrow = width < 640;
@@ -82,7 +76,7 @@ export default function SitePage() {
 
   const { sites, facilities: allFacilities, isLoading } = useOrgSites(orgId);
   const { org } = useOrgSummary(orgId);
-  const { data: sportsData } = useSocketQuery<Sport[]>('sports');
+  const { data: sportsData, error: sportsError, refetch: refetchSports } = useSocketQuery<Sport[]>('sports', {}, { suppressToast: true });
   const sports = sportsData || [];
 
   const site = sites.find(s => s.id === siteId) || null;
@@ -90,7 +84,7 @@ export default function SitePage() {
     () => allFacilities.filter(f => f.siteId === siteId && (!isPublic || f.isActive !== false)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
     [allFacilities, siteId, isPublic]
   );
-  const { games, gameCount, eventCount, eventNames, gamesByFacility } = useSiteGames(orgId, siteId, facilities);
+  const { games, gameCount, eventCount, eventNames, gamesByFacility, countsError, retryCounts } = useSiteGames(orgId, siteId, facilities);
 
   const [query, setQuery] = useState('');
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -107,12 +101,15 @@ export default function SitePage() {
   const q = query.trim().toLowerCase();
 
   if (isLoading || !site) {
-    const loading = isLoading || (isPublic && !orgId);
+    // On the public page the organisation comes from the site, so its read decides until there is one.
+    const orgUnknown = isPublic && !orgId;
+    const failure = orgUnknown ? publicSite.error : null;
+    const loading = !failure && (orgUnknown ? publicSite.isLoading : isLoading);
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Site" backLabel="Sites" onBack={back} />
         <View className="flex-1 items-center justify-center px-6">
-          {loading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+          {failure ? <ReadFailure what="This site" reason={failure} onRetry={publicSite.refetch} /> : loading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
             <Text className="font-inter text-sm text-ink-muted text-center">This site does not exist any more.</Text>
           )}
         </View>
@@ -191,7 +188,10 @@ export default function SitePage() {
           icon: 'pause-circle-outline',
           onPress: () => { setBusyError(null); setDialog('deactivate'); },
         },
-    used
+    // Without the counts nobody knows whether games are played here.
+    countsError
+      ? { label: 'Delete site', description: `Not available until its games can be checked. ${countsError} Press to check again.`, icon: 'trash-outline', onPress: retryCounts }
+      : used
       ? { label: 'Delete site', description: `Not available: ${used}. Deactivate it instead.`, icon: 'trash-outline', destructive: true, disabled: true, onPress: () => {} }
       : { label: 'Delete site', description: 'Deletes the site and its facilities. This cannot be undone.', icon: 'trash-outline', destructive: true, onPress: () => { setBusyError(null); setDialog('delete'); } },
   ];
@@ -208,7 +208,9 @@ export default function SitePage() {
             icon: 'pause-circle-outline',
             onPress: () => { setBusyError(null); setTarget({ facility: f, action: 'deactivate' }); },
           },
-      played
+      countsError
+        ? { label: 'Delete', description: `Not available until its games can be checked. ${countsError} Press to check again.`, icon: 'trash-outline', onPress: retryCounts }
+        : played
         ? { label: 'Delete', description: `Not available: ${played === 1 ? '1 game is' : `${played} games are`} on it. Deactivate it instead.`, icon: 'trash-outline', destructive: true, disabled: true, onPress: () => {} }
         : { label: 'Delete', description: 'Deletes it from this site. This cannot be undone.', icon: 'trash-outline', destructive: true, onPress: () => { setBusyError(null); setTarget({ facility: f, action: 'delete' }); } },
     ];
@@ -409,6 +411,7 @@ export default function SitePage() {
         <PageBody className="gap-4">
           {banner}
           {isPublic ? null : inactiveNote}
+          {sportsError && !sportsData && facilities.length ? <ReadFailure what="Sport names" reason={sportsError} onRetry={refetchSports} /> : null}
           {isWide ? (
             <>
               {hasContent ? searchBox : null}
@@ -439,6 +442,8 @@ export default function SitePage() {
             others={markers.filter(m => m.id !== editing?.id)}
             sports={sports}
             orgSportIds={org?.supportedSportIds}
+            sportsError={sportsData ? null : sportsError}
+            onRetrySports={refetchSports}
           />
           <ConfirmationModal
             isOpen={dialog === 'deactivate'}

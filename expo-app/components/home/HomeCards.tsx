@@ -5,7 +5,8 @@ import { HOME_RADIUS_KM, HomeNearbyOrganizations, HomeSearchResult } from '@sk/s
 import { TournamentCard } from '../tournament/TournamentBits';
 import { OrgListCard } from '../org/OrgListCard';
 import { TeamListCard } from '../teams/TeamListCard';
-import { GroupHeading, HomeRow, IconMark, ReadFailure, ShowMore } from './HomeBits';
+import { GroupHeading, HomeRow, IconMark, ShowMore } from './HomeBits';
+import { ReadFailure } from '../ReadFailure';
 import { homeLinks } from './homeLinks';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';

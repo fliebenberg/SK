@@ -33,7 +33,7 @@ const PITCH_POSITIONS: Record<string, { top: string; left: string }> = {
 
 export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPanelProps) {
   const isDark = useActiveTheme() === 'dark';
-  const { game, homeRoster, awayRoster, isLoadingRosters } = useSharedDynamicScoring();
+  const { game, homeRoster, awayRoster, isLoadingRosters, rostersError } = useSharedDynamicScoring();
   const [viewMode, setViewMode] = useState<'list' | 'pitch'>('list');
 
   const homeParticipantId = game.participants?.[0]?.id;
@@ -55,7 +55,7 @@ export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPan
     return (
       <View className="flex-1 items-center justify-center py-10">
         <Text className="font-inter text-xs text-ink-muted italic">
-          No players registered for this team.
+          {rostersError ? 'The team sheet did not load.' : 'No players registered for this team.'}
         </Text>
       </View>
     );

@@ -12,6 +12,8 @@ import { ConfirmationModal } from '../../../../../../components/ConfirmationModa
 import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../services/websocket';
 import { sendAction } from '../../../../../../services/actions';
+import { readData } from '../../../../../../services/reads';
+import { ReadFailure } from '../../../../../../components/ReadFailure';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { SocketAction, Season, SeasonTeam, LeagueStandingRow, Game, Team, reseedDecision } from '@sk/shared';
 import { finishedScoreLine } from '../../../../../../utils/matchScore';
@@ -29,6 +31,9 @@ const calculateSeasonStatus = (startDate: string, endDate: string): 'UPCOMING' |
   if (status === 'after') return 'COMPLETED';
   return 'UPCOMING';
 };
+
+/** The screen's reads, each with its own failure where its content would have been (`SYNC-9`). */
+type SeasonRead = 'season' | 'seasonTeams' | 'seasonGames' | 'orgTeams' | 'orgGames';
 
 /** The season settings form — the fields the Save bar above the season covers. */
 interface SeasonSettingsForm {
@@ -144,49 +149,67 @@ export default function SeasonDetails() {
     onRemove: () => { setSeasonLogo(''); return true; },
   });
 
+  /**
+   * Why each list is missing or out of date. A failed read leaves what is held, so a refusal cannot
+   * wipe the standings or seed the settings with a blank name and default points.
+   */
+  const [readErrors, setReadErrors] = useState<Partial<Record<SeasonRead, string>>>({});
+  const noteRead = (read: SeasonRead, failure: string | null) => setReadErrors(held => {
+    if ((held[read] ?? null) === failure) return held;
+    const next = { ...held };
+    if (failure) next[read] = failure;
+    else delete next[read];
+    return next;
+  });
+
+  /** One read: its answer goes to `apply`, its failure to `readErrors` for the tab to draw. */
+  const readInto = <T,>(read: SeasonRead, type: string, params: Record<string, unknown>, apply: (data: T) => void, wanted: () => boolean = () => true) =>
+    readData<T>(type, params, { suppressToast: true, stillWanted: wanted }).then(result => {
+      if (!wanted()) return;
+      noteRead(read, result.ok ? null : result.message);
+      if (result.ok) apply(result.data);
+    });
+
+  const readSeason = (apply: (res: Season) => void, wanted?: () => boolean) =>
+    readInto<Season | null>('season', 'season', { id: seasonId }, res => {
+      if (res) apply(res);
+      else noteRead('season', 'The server has no record of this season.');
+    }, wanted);
+  const readSeasonTeams = (wanted?: () => boolean) =>
+    readInto<any[]>('seasonTeams', 'season_teams', { id: seasonId }, res => { if (Array.isArray(res)) setSeasonTeams(res); }, wanted);
+  const readSeasonGames = (wanted?: () => boolean) =>
+    readInto<Game[]>('seasonGames', 'season_games', { id: seasonId }, res => { if (Array.isArray(res)) setSeasonGames(res); }, wanted);
+  const readOrgTeams = (wanted?: () => boolean) =>
+    readInto<Team[]>('orgTeams', 'teams', { orgId }, res => { if (Array.isArray(res)) setOrgTeams(res); }, wanted);
+  const readOrgGames = (wanted?: () => boolean) =>
+    readInto<Game[]>('orgGames', 'games', { orgId }, res => { if (Array.isArray(res)) setOrgGames(res); }, wanted);
+
   // Load Data
   useEffect(() => {
     if (!isConnected || !seasonId || !orgId) return;
 
     let active = true;
+    const wanted = () => active;
     setIsLoading(true);
 
-    const loadData = () => {
+    void Promise.all([
       // 1. Fetch Season details
-      wsService.emit('get_data', { type: 'season', id: seasonId }, (res: any) => {
-        if (!active) return;
-        if (res) {
-          setSeason(res);
-          setStandings(res.cachedStandings || []);
-          seedSeasonSettings(seasonSettingsOf(res));
-        }
-      });
-
+      readSeason(res => {
+        setSeason(res);
+        setStandings(res.cachedStandings || []);
+        seedSeasonSettings(seasonSettingsOf(res));
+      }, wanted),
       // 2. Fetch Season Teams
-      wsService.emit('get_data', { type: 'season_teams', id: seasonId }, (res: any) => {
-        if (active && Array.isArray(res)) setSeasonTeams(res);
-      });
-
+      readSeasonTeams(wanted),
       // 3. Fetch Season Games
-      wsService.emit('get_data', { type: 'season_games', id: seasonId }, (res: any) => {
-        if (active && Array.isArray(res)) setSeasonGames(res);
-      });
-
+      readSeasonGames(wanted),
       // 4. Fetch Org Teams (for registration selector)
-      wsService.emit('get_data', { type: 'teams', orgId }, (res: any) => {
-        if (active && Array.isArray(res)) setOrgTeams(res);
-      });
-
+      readOrgTeams(wanted),
       // 5. Fetch Org Games (for linker selector)
-      wsService.emit('get_data', { type: 'games', orgId }, (res: any) => {
-        if (active && Array.isArray(res)) {
-          setOrgGames(res);
-          setIsLoading(false);
-        }
-      });
-    };
-
-    loadData();
+      readOrgGames(wanted),
+    ]).then(() => {
+      if (active) setIsLoading(false);
+    });
 
     return () => {
       active = false;
@@ -245,32 +268,41 @@ export default function SeasonDetails() {
   useUnsavedChanges(hasSettingsChanges && !isProcessing, handleCancelSettings);
 
   // Refresh season lists (teams/games)
+  const adoptSeason = (res: Season) => {
+    setSeason(res);
+    setStandings(res.cachedStandings || []);
+    /*
+      `UI-19`. This re-read runs after adding a team or generating fixtures, and it can bring back
+      somebody else's edit to the settings above. Left ungated it moved the record the Save bar
+      was measured against while the fields stayed as typed — so a field nobody here touched read
+      as unsaved, and Cancel would have restored to a version this organiser never saw.
+    */
+    const incoming = seasonSettingsOf(res);
+    const decision = reseedDecision({
+      baseline: settingsBaseline,
+      drafts: currentSeasonSettings(),
+      incoming,
+      same: sameSeasonSettings,
+    });
+    if (decision === 'adopt') seedSeasonSettings(incoming);
+  };
+
   const refreshSeasonData = () => {
-    wsService.emit('get_data', { type: 'season_teams', id: seasonId }, (res: any) => {
-      if (Array.isArray(res)) setSeasonTeams(res);
-    });
-    wsService.emit('get_data', { type: 'season_games', id: seasonId }, (res: any) => {
-      if (Array.isArray(res)) setSeasonGames(res);
-    });
-    wsService.emit('get_data', { type: 'season', id: seasonId }, (res: any) => {
-      if (!res) return;
-      setSeason(res);
-      setStandings(res.cachedStandings || []);
-      /*
-        `UI-19`. This re-read runs after adding a team or generating fixtures, and it can bring back
-        somebody else's edit to the settings above. Left ungated it moved the record the Save bar
-        was measured against while the fields stayed as typed — so a field nobody here touched read
-        as unsaved, and Cancel would have restored to a version this organiser never saw.
-      */
-      const incoming = seasonSettingsOf(res);
-      const decision = reseedDecision({
-        baseline: settingsBaseline,
-        drafts: currentSeasonSettings(),
-        incoming,
-        same: sameSeasonSettings,
-      });
-      if (decision === 'adopt') seedSeasonSettings(incoming);
-    });
+    void readSeasonTeams();
+    void readSeasonGames();
+    void readSeason(adoptSeason);
+  };
+
+  /** Try again: what failed, and only that, so that typed settings and held lists stay as they are. */
+  const retryFailedReads = () => {
+    setIsLoading(true);
+    void Promise.all([
+      readErrors.season ? readSeason(adoptSeason) : null,
+      readErrors.seasonTeams ? readSeasonTeams() : null,
+      readErrors.seasonGames ? readSeasonGames() : null,
+      readErrors.orgTeams ? readOrgTeams() : null,
+      readErrors.orgGames ? readOrgGames() : null,
+    ]).then(() => setIsLoading(false));
   };
 
   // Add Team Handler
@@ -454,7 +486,10 @@ export default function SeasonDetails() {
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: (activeTab === 'settings' && hasSettingsChanges) ? 140 : 40 }}>
           {/* TAB 1: STANDINGS */}
-          {activeTab === 'standings' && (
+          {activeTab === 'standings' && readErrors.season ? (
+            <ReadFailure what="The standings" reason={readErrors.season} onRetry={retryFailedReads} stale={standings.length > 0} />
+          ) : null}
+          {activeTab === 'standings' && (!readErrors.season || standings.length > 0) && (
             <GlassCard className="border border-line p-4 overflow-hidden">
               <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-4">Live Standings</Text>
               
@@ -513,6 +548,10 @@ export default function SeasonDetails() {
                 </TouchableOpacity>
               </View>
 
+              {readErrors.seasonTeams ? (
+                <ReadFailure what="The roster" reason={readErrors.seasonTeams} onRetry={retryFailedReads} stale={seasonTeams.length > 0} />
+              ) : null}
+
               {/* Roster list */}
               {seasonTeams.map((st) => {
                 const isPending = st.status === 'pending';
@@ -551,7 +590,7 @@ export default function SeasonDetails() {
                 );
               })}
 
-              {seasonTeams.length === 0 && (
+              {seasonTeams.length === 0 && !readErrors.seasonTeams && (
                 <View className="items-center justify-center py-10 bg-card border border-line rounded-2xl">
                   <Ionicons name="people-outline" size={36} color={themeColor(isDark, 'ink-muted')} className="opacity-45 mb-2" />
                   <Text className="font-orbitron-bold text-xs text-ink-muted">Roster Empty</Text>
@@ -574,6 +613,10 @@ export default function SeasonDetails() {
                   <Text className="font-inter-bold text-[10px] text-primary-ink uppercase">Link Match</Text>
                 </TouchableOpacity>
               </View>
+
+              {readErrors.seasonGames ? (
+                <ReadFailure what="The season's matches" reason={readErrors.seasonGames} onRetry={retryFailedReads} stale={seasonGames.length > 0} />
+              ) : null}
 
               {/* Games List */}
               {seasonGames.map((game) => (
@@ -613,7 +656,7 @@ export default function SeasonDetails() {
                 </GlassCard>
               ))}
 
-              {seasonGames.length === 0 && (
+              {seasonGames.length === 0 && !readErrors.seasonGames && (
                 <View className="items-center justify-center py-10 bg-card border border-line rounded-2xl">
                   <Ionicons name="calendar-outline" size={36} color={themeColor(isDark, 'ink-muted')} className="opacity-45 mb-2" />
                   <Text className="font-orbitron-bold text-xs text-ink-muted">No Matches Linked</Text>
@@ -623,10 +666,17 @@ export default function SeasonDetails() {
             </View>
           )}
 
-          {/* TAB 4: SETTINGS */}
-          {activeTab === 'settings' && (
+          {/* TAB 4: SETTINGS. No form until there is a season behind it: its blanks could be saved. */}
+          {activeTab === 'settings' && !settingsBaseline && readErrors.season ? (
+            <ReadFailure what="The season's settings" reason={readErrors.season} onRetry={retryFailedReads} />
+          ) : null}
+          {activeTab === 'settings' && settingsBaseline && (
             <GlassCard className="border border-line p-5 gap-4">
               <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest">Season Settings</Text>
+
+              {readErrors.season ? (
+                <ReadFailure what="The season's settings" reason={readErrors.season} onRetry={retryFailedReads} stale />
+              ) : null}
 
               {actionError && (
                 <View className="bg-danger-soft border border-danger-line p-3 rounded-xl">
@@ -759,7 +809,17 @@ export default function SeasonDetails() {
             </View>
 
             <ScrollView contentContainerClassName="gap-3">
-              {availableTeams.map(team => (
+              {readErrors.orgTeams || readErrors.seasonTeams ? (
+                <ReadFailure
+                  what="The teams"
+                  reason={(readErrors.orgTeams || readErrors.seasonTeams)!}
+                  onRetry={retryFailedReads}
+                  stale={orgTeams.length > 0 && !readErrors.seasonTeams}
+                />
+              ) : null}
+
+              {/* Without the roster, any of these may already be registered. */}
+              {!readErrors.seasonTeams && availableTeams.map(team => (
                 <TouchableOpacity
                   key={team.id}
                   onPress={() => handleAddTeam(team.id)}
@@ -770,7 +830,7 @@ export default function SeasonDetails() {
                 </TouchableOpacity>
               ))}
 
-              {availableTeams.length === 0 && (
+              {availableTeams.length === 0 && !readErrors.orgTeams && !readErrors.seasonTeams && (
                 <Text className="font-inter text-xs text-ink-muted text-center py-6">All organisation teams are already registered in this season.</Text>
               )}
             </ScrollView>
@@ -797,7 +857,17 @@ export default function SeasonDetails() {
             </View>
 
             <ScrollView contentContainerClassName="gap-3">
-              {availableGames.map(game => (
+              {readErrors.orgGames || readErrors.seasonGames ? (
+                <ReadFailure
+                  what="The matches"
+                  reason={(readErrors.orgGames || readErrors.seasonGames)!}
+                  onRetry={retryFailedReads}
+                  stale={orgGames.length > 0 && !readErrors.seasonGames}
+                />
+              ) : null}
+
+              {/* Without the season's matches, any of these may already be linked. */}
+              {!readErrors.seasonGames && availableGames.map(game => (
                 <TouchableOpacity
                   key={game.id}
                   onPress={() => handleLinkGame(game.id)}
@@ -810,7 +880,7 @@ export default function SeasonDetails() {
                 </TouchableOpacity>
               ))}
 
-              {availableGames.length === 0 && (
+              {availableGames.length === 0 && !readErrors.orgGames && !readErrors.seasonGames && (
                 <Text className="font-inter text-xs text-ink-muted text-center py-6">No unlinked games found in the organisation.</Text>
               )}
             </ScrollView>

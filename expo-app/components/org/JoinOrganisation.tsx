@@ -8,6 +8,7 @@ import { TEXT_INPUT } from '../formStyles';
 import DatePicker from '../DatePicker';
 import { SegmentedControl } from '../SegmentedControl';
 import { SignInPrompt } from '../SignInPrompt';
+import { ReadFailure } from '../ReadFailure';
 import { RELATIONSHIP_LABELS } from '../guardians/guardianDraft';
 import { useSocketQuery } from '../../hooks/useSocketQuery';
 import { sendAction } from '../../services/actions';
@@ -32,7 +33,7 @@ export function useJoinOrganisation(org: Organization) {
   const access = orgAccess(org.id, false, orgMemberships, teamMemberships);
   const open = !org.isPrivate && !!org.isClaimed;
   const takesApplications = open && org.membershipMode === 'apply';
-  const { data: mine, refetch } = useSocketQuery<MembershipApplication[]>(
+  const { data: mine, error: applicationsError, refetch } = useSocketQuery<MembershipApplication[]>(
     'my_org_applications',
     { orgId: org.id },
     { enabled: isAuthenticated && open, suppressToast: true },
@@ -45,6 +46,8 @@ export function useJoinOrganisation(org: Organization) {
     userEmail: user?.email || '',
     isAuthenticated,
     applications: Array.isArray(mine) ? mine : [],
+    /** No applications only means none when this is empty: until then they are not offered applying (`SYNC-9`). */
+    applicationsError,
     refetch,
   };
 }
@@ -197,10 +200,14 @@ function ApplyDialog({ org, join, visible, onClose }: { org: Organization; join:
       onClose={onClose}
       onSave={save}
       saveLabel="Apply"
-      saveDisabled={!canSave}
+      saveDisabled={!canSave || !!join.applicationsError}
       isSaving={isSaving}
       isDirty={!!birthdate || !!cellphone.trim() || !!note.trim()}
     >
+      {join.applicationsError ? (
+        <ReadFailure title="You cannot apply until your applications here have been checked." reason={join.applicationsError} onRetry={join.refetch} />
+      ) : null}
+
       {join.isMember ? null : (
         <View className="gap-1.5">
           <FieldLabel label="Who is this for?" />
@@ -284,7 +291,11 @@ function ApplyDialog({ org, join, visible, onClose }: { org: Organization; join:
 export function YourApplications({ join }: { join: Join }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  if (!join.applications.length) return null;
+  if (!join.applications.length) {
+    return join.applicationsError && join.takesApplications
+      ? <ReadFailure what="Your applications" reason={join.applicationsError} onRetry={join.refetch} />
+      : null;
+  }
 
   const withdraw = async (id: string) => {
     setBusyId(id);
@@ -298,6 +309,7 @@ export function YourApplications({ join }: { join: Join }) {
   return (
     <View testID="your-applications" className="rounded-2xl border border-line bg-card p-4 gap-2.5">
       <Text className="font-inter-bold text-sm text-ink-soft">Your applications</Text>
+      {join.applicationsError ? <ReadFailure what="This list" reason={join.applicationsError} onRetry={join.refetch} stale /> : null}
       {join.applications.map((application, index) => (
         <View key={application.id} className={`flex-row items-center gap-3 ${index ? 'border-t border-line-soft pt-2.5' : ''}`}>
           <View className="flex-1 min-w-0">

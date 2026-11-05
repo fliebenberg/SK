@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { OrgPeoplePage, OrgPersonRow } from '@sk/shared';
 import { ScreenHeader } from '../../../components/ScreenHeader';
+import { ReadFailure } from '../../../components/ReadFailure';
 import { OverflowMenu } from '../../../components/OverflowMenu';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { ListPager } from '../../../components/ListPager';
@@ -50,7 +51,7 @@ export default function OrgPeople() {
   const isWide = width >= 768;
 
 
-  const { data: rolesData, isLoading: isRolesLoading } = useSocketQuery<any>('roles');
+  const { data: rolesData, isLoading: isRolesLoading, error: rolesError, refetch: refetchRoles } = useSocketQuery<any>('roles', {}, { suppressToast: true });
   const { canManage: canEdit, isAdmin } = useOrgAccess(orgId);
   const roles: OrgRole[] = rolesTheyMayGive(rolesData?.org || [], isAdmin);
   const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
@@ -143,6 +144,8 @@ export default function OrgPeople() {
       <ScrollView ref={scroller} contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <PageBody className="gap-3">
           {canEdit ? <OrgApplicationsCard orgId={orgId!} /> : null}
+          {/* Without them, Add person has no roles to offer. */}
+          {rolesError && !rolesData && canEdit ? <ReadFailure what="Roles" reason={rolesError} onRetry={refetchRoles} /> : null}
           <View className={`gap-2.5 ${isWide ? 'flex-row items-center' : ''}`}>
             <View className="flex-1 flex-row items-center gap-2 bg-card border border-line rounded-xl px-3" style={isWide ? { minWidth: 160 } : undefined}>
               <Ionicons name="search-outline" size={16} color={themeColor(isDark, 'ink-muted')} />

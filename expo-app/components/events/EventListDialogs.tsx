@@ -8,7 +8,8 @@ import { SegmentedControl } from '../SegmentedControl';
 import DatePicker from '../DatePicker';
 import { TEXT_INPUT } from '../formStyles';
 import { sendAction } from '../../services/actions';
-import { wsService } from '../../services/websocket';
+import { readData } from '../../services/reads';
+import { ReadFailure } from '../ReadFailure';
 import { FixtureCrest } from './EventBits';
 import { isCalendarDate, todayCalendarDate } from '../../utils/dates';
 import { useActiveTheme } from '../../store/settingsStore';
@@ -113,6 +114,8 @@ export function NewHeadToHeadDialog({ visible, orgId, hostName, onClose, onCreat
   const [query, setQuery] = useState('');
   const [found, setFound] = useState<Organization[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchTry, setSearchTry] = useState(0);
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
   const [startDate, setStartDate] = useState('');
@@ -131,17 +134,21 @@ export function NewHeadToHeadDialog({ visible, orgId, hostName, onClose, onCreat
   // A search, as in Add organisations: "every organisation but us" is a set no room owns.
   useEffect(() => {
     const text = query.trim();
-    if (!text) { setFound([]); return; }
+    setSearchError(null);
+    if (!text) { setFound([]); setSearching(false); return; }
     setSearching(true);
+    let active = true;
     const timer = setTimeout(() => {
-      wsService.emit('get_data', { type: 'search_similar_orgs', name: text }, (res: any) => {
+      void readData<Organization[]>('search_similar_orgs', { name: text }, { suppressToast: true, stillWanted: () => active }).then(result => {
+        if (!active) return;
         setSearching(false);
+        if (!result.ok) { setSearchError(result.message); return; }
         // A private organisation plays nobody else (`ORG-14`).
-        if (Array.isArray(res)) setFound(res.filter((o: Organization) => o.id !== orgId && !o.isPrivate).slice(0, 8));
+        if (Array.isArray(result.data)) setFound(result.data.filter((o: Organization) => o.id !== orgId && !o.isPrivate).slice(0, 8));
       });
     }, 350);
-    return () => clearTimeout(timer);
-  }, [query, orgId]);
+    return () => { active = false; clearTimeout(timer); };
+  }, [query, orgId, searchTry]);
 
   const choose = (org: Organization) => {
     setOpponent(org);
@@ -213,7 +220,8 @@ export function NewHeadToHeadDialog({ visible, orgId, hostName, onClose, onCreat
                 </View>
               </TouchableOpacity>
             ))}
-            {query.trim() && !searching && !found.length ? (
+            {searchError ? <ReadFailure title="The search did not finish." reason={searchError} onRetry={() => setSearchTry(n => n + 1)} /> : null}
+            {query.trim() && !searching && !searchError && !found.length ? (
               <Text className="font-inter text-xs text-ink-muted">No organisation by that name. It can be registered from Add organisations on a tournament.</Text>
             ) : null}
           </>

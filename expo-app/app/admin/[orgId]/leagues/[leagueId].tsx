@@ -12,9 +12,12 @@ import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { sendAction } from '../../../../services/actions';
+import { readData } from '../../../../services/reads';
+import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, League, Season, Sport } from '@sk/shared';
 import DatePicker from '../../../../components/DatePicker';
+import { ReadFailure } from '../../../../components/ReadFailure';
 import { getOrgLogoUrl } from '../../../../services/assets';
 import { useImageUpload } from '../../../../hooks/useImageUpload';
 import CustomSelect from '../../../../components/CustomSelect';
@@ -40,7 +43,11 @@ export default function LeagueDetails() {
   const [isLoading, setIsLoading] = useState(true);
   const [league, setLeague] = useState<League | null>(null);
   const [seasons, setSeasons] = useState<Season[]>([]);
-  const [sports, setSports] = useState<Sport[]>([]);
+  /** Why the league's settings cannot be shown or are out of date (`SYNC-9`). */
+  const [leagueError, setLeagueError] = useState<string | null>(null);
+  const [leagueAttempt, setLeagueAttempt] = useState(0);
+  // Only the name on the league's chip, which goes if this fails: nothing false is left on screen.
+  const { data: sports } = useSocketQuery<Sport[]>('sports', {}, { suppressToast: true });
 
   // League Edit State
   const [leagueName, setLeagueName] = useState('');
@@ -93,25 +100,24 @@ export default function LeagueDetails() {
     if (!isConnected || !leagueId) return;
 
     let active = true;
+    setLeagueError(null);
 
     // Fetch League details
-    wsService.emit('get_data', { type: 'league', id: leagueId }, (res: any) => {
-      if (active && res) {
-        setLeague(res);
-        setLeagueName(res.name);
-        setJoinPolicy(res.joinPolicy);
-        setLeagueLogo(res.logo || '');
-      }
-    });
-
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-      if (active && Array.isArray(res)) setSports(res);
+    void readData<League | null>('league', { id: leagueId }, { suppressToast: true, stillWanted: () => active }).then(result => {
+      if (!active) return;
+      if (!result.ok) return setLeagueError(result.message);
+      const res = result.data;
+      if (!res) return setLeagueError('The server has no record of this league.');
+      setLeague(res);
+      setLeagueName(res.name);
+      setJoinPolicy(res.joinPolicy);
+      setLeagueLogo(res.logo || '');
     });
 
     return () => {
       active = false;
     };
-  }, [isConnected, leagueId]);
+  }, [isConnected, leagueId, leagueAttempt]);
 
   useEffect(() => {
     if (!leagueId) return;
@@ -280,10 +286,11 @@ export default function LeagueDetails() {
   };
 
   const getSportName = (sportId: string) => {
-    const s = sports.find(x => x.id === sportId);
-    return s ? s.name : sportId;
+    const s = sports?.find(x => x.id === sportId);
+    return s ? s.name : sports ? sportId : '';
   };
 
+  const leagueSportName = league ? getSportName(league.sportId) : '';
 
 
   return (
@@ -304,10 +311,19 @@ export default function LeagueDetails() {
         </View>
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: hasLeagueChanges ? 140 : 40 }}>
-          {/* League Details Editor */}
+          {leagueError ? (
+            <ReadFailure what="The league's settings" reason={leagueError} onRetry={() => setLeagueAttempt(n => n + 1)} stale={!!league} className={league ? '' : 'mb-8'} />
+          ) : null}
+
+          {/* League Details Editor: a form with no league behind it would only be blank fields. */}
+          {!league ? (leagueError ? null : (
+            <View className="items-center py-8 mb-8">
+              <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />
+            </View>
+          )) : (
           <GlassCard className="border border-line p-5 mb-8">
             <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-4">League Settings</Text>
-            
+
             {editError && (
               <View className="bg-danger-soft border border-danger-line p-3 rounded-xl mb-4">
                 <Text className="text-danger-ink font-inter text-xs">{editError}</Text>
@@ -345,14 +361,16 @@ export default function LeagueDetails() {
                 />
               </View>
 
-              <View className="flex-row items-center gap-2">
-                <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Sport:</Text>
-                <View className="bg-sunken px-2.5 py-0.5 rounded-full border border-line-soft">
-                  <Text className="font-inter-bold text-[9px] text-ink-soft uppercase tracking-wider">
-                    {league ? getSportName(league.sportId) : ''}
-                  </Text>
+              {leagueSportName ? (
+                <View className="flex-row items-center gap-2">
+                  <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Sport:</Text>
+                  <View className="bg-sunken px-2.5 py-0.5 rounded-full border border-line-soft">
+                    <Text className="font-inter-bold text-[9px] text-ink-soft uppercase tracking-wider">
+                      {leagueSportName}
+                    </Text>
+                  </View>
                 </View>
-              </View>
+              ) : null}
 
               <View className="gap-2 pt-4 border-t border-line-soft">
                 <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Join Policy</Text>
@@ -390,6 +408,7 @@ export default function LeagueDetails() {
               </View>
             </View>
           </GlassCard>
+          )}
 
           {/* Seasons Header */}
           <View className="flex-row justify-between items-center mb-4">

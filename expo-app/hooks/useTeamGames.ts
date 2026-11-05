@@ -8,12 +8,16 @@ import { useStaticRead } from './useStaticRead';
  * One team's games and the competitions' names (docs/teams.md): what is current from its
  * organisation's fixtures room, live, and the finished games of the season being looked at, read
  * once (`LIST-1`). `gameCount` and `seasons` cover every game it has ever had.
+ *
+ * With `error` set the finished games and those counts are not known (`SYNC-9`): the page says so
+ * rather than "no results", and does not offer deleting a team that may have games.
  */
 export function useTeamGames(orgId?: string | null, teamId?: string | null, season?: number) {
   const { games: current, eventNames: currentNames, isLoading } = useOrgFixtures(orgId);
-  const { data } = useStaticRead<TeamSeasonResults>(
+  const { data, error, retry } = useStaticRead<TeamSeasonResults>(
     'team_season_results',
     teamId && season ? { teamId, ...seasonRange(season) } : null,
+    { suppressToast: true },
   );
   const games = useMemo(() => {
     const byId = new Map<string, GameSummary>((data?.games || []).map(g => [g.id, g]));
@@ -31,5 +35,7 @@ export function useTeamGames(orgId?: string | null, teamId?: string | null, seas
     isLoading,
     gameCount: Math.max(data?.gameCount ?? 0, games.length),
     seasons: data?.seasons ?? [],
+    error,
+    retry,
   };
 }

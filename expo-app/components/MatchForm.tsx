@@ -5,10 +5,11 @@ import CustomSelect from './CustomSelect';
 import { Button } from './Button';
 import DatePicker from './DatePicker';
 import { useActiveTheme } from '../store/settingsStore';
-import { wsService } from '../services/websocket';
 import { sendAction } from '../services/actions';
+import { readData } from '../services/reads';
 import { useWsStore } from '../store/wsStore';
 import { SocketAction, Sport, Site, Team, Organization, Facility } from '@sk/shared';
+import { ReadFailure } from './ReadFailure';
 import { RegisterOrgModal } from './RegisterOrgModal';
 import { UnclaimedOrgBadge } from './UnclaimedOrgBadge';
 import { nominateOrgContact } from '../services/nominations';
@@ -51,6 +52,17 @@ interface MatchFormProps {
    */
   ownTeamIds?: string[];
 }
+
+/** The reads the form cannot do without, as named in its one failure message (`SYNC-9`). */
+const FORM_READS = {
+  sports: 'the sports',
+  host: 'this organisation',
+  sites: 'the sites',
+  homeTeams: "Team 1's teams",
+  awayTeams: "Team 2's teams",
+  facilities: "the site's facilities",
+} as const;
+type FormRead = keyof typeof FORM_READS;
 
 /** The match-status badge: a tint and its readable shade for each status (`UI-6`, `UI-24`). */
 const STATUS_CHIP: Record<'Scheduled' | 'Live' | 'Finished' | 'Cancelled', { box: string; text: string }> = {
@@ -117,47 +129,93 @@ export default function MatchForm({
   // Loading indicator for edit mode initialization
   const [isInitializing, setIsInitializing] = useState(isEdit);
 
+  /**
+   * What did not load (`SYNC-9`). A failed read leaves its list as it was and picks nothing in its
+   * place: one message above the form covers them all, and the search says its own beside the field.
+   * Save stays off through what is missing: no sport, site or team to choose, or no timezone.
+   */
+  const [readFailures, setReadFailures] = useState<Partial<Record<FormRead | 'search' | 'editOrgs', string>>>({});
+  const noteRead = (read: FormRead | 'search' | 'editOrgs', failure: string | null) => setReadFailures(held => {
+    if ((held[read] ?? null) === failure) return held;
+    const next = { ...held };
+    if (failure) next[read] = failure;
+    else delete next[read];
+    return next;
+  });
+  /** Bumped by Try again, for the effects below to read again. */
+  const [readAttempt, setReadAttempt] = useState(0);
+  const retryReads = () => {
+    // A failed search stays until it is answered, so that its Register row does not come back meanwhile.
+    setReadFailures(held => (held.search ? { search: held.search } : {}));
+    setReadAttempt(n => n + 1);
+  };
+  /** Apart from the rest: reading these again overwrites the organisations on the form. */
+  const [editOrgsAttempt, setEditOrgsAttempt] = useState(0);
+
   // Fetch static lookups
   useEffect(() => {
     if (!isConnected) return;
 
-    wsService.emit('get_data', { type: 'sports' }, (resSports: any) => {
-      const allSports = Array.isArray(resSports) ? resSports : [];
-      if (allSports.length > 0) {
-        setSports(allSports);
+    let active = true;
+    const quiet = { suppressToast: true, stillWanted: () => active };
+    const sportsRead = readData<Sport[]>('sports', {}, quiet);
+    const hostRead = readData<Organization | null>('organization', { id: orgId }, quiet);
 
-        if (!selectedSportId && !initialData?.sportId) {
-          wsService.emit('get_data', { type: 'organization', id: orgId }, (hostOrg: any) => {
-            if (hostOrg && Array.isArray(hostOrg.supportedSportIds) && hostOrg.supportedSportIds.length > 0) {
-              const matchedSport = allSports.find((s: any) => hostOrg.supportedSportIds.includes(s.id));
-              if (matchedSport) {
-                setSelectedSportId(matchedSport.id);
-                return;
-              }
-            }
-            setSelectedSportId(allSports[0].id);
-          });
-        }
-      }
+    void sportsRead.then(result => {
+      if (!active) return;
+      noteRead('sports', result.ok ? null : result.message);
+      if (result.ok && Array.isArray(result.data) && result.data.length > 0) setSports(result.data);
     });
 
-    wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
-      if (Array.isArray(res)) setSites(res);
+    void hostRead.then(result => {
+      if (!active) return;
+      if (!result.ok) return noteRead('host', result.message);
+      noteRead('host', result.data ? null : 'The server has no record of this organisation.');
+      if (result.data) setHostOrg(result.data);
     });
 
-    wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-      if (res) setHostOrg(res);
+    // The first sport the organisation plays, only ever from answers to both: never a guess.
+    void Promise.all([sportsRead, hostRead]).then(([sportsResult, hostResult]) => {
+      if (!active || !sportsResult.ok || !hostResult.ok || initialData?.sportId) return;
+      const allSports = Array.isArray(sportsResult.data) ? sportsResult.data : [];
+      if (!allSports.length) return;
+      const supported = hostResult.data?.supportedSportIds;
+      const matchedSport = Array.isArray(supported) ? allSports.find(s => supported.includes(s.id)) : undefined;
+      setSelectedSportId(chosen => chosen || (matchedSport ?? allSports[0]).id);
     });
-  }, [isConnected, orgId]);
+
+    void readData<Site[]>('sites', { orgId }, quiet).then(result => {
+      if (!active) return;
+      noteRead('sites', result.ok ? null : result.message);
+      if (result.ok && Array.isArray(result.data)) setSites(result.data);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [isConnected, orgId, readAttempt]);
 
   // Load facilities for the selected site
   useEffect(() => {
     if (!selectedSiteId) {
       setFacilities([]);
       setSelectedFacilityId('');
+      noteRead('facilities', null);
       return;
     }
-    wsService.emit('get_data', { type: 'facilities', siteId: selectedSiteId }, (res: any) => {
+    if (!isConnected) return;
+
+    let active = true;
+    void readData<Facility[]>('facilities', { siteId: selectedSiteId }, { suppressToast: true, stillWanted: () => active }).then(result => {
+      if (!active) return;
+      if (!result.ok) {
+        // Another site's facilities must not stand in for this one's. The chosen facility stays.
+        setFacilities(held => held.filter(f => f.siteId === selectedSiteId));
+        noteRead('facilities', result.message);
+        return;
+      }
+      noteRead('facilities', null);
+      const res = result.data;
       if (Array.isArray(res)) {
         setFacilities(res);
         if (initialData?.facilityId && selectedSiteId === initialData.siteId) {
@@ -176,7 +234,11 @@ export default function MatchForm({
         }
       }
     });
-  }, [selectedSiteId, initialData?.facilityId, initialData?.siteId]);
+
+    return () => {
+      active = false;
+    };
+  }, [isConnected, selectedSiteId, initialData?.facilityId, initialData?.siteId, readAttempt]);
 
   // Reset selectedFacilityId immediately if the site changes from the initial site
   useEffect(() => {
@@ -207,23 +269,51 @@ export default function MatchForm({
   useEffect(() => {
     if (!isConnected || !selectedHomeOrg?.id) {
       setHomeTeams([]);
+      noteRead('homeTeams', null);
       return;
     }
-    wsService.emit('get_data', { type: 'teams', orgId: selectedHomeOrg.id }, (res: any) => {
-      if (Array.isArray(res)) setHomeTeams(res);
+    const teamOrgId = selectedHomeOrg.id;
+    let active = true;
+    void readData<Team[]>('teams', { orgId: teamOrgId }, { suppressToast: true, stillWanted: () => active }).then(result => {
+      if (!active) return;
+      if (!result.ok) {
+        // Another organisation's teams must not stand in for this one's.
+        setHomeTeams(held => held.filter(t => t.orgId === teamOrgId));
+        noteRead('homeTeams', result.message);
+        return;
+      }
+      noteRead('homeTeams', null);
+      if (Array.isArray(result.data)) setHomeTeams(result.data);
     });
-  }, [isConnected, selectedHomeOrg?.id]);
+    return () => {
+      active = false;
+    };
+  }, [isConnected, selectedHomeOrg?.id, readAttempt]);
 
   // Load away organization teams when awayOrgId changes
   useEffect(() => {
     if (!isConnected || !selectedAwayOrg?.id) {
       setAwayTeams([]);
+      noteRead('awayTeams', null);
       return;
     }
-    wsService.emit('get_data', { type: 'teams', orgId: selectedAwayOrg.id }, (res: any) => {
-      if (Array.isArray(res)) setAwayTeams(res);
+    const teamOrgId = selectedAwayOrg.id;
+    let active = true;
+    void readData<Team[]>('teams', { orgId: teamOrgId }, { suppressToast: true, stillWanted: () => active }).then(result => {
+      if (!active) return;
+      if (!result.ok) {
+        // Another organisation's teams must not stand in for this one's.
+        setAwayTeams(held => held.filter(t => t.orgId === teamOrgId));
+        noteRead('awayTeams', result.message);
+        return;
+      }
+      noteRead('awayTeams', null);
+      if (Array.isArray(result.data)) setAwayTeams(result.data);
     });
-  }, [isConnected, selectedAwayOrg?.id]);
+    return () => {
+      active = false;
+    };
+  }, [isConnected, selectedAwayOrg?.id, readAttempt]);
 
   // Autocomplete organization search
   useEffect(() => {
@@ -232,19 +322,33 @@ export default function MatchForm({
     const query = isCreatingHomeOrg ? homeOrgSearchText : awayOrgSearchText;
     if (query.trim().length < 3) {
       setSearchedOrgs([]);
+      setIsSearchingOrgs(false);
+      noteRead('search', null);
       return;
     }
 
+    let active = true;
     setIsSearchingOrgs(true);
     const delayDebounce = setTimeout(() => {
-      wsService.emit('get_data', { type: 'search_similar_orgs', name: query }, (res: any) => {
+      void readData<Organization[]>('search_similar_orgs', { name: query }, { suppressToast: true, stillWanted: () => active }).then(result => {
+        if (!active) return;
         setIsSearchingOrgs(false);
-        if (Array.isArray(res)) setSearchedOrgs(res);
+        if (!result.ok) {
+          // What the last search found does not answer this one, and neither does an empty list.
+          setSearchedOrgs([]);
+          noteRead('search', result.message);
+          return;
+        }
+        noteRead('search', null);
+        if (Array.isArray(result.data)) setSearchedOrgs(result.data);
       });
     }, 400);
 
-    return () => clearTimeout(delayDebounce);
-  }, [isConnected, homeOrgSearchText, awayOrgSearchText, isCreatingHomeOrg]);
+    return () => {
+      active = false;
+      clearTimeout(delayDebounce);
+    };
+  }, [isConnected, homeOrgSearchText, awayOrgSearchText, isCreatingHomeOrg, readAttempt]);
 
   // A private organisation plays only among itself (`ORG-14`): both sides are its own teams, and no
   // other organisation is offered. A public one is never offered a private one. The server refuses
@@ -261,18 +365,29 @@ export default function MatchForm({
   // Resolve Organization details for edit mode, each by its id (`ORG-18`)
   useEffect(() => {
     if (!isConnected || !isEdit) return;
-    const read = (id: string | undefined, set: (org: Organization) => void) => new Promise<void>(resolve => {
-      if (!id) return resolve();
-      wsService.emit('get_data', { type: 'organization', id }, (res: any) => {
-        if (res) set(res);
-        resolve();
-      });
+    let active = true;
+    /** The reason, unless it read or the form already holds that organisation. */
+    const read = async (id: string | undefined, held: Organization | null, set: (org: Organization) => void) => {
+      if (!id) return null;
+      const result = await readData<Organization | null>('organization', { id }, { suppressToast: true, stillWanted: () => active });
+      if (!result.ok) return held?.id === id ? null : result.message;
+      if (active && result.data) set(result.data);
+      return null;
+    };
+    void Promise.all([
+      read(initialData?.homeOrgId, selectedHomeOrg, setSelectedHomeOrg),
+      read(initialData?.awayOrgId, selectedAwayOrg, setSelectedAwayOrg),
+    ]).then(reasons => {
+      if (!active) return;
+      const failure = reasons.find(Boolean) ?? null;
+      noteRead('editOrgs', failure);
+      // A failure leaves the form closed, so that it reports no organisations for the parent to save.
+      if (!failure) setIsInitializing(false);
     });
-    Promise.all([
-      read(initialData?.homeOrgId, setSelectedHomeOrg),
-      read(initialData?.awayOrgId, setSelectedAwayOrg),
-    ]).then(() => setIsInitializing(false));
-  }, [isConnected, isEdit, initialData?.homeOrgId, initialData?.awayOrgId]);
+    return () => {
+      active = false;
+    };
+  }, [isConnected, isEdit, initialData?.homeOrgId, initialData?.awayOrgId, editOrgsAttempt]);
 
   // Default Team 1 to host org, once: someone who clears it means to.
   useEffect(() => {
@@ -351,7 +466,7 @@ export default function MatchForm({
 
   // Notify parent on change
   useEffect(() => {
-    if (isInitializing) return;
+    if (isInitializing || readFailures.editOrgs) return;
 
     onChange({
       sportId: selectedSportId,
@@ -369,6 +484,7 @@ export default function MatchForm({
     });
   }, [
     isInitializing,
+    readFailures.editOrgs,
     timeZone,
     selectedSportId,
     selectedHomeOrg,
@@ -471,6 +587,19 @@ export default function MatchForm({
     });
   };
 
+  if (readFailures.editOrgs) {
+    return (
+      <ReadFailure
+        what="This match's organisations"
+        reason={readFailures.editOrgs}
+        onRetry={() => {
+          noteRead('editOrgs', null);
+          setEditOrgsAttempt(n => n + 1);
+        }}
+      />
+    );
+  }
+
   if (isInitializing) {
     return (
       <View className="py-8 justify-center items-center">
@@ -479,8 +608,26 @@ export default function MatchForm({
     );
   }
 
+  // One message for whatever did not load; the search has its own beside the field.
+  const failedReads = (Object.keys(FORM_READS) as FormRead[]).filter(read => readFailures[read]);
+  const failedNames = failedReads.map(read => FORM_READS[read]);
+  const failedList = failedNames.length > 1
+    ? `${failedNames.slice(0, -1).join(', ')} and ${failedNames[failedNames.length - 1]}`
+    : failedNames[0];
+  // An optional facility is left unchosen, and the message says it did not load. The rest hold up Save.
+  const holdsUpSave = !isEdit && failedReads.some(read => read !== 'facilities');
+  const searchFailure = readFailures.search;
+
   return (
     <View className="gap-6">
+      {failedReads.length > 0 ? (
+        <ReadFailure
+          title={`Could not load ${failedList}.`}
+          reason={`${readFailures[failedReads[0]]}${holdsUpSave ? ' The match cannot be saved until this loads.' : ''}`}
+          onRetry={retryReads}
+        />
+      ) : null}
+
       {/* CARD 1: SPORT SELECTION */}
       <GlassCard className="border border-line p-5 gap-4">
         <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
@@ -512,7 +659,7 @@ export default function MatchForm({
         </View>
       </GlassCard>
 
-      {!selectedSportId ? (
+      {!selectedSportId && readFailures.sports ? null : !selectedSportId ? (
         <GlassCard className="border border-line p-8 items-center justify-center">
           <Ionicons name="football-outline" size={32} color={themeColor(isDark, 'primary')} className="opacity-60 mb-2" />
           <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-wider text-center">
@@ -585,7 +732,7 @@ export default function MatchForm({
                         <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} className="absolute right-4 top-3.5" />
                       )}
 
-                      {(pickableOrgs.length > 0 || (!hostIsPrivate && isCreatingHomeOrg && homeOrgSearchText.trim().length >= 3)) && (
+                      {(pickableOrgs.length > 0 || ((!hostIsPrivate || searchFailure) && isCreatingHomeOrg && homeOrgSearchText.trim().length >= 3)) && (
                         <View 
                           className="absolute left-0 right-0 border border-line rounded-xl shadow-lg"
                           style={{
@@ -624,7 +771,9 @@ export default function MatchForm({
                             </ScrollView>
                           ) : null}
 
-                          {!hostIsPrivate && homeOrgSearchText.trim().length >= 3 && (
+                          {searchFailure && homeOrgSearchText.trim().length >= 3 ? (
+                            <ReadFailure what="The search" reason={searchFailure} onRetry={retryReads} className="m-2" />
+                          ) : !hostIsPrivate && homeOrgSearchText.trim().length >= 3 && (
                             <View className="border-t border-line bg-card" style={{ backgroundColor: themeColor(isDark, 'card') }}>
                               <View className="bg-sunken px-3 py-1 border-b border-line-soft">
                                 <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-wider">
@@ -746,7 +895,7 @@ export default function MatchForm({
                         <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} className="absolute right-4 top-3.5" />
                       )}
 
-                      {(pickableOrgs.length > 0 || (!hostIsPrivate && !isCreatingHomeOrg && awayOrgSearchText.trim().length >= 3)) && (
+                      {(pickableOrgs.length > 0 || ((!hostIsPrivate || searchFailure) && !isCreatingHomeOrg && awayOrgSearchText.trim().length >= 3)) && (
                         <View 
                           className="absolute left-0 right-0 border border-line rounded-xl shadow-lg"
                           style={{
@@ -785,7 +934,9 @@ export default function MatchForm({
                             </ScrollView>
                           ) : null}
 
-                          {!hostIsPrivate && awayOrgSearchText.trim().length >= 3 && (
+                          {searchFailure && awayOrgSearchText.trim().length >= 3 ? (
+                            <ReadFailure what="The search" reason={searchFailure} onRetry={retryReads} className="m-2" />
+                          ) : !hostIsPrivate && awayOrgSearchText.trim().length >= 3 && (
                             <View className="border-t border-line bg-card" style={{ backgroundColor: themeColor(isDark, 'card') }}>
                               <View className="bg-sunken px-3 py-1 border-b border-line-soft">
                                 <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-wider">

@@ -71,7 +71,8 @@ From top to bottom:
   a visit (`home_nearby_orgs`): they barely change.
 - **A read that fails says so, in its own card, with *Try again*** (`SYNC-9`). A card only says "nothing
   here" after a read that worked. A read with no answer is asked again once by itself, two seconds
-  later, and then reported to the failures log. A refresh that fails keeps the list last read, with a
+  later, and then reported to the failures log (`readData`, the
+  [action-replies skill](file:///c:/Fred/Coding/SK/.agent/skills/action-replies/SKILL.md)). A refresh that fails keeps the list last read, with a
   line above it saying it did not update.
 - **Only rows on screen that can change now hold a room**: live, or on today. A single match and a
   game under *My games* hold `game:{id}:row`, with the

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { EventCapabilities, EventGrants } from '@sk/shared';
 import { wsService } from '../services/websocket';
+import { readData } from '../services/reads';
 import { useWsStore } from '../store/wsStore';
 import { useAuthStore } from '../store/authStore';
 import { useIsPublicTournament } from '../components/tournament/tournamentLinks';
@@ -25,38 +26,52 @@ import { useIsPublicTournament } from '../components/tournament/tournamentLinks'
  *
  * On the public tournament page (`FIX-25`) there is nothing to ask: it is read-only whoever is
  * looking, an organiser included — their workspace is where they edit.
+ *
+ * **A failed read is not "no rights" (`SYNC-9`).** `capabilities` stays what the server last said for
+ * this event and user, through a failed read and a dropped connection alike; it is `null` when nothing
+ * has been answered yet. So null with `error` set means *not known*, and a screen must not deny anyone
+ * on it. It toasts unless `suppressToast` says the screen draws `error` itself.
  */
-export function useEventCapabilities(eventId?: string | null) {
+export function useEventCapabilities(eventId?: string | null, options: { suppressToast?: boolean } = {}) {
   const isConnected = useWsStore((state: any) => state.isConnected);
   const isPublic = useIsPublicTournament();
   const userId = useAuthStore((state: any) => (isPublic ? undefined : state.user?.id));
   const [capabilities, setCapabilities] = useState<EventCapabilities | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt(n => n + 1), []);
+
+  // What is held answers for one event and one user, and nothing else.
+  useEffect(() => {
+    setCapabilities(null);
+    setError(null);
+  }, [eventId, userId]);
 
   useEffect(() => {
     if (!isConnected || !eventId || !userId) {
-      setCapabilities(null);
       setIsLoading(!!eventId);
       return;
     }
 
     let active = true;
     setIsLoading(true);
+    setError(null);
 
-    const load = () => {
-      wsService.emit('get_data', { type: 'event_capabilities', eventId }, (res: any) => {
-        if (!active) return;
-        setCapabilities(res || null);
-        setIsLoading(false);
-      });
-    };
-
-    load();
+    void readData<EventCapabilities | null>('event_capabilities', { eventId }, {
+      suppressToast: options.suppressToast,
+      stillWanted: () => active,
+    }).then(result => {
+      if (!active) return;
+      if (result.ok) setCapabilities(result.data || null);
+      else setError(result.message);
+      setIsLoading(false);
+    });
 
     return () => {
       active = false;
     };
-  }, [isConnected, eventId, userId]);
+  }, [isConnected, eventId, userId, attempt]);
 
   useEffect(() => {
     if (!eventId || !userId) return;
@@ -78,7 +93,7 @@ export function useEventCapabilities(eventId?: string | null) {
     };
   }, [eventId, userId]);
 
-  return { capabilities, isLoading };
+  return { capabilities, isLoading, error, retry };
 }
 
 const EMPTY_GRANTS: EventGrants = { eventIds: [], sports: [], divisions: [] };

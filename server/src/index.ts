@@ -2112,12 +2112,14 @@ io.on('connection', (socket) => {
                 break;
             default:
                 console.error(`[get_data] ⚠️  UNHANDLED type: "${type}" — no case exists for this request. Full request:`, JSON.stringify(request, redactViewerPosition));
-                callback(null);
+                callback({ status: 'error', error: 'UnknownRead', message: 'The server does not know this request. The app may need updating.' });
         }
         console.log(`Server: get_data completed. Type: ${type}`);
       } catch (error) {
         console.error(`Server: Error in get_data handler (${type}):`, error);
-        callback(null);
+        // Not `null`, which means there is nothing: a screen would say so, as in "this invitation
+        // has expired", about something that may be fine (`SYNC-9`).
+        callback({ status: 'error', error: 'ReadFailed', message: 'The server hit a problem reading this.' });
       }
     });
 

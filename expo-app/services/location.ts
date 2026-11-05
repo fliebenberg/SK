@@ -1,7 +1,7 @@
 import { Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { PlaceName, ViewerPosition, roundViewerPosition } from '@sk/shared';
-import { wsService } from './websocket';
+import { readData } from './reads';
 
 /**
  * The device's position, for Home's *Use my location* (`HOME-1`, docs/home.md).
@@ -74,12 +74,9 @@ export async function askDevicePosition(): Promise<{ permission: DevicePermissio
  * server's own place list (`HOME-4`) on every platform, so web and phones name a place alike and
  * no map service sees the position.
  */
-export function placeNameAt(position: ViewerPosition): Promise<string | null> {
-  return new Promise(resolve => {
-    wsService.emit('get_data', { type: 'place_name', near: roundViewerPosition(position) }, (res: PlaceName | null) => {
-      resolve(res && typeof res.label === 'string' ? res.label : null);
-    }, undefined, { suppressToast: true });
-  });
+export async function placeNameAt(position: ViewerPosition): Promise<string | null> {
+  const result = await readData<PlaceName | null>('place_name', { near: roundViewerPosition(position) }, { suppressToast: true });
+  return result.ok && result.data && typeof result.data.label === 'string' ? result.data.label : null;
 }
 
 /** The phone's settings for this app, where a refused permission is turned back on. Not on web. */

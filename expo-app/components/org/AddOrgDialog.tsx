@@ -6,11 +6,12 @@ import { EditDialog } from '../EditDialog';
 import { FieldLabel } from '../FieldLabel';
 import CustomSelect from '../CustomSelect';
 import { TEXT_INPUT } from '../formStyles';
+import { ReadFailure } from '../ReadFailure';
 import { BrandColorsField, brandColorsProblem } from './BrandColorsField';
 import { ORG_TYPES } from './orgTypes';
 import { PossibleDuplicateOrgs, usePossibleDuplicateOrgs } from './PossibleDuplicateOrgs';
 import { sendAction } from '../../services/actions';
-import { wsService } from '../../services/websocket';
+import { readData } from '../../services/reads';
 import { useOrgShortCode } from '../../hooks/useOrgShortCode';
 import { useActiveTheme } from '../../store/settingsStore';
 import { useAuthStore } from '../../store/authStore';
@@ -51,6 +52,8 @@ export function AddOrgDialog({ visible, onClose, onCreated }: AddOrgDialogProps)
   const [colors, setColors] = useState(EMPTY_COLORS);
   const [isSaving, setIsSaving] = useState(false);
   const [sports, setSports] = useState<{ id: string; name: string }[] | null>(null);
+  const [sportsError, setSportsError] = useState<string | null>(null);
+  const [sportsAttempt, setSportsAttempt] = useState(0);
   const shortCode = useOrgShortCode();
   const router = useRouter();
   const duplicates = usePossibleDuplicateOrgs(name, visible);
@@ -65,13 +68,23 @@ export function AddOrgDialog({ visible, onClose, onCreated }: AddOrgDialogProps)
     setColors(EMPTY_COLORS);
     setIsSaving(false);
     shortCode.reset();
-    let active = true;
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-      if (active) setSports(Array.isArray(res) ? res : []);
-    });
-    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    let active = true;
+    setSportsError(null);
+    void readData<{ id: string; name: string }[]>('sports', {}, { suppressToast: true, stillWanted: () => active }).then(result => {
+      if (!active) return;
+      if (result.ok) setSports(Array.isArray(result.data) ? result.data : []);
+      else setSportsError(result.message);
+    });
+    return () => { active = false; };
+  }, [visible, sportsAttempt]);
+
+  /** With no list to choose from, an organisation would be added without its sport. */
+  const sportsFailed = !!sportsError && !sports;
 
   const isDirty =
     !!name.trim() || !!shortCode.shortCode || !!sportId || !!type ||
@@ -81,7 +94,8 @@ export function AddOrgDialog({ visible, onClose, onCreated }: AddOrgDialogProps)
     !!name.trim() && !!shortCode.shortCode && !!type &&
     !(type === 'OTHER' && !customType.trim()) &&
     !brandColorsProblem(colors.primary, colors.secondary, colors.tertiary) &&
-    duplicates.answered;
+    duplicates.answered &&
+    !sportsFailed;
 
   const handleSave = () => {
     if (!canSave || isSaving || !userId) return;
@@ -150,6 +164,8 @@ export function AddOrgDialog({ visible, onClose, onCreated }: AddOrgDialogProps)
         }}
         confirmedNew={duplicates.confirmedNew}
         onConfirmNew={duplicates.setConfirmedNew}
+        failure={duplicates.failure}
+        onRetry={duplicates.retry}
       />
 
       {/* Required, but filled in from the name as it is typed — see `useOrgShortCode`. */}
@@ -202,16 +218,20 @@ export function AddOrgDialog({ visible, onClose, onCreated }: AddOrgDialogProps)
 
       <View className="gap-1.5">
         <FieldLabel label="Main sport" optional help="More sports can be added later, from the organisation's profile." />
-        <CustomSelect
-          value={sportId}
-          onChange={setSportId}
-          options={sportOptions}
-          placeholder={sports ? 'Choose a sport' : 'Loading sports…'}
-          showSearch={sportOptions.length > 8}
-          searchPlaceholder="Search sports"
-          clearable
-          accessibilityLabel="Main sport"
-        />
+        {sportsFailed ? (
+          <ReadFailure title="The organisation cannot be added until the sports have loaded." reason={sportsError!} onRetry={() => setSportsAttempt(n => n + 1)} />
+        ) : (
+          <CustomSelect
+            value={sportId}
+            onChange={setSportId}
+            options={sportOptions}
+            placeholder={sports ? 'Choose a sport' : 'Loading sports…'}
+            showSearch={sportOptions.length > 8}
+            searchPlaceholder="Search sports"
+            clearable
+            accessibilityLabel="Main sport"
+          />
+        )}
       </View>
 
       <BrandColorsField primary={colors.primary} secondary={colors.secondary} tertiary={colors.tertiary} onChange={setColors} />

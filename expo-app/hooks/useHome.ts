@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ApproximateLocation, HomeNearby, HomeNearbyOrganizations, HomeSearchResult, MyHome, ViewerPosition } from '@sk/shared';
 import { roundViewerPosition } from '@sk/shared';
-import { wsService } from '../services/websocket';
+import { readData } from '../services/reads';
 import { useWsStore } from '../store/wsStore';
 import { useAuthStore } from '../store/authStore';
 import { locationStoreHydrated, useLocationStore } from '../store/locationStore';
@@ -96,9 +96,11 @@ export function useHomeLocation() {
   // The connection's rough location, asked once a visit, for a viewer who has set nothing.
   useEffect(() => {
     if (approximate !== undefined || !isConnected) return;
-    wsService.emit('get_data', { type: 'approximate_location' }, (res: unknown) => {
-      useLocationStore.getState().setApproximate(isApproximateLocation(res) ? res : null);
-    }, undefined, { suppressToast: true });
+    // A failure is logged by the read and leaves *Set my location* on offer: nothing here claims
+    // anything false, and the viewer has a way forward.
+    void readData<unknown>('approximate_location', {}, { suppressToast: true }).then(result => {
+      useLocationStore.getState().setApproximate(result.ok && isApproximateLocation(result.data) ? result.data : null);
+    });
   }, [approximate, isConnected]);
 
   /** *Use my location*. Resolves to the permission it ended with, so the dialog can say why not. */

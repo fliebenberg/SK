@@ -22,6 +22,9 @@ import { useUnsavedChangesStore } from '../../../../../../../store/unsavedChange
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { wsService } from '../../../../../../../services/websocket';
 import { sendAction } from '../../../../../../../services/actions';
+import { readData } from '../../../../../../../services/reads';
+import { ReadFailure } from '../../../../../../../components/ReadFailure';
+import { ScreenHeader } from '../../../../../../../components/ScreenHeader';
 
 import { SocketAction } from '@sk/shared';
 import { useActiveTheme } from '../../../../../../../store/settingsStore';
@@ -34,6 +37,20 @@ interface RosterItem {
   isReserve: boolean;
 }
 
+const toRosterItems = (rows: any[]): RosterItem[] => (rows || []).map((r) => ({
+  orgProfileId: r.orgProfileId,
+  position: r.position || undefined,
+  jerseyNumber: r.jerseyNumber || undefined,
+  isReserve: !!r.isReserve,
+}));
+
+/**
+ * **Nothing here may be saved on a read that failed (`SYNC-9`).** Saving replaces the side's whole team
+ * sheet, so a sheet that did not load must never become an empty one to save over the real one: a failed
+ * read leaves the sheet, its baseline and the proposal as they were, and Save is unavailable, saying why,
+ * until the read is answered. `rosterLoadedFor` and `membersLoadedFor` say whose sheet and players are
+ * held, since a side changed to and not yet read still has the other side's in state.
+ */
 export default function GameSelectionScreen() {
   const isDark = useActiveTheme() === 'dark';
   const { orgId, eventId, gameId, teamId } = useLocalSearchParams<{
@@ -42,7 +59,7 @@ export default function GameSelectionScreen() {
     gameId: string;
     teamId?: string;
   }>();
-  const { capabilities } = useEventCapabilities(eventId);
+  const { capabilities, error: capabilitiesError, retry: retryCapabilities } = useEventCapabilities(eventId, { suppressToast: true });
   const router = useRouter();
   const safeBack = useSafeBack();
   const { width, height } = useWindowDimensions();
@@ -68,6 +85,21 @@ export default function GameSelectionScreen() {
   /** Whom the proposed team's game was against, while this side starts from a proposal (`FIX-32`). */
   const [proposedFrom, setProposedFrom] = useState<string | null>(null);
   const [originalRoster, setOriginalRoster] = useState<RosterItem[]>([]);
+  /** The participant whose sheet `roster` is, once the server has said. */
+  const [rosterLoadedFor, setRosterLoadedFor] = useState<string | null>(null);
+  /** The team whose players `availablePlayers` are, once the server has said. */
+  const [membersLoadedFor, setMembersLoadedFor] = useState<string | null>(null);
+
+  // What did not load: the game, its tournament and sport; the sheet; the players; the proposed team; team names.
+  const [setupError, setSetupError] = useState<string | null>(null);
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [membersError, setMembersError] = useState<string | null>(null);
+  const [proposalError, setProposalError] = useState<string | null>(null);
+  const [teamsError, setTeamsError] = useState<string | null>(null);
+  const [rosterAttempt, setRosterAttempt] = useState(0);
+  const [membersAttempt, setMembersAttempt] = useState(0);
+  const [proposalAttempt, setProposalAttempt] = useState(0);
+  const [teamsAttempt, setTeamsAttempt] = useState(0);
 
   // Selection Interaction States (Bi-directional desktop + mobile)
   const [activePositionId, setActivePositionId] = useState<string | null>(null);
@@ -91,66 +123,52 @@ export default function GameSelectionScreen() {
   const [tempJerseyValue, setTempJerseyValue] = useState('');
 
   // Fetch Game, Event, Sport via WebSockets
+  const loadRun = useRef(0);
   const loadData = useCallback(() => {
     if (!isConnected || !gameId) return;
+    const run = ++loadRun.current;
+    const stillWanted = () => loadRun.current === run;
+    const options = { suppressToast: true, stillWanted };
     setIsLoading(true);
+    setSetupError(null);
 
-    let loadedGame: any = null;
-    let loadedEvent: any = null;
-    let loadedSport: any = null;
+    const readGameAndSport = readData<any>('game', { id: gameId as string }, options).then(async (resGame) => ({
+      resGame,
+      resSport: resGame.ok && resGame.data?.sportId ? await readData<any>('sport', { id: resGame.data.sportId }, options) : null,
+    }));
+    const readEvent = eventId ? readData<any>('event', { id: eventId as string }, options) : Promise.resolve(null);
 
-    const checkFinished = () => {
-      const targetGame = loadedGame;
-      if (targetGame) {
-        const rawPositions =
-          targetGame?.customSettings?.positions ||
-          loadedEvent?.settings?.positions ||
-          loadedSport?.defaultSettings?.positions ||
-          [];
-        setPositions(rawPositions);
+    void Promise.all([readGameAndSport, readEvent]).then(([{ resGame, resSport }, resEvent]) => {
+      if (!stillWanted()) return;
+
+      let failure: string | null = null;
+      for (const res of [resGame, resEvent, resSport]) {
+        if (res && !res.ok && !failure) failure = res.message;
       }
-      setIsLoading(false);
-    };
+      const loadedGame = resGame.ok ? resGame.data : null;
+      const loadedEvent = resEvent?.ok ? resEvent.data : null;
+      const loadedSport = resSport?.ok ? resSport.data : null;
+      if (loadedGame) setGame(loadedGame);
+      if (loadedEvent) setEvent(loadedEvent);
+      if (loadedSport) setSport(loadedSport);
+      setSetupError(failure);
 
-    // Safety timeout in case socket callback gets dropped/handshake delays
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 5000);
-
-    wsService.emit('get_data', { type: 'game', id: gameId as string }, (resGame: any) => {
-      clearTimeout(timer);
-      if (resGame) {
-        loadedGame = resGame;
-        setGame(resGame);
-        if (resGame.sportId) {
-          wsService.emit('get_data', { type: 'sport', id: resGame.sportId }, (resSport: any) => {
-            if (resSport) {
-              loadedSport = resSport;
-              setSport(resSport);
-            }
-            checkFinished();
-          });
-        } else {
-          checkFinished();
+      if (loadedGame) {
+        const gamePositions = loadedGame?.customSettings?.positions;
+        const eventPositions = loadedEvent?.settings?.positions;
+        // The game's own, the tournament's, the sport's: while a read that could overrule what is left
+        // has failed, the positions are not known, and what is held stays.
+        if (gamePositions || eventPositions || !failure) {
+          setPositions(gamePositions || eventPositions || loadedSport?.defaultSettings?.positions || []);
         }
-      } else {
-        checkFinished();
       }
+      setIsLoading(false);
     });
-
-    if (eventId) {
-      wsService.emit('get_data', { type: 'event', id: eventId as string }, (resEvent: any) => {
-        if (resEvent) {
-          loadedEvent = resEvent;
-          setEvent(resEvent);
-          checkFinished();
-        }
-      });
-    }
   }, [isConnected, gameId, eventId]);
 
   useEffect(() => {
     loadData();
+    return () => { loadRun.current++; };
   }, [loadData]);
 
   // Current selected participant
@@ -194,10 +212,14 @@ export default function GameSelectionScreen() {
   useEffect(() => {
     if (!isConnected || !game?.participants) return;
     let isMounted = true;
+    setTeamsError(null);
     game.participants.forEach((p: any) => {
       if (p.teamId && !teamsMap[p.teamId]) {
-        wsService.emit('get_data', { type: 'team', id: p.teamId }, (team: any) => {
-          if (isMounted && team?.id && team?.name) {
+        void readData<any>('team', { id: p.teamId }, { suppressToast: true, stillWanted: () => isMounted }).then((result) => {
+          if (!isMounted) return;
+          if (!result.ok) { setTeamsError(result.message); return; }
+          const team = result.data;
+          if (team?.id && team?.name) {
             setTeamsMap((prev) => ({ ...prev, [team.id]: team }));
           }
         });
@@ -206,7 +228,7 @@ export default function GameSelectionScreen() {
     return () => {
       isMounted = false;
     };
-  }, [isConnected, game?.participants, teamsMap]);
+  }, [isConnected, game?.participants, teamsMap, teamsAttempt]);
 
   const getParticipantName = useCallback(
     (p: any, idx: number) => {
@@ -240,55 +262,82 @@ export default function GameSelectionScreen() {
       ? permissions.canEditTeam1Lineup
       : permissions.canEditTeam2Lineup;
 
-  // Fetch Team Members & Saved Roster whenever selected participant changes
+  // Fetch Team Members whenever selected participant changes
   useEffect(() => {
     if (!isConnected || !currentParticipant?.id || !currentTeamId) return;
 
     let isMounted = true;
+    setMembersError(null);
 
-    // 1. Fetch team available players
-    wsService.emit(
-      'get_data',
-      { type: 'team_members', teamId: currentTeamId, gameId },
-      (members: any[]) => {
-        if (isMounted) {
-          setAvailablePlayers(members || []);
-        }
-      }
-    );
-
-    // 2. Fetch saved game roster
-    wsService.emit(
-      'get_data',
-      { type: 'game_roster', id: currentParticipant.id },
-      (data: any[]) => {
-        if (!isMounted) return;
-        const toItems = (rows: any[]): RosterItem[] => (rows || []).map((r) => ({
-          orgProfileId: r.orgProfileId,
-          position: r.position || undefined,
-          jerseyNumber: r.jerseyNumber || undefined,
-          isReserve: !!r.isReserve,
-        }));
-        const mapped = toItems(data);
-        setRoster(mapped);
-        setOriginalRoster(mapped);
-        setProposedFrom(null);
-        // No team of its own yet: start from the proposed one — the team of this team's latest
-        // earlier game in the tournament (`FIX-32`). Unsaved, so Save confirms it as this game's.
-        if (!mapped.length && canEditCurrentTeam) {
-          wsService.emit('get_data', { type: 'game_roster_proposal', id: currentParticipant.id }, (proposal: any) => {
-            if (!isMounted || !proposal?.items?.length) return;
-            setRoster(toItems(proposal.items));
-            setProposedFrom(proposal.opponent || 'the last game');
-          });
-        }
-      }
-    );
+    void readData<any[]>('team_members', { teamId: currentTeamId, gameId }, { suppressToast: true, stillWanted: () => isMounted }).then((result) => {
+      if (!isMounted) return;
+      if (!result.ok) { setMembersError(result.message); return; }
+      setAvailablePlayers(Array.isArray(result.data) ? result.data : []);
+      setMembersLoadedFor(currentTeamId);
+    });
 
     return () => {
       isMounted = false;
     };
-  }, [isConnected, currentParticipant?.id, currentTeamId, canEditCurrentTeam]);
+  }, [isConnected, currentParticipant?.id, currentTeamId, membersAttempt]);
+
+  // The proposed team, for a side whose own sheet is known to be empty (`FIX-32`). Unsaved, so Save
+  // confirms it as this game's. Nothing is lost if it fails: the side starts from an empty sheet, as it
+  // really has one.
+  const rosterRef = useRef(roster);
+  rosterRef.current = roster;
+  const loadProposal = useCallback((participantId: string, stillWanted: () => boolean) => {
+    setProposalError(null);
+    void readData<any>('game_roster_proposal', { id: participantId }, { suppressToast: true, stillWanted }).then((result) => {
+      if (!stillWanted()) return;
+      if (!result.ok) { setProposalError(result.message); return; }
+      // Asked again after a failure, it does not replace what has been picked since.
+      if (!result.data?.items?.length || rosterRef.current.length) return;
+      setRoster(toRosterItems(result.data.items));
+      setProposedFrom(result.data.opponent || 'the last game');
+    });
+  }, []);
+
+  // Fetch Saved Roster whenever selected participant changes
+  useEffect(() => {
+    if (!isConnected || !currentParticipant?.id || !currentTeamId) return;
+
+    let isMounted = true;
+    const stillWanted = () => isMounted;
+    const participantId = currentParticipant.id;
+    setRosterError(null);
+    setProposalError(null);
+
+    void readData<any[]>('game_roster', { id: participantId }, { suppressToast: true, stillWanted }).then((result) => {
+      if (!isMounted) return;
+      // No answer is no information: no change to the sheet or its baseline, and no proposal.
+      if (!result.ok) { setRosterError(result.message); return; }
+      // The server always answers this with a list, and with `null` only when reading it threw.
+      if (!Array.isArray(result.data)) { setRosterError('The server could not read the team sheet.'); return; }
+      const mapped = toRosterItems(result.data);
+      setRoster(mapped);
+      setOriginalRoster(mapped);
+      setProposedFrom(null);
+      setRosterLoadedFor(participantId);
+      // No team of its own yet: start from the proposed one — the team of this team's latest
+      // earlier game in the tournament (`FIX-32`).
+      if (!mapped.length && canEditCurrentTeam) loadProposal(participantId, stillWanted);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isConnected, currentParticipant?.id, currentTeamId, canEditCurrentTeam, rosterAttempt, loadProposal]);
+
+  // Asking again for a proposal alone, which leaves what has been picked since alone too.
+  useEffect(() => {
+    if (!proposalAttempt || !currentParticipant?.id) return;
+    let isMounted = true;
+    loadProposal(currentParticipant.id, () => isMounted);
+    return () => {
+      isMounted = false;
+    };
+  }, [proposalAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Real-Time Room Subscription & Delta Update Listener
   useEffect(() => {
@@ -311,6 +360,9 @@ export default function GameSelectionScreen() {
           }));
           setRoster(mapped);
           setOriginalRoster(mapped);
+          // It carries the whole sheet, so the sheet is known whatever a read made of it.
+          setRosterLoadedFor(participantId);
+          setRosterError(null);
           useUnsavedChangesStore.getState().clear();
         }
       } else if (evt.type === 'GAME_UPDATED') {
@@ -359,6 +411,46 @@ export default function GameSelectionScreen() {
 
   useUnsavedChanges(isDirty, handleCancel);
 
+  const sheetKnown = !!currentParticipant?.id && rosterLoadedFor === currentParticipant.id;
+  const membersKnown = !!currentTeamId && membersLoadedFor === currentTeamId;
+
+  // A sheet is only saved on reads that were answered.
+  const saveBlockedBy = rosterError || !sheetKnown
+    ? 'the team sheet has not loaded'
+    : membersError
+    ? 'the team\'s players have not loaded'
+    : setupError
+    ? 'this game\'s details have not loaded'
+    : null;
+
+  // With neither the sheet, the players nor the positions there is nothing true to show or edit.
+  const editorBlocked = (!!rosterError && !sheetKnown) || (!!membersError && !membersKnown) || (!!setupError && positions.length === 0);
+
+  // One note, for the first thing that matters; *Try again* asks again for all that failed.
+  const readProblem = rosterError
+    ? { title: sheetKnown ? 'The team sheet did not update.' : 'The team sheet did not load.', reason: rosterError }
+    : membersError
+    ? { title: membersKnown ? 'The team\'s players did not update.' : 'The team\'s players did not load.', reason: membersError }
+    : setupError
+    ? { title: 'This game\'s details did not load.', reason: setupError }
+    : capabilitiesError && !canEditCurrentTeam
+    ? { title: 'Whether you can edit this team did not load.', reason: capabilitiesError }
+    : teamsError
+    ? { title: 'The team names did not load.', reason: teamsError }
+    : proposalError
+    ? { title: 'The proposed team did not load.', reason: proposalError }
+    : null;
+  // Rights may be wider than they look until these are answered, so "read-only" would not be known.
+  const rightsUnknown = !!(setupError || capabilitiesError || teamsError);
+  const retryFailedReads = () => {
+    if (setupError) loadData();
+    if (rosterError) setRosterAttempt((n) => n + 1);
+    if (membersError) setMembersAttempt((n) => n + 1);
+    if (proposalError) setProposalAttempt((n) => n + 1);
+    if (capabilitiesError) retryCapabilities();
+    if (teamsError) setTeamsAttempt((n) => n + 1);
+  };
+
   // Sorted Available Players: Unassigned players first, assigned players second; sorted alphabetically within each group
   const sortedAvailablePlayers = useMemo(() => {
     return [...availablePlayers].sort((a, b) => {
@@ -382,7 +474,7 @@ export default function GameSelectionScreen() {
 
   // Save Roster Handler
   const handleSave = () => {
-    if (!currentParticipant?.id || !canEditCurrentTeam || !game?.id) return;
+    if (!currentParticipant?.id || !canEditCurrentTeam || !game?.id || saveBlockedBy) return;
     setIsSaving(true);
     sendAction(SocketAction.SAVE_GAME_ROSTER, {
       gameId: game.id,
@@ -404,6 +496,7 @@ export default function GameSelectionScreen() {
   const maxReserves =
     gameMaxReserves !== undefined ? gameMaxReserves : sportMaxReserves;
   const assignedReserves = roster.filter((r) => r.isReserve);
+  const reservesUnknown = !!setupError && gameMaxReserves === undefined && !sport;
 
   // Core Allocation Logic
   const handleAssignPlayerToSlot = (
@@ -703,6 +796,17 @@ export default function GameSelectionScreen() {
     );
   }
 
+  if (!game && setupError) {
+    return (
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
+        <ScreenHeader title="Team Selection" onBack={() => safeBack(`/admin/${orgId}/events/${eventId}/games/${gameId}`)} />
+        <View className="flex-1 items-center justify-center p-6">
+          <ReadFailure what="This game" reason={setupError} onRetry={retryFailedReads} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* STANDARD MATCH HEADER BAR */}
@@ -779,6 +883,7 @@ export default function GameSelectionScreen() {
 
       {/* MAIN CONTAINER: 2-COLUMN RESPONSIVE LAYOUT */}
       <ScrollView className="flex-1 px-3 py-3" contentContainerStyle={{ paddingBottom: 60 }}>
+        {readProblem ? <ReadFailure title={readProblem.title} reason={readProblem.reason} onRetry={retryFailedReads} className="mb-3" /> : null}
         {proposedFrom && canEditCurrentTeam ? (
           <View testID="proposed-note" className="bg-warning-soft border border-warning-line rounded-xl p-3 mb-3 flex-row items-center gap-2">
             <Ionicons name="information-circle-outline" size={18} color={themeColor(isDark, 'warning-ink')} />
@@ -788,7 +893,7 @@ export default function GameSelectionScreen() {
           </View>
         ) : null}
         {/* Read-Only Notice Banner */}
-        {!canEditCurrentTeam && (
+        {!canEditCurrentTeam && !rightsUnknown && (
           <View className="bg-warning-soft border border-warning-line rounded-xl p-3 mb-3 flex-row items-center gap-2">
             <Ionicons name="information-circle-outline" size={18} color={themeColor(isDark, 'warning-ink')} />
             <Text className="font-inter text-xs text-warning-ink flex-1">
@@ -805,11 +910,11 @@ export default function GameSelectionScreen() {
             </Text>
             <Text className="font-inter text-xs text-ink-muted">
               {totalPositions} Positions Available • Max Reserves:{' '}
-              {maxReserves > 0 ? maxReserves : 'Unlimited'}
+              {reservesUnknown ? 'not loaded' : maxReserves > 0 ? maxReserves : 'Unlimited'}
             </Text>
           </View>
 
-          {totalPositions > 0 && (
+          {totalPositions > 0 && sheetKnown && (
             <View
               className={`px-3 py-1.5 rounded-full border ${
                 isFullyAllocated
@@ -857,6 +962,7 @@ export default function GameSelectionScreen() {
         )}
 
         {/* 2-COLUMN SIDE-BY-SIDE ON DESKTOP/TABLET (`flex-row`) */}
+        {editorBlocked ? null : (
         <View className={`flex-1 ${isDesktop ? 'flex-row gap-6 items-stretch' : 'flex-col'}`}>
           
           {/* LEFT COLUMN: STARTING LINEUP & RESERVES */}
@@ -1551,11 +1657,18 @@ export default function GameSelectionScreen() {
           )}
 
         </View>
+        )}
       </ScrollView>
 
       {/* Sticky Bottom Action Bar */}
       {isDirty && canEditCurrentTeam && (
-        <View className="bg-card border-t border-line p-3 flex-row gap-3">
+        <View className="bg-card border-t border-line p-3 gap-2">
+          {saveBlockedBy ? (
+            <Text testID="save-blocked" className="font-inter text-xs text-warning-ink text-center">
+              Cannot save yet: {saveBlockedBy}.
+            </Text>
+          ) : null}
+          <View className="flex-row gap-3">
           <TouchableOpacity
             disabled={isSaving}
             onPress={handleCancel}
@@ -1567,9 +1680,9 @@ export default function GameSelectionScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            disabled={isSaving}
+            disabled={isSaving || !!saveBlockedBy}
             onPress={handleSave}
-            className="flex-1 py-3 rounded-xl bg-primary items-center flex-row justify-center gap-2"
+            className={`flex-1 py-3 rounded-xl bg-primary items-center flex-row justify-center gap-2 ${saveBlockedBy ? 'opacity-50' : ''}`}
           >
             {isSaving ? (
               <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
@@ -1582,6 +1695,7 @@ export default function GameSelectionScreen() {
               </>
             )}
           </TouchableOpacity>
+          </View>
         </View>
       )}
 

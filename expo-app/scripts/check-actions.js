@@ -12,6 +12,9 @@
  * check, and the server refuses a payload whose fields its type does not name (`SYNC-6`) — so a
  * cast turns a compile error into a refused save. `as const` is allowed: it only narrows.
  *
+ * Reads are held to the same rule: `emit('get_data', …)` only inside `readData` (services/reads.ts,
+ * `SYNC-9`), which is where a read's reply is interpreted, so that a failure cannot pass for "nothing".
+ *
  * Run: `npm run check:actions` (from expo-app/). Exit code 1 lists each offending line.
  */
 const fs = require('fs');
@@ -19,8 +22,8 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const SCAN = ['app', 'components', 'hooks', 'store', 'services', 'utils'];
-// The helper itself, and the wrapper it sends through.
-const ALLOWED = new Set(['services/actions.ts', 'services/websocket.ts']);
+// The helpers themselves, and the wrapper they send through.
+const ALLOWED = new Set(['services/actions.ts', 'services/reads.ts', 'services/websocket.ts']);
 const PATTERNS = [
   { re: /\bemit\(\s*['"`]action['"`]/g, what: "emit('action', …)" },
   { re: /\bemitAction\(/g, what: 'emitAction(…)' },
@@ -77,8 +80,8 @@ for (const top of SCAN) {
 }
 
 if (offences.length) {
-  console.error(`Socket actions must go through sendAction (services/actions.ts), with payloads that are not cast. Found ${offences.length}:`);
+  console.error(`Socket actions must go through sendAction (services/actions.ts), with payloads that are not cast, and reads through readData (services/reads.ts). Found ${offences.length}:`);
   for (const offence of offences) console.error(`  ${offence}`);
   process.exit(1);
 }
-console.log('check:actions — every socket action goes through sendAction, and no payload is cast.');
+console.log('check:actions — every socket action goes through sendAction, no payload is cast, and every read goes through readData.');

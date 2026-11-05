@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { OrgMember, SocketAction } from '@sk/shared';
 import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { ReadCard } from '../../../../components/ReadCard';
+import { ReadFailure } from '../../../../components/ReadFailure';
 import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { InviteModal, InviteStatusCard, isOnScoreKeeper, useInviteCooldownHours } from '../../../../components/InviteToScoreKeeper';
@@ -57,14 +58,14 @@ export default function PersonPage() {
   const isWide = width >= 900;
   const isNarrow = width < 640;
 
-  const { data: rolesData, isLoading: isRolesLoading } = useSocketQuery<any>('roles');
+  const { data: rolesData, isLoading: isRolesLoading, error: rolesError, refetch: refetchRoles } = useSocketQuery<any>('roles', {}, { suppressToast: true });
   const orgAccessOf = useOrgAccess(orgId);
   const isOrgAdmin = orgAccessOf.isAdmin;
   const coachesTeam = !!teamId && orgAccessOf.coachedTeamIds.includes(teamId);
   // Admin and Staff read the organisation's people; someone with a duty on the team opened from, that
   // team's alone (`PEOPLE-8`).
   const fromTeam = !orgAccessOf.canManage && !!teamId && orgAccessOf.dutyTeamIds.includes(teamId) ? teamId : null;
-  const { person, isLoading: isPersonLoading } = useOrgPerson(orgAccessOf.canManage ? orgId : null, membershipId);
+  const { person, isLoading: isPersonLoading, error: personError, retry: retryPerson } = useOrgPerson(orgAccessOf.canManage ? orgId : null, membershipId);
   const { roster: teamRoster, isLoading: isRosterLoading } = useTeamRoster(coachesTeam || fromTeam ? teamId : null);
   const roles: OrgRole[] = rolesTheyMayGive(rolesData?.org || [], isOrgAdmin);
   const { byPlayer: teamGuardians } = useTeamGuardians(fromTeam);
@@ -112,7 +113,9 @@ export default function PersonPage() {
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Person" backLabel="People" onBack={back} />
         <View className="flex-1 items-center justify-center px-6">
-          {isLoadingPerson ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+          {isLoadingPerson ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : personError ? (
+            <ReadFailure what="This person" reason={personError} onRetry={retryPerson} />
+          ) : (
             <Text className="font-inter text-sm text-ink-muted text-center">
               This person is not a member of the organisation any more.
             </Text>
@@ -197,6 +200,9 @@ export default function PersonPage() {
       />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}>
         <PageBody className="gap-4">
+          {personError ? <ReadFailure what="This person's details" reason={personError} onRetry={retryPerson} stale /> : null}
+          {/* Without them the Edit dialog has no roles to offer. */}
+          {rolesError && !rolesData && canEdit ? <ReadFailure what="Roles" reason={rolesError} onRetry={refetchRoles} /> : null}
           <PersonBanner
             member={member}
             guardianship={guardianship}

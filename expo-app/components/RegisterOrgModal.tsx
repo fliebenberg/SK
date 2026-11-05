@@ -149,6 +149,8 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, alread
         }}
         confirmedNew={duplicates.confirmedNew}
         onConfirmNew={duplicates.setConfirmedNew}
+        failure={duplicates.failure}
+        onRetry={duplicates.retry}
       />
 
       {/* Required, but filled in from the name as it is typed — see `useOrgShortCode`. */}
