@@ -165,12 +165,23 @@ function useRefresh(refetch: () => void, onScreen: boolean) {
   }, [refetch, onScreen]);
 }
 
+/**
+ * The state a Home card draws from a read: its data if it is the right shape, why not if it failed,
+ * and otherwise that it is still on its way. A card that has neither data nor an error is waiting, so
+ * it can never say "nothing here" about a read that did not work (`SYNC-9`).
+ */
+function homeRead<T>(data: unknown, isShape: (value: any) => value is T, error: string | null, enabled: boolean) {
+  const value = isShape(data) ? data : null;
+  const failure = error || (data && !value ? 'The server sent an answer the app could not read.' : null);
+  return { value, error: failure, isLoading: enabled && !value && !failure };
+}
+
 /** What is on near a position — or, with none, across the country by time. */
 export function useHomeNearby(near: ViewerPosition | null, enabled: boolean, onScreen: boolean) {
-  const { data, isLoading, refetch } = useSocketQuery<HomeNearby>('home_nearby', { near }, { enabled, suppressToast: true });
+  const { data, error, refetch } = useSocketQuery<HomeNearby>('home_nearby', { near }, { enabled, suppressToast: true });
   useRefresh(refetch, enabled && onScreen);
-  const nearby = isHomeNearby(data) ? data : null;
-  return { nearby, isLoading: isLoading && !nearby };
+  const read = homeRead(data, isHomeNearby, error, enabled);
+  return { nearby: read.value, isLoading: read.isLoading, error: read.error, retry: refetch };
 }
 
 function isNearbyOrganizations(value: any): value is HomeNearbyOrganizations {
@@ -179,9 +190,9 @@ function isNearbyOrganizations(value: any): value is HomeNearbyOrganizations {
 
 /** Organisations near a position, read once a visit: they do not change from one minute to the next. */
 export function useHomeNearbyOrgs(near: ViewerPosition | null, enabled: boolean) {
-  const { data, isLoading } = useSocketQuery<HomeNearbyOrganizations>('home_nearby_orgs', { near }, { enabled, suppressToast: true });
-  const nearbyOrgs = isNearbyOrganizations(data) ? data : null;
-  return { nearbyOrgs, isLoading: isLoading && !nearbyOrgs };
+  const { data, error, refetch } = useSocketQuery<HomeNearbyOrganizations>('home_nearby_orgs', { near }, { enabled, suppressToast: true });
+  const read = homeRead(data, isNearbyOrganizations, error, enabled);
+  return { nearbyOrgs: read.value, isLoading: read.isLoading, error: read.error, retry: refetch };
 }
 
 function isMyHome(value: any): value is MyHome {
@@ -191,10 +202,13 @@ function isMyHome(value: any): value is MyHome {
 /** The signed-in viewer's games, and the tournaments they run. */
 export function useMyHome(onScreen: boolean) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
-  const { data, isLoading, refetch } = useSocketQuery<MyHome>('home_mine', {}, { enabled: isAuthenticated, suppressToast: true });
+  const { data, error, refetch } = useSocketQuery<MyHome>('home_mine', {}, { enabled: isAuthenticated, suppressToast: true });
   useRefresh(refetch, isAuthenticated && onScreen);
-  const mine = isAuthenticated && isMyHome(data) ? data : null;
-  return { mine, isLoading: isAuthenticated && isLoading && !mine };
+  const read = homeRead(data, isMyHome, error, isAuthenticated);
+  // Signed out, there is no list and nothing to fail, whatever was last held.
+  return isAuthenticated
+    ? { mine: read.value, isLoading: read.isLoading, error: read.error, retry: refetch }
+    : { mine: null, isLoading: false, error: null, retry: refetch };
 }
 
 function isSearchResult(value: any): value is HomeSearchResult {
@@ -209,7 +223,12 @@ export function useHomeSearch(query: string, near: ViewerPosition | null) {
     return () => clearTimeout(handle);
   }, [query]);
   const enabled = settled.length >= 2;
-  const { data, isLoading } = useSocketQuery<HomeSearchResult>('home_search', { query: settled, near }, { enabled });
+  const { data, isLoading, error, refetch } = useSocketQuery<HomeSearchResult>('home_search', { query: settled, near }, { enabled, suppressToast: true });
   const results = enabled && isSearchResult(data) ? data : null;
-  return { results, isSearching: enabled && (isLoading || settled !== query.trim()) };
+  return {
+    results,
+    isSearching: enabled && (isLoading || settled !== query.trim()),
+    error: enabled ? error : null,
+    retry: refetch,
+  };
 }

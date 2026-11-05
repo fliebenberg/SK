@@ -110,6 +110,12 @@ contents in a report — payloads carry people's details.
 - `get_data` answers the data unwrapped, so **validate the shape** (`Array.isArray(res)`, a known
   field) before using it; a refusal arrives as `{ status: 'error' }` and is toasted by the wrapper.
   Never treat a refusal object as data.
+- **A failed read is not an empty answer** (`SYNC-9`). `useSocketQuery` tells them apart: `error` is a
+  sentence to show, `data` keeps the last answer to the same question, and no answer is retried once
+  and then logged. It toasts the final failure unless `suppressToast` is set, and **`suppressToast`
+  means the screen draws `error` itself**. A screen must not show its "nothing here" text while
+  `error` is set. Reading `wsService.emit('get_data', …)` directly, the second callback argument
+  (`NoAnswer`) is what separates no answer from the server answering `null`.
 - REST calls go through `apiService` / `apiFetch`, which throws on failure. `await` inside
   `try/catch`, and on catch keep the user's input — the toast is already shown.
 

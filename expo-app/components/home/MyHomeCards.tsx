@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { GameSummary, MyHome, MyHomeRunEvent, Sport } from '@sk/shared';
 import { TournamentCard } from '../tournament/TournamentBits';
 import { MatchRow } from '../events/EventRows';
-import { GroupHeading, HomeRow, IconMark } from './HomeBits';
+import { GroupHeading, HomeRow, IconMark, ReadFailure } from './HomeBits';
 import { homeLinks } from './homeLinks';
 import { useGameRows } from '../../hooks/useListRows';
 import { formatDateRange, instantCalendarDate, todayCalendarDate } from '../../utils/dates';
@@ -29,31 +29,42 @@ function byTime(a: GameSummary, b: GameSummary) {
 
 /**
  * *My games* (docs/home.md §5): the live games, next games and latest results that matter most to the
- * viewer, chosen on the server. It shows nothing when there are none.
+ * viewer, chosen on the server. It shows nothing when there are none, unless the read failed: a
+ * viewer with games must not simply lose the card (`SYNC-9`).
  */
-export function MyGamesCard({ mine, sports, isWide, live }: {
-  mine: MyHome;
+export function MyGamesCard({ mine, sports, isWide, live, error, onRetry }: {
+  /** `null` only when the read failed: Home draws no card while it is on its way. */
+  mine: MyHome | null;
   sports: Sport[];
   /** The page has the room for the rows' wide form, with its column for where. */
   isWide: boolean;
   /** Home is the tab on screen, so its rows are worth keeping live. */
   live: boolean;
+  error: string | null;
+  onRetry: () => void;
 }) {
   const router = useRouter();
   const today = todayCalendarDate();
 
   // Only what can change now holds a room: live, or on today. Judged from the list as read, so that a
   // score moving a row does not change what is held.
-  const worthRooms = mine.games
+  const worthRooms = (mine?.games ?? [])
     .filter(game => game.status === 'Live' || (game.status === 'Scheduled' && instantCalendarDate(kickoffOf(game)) === today))
     .map(game => game.id);
   const gameRows = useGameRows(worthRooms, live);
 
-  const games = useMemo(() => mine.games
+  const games = useMemo(() => (mine?.games ?? [])
     .filter(game => gameRows.get(game.id) !== null)
     .map(game => ({ ...game, ...gameRows.get(game.id) }))
-    .sort(byTime), [mine.games, gameRows]);
-  if (!games.length) return null;
+    .sort(byTime), [mine?.games, gameRows]);
+  if (!mine) {
+    return (
+      <TournamentCard title="My games">
+        <ReadFailure what="Your games" reason={error || 'The server did not answer.'} onRetry={onRetry} />
+      </TournamentCard>
+    );
+  }
+  if (!games.length && !error) return null;
 
   const rowProps = {
     isWide,
@@ -69,6 +80,7 @@ export function MyGamesCard({ mine, sports, isWide, live }: {
   return (
     <TournamentCard title="My games">
       <View>
+        {error ? <ReadFailure what="Your games" reason={error} onRetry={onRetry} stale /> : null}
         {games.map((game, i) => {
           const group = groupOf(game);
           const newGroup = i === 0 || groupOf(games[i - 1]) !== group;

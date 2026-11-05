@@ -69,6 +69,10 @@ From top to bottom:
   clients do not fall into step) while Home is on screen, to pick up what has been added or has
   dropped off. Coming back to Home after longer than that reads at once. Organisations are read once
   a visit (`home_nearby_orgs`): they barely change.
+- **A read that fails says so, in its own card, with *Try again*** (`SYNC-9`). A card only says "nothing
+  here" after a read that worked. A read with no answer is asked again once by itself, two seconds
+  later, and then reported to the failures log. A refresh that fails keeps the list last read, with a
+  line above it saying it did not update.
 - **Only rows on screen that can change now hold a room**: live, or on today. A single match and a
   game under *My games* hold `game:{id}:row`, with the
   status, score and times; a tournament holds `event:{id}:row`, with how many games and how many live

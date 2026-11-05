@@ -10,6 +10,14 @@ export interface EmitOptions {
   suppressToast?: boolean;
 }
 
+/**
+ * Second argument to a callback whose reply is `null` because none came. A read can also be answered
+ * `null` by the server, meaning there is nothing, so the `null` alone cannot say which it was.
+ */
+export interface NoAnswer {
+  noAnswer: 'offline' | 'timeout';
+}
+
 interface ReadWaiter {
   callback: (...args: any[]) => void;
   suppressToast?: boolean;
@@ -341,7 +349,7 @@ class WebSocketService {
           if (!options?.suppressToast) {
             useToastStore.getState().showError('Server request timed out. Please try again.', 'Connection Timeout');
           }
-          callback(null);
+          callback(null, { noAnswer: 'timeout' } satisfies NoAnswer);
         }
       }, timeoutMs);
 
@@ -370,7 +378,7 @@ class WebSocketService {
         useToastStore.getState().showError('Cannot complete request. Network connection offline.', 'Offline');
       }
       if (callback) {
-        callback(null);
+        callback(null, { noAnswer: 'offline' } satisfies NoAnswer);
       }
     }
   }

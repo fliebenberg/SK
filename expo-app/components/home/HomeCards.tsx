@@ -5,7 +5,7 @@ import { HOME_RADIUS_KM, HomeNearbyOrganizations, HomeSearchResult } from '@sk/s
 import { TournamentCard } from '../tournament/TournamentBits';
 import { OrgListCard } from '../org/OrgListCard';
 import { TeamListCard } from '../teams/TeamListCard';
-import { GroupHeading, HomeRow, IconMark, ShowMore } from './HomeBits';
+import { GroupHeading, HomeRow, IconMark, ReadFailure, ShowMore } from './HomeBits';
 import { homeLinks } from './homeLinks';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
@@ -18,10 +18,12 @@ const Distance = ({ km }: { km: number | null }) =>
   km === null ? null : <Text className="font-inter-semibold text-xs text-ink-muted">{formatDistance(km)}</Text>;
 
 /** *Organisations near you*, closest first (`HOME-1`). */
-export function NearbyOrgsCard({ nearby, isLoading, hasLocation }: {
+export function NearbyOrgsCard({ nearby, isLoading, hasLocation, error, onRetry }: {
   nearby: HomeNearbyOrganizations | null;
   isLoading: boolean;
   hasLocation: boolean;
+  error: string | null;
+  onRetry: () => void;
 }) {
   const isDark = useActiveTheme() === 'dark';
   const [showAll, setShowAll] = useState(false);
@@ -33,10 +35,16 @@ export function NearbyOrgsCard({ nearby, isLoading, hasLocation }: {
     <TournamentCard title={title} count={orgs.length && !nearby?.organizationsBeyondRadius ? orgs.length : undefined}>
       {isLoading && !nearby ? (
         <View className="items-center py-6"><ActivityIndicator color={themeColor(isDark, 'primary')} /></View>
+      ) : !nearby ? (
+        <ReadFailure what="Organisations" reason={error || 'The server did not answer.'} onRetry={onRetry} />
       ) : !orgs.length ? (
-        <Text className="font-inter text-sm text-ink-muted py-1">No organisations yet.</Text>
+        <View>
+          {error ? <ReadFailure what="Organisations" reason={error} onRetry={onRetry} stale /> : null}
+          <Text className="font-inter text-sm text-ink-muted py-1">No organisations yet.</Text>
+        </View>
       ) : (
         <View className="gap-2.5 pt-1">
+          {error ? <ReadFailure what="Organisations" reason={error} onRetry={onRetry} stale /> : null}
           {nearby?.organizationsBeyondRadius ? (
             <Text className="font-inter text-[13px] text-ink-muted">None within {HOME_RADIUS_KM} km. The closest:</Text>
           ) : null}
@@ -62,10 +70,12 @@ function CardColumns({ children }: { children: React.ReactNode[] }) {
 }
 
 /** What the search found, grouped by kind, closest first. It takes the place of the cards while there is a term. */
-export function SearchResultsCard({ query, results, isSearching }: {
+export function SearchResultsCard({ query, results, isSearching, error, onRetry }: {
   query: string;
   results: HomeSearchResult | null;
   isSearching: boolean;
+  error: string | null;
+  onRetry: () => void;
 }) {
   const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
@@ -75,6 +85,8 @@ export function SearchResultsCard({ query, results, isSearching }: {
   let body: React.ReactNode;
   if (tooShort) {
     body = <Text className="font-inter text-sm text-ink-muted py-1">Type at least two letters.</Text>;
+  } else if (!results && error) {
+    body = <ReadFailure what="The search" reason={error} onRetry={onRetry} />;
   } else if (!results) {
     body = <View className="items-center py-6"><ActivityIndicator color={themeColor(isDark, 'primary')} /></View>;
   } else if (!total) {

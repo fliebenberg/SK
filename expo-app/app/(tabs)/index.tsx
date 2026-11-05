@@ -48,11 +48,11 @@ export default function Home() {
   const isFocused = useIsFocused();
   const appActive = useAppActive();
   const onScreen = isFocused && appActive;
-  const { nearby, isLoading } = useHomeNearby(near, !resolving, onScreen);
-  const { nearbyOrgs, isLoading: orgsLoading } = useHomeNearbyOrgs(near, !resolving);
-  const { mine } = useMyHome(onScreen);
+  const { nearby, isLoading, error: nearbyError, retry: retryNearby } = useHomeNearby(near, !resolving, onScreen);
+  const { nearbyOrgs, isLoading: orgsLoading, error: orgsError, retry: retryOrgs } = useHomeNearbyOrgs(near, !resolving);
+  const { mine, error: mineError, retry: retryMine } = useMyHome(onScreen);
   const [query, setQuery] = useState('');
-  const { results, isSearching } = useHomeSearch(query, near);
+  const { results, isSearching, error: searchError, retry: retrySearch } = useHomeSearch(query, near);
   const [settingLocation, setSettingLocation] = useState(false);
 
   const searching = query.trim().length > 0;
@@ -60,8 +60,8 @@ export default function Home() {
 
   // Still finding out where to look counts as loading, so a card never says "nothing" too early.
   const loading = isLoading || resolving;
-  const events = <NearbyEventsCard nearby={nearby} isLoading={loading} hasLocation={hasLocation} sports={sports} live={isFocused} />;
-  const orgs = <NearbyOrgsCard nearby={nearbyOrgs} isLoading={orgsLoading || resolving} hasLocation={hasLocation} />;
+  const events = <NearbyEventsCard nearby={nearby} isLoading={loading} hasLocation={hasLocation} sports={sports} live={isFocused} error={nearbyError} onRetry={retryNearby} />;
+  const orgs = <NearbyOrgsCard nearby={nearbyOrgs} isLoading={orgsLoading || resolving} hasLocation={hasLocation} error={orgsError} onRetry={retryOrgs} />;
   const cards = twoColumns ? (
     <View className="flex-row gap-4 items-start">
       <View className="min-w-0" style={{ flex: WIDE_LEFT }}>{events}</View>
@@ -77,7 +77,7 @@ export default function Home() {
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <PageBody className={isWide ? 'gap-4' : 'gap-3'} onLayout={e => setContentWidth(e.nativeEvent.layout.width)}>
           {!isAuthenticated ? <HomeHero isWide={isWide} /> : null}
-          {mine ? <MyGamesCard mine={mine} sports={sports} isWide={contentWidth >= WIDE_ROWS_MIN_WIDTH} live={isFocused} /> : null}
+          {mine || mineError ? <MyGamesCard mine={mine} sports={sports} isWide={contentWidth >= WIDE_ROWS_MIN_WIDTH} live={isFocused} error={mineError} onRetry={retryMine} /> : null}
           {mine?.runs.length ? <TournamentsIRunCard runs={mine.runs} /> : null}
           {isWide ? (
             <View className="flex-row gap-4">
@@ -92,7 +92,7 @@ export default function Home() {
             <HomeSearchBox value={query} onChange={setQuery} />
           )}
           {searching ? (
-            <SearchResultsCard query={query} results={results} isSearching={isSearching} />
+            <SearchResultsCard query={query} results={results} isSearching={isSearching} error={searchError} onRetry={retrySearch} />
           ) : (
             <>
               {isWide ? null : <LocationCard location={location} resolving={resolving} onSet={onSetLocation} isWide={false} />}

@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { HOME_RADIUS_KM, HomeNearby, NearbyGame, NearbyTournament, Sport } from '@sk/shared';
 import { TournamentCard } from '../tournament/TournamentBits';
 import { MatchRow, TournamentRow } from '../events/EventRows';
-import { GroupHeading, ShowMore } from './HomeBits';
+import { GroupHeading, ReadFailure, ShowMore } from './HomeBits';
 import { homeLinks } from './homeLinks';
 import { useEventRows, useGameRows } from '../../hooks/useListRows';
 import { useActiveTheme } from '../../store/settingsStore';
@@ -78,13 +78,15 @@ function itemsOf(nearby: HomeNearby | null, today: string): Item[] {
  * is soonest first (decided 2026-11-04). When nothing is within the radius the closest are shown, and
  * the card says so once.
  */
-export function NearbyEventsCard({ nearby, isLoading, hasLocation, sports, live }: {
+export function NearbyEventsCard({ nearby, isLoading, hasLocation, sports, live, error, onRetry }: {
   nearby: HomeNearby | null;
   isLoading: boolean;
   hasLocation: boolean;
   sports: Sport[];
   /** Home is the tab on screen, so its rows are worth keeping live. */
   live: boolean;
+  error: string | null;
+  onRetry: () => void;
 }) {
   const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
@@ -117,19 +119,26 @@ export function NearbyEventsCard({ nearby, isLoading, hasLocation, sports, live 
 
   const shown = showAll ? items : items.slice(0, FIRST_ROWS);
   const title = hasLocation ? 'On now & next near you' : 'On now & next';
+  const stale = error ? <ReadFailure what="This list" reason={error} onRetry={onRetry} stale /> : null;
 
   let body: React.ReactNode;
   if (isLoading && !nearby) {
     body = <View className="items-center py-6"><ActivityIndicator color={themeColor(isDark, 'primary')} /></View>;
+  } else if (!nearby) {
+    body = <ReadFailure what="Games and tournaments" reason={error || 'The server did not answer.'} onRetry={onRetry} />;
   } else if (!items.length) {
     body = (
-      <Text className="font-inter text-sm text-ink-muted py-1">
-        {hasLocation ? `Nothing on within ${HOME_RADIUS_KM} km in the next month.` : 'Nothing on in the next month.'}
-      </Text>
+      <View>
+        {stale}
+        <Text className="font-inter text-sm text-ink-muted py-1">
+          {hasLocation ? `Nothing on within ${HOME_RADIUS_KM} km in the next month.` : 'Nothing on in the next month.'}
+        </Text>
+      </View>
     );
   } else {
     body = (
       <View>
+        {stale}
         {nearby?.eventsBeyondRadius ? (
           <Text className="font-inter text-[13px] text-ink-muted pb-2">Nothing on within {HOME_RADIUS_KM} km. The closest:</Text>
         ) : null}
