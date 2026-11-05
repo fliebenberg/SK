@@ -34,11 +34,12 @@ const logClock = () => {
 };
 
 /**
- * Counts services created in this JS runtime. Kept on `globalThis` so it survives Fast Refresh,
- * which re-runs this module and builds a fresh service without closing the old one's socket —
- * a second number in the logs means an orphaned socket is still alive.
+ * Counts services created in this JS runtime, and holds the current one. Kept on `globalThis` so
+ * they survive Fast Refresh, which re-runs this module and builds a fresh service: the new one closes
+ * the old one's socket (`LIVE-24`), so a higher number in the logs is normal and only the highest
+ * should ever connect.
  */
-const runtime = globalThis as { __skWsInstances?: number };
+const runtime = globalThis as { __skWsInstances?: number; __skWsService?: { retire(): void } };
 
 class WebSocketService {
   private socket: Socket | null = null;
@@ -54,6 +55,7 @@ class WebSocketService {
    */
   private serverOffsetRTT: number = Infinity;
   private tokenGetter: (() => string | null) | null = null;
+  private retired = false;
 
   constructor(url: string) {
     this.url = url;
@@ -172,8 +174,22 @@ class WebSocketService {
   }
 
   connect() {
+    if (this.retired) return;
     const socket = this.ensureSocket();
     if (!socket.connected) socket.connect();
+  }
+
+  /**
+   * Fast Refresh has built a replacement (`LIVE-24`). Everything the old socket reports goes to the
+   * one `isConnected`, so left alive it could say "connected" while the new socket is still down, and
+   * screens would read too early and have nothing to prompt them again. So its listeners go before it
+   * closes, and the flag starts again at false, for the new socket's connection to turn true.
+   */
+  retire() {
+    this.retired = true;
+    this.socket?.removeAllListeners();
+    this.socket?.disconnect();
+    useWsStore.getState().setConnected(false);
   }
 
   disconnect() {
@@ -183,7 +199,7 @@ class WebSocketService {
   }
 
   reconnect() {
-    if (this.socket) {
+    if (this.socket && !this.retired) {
       this.socket.disconnect();
       this.socket.connect();
     }
@@ -420,4 +436,6 @@ const getWsUrl = () => {
 };
 
 const wsUrl = getWsUrl();
+runtime.__skWsService?.retire();
 export const wsService = new WebSocketService(wsUrl);
+runtime.__skWsService = wsService;
