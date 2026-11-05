@@ -6,6 +6,25 @@ import { restrictedReasonSql } from "./minorAccess";
 import { ORG_VISIBLE, viewerOf } from "./privateOrgs";
 import { withReason } from "./UserManager";
 
+/** SQL, for a membership `tm`: the viewer (`$1`) holds it. */
+export const viewerIsMemberSql = () => `tm.org_profile_id IN (${accessManager.PROFILE_IDS_FOR_USER})`;
+
+/** SQL, for a membership `tm`: it is held by a child the viewer (`$1`) is a guardian of. */
+export const viewerChildIsMemberSql = () => `EXISTS (SELECT 1 FROM profile_guardians pg
+  WHERE pg.player_profile_id = tm.org_profile_id
+    AND (pg.end_date IS NULL OR pg.end_date > NOW())
+    AND pg.guardian_profile_id IN (${accessManager.PROFILE_IDS_FOR_USER}))`;
+
+/** SQL, for a team `t`: `myRoleId` and `childNames`, what a team's card says of the viewer (`$1`). */
+export const viewerOnTeamFieldsSql = () => `
+  (SELECT tm.role_id FROM team_memberships tm
+    WHERE tm.team_id = t.id AND (tm.end_date IS NULL OR tm.end_date > NOW()) AND ${viewerIsMemberSql()}
+    ORDER BY CASE tm.role_id WHEN 'role-coach' THEN 0 WHEN 'role-assistant-coach' THEN 1
+                             WHEN 'role-scorer' THEN 2 WHEN 'role-medic' THEN 3 ELSE 4 END
+    LIMIT 1) AS "myRoleId",
+  ARRAY(SELECT DISTINCT p.name FROM team_memberships tm JOIN org_profiles p ON p.id = tm.org_profile_id
+         WHERE tm.team_id = t.id AND (tm.end_date IS NULL OR tm.end_date > NOW()) AND ${viewerChildIsMemberSql()}) AS "childNames"`;
+
 export class TeamManager extends BaseManager {
   teamRoles: TeamRole[] = [
     { id: "role-player", name: "Player" },
@@ -49,11 +68,8 @@ export class TeamManager extends BaseManager {
     const viewer = viewerOf(userId);
     if (params.mine && !viewer) return { items: [], total: 0, page, limit };
 
-    const mine = `tm.org_profile_id IN (${accessManager.PROFILE_IDS_FOR_USER})`;
-    const child = `EXISTS (SELECT 1 FROM profile_guardians pg
-                            WHERE pg.player_profile_id = tm.org_profile_id
-                              AND (pg.end_date IS NULL OR pg.end_date > NOW())
-                              AND pg.guardian_profile_id IN (${accessManager.PROFILE_IDS_FOR_USER}))`;
+    const mine = viewerIsMemberSql();
+    const child = viewerChildIsMemberSql();
     const onTeam = (who: string) => `SELECT 1 FROM team_memberships tm
       WHERE tm.team_id = t.id AND (tm.end_date IS NULL OR tm.end_date > NOW()) AND ${who}`;
 
@@ -79,13 +95,7 @@ export class TeamManager extends BaseManager {
                 t.org_id AS "orgId", o.name AS "orgName", o.logo AS "orgLogo",
                 o.primary_color AS "orgPrimaryColor", o.secondary_color AS "orgSecondaryColor", o.tertiary_color AS "orgTertiaryColor",
                 o.is_private AS "orgIsPrivate",
-                (SELECT tm.role_id FROM team_memberships tm
-                  WHERE tm.team_id = t.id AND (tm.end_date IS NULL OR tm.end_date > NOW()) AND ${mine}
-                  ORDER BY CASE tm.role_id WHEN 'role-coach' THEN 0 WHEN 'role-assistant-coach' THEN 1
-                                           WHEN 'role-scorer' THEN 2 WHEN 'role-medic' THEN 3 ELSE 4 END
-                  LIMIT 1) AS "myRoleId",
-                ARRAY(SELECT DISTINCT p.name FROM team_memberships tm JOIN org_profiles p ON p.id = tm.org_profile_id
-                       WHERE tm.team_id = t.id AND (tm.end_date IS NULL OR tm.end_date > NOW()) AND ${child}) AS "childNames"
+                ${viewerOnTeamFieldsSql()}
          ${from}
          ORDER BY o.name, s.name, ag.sort_order NULLS LAST, t.name, t.id
          LIMIT $${args.length + 1} OFFSET $${args.length + 2}`,

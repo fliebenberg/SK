@@ -56,6 +56,7 @@ Decided 2026-11-01. The app keeps both kinds, and every list is one or the other
 | A game's match events | Live | Live scoring |
 | Home's *On now & next* | Static list, live rows | Read every few minutes for what to show; only rows on screen that are live or on today hold a light room (`game:{id}:row`, `event:{id}:row`), since "near a point" is not a room |
 | Home's organisations | Static | Read once a visit; they barely change |
+| Home's *My games* | Static list, live rows | At most six, read every few minutes; a row holds `game:{id}:row` only while it is live or on today |
 | A person's notifications, memberships and grants | Live | Short, and only their own |
 
 The people import's preview is neither: it pages through the file just uploaded, already on the device, so it reads nothing from the server.

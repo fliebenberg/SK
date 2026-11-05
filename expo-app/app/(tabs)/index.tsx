@@ -6,7 +6,8 @@ import { HomeHero } from '../../components/home/HomeHero';
 import { HomeSearchBox } from '../../components/home/HomeBits';
 import { LocationCard, SetLocationDialog } from '../../components/home/LocationCard';
 import { NearbyEventsCard } from '../../components/home/NearbyEventsCard';
-import { MyHomeCard, NearbyOrgsCard, SearchResultsCard } from '../../components/home/HomeCards';
+import { NearbyOrgsCard, SearchResultsCard } from '../../components/home/HomeCards';
+import { MyGamesCard, TournamentsIRunCard } from '../../components/home/MyHomeCards';
 import { useHomeLocation, useHomeNearby, useHomeNearbyOrgs, useHomeSearch, useMyHome } from '../../hooks/useHome';
 import { useAppActive } from '../../hooks/useAppActive';
 import { useSports } from '../../hooks/useEventRooms';
@@ -16,6 +17,8 @@ import { LAYOUT } from '../../constants/layout';
 /** The two columns on a wide screen, so the search and location line up with the cards under them. */
 const WIDE_LEFT = 1.35;
 const WIDE_RIGHT = 1;
+/** The page's content from this wide has room for a fixture row's wide form. */
+const WIDE_ROWS_MIN_WIDTH = 640;
 
 /**
  * Home (`HOME-1`, docs/home.md, option B on mockups/home-near-you.html): the page anyone gets when
@@ -23,7 +26,8 @@ const WIDE_RIGHT = 1;
  *
  * - **Signed out**: the hero — what ScoreKeeper is, *Create an account*, *Log in*, *What is
  *   ScoreKeeper?* — then the search, the location, and what is on and who plays near there.
- * - **Signed in**: *My organisations & teams* first, then the same search, location and cards.
+ * - **Signed in**: *My games* and *Tournaments I run*, when they have any, then the same search,
+ *   location and cards.
  *
  * On a wide screen the search and the location share a line, and the two cards sit side by side
  * under them once the page has the room (`LAYOUT.twoColumnsMinWidth`). While the search has a term,
@@ -53,7 +57,6 @@ export default function Home() {
 
   const searching = query.trim().length > 0;
   const hasLocation = !!location;
-  const hasMine = !!mine && ((mine.runs?.length ?? 0) > 0 || mine.organizations.length > 0 || mine.teams.length > 0);
 
   // Still finding out where to look counts as loading, so a card never says "nothing" too early.
   const loading = isLoading || resolving;
@@ -73,9 +76,9 @@ export default function Home() {
     <View className="flex-1 bg-canvas">
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <PageBody className={isWide ? 'gap-4' : 'gap-3'} onLayout={e => setContentWidth(e.nativeEvent.layout.width)}>
-          {isAuthenticated
-            ? (hasMine ? <MyHomeCard mine={mine!} sports={sports} live={isFocused} /> : null)
-            : <HomeHero isWide={isWide} />}
+          {!isAuthenticated ? <HomeHero isWide={isWide} /> : null}
+          {mine ? <MyGamesCard mine={mine} sports={sports} isWide={contentWidth >= WIDE_ROWS_MIN_WIDTH} live={isFocused} /> : null}
+          {mine?.runs.length ? <TournamentsIRunCard runs={mine.runs} /> : null}
           {isWide ? (
             <View className="flex-row gap-4">
               <View className="min-w-0" style={{ flex: WIDE_LEFT }}>
@@ -89,7 +92,7 @@ export default function Home() {
             <HomeSearchBox value={query} onChange={setQuery} />
           )}
           {searching ? (
-            <SearchResultsCard query={query} results={results} isSearching={isSearching} sports={sports} />
+            <SearchResultsCard query={query} results={results} isSearching={isSearching} />
           ) : (
             <>
               {isWide ? null : <LocationCard location={location} resolving={resolving} onSet={onSetLocation} isWide={false} />}

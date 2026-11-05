@@ -806,9 +806,9 @@ server's loggers redact and nothing stores; a `near` that is not two numbers in 
 #### `get_data` — `{ type: 'home_mine' }`
 *   **Access**: signed in; answers for the caller only.
 *   **Returns**: `MyHome` — the tournaments the caller runs by appointment (`runs`, `PERM-8`: current
-    and upcoming, each under the widest of organiser / sport organiser / convenor), the caller's
-    organisations, each with its live game count, and teams, each with the game it is playing now or
-    plays next.
+    and upcoming, each under the widest of organiser / sport organiser / convenor), and *My games*
+    (`games`, at most six, chosen as [docs/home.md](file:///c:/Fred/Coding/SK/docs/home.md) §5 says),
+    with `siteNames` and `facilityNames` for their rows.
 
 ### 10. Tournaments
 

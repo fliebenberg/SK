@@ -18,8 +18,6 @@ interface OrgListCardProps {
   place?: string | null;
   /** How far from the viewer, on a list that knows: after its type. */
   km?: number | null;
-  /** Anything this list adds to the card's own flags. */
-  extraFlags?: string[];
   testID?: string;
 }
 
@@ -28,7 +26,7 @@ interface OrgListCardProps {
  * workspace for those who run the organisation, and otherwise its public page, which offers a team
  * duty its part of the workspace.
  */
-export function OrgListCard({ org, place, km = null, extraFlags = [], testID }: OrgListCardProps) {
+export function OrgListCard({ org, place, km = null, testID }: OrgListCardProps) {
   const router = useRouter();
   const { user, orgMemberships, teamMemberships } = useAuthStore();
   const access = orgAccess(org.id, user?.globalRole === 'admin', orgMemberships, teamMemberships);
@@ -42,7 +40,6 @@ export function OrgListCard({ org, place, km = null, extraFlags = [], testID }: 
   if (org.isActive === false) flags.push('Inactive');
   // Only a role they hold there: a system admin reads as Admin everywhere, which tells them nothing.
   if (access.membership && access.role) flags.push(access.role);
-  flags.push(...extraFlags);
 
   return (
     <BrandedListCard

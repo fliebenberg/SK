@@ -1,10 +1,11 @@
 import type { Event } from '../event/Event';
 import type { GameSummary } from '../event/GameSummary';
 import type { OrganizationType } from '../organization/Organization';
+import type { TeamDirectoryEntry } from '../team/Team';
 
 /**
  * What the Home page reads (`HOME-1`, docs/home.md): what is on near the viewer, a search across
- * organisations, teams and sites, and the signed-in viewer's own organisations and teams.
+ * organisations, teams and sites, and the signed-in viewer's own games.
  */
 
 /**
@@ -18,6 +19,9 @@ export interface ViewerPosition {
   lat: number;
   lng: number;
 }
+
+/** The most games *My games* shows (decided 2026-11-04). */
+export const MY_GAMES_LIMIT = 6;
 
 /** How far Home looks, in kilometres. Fixed for now (decided 2026-10-22). */
 export const HOME_RADIUS_KM = 25;
@@ -81,12 +85,8 @@ export interface HomeNearbyOrganizations {
   organizationsBeyondRadius: boolean;
 }
 
-export interface HomeSearchTeam {
-  id: string;
-  name: string;
-  sportId: string;
-  orgId: string;
-  orgName: string;
+/** A team the search found: what the Teams page's card shows, and how far away it is. */
+export interface HomeSearchTeam extends TeamDirectoryEntry {
   km: number | null;
 }
 
@@ -129,38 +129,6 @@ export interface PlaceMatch {
   near: ViewerPosition;
 }
 
-/** One of the signed-in viewer's organisations, for *My organisations & teams*. */
-export interface MyHomeOrganization {
-  id: string;
-  name: string;
-  shortName: string;
-  logo?: string | null;
-  primaryColor?: string | null;
-  secondaryColor?: string | null;
-  tertiaryColor?: string | null;
-  type?: OrganizationType | null;
-  customType?: string | null;
-  /** The suburb, or the town when there is none. */
-  locality?: string | null;
-  roleId: string;
-  /** Games live now that the organisation has a stake in. */
-  liveCount: number;
-  /** Seen only by its members (`ORG-14`), who see it marked so. */
-  isPrivate?: boolean;
-}
-
-/** One of the signed-in viewer's teams, with the game it is playing now or plays next. */
-export interface MyHomeTeam {
-  id: string;
-  name: string;
-  sportId: string;
-  orgId: string;
-  orgName: string;
-  roleId: string;
-  /** Live now, or the next one scheduled; absent when there is none. */
-  game?: GameSummary | null;
-}
-
 /**
  * A tournament the viewer runs by appointment — as its organiser, one of its sport organisers or a
  * division convenor (`PERM-8`). Listed first on Home, because for someone who belongs to no
@@ -182,6 +150,12 @@ export interface MyHomeRunEvent {
 export interface MyHome {
   /** Tournaments they run by appointment, soonest first; current and upcoming only. */
   runs: MyHomeRunEvent[];
-  organizations: MyHomeOrganization[];
-  teams: MyHomeTeam[];
+  /**
+   * *My games*: at most {@link MY_GAMES_LIMIT}, chosen for them on the server (docs/home.md). In no
+   * order: the app shows them by time, and a row's room can move one between the groups.
+   */
+  games: GameSummary[];
+  /** Names for the rows' Where, by id. */
+  siteNames: Record<string, string>;
+  facilityNames: Record<string, string>;
 }

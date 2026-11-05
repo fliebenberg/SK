@@ -11,7 +11,7 @@ import { distanceKm } from '../utils/distance';
 
 /**
  * Home's data (`HOME-1`, docs/home.md): where it looks, what is on near there, the search, and the
- * signed-in viewer's own organisations and teams.
+ * signed-in viewer's own games.
  */
 
 /**
@@ -185,10 +185,10 @@ export function useHomeNearbyOrgs(near: ViewerPosition | null, enabled: boolean)
 }
 
 function isMyHome(value: any): value is MyHome {
-  return !!value && Array.isArray(value.organizations) && Array.isArray(value.teams);
+  return !!value && Array.isArray(value.runs) && Array.isArray(value.games);
 }
 
-/** The signed-in viewer's organisations and teams. */
+/** The signed-in viewer's games, and the tournaments they run. */
 export function useMyHome(onScreen: boolean) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const { data, isLoading, refetch } = useSocketQuery<MyHome>('home_mine', {}, { enabled: isAuthenticated, suppressToast: true });

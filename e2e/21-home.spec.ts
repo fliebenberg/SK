@@ -3,7 +3,7 @@ import { USERS, signIn } from './support';
 
 /**
  * Home (`HOME-1`, docs/home.md, option B on `mockups/home-near-you.html`): the same page for
- * everyone. Logged out it leads with the hero; signed in with *My organisations & teams*. Both have
+ * everyone. Logged out it leads with the hero; signed in with *My games*, when they have any. Both have
  * the one search, the location and what is near there.
  */
 const visible = (page: Page, text: string | RegExp) =>
@@ -69,12 +69,11 @@ test.describe('Home, on a touch tablet', () => {
 });
 
 test.describe('Home, signed in', () => {
-  test('leads with my organisations and teams, and no hero', async ({ page }) => {
+  test('has no hero, and no list of their organisations', async ({ page }) => {
     await signIn(page, USERS.hostAdmin);
     // Through the app rather than a second page load, which costs the dev bundle all over again.
     await visible(page, 'Home').click();
-    await expect(visible(page, 'My organisations & teams')).toBeVisible();
-    await expect(visible(page, 'Admin')).toBeVisible();
+    await expect(page.getByText('My organisations & teams', { exact: true })).toHaveCount(0);
     await expect(page.getByText('Create an account', { exact: true })).toHaveCount(0);
     await expect(visible(page, 'Set my location')).toBeVisible();
   });

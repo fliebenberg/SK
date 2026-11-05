@@ -1880,7 +1880,7 @@ io.on('connection', (socket) => {
                 break;
             case 'home_mine': {
                 const readerId = socket.data?.userId;
-                callback(readerId && readerId !== 'anonymous' ? await homeManager.getMine(readerId) : { organizations: [], teams: [] });
+                callback(readerId && readerId !== 'anonymous' ? await homeManager.getMine(readerId) : { runs: [], games: [], siteNames: {}, facilityNames: {} });
                 break;
             }
             case 'search_similar_orgs':

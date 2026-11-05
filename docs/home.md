@@ -16,7 +16,7 @@ From top to bottom:
 
 | Signed out | Signed in |
 | --- | --- |
-| **The hero**: a headline, *Create an account*, *Log in* and *What is ScoreKeeper? ›* | **My organisations & teams** |
+| **The hero**: a headline, *Create an account*, *Log in* and *What is ScoreKeeper? ›* | **My games** and **Tournaments I run**, each only when there is something in it |
 | The search and the location, on one line on a wide screen and one under the other on a phone | the same |
 | *On now & next near you* and *Organisations near you*, side by side once the page's content is 900px wide (`LAYOUT.twoColumnsMinWidth`, measured, since the sidebar takes its share), and stacked under that | the same |
 
@@ -53,11 +53,9 @@ From top to bottom:
   distance added.
 - **Organisations near you**, closest first, each on the same card as the Organisations page
   ([`<OrgListCard>`](file:///c:/Fred/Coding/SK/expo-app/components/org/OrgListCard.tsx), decided 2026-11-02):
-  its suburb, its type and its distance on the right. An organisation found by the search and one on
-  *My organisations & teams* use it too, the latter with how many games are live as a flag. It opens
-  what the viewer runs in the workspace, and otherwise the public page, as it does everywhere. Teams
-  have no card of their own on Home: they are found through the search (decided 2026-10-22), and their
-  rows keep the old look for now (`UI-42`).
+  its suburb, its type and its distance on the right. An organisation found by the search uses it too.
+  It opens what the viewer runs in the workspace, and otherwise the public page, as it does everywhere.
+  Teams have no card near you: they are found through the search (decided 2026-10-22).
 - **Nothing within 25 km still shows something**: the closest there are, and the card says so once
   ("Nothing on within 25 km. The closest:"). A new visitor never lands on an empty page.
 - **Where a game is** is its facility's pin, else its site's, else its host's address; a tournament's
@@ -72,7 +70,7 @@ From top to bottom:
   dropped off. Coming back to Home after longer than that reads at once. Organisations are read once
   a visit (`home_nearby_orgs`): they barely change.
 - **Only rows on screen that can change now hold a room**: live, or on today. A single match and a
-  team's game under *My organisations & teams* hold `game:{id}:row`, with the
+  game under *My games* hold `game:{id}:row`, with the
   status, score and times; a tournament holds `event:{id}:row`, with how many games and how many live
   ([useListRows.ts](file:///c:/Fred/Coding/SK/expo-app/hooks/useListRows.ts)). A row merges over what
   the read gave it, so it moves between *On now* and *Later today* on its own. Going to another tab
@@ -146,16 +144,37 @@ One box for **organisations, teams and sites, anywhere**, closest first, at most
 matches on its organisation's name too, so "doringkloof u14" finds Doringkloof's U14 teams; a site
 the same way. While the box has a term, the results take the place of the cards below it.
 
-## 5. My organisations & teams
+Organisations and teams are on the same cards as the Organisations and Teams pages, in the same
+columns: up to three across on a wide screen, two on a tablet, one on a phone (decided 2026-11-04,
+`UI-42`). Each adds its distance. Sites have no card, so they stay as rows.
 
-The signed-in viewer's **memberships** — organisations they hold a role in, teams they coach or play
-for — until following exists (`FIX-37`). An organisation shows its role (Admin and Staff only, as
-everywhere) and how many of its games are live; a team shows the game it is playing now or plays
-next. Nobody else's can be asked for: `home_mine` answers for the signed-in caller.
+## 5. My games
 
-The organisations sit in the same columns as the Organisations page's cards (decided 2026-11-04): up
-to three across on a wide screen, two on a tablet, one on a phone, so a few of them do not stretch
-across the whole page. Teams keep their full-width rows (`UI-42`).
+Decided 2026-11-04 (`UI-42`). This replaces *My organisations & teams*, a list of the viewer's
+memberships. Links to them are one tap away on the My tabs of the Organisations and Teams pages; what
+Home adds is a quick view of what has happened and what is coming up.
+
+**At most six games** (`MY_GAMES_LIMIT`), with no *Show more*: the full lists are on the Teams and
+Fixtures & Events pages. With none, the section does not show. They are chosen on the server
+([myGames.ts](file:///c:/Fred/Coding/SK/server/src/managers/myGames.ts)) from what is live, in the
+coming month, or finished in the last 7 days, by relevance and shown by time:
+
+1. **Choosing, the most relevant reason first.** Their own teams, and their children's, as on the My
+   teams tab. Then the tournaments, sports or divisions they were appointed to run: a convenor gets
+   that division, a sport organiser that sport. Then the teams of an organisation they are an Admin
+   of (Staff do not get this reason). Each reason only gets what room is left.
+2. **Within a reason**, live games first, then whatever is closest to now, before or after.
+3. **At most one result and one upcoming game per team**, so a busy week cannot fill the list. A live
+   game is on top of those. Playing a listed game uses up the opposition's turn too.
+4. **A game is listed once**, under its highest reason. A fixture with no team yet ("Winner QF1") is
+   left out, and so is a cancelled one.
+5. **Showing, by time**: *On now*, then *Coming up* with the soonest first, then *Latest results* with
+   the latest first.
+
+**Tournaments I run** is its own card, shown only to someone appointed to a tournament: for an
+organiser or convenor from outside the host, it is the way in to the tournament's workspace (`PERM-8`).
+
+Nobody else's can be asked for: `home_mine` answers for the signed-in caller.
 
 ## 6. The reads
 
@@ -167,6 +186,6 @@ across the whole page. Teams keep their full-width rows (`UI-42`).
 | `approximate_location` | public | `ApproximateLocation` or `null` |
 | `place_name` `{ near }` | public | `PlaceName` (`{ label }`) or `null` |
 | `place_search` `{ query, near? }` | public | `PlaceMatch[]`: towns and suburbs, at most eight |
-| `home_mine` | signed in | `MyHome`, for the caller |
+| `home_mine` | signed in | `MyHome`, for the caller: *My games* and the tournaments they run |
 
 The types are in [shared/src/models/home/Home.ts](file:///c:/Fred/Coding/SK/shared/src/models/home/Home.ts).

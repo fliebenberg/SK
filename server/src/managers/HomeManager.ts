@@ -1,4 +1,5 @@
 import {
+  GameSummary,
   HOME_RADIUS_KM,
   HomeNearby,
   HomeNearbyOrganizations,
@@ -12,13 +13,15 @@ import {
 import { BaseManager } from './BaseManager';
 import { accessManager } from './AccessManager';
 import { eventManager } from './EventManager';
-import { userManager } from './UserManager';
+import { restrictedReasonSql } from './minorAccess';
+import { chooseMyGames, MyGameCandidate } from './myGames';
+import { viewerChildIsMemberSql, viewerIsMemberSql, viewerOnTeamFieldsSql } from './TeamManager';
 import { PUBLIC_EVENT } from './eventVisibility';
 import { ORG_VISIBLE, viewerOf } from './privateOrgs';
 
 /**
  * What the Home page reads (`HOME-1`, docs/home.md): what is on near the viewer, one search across
- * organisations, teams and sites, and the signed-in viewer's own organisations and teams.
+ * organisations, teams and sites, and the signed-in viewer's own games.
  *
  * **The viewer's position is used and forgotten.** It arrives rounded to about a kilometre, is a
  * query parameter and nothing else, and is never stored or logged (`near` is redacted by the socket
@@ -37,6 +40,8 @@ const ORGS_LIMIT = 20;
 const SEARCH_LIMIT = 10;
 /** How many days ahead to read. A little over the month the app shows: its calendar decides. */
 const WINDOW_DAYS = 32;
+/** How far back *My games* looks for a result. */
+const RESULT_DAYS = 7;
 
 /**
  * The order for a query's `found` rows (`km`, `at`) ahead of the cap: within the radius or with no
@@ -194,17 +199,7 @@ export class HomeManager extends BaseManager {
     ]);
     const counts = new Map<string, any>(tournamentCounts.rows.map((r: any) => [r.eventId, r]));
 
-    const siteIds = new Set<string>();
-    const facilityIds = new Set<string>();
-    for (const g of gameSummaries) {
-      if (g.siteId) siteIds.add(g.siteId);
-      if (g.facilityId) facilityIds.add(g.facilityId);
-    }
-    for (const e of tournamentEvents) if (e.siteId) siteIds.add(e.siteId);
-    const [sites, facilities] = await Promise.all([
-      this.query(`SELECT id, name FROM sites WHERE id = ANY($1)`, [[...siteIds]]),
-      this.query(`SELECT id, name FROM facilities WHERE id = ANY($1)`, [[...facilityIds]]),
-    ]);
+    const names = await this.venueNames(gameSummaries, tournamentEvents.flatMap(e => (e.siteId ? [e.siteId] : [])));
 
     return {
       games: gameSummaries.map(game => ({ game, km: gameKm.get(game.id) ?? null })),
@@ -215,8 +210,25 @@ export class HomeManager extends BaseManager {
         km: tournamentKm.get(event.id) ?? null,
       })),
       eventsBeyondRadius: events.beyond,
-      siteNames: Object.fromEntries(sites.rows.map((r: any) => [r.id, r.name])),
-      facilityNames: Object.fromEntries(facilities.rows.map((r: any) => [r.id, r.name])),
+      ...names,
+    };
+  }
+
+  /** Names for the rows' Where: every site and facility these games name, and any other sites. */
+  private async venueNames(games: GameSummary[], otherSiteIds: string[] = []) {
+    const siteIds = new Set(otherSiteIds);
+    const facilityIds = new Set<string>();
+    for (const g of games) {
+      if (g.siteId) siteIds.add(g.siteId);
+      if (g.facilityId) facilityIds.add(g.facilityId);
+    }
+    const [sites, facilities] = await Promise.all([
+      this.query(`SELECT id, name FROM sites WHERE id = ANY($1)`, [[...siteIds]]),
+      this.query(`SELECT id, name FROM facilities WHERE id = ANY($1)`, [[...facilityIds]]),
+    ]);
+    return {
+      siteNames: Object.fromEntries(sites.rows.map((r: any) => [r.id, r.name])) as Record<string, string>,
+      facilityNames: Object.fromEntries(facilities.rows.map((r: any) => [r.id, r.name])) as Record<string, string>,
     };
   }
 
@@ -273,7 +285,11 @@ export class HomeManager extends BaseManager {
          ORDER BY km NULLS LAST, o.name
          LIMIT ${SEARCH_LIMIT}`, params),
       this.query(`
-        SELECT t.id, t.name, t.sport_id AS "sportId", o.id AS "orgId", o.name AS "orgName",
+        SELECT t.id, t.name, t.short_name AS "shortName", ag.name AS "ageGroup",
+               t.sport_id AS "sportId", sp.name AS "sportName", t.is_active AS "isActive",
+               o.id AS "orgId", o.name AS "orgName", o.logo AS "orgLogo",
+               o.primary_color AS "orgPrimaryColor", o.secondary_color AS "orgSecondaryColor", o.tertiary_color AS "orgTertiaryColor",
+               o.is_private AS "orgIsPrivate",
                ${KM('a.latitude', 'a.longitude')} AS km
           FROM teams t
           JOIN organizations o ON o.id = t.org_id
@@ -299,15 +315,22 @@ export class HomeManager extends BaseManager {
          LIMIT ${SEARCH_LIMIT}`, params),
     ]);
 
+    // What the team's card says of the viewer, in its own query since these go by `$1`.
+    const viewer = viewerOf(viewerId);
+    const onTeam = viewer && teams.rows.length
+      ? await this.query(`SELECT t.id, ${viewerOnTeamFieldsSql()} FROM teams t WHERE t.id = ANY($2)`, [viewer, teams.rows.map((t: any) => t.id)])
+      : { rows: [] };
+    const viewerOn = new Map<string, any>(onTeam.rows.map((r: any) => [r.id, r]));
+    const withViewer = teams.rows.map((t: any) => ({
+      ...t,
+      myRoleId: viewerOn.get(t.id)?.myRoleId ?? null,
+      childNames: viewerOn.get(t.id)?.childNames ?? [],
+    }));
+
     const withKm = (rows: any[]) => rows.map(r => ({ ...r, km: roundKm(r.km) }));
-    return { organizations: withKm(orgs.rows), teams: withKm(teams.rows), sites: withKm(sites.rows) };
+    return { organizations: withKm(orgs.rows), teams: withKm(withViewer), sites: withKm(sites.rows) };
   }
 
-  /**
-   * The caller's organisations and teams (their memberships — following comes with `FIX-37`), each
-   * organisation with how many games it has live, and each team with the game it is playing now or
-   * plays next.
-   */
   /**
    * The tournaments the caller runs by appointment (`PERM-8`): organiser, sport organiser or
    * division convenor, each event once under the widest of its appointments. Not finished ones.
@@ -334,56 +357,57 @@ export class HomeManager extends BaseManager {
     return res.rows;
   }
 
+  /**
+   * The games that could be on the caller's *My games*, one row per team in each: live, in the coming
+   * month (late rather than gone for three hours after kick-off, as on *On now & next*), or finished
+   * in the last week. A fixture with no team yet ("Winner QF1") is left out: it has nobody to follow.
+   */
+  private async getMyGameCandidates(userId: string): Promise<MyGameCandidate[]> {
+    const ids = accessManager.PROFILE_IDS_FOR_USER;
+    const res = await this.query(`
+      SELECT id AS "gameId", team_id AS "teamId", status, at,
+             CASE WHEN own THEN 1 WHEN running THEN 2 WHEN org_team THEN 3 END AS tier
+        FROM (
+          SELECT g.id, gp.team_id, g.status,
+                 EXTRACT(EPOCH FROM CASE WHEN g.status = 'Finished'
+                   THEN COALESCE(g.finish_time, g.scheduled_start_time, g.start_time)
+                   ELSE COALESCE(g.scheduled_start_time, g.start_time, e.start_date::timestamptz) END)::float8 AS at,
+                 EXISTS (SELECT 1 FROM team_memberships tm
+                          WHERE tm.team_id = t.id AND (tm.end_date IS NULL OR tm.end_date > NOW())
+                            AND (${viewerIsMemberSql()} OR ${viewerChildIsMemberSql()})) AS own,
+                 (EXISTS (SELECT 1 FROM event_organizers eo WHERE eo.event_id = g.event_id AND eo.org_profile_id IN (${ids}))
+                  OR EXISTS (SELECT 1 FROM event_sport_organizers so
+                              WHERE so.event_id = g.event_id AND so.sport_id = g.sport_id AND so.org_profile_id IN (${ids}))
+                  OR EXISTS (SELECT 1 FROM division_stages ds JOIN division_organizers dor ON dor.division_id = ds.division_id
+                              WHERE ds.id = g.stage_id AND dor.org_profile_id IN (${ids}))) AS running,
+                 EXISTS (SELECT 1 FROM org_memberships om JOIN org_profiles op ON op.id = om.org_profile_id
+                          WHERE om.org_id = t.org_id AND om.role_id = 'role-org-admin'
+                            AND (om.end_date IS NULL OR om.end_date > NOW())
+                            AND om.org_profile_id IN (${ids})
+                            AND (${restrictedReasonSql('op', 'om.org_id')}) IS NULL) AS org_team
+            FROM games g
+            JOIN events e ON e.id = g.event_id
+            JOIN game_participants gp ON gp.game_id = g.id
+            JOIN teams t ON t.id = gp.team_id
+           WHERE t.is_active = true
+             AND e.status IS DISTINCT FROM 'Cancelled'
+             AND gp.status IS DISTINCT FROM 'withdrawn' AND gp.status IS DISTINCT FROM 'disqualified'
+             AND (g.status = 'Live'
+                  OR (g.status = 'Scheduled' AND (
+                        COALESCE(g.scheduled_start_time, g.start_time) BETWEEN NOW() - INTERVAL '3 hours' AND NOW() + INTERVAL '${WINDOW_DAYS} days'
+                        OR (COALESCE(g.scheduled_start_time, g.start_time) IS NULL
+                            AND e.start_date BETWEEN CURRENT_DATE - 1 AND CURRENT_DATE + ${WINDOW_DAYS})))
+                  OR (g.status = 'Finished'
+                      AND COALESCE(g.finish_time, g.scheduled_start_time, g.start_time) >= NOW() - INTERVAL '${RESULT_DAYS} days'))
+        ) found`, [userId]);
+    return res.rows;
+  }
+
+  /** The caller's *My games* and the tournaments they run (`home_mine`, docs/home.md §5). */
   async getMine(userId: string): Promise<MyHome> {
-    const [orgMemberships, teamMemberships] = await Promise.all([
-      userManager.getUserOrgMemberships(userId),
-      userManager.getUserTeamMemberships(userId),
-    ]);
-    // A person can hold two roles in one organisation; the list shows it once, under the first.
-    const orgRole = new Map<string, string>();
-    for (const m of orgMemberships) if (!orgRole.has(m.orgId)) orgRole.set(m.orgId, m.roleId);
-    const teamRole = new Map<string, string>();
-    for (const m of teamMemberships) if (!teamRole.has(m.teamId)) teamRole.set(m.teamId, m.roleId);
-    const runs = await this.getRuns(userId);
-    if (!orgRole.size && !teamRole.size) return { runs, organizations: [], teams: [] };
-
-    const [orgs, teams] = await Promise.all([
-      this.query(`
-        SELECT ${ORG_CARD_FIELDS},
-               (SELECT COUNT(DISTINCT g.id)::int FROM games g JOIN events e ON e.id = g.event_id
-                 WHERE g.status = 'Live'
-                   AND (e.org_id = o.id
-                        OR EXISTS (SELECT 1 FROM game_participants gp JOIN teams t ON t.id = gp.team_id
-                                    WHERE gp.game_id = g.id AND t.org_id = o.id))) AS "liveCount"
-          FROM organizations o
-          LEFT JOIN addresses a ON a.id = o.address_id
-         WHERE o.id = ANY($1)
-         ORDER BY o.name`, [[...orgRole.keys()]]),
-      this.query(`
-        SELECT t.id, t.name, t.sport_id AS "sportId", o.id AS "orgId", o.name AS "orgName",
-               (SELECT g.id FROM games g JOIN game_participants gp ON gp.game_id = g.id
-                 WHERE gp.team_id = t.id
-                   AND (g.status = 'Live' OR (g.status = 'Scheduled'
-                        AND COALESCE(g.scheduled_start_time, g.start_time) >= NOW() - INTERVAL '3 hours'))
-                 ORDER BY (g.status = 'Live') DESC, COALESCE(g.scheduled_start_time, g.start_time) NULLS LAST
-                 LIMIT 1) AS "gameId"
-          FROM teams t
-          JOIN organizations o ON o.id = t.org_id
-         WHERE t.id = ANY($1) AND t.is_active = true
-         ORDER BY o.name, t.name`, [[...teamRole.keys()]]),
-    ]);
-
-    const games = await eventManager.getGameSummariesByIds(teams.rows.map((t: any) => t.gameId).filter(Boolean));
-    const gameById = new Map(games.map(g => [g.id, g]));
-    return {
-      runs,
-      organizations: orgs.rows.map((o: any) => ({ ...o, roleId: orgRole.get(o.id)! })),
-      teams: teams.rows.map(({ gameId, ...t }: any) => ({
-        ...t,
-        roleId: teamRole.get(t.id)!,
-        game: gameId ? gameById.get(gameId) ?? null : null,
-      })),
-    };
+    const [runs, candidates] = await Promise.all([this.getRuns(userId), this.getMyGameCandidates(userId)]);
+    const games = await eventManager.getGameSummariesByIds(chooseMyGames(candidates, Date.now() / 1000));
+    return { runs, games, ...(await this.venueNames(games)) };
   }
 }
 
