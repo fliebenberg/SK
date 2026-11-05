@@ -19,6 +19,8 @@ export const USERS = {
   sacCoach: 'brendan.oneill@staldrics.test',
   /** Riverbend's admin — invited, not answered. */
   rbhAdmin: 'sipho.dlamini@riverbend.test',
+  /** Riverbend's staff — convenes Netball U14 in *Test Saturday Fixtures*, which Doringkloof hosts. */
+  saturdayConvenor: 'priya.naidoo@riverbend.test',
   /** Riverbend's U16 A rugby coach. */
   rbhCoach: 'themba.zulu@riverbend.test',
   /** Kwaggafontein's admin — added, not invited yet. */

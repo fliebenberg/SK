@@ -643,6 +643,8 @@ export interface FixtureTournamentDivision {
     orgsMayAddTeams?: boolean;
     /** Its own facilities, by the host's facility keys (a subset of the tournament's). */
     facilities?: string[];
+    /** Appointed to run this division, each a person of the organisation named (`PERM-8`). */
+    convenors?: Array<{ org: string; name: string }>;
     /**
      * *Set fixtures by hand* (`Festival`): one stage of games written in `games`, never drawn — as a
      * Head to Head's division is. Its games may be between any two organisations (`SCORE-23`).
@@ -800,7 +802,7 @@ export const TEST_TOURNAMENTS: FixtureTournament[] = [
         ],
         divisions: [
             {
-                key: 'netball-u14', name: 'U14', sportId: 'netball', ageGroup: 'U14', locked: true, drawn: true, facilities: ['court-1', 'court-2'],
+                key: 'netball-u14', name: 'U14', sportId: 'netball', ageGroup: 'U14', locked: true, drawn: true, convenors: [{ org: 'rbh', name: 'Priya Naidoo' }], facilities: ['court-1', 'court-2'],
                 teams: [
                     { org: 'dkl', team: 'netball-u14a', status: 'accepted' },
                     { org: 'sac', team: 'netball-u14a', status: 'accepted' },

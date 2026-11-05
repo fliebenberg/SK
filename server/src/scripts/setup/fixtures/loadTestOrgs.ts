@@ -548,6 +548,9 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
                 ['id', 'event_id', 'name', 'sport_id', 'age_group_id', 'sort_order', 'entries_locked_at', 'entries_locked_by_user_id', 'orgs_may_add_teams'],
                 [divisionId, tourId, division.name, division.sportId, starterAgeGroupId(division.sportId, division.ageGroup), sortOrder,
                  division.locked ? FIXTURE_MEMBERSHIP_START : null, division.locked ? userOf(host.admin.name) : null, division.orgsMayAddTeams ?? null]);
+            for (const convenor of division.convenors ?? []) {
+                await insert('division_organizers', ['division_id', 'org_profile_id'], [divisionId, fixtureIds.profile(convenor.org, convenor.name)]);
+            }
             // A Head to Head's division, and one set by hand, plays one stage of games set by hand
             // (`stagePlanForFormat('Dual')`, `stagePlanForFormat('Festival')`).
             await insert('division_stages', ['id', 'division_id', 'name', 'format', 'sequence'],

@@ -77,4 +77,27 @@ test.describe('Home, signed in', () => {
     await expect(page.getByText('Create an account', { exact: true })).toHaveCount(0);
     await expect(visible(page, 'Set my location')).toBeVisible();
   });
+
+  test("My games shows an admin their organisation's games, and a game opens its page @phone", async ({ page }, info) => {
+    // On the phone, which runs first, so it sees the fixtures as loaded. My games lists what is closest
+    // to now, one upcoming game a team, and `10-head-to-head` adds Doringkloof games dated today.
+    test.skip(info.project.name !== 'phone', 'Needs the fixture data as loaded; the desktop run changes it');
+    await signIn(page, USERS.hostAdmin);
+    await visible(page, 'Home').click();
+    await expect(visible(page, 'My games')).toBeVisible();
+    // The next game only: results depend on the day, as the last round can be over a week old on a Saturday.
+    const comingUp = visible(page, 'Coming up');
+    await expect(comingUp).toBeVisible();
+    await comingUp.locator('xpath=following::*[@role="link" or self::a][1]').click();
+    await expect(page).toHaveURL(/\/events\/[^/]+\/games\/fx-game-/);
+  });
+
+  test('Tournaments I run shows a convenor from another organisation the way in', async ({ page }) => {
+    await signIn(page, USERS.saturdayConvenor);
+    await visible(page, 'Home').click();
+    await expect(visible(page, 'Tournaments I run')).toBeVisible();
+    await expect(visible(page, 'Test Hoërskool Doringkloof · Convenor')).toBeVisible();
+    await visible(page, 'Test Saturday Fixtures').click();
+    await expect(page).toHaveURL(/\/admin\/fx-org-dkl\/events\/fx-tour-saturday/);
+  });
 });

@@ -76,7 +76,8 @@ lists every person with `account: true`.
   the server's own planner (`planDivision`): Netball U14 on Courts 1–2, Netball U16 on Court 3
   (spilling onto the second Saturday, with one fixture left **without a time**), Rugby U16 on the
   two mini fields, and Rugby 1st XV on A Field — which waits for the minis on its ground and so
-  finishes **after the second Saturday's end**, the one clash the Schedule tab shows.
+  finishes **after the second Saturday's end**, the one clash the Schedule tab shows. Priya Naidoo,
+  Riverbend's staff, convenes its Netball U14 (`convenors`), so Home has someone with *Tournaments I run*.
 - **A Head to Head** (`H2H-1`): *Test Head to Head* (`fx-tour-h2h`), Doringkloof against St
   Aldric's, who accepted, played two Saturdays back. Its divisions are Doringkloof's age groups, each
   team against St Aldric's of the same age, with one of every result: Doringkloof won Rugby U16
