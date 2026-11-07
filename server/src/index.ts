@@ -29,6 +29,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { emailService } from './services/EmailService';
+import { reportMailSetup } from './services/mailer';
 import { assetBaseUrl, assetStorage, localAssetMountPath } from './services/assetStorage';
 import { issueAssetToken, requireAssetToken } from './services/assetAccess';
 import { imageService, isImageFolder, UploadError, UPLOAD_RULES } from './services/ImageService';
@@ -4491,4 +4492,5 @@ setInterval(sweepPendingUploads, 3600e3).unref();
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  reportMailSetup();
 });

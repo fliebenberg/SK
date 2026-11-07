@@ -1,56 +1,10 @@
-import nodemailer from 'nodemailer';
-import dotenv from 'dotenv';
-import path from 'path';
+import { sendMail } from './mailer';
 
-// Load environmental configurations
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-
-const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465');
-const SMTP_SECURE = process.env.SMTP_SECURE !== 'false'; // default to true (SSL)
-const SMTP_USER = process.env.SMTP_USER || 'appadmin@scorekeeper.live';
-const SMTP_PASS = process.env.SMTP_PASS;
-
+/** What the password recovery email says. It is sent through `sendMail` (mailer.ts), like every email. */
 class EmailService {
-  private transporter: nodemailer.Transporter | null = null;
-
-  constructor() {
-    this.initializeTransporter();
-  }
-
-  private initializeTransporter() {
-    console.log(`📡 [EmailService] Initializing transporter: Host=${SMTP_HOST}, Port=${SMTP_PORT}, User=${SMTP_USER}, Secure=${SMTP_SECURE}`);
-    if (!SMTP_PASS) {
-      console.log('⚠️ [EmailService] SMTP_PASS is missing in env. Emails will be logged to the server terminal console.');
-      return;
-    }
-
-    try {
-      this.transporter = nodemailer.createTransport({
-        host: SMTP_HOST,
-        port: SMTP_PORT,
-        secure: SMTP_SECURE,
-        auth: {
-          user: SMTP_USER,
-          pass: SMTP_PASS,
-        },
-      });
-      console.log(`📡 [EmailService] Nodemailer active connected to ${SMTP_HOST}:${SMTP_PORT} as ${SMTP_USER}. Verifying connection...`);
-      
-      this.transporter.verify((error, success) => {
-        if (error) {
-          console.error('❌ [EmailService] Google Workspace SMTP Connection verification failed:', error);
-        } else {
-          console.log('✅ [EmailService] Google Workspace SMTP Server is fully verified and ready to send emails.');
-        }
-      });
-    } catch (error) {
-      console.error('❌ [EmailService] Failed to initialize Nodemailer transporter:', error);
-    }
-  }
-
   /**
-   * Dispatches a highly styled premium password recovery email containing both passcode and reset link.
+   * Sends the password recovery email, with both a passcode and a reset link. Returns whether it
+   * went; the reason it did not is logged.
    */
   async sendPasswordRecoveryEmail(
     toEmail: string,
@@ -250,35 +204,13 @@ class EmailService {
     © ${new Date().getFullYear()} ScoreKeeper
     `;
 
-    if (this.transporter) {
-      try {
-        await this.transporter.sendMail({
-          from: `ScoreKeeper Service <${SMTP_USER}>`,
-          to: toEmail,
-          subject: subject,
-          text: textContent,
-          html: htmlContent,
-        });
-        console.log(`✉️ [EmailService] Successfully dispatched recovery email to ${toEmail}`);
-        return true;
-      } catch (error) {
-        console.error(`❌ [EmailService] SMTP Dispatch failed to ${toEmail}:`, error);
-      }
+    try {
+      await sendMail({ to: toEmail, subject, text: textContent, html: htmlContent });
+      return true;
+    } catch (error) {
+      console.error(`[EmailService] The password recovery email to ${toEmail} was not sent:`, error);
+      return false;
     }
-
-    // Fallback: Terminal Log output for local testing
-    console.log(`
-    ===================================================================
-    📬 [EmailService LOG FALLBACK] transactional recovery email triggered:
-    -------------------------------------------------------------------
-    TO: ${toEmail}
-    SUBJECT: ${subject}
-    PASSCODE: ${passcode}
-    RESET URL: ${resetUrl}
-    SOCIAL LINKED: ${isSocialOnly} (${provider})
-    ===================================================================
-    `);
-    return true;
   }
 }
 

@@ -1,43 +1,12 @@
-import nodemailer from 'nodemailer';
-import dotenv from 'dotenv';
+import { sendMail } from '../services/mailer';
 
-dotenv.config();
-
+/**
+ * What the invitation and application emails say. Each is sent through `sendMail` (mailer.ts),
+ * which throws when it cannot send, so the caller can say so.
+ */
 class MailManager {
-    private transporter: nodemailer.Transporter | null = null;
-
-    async init() {
-        if (process.env.SMTP_HOST) {
-            this.transporter = nodemailer.createTransport({
-                host: process.env.SMTP_HOST,
-                port: parseInt(process.env.SMTP_PORT || '587'),
-                secure: process.env.SMTP_SECURE === 'true',
-                auth: {
-                    user: process.env.SMTP_USER,
-                    pass: process.env.SMTP_PASS,
-                },
-            });
-        } else {
-            // Fallback to Ethereal for testing
-            const testAccount = await nodemailer.createTestAccount();
-            this.transporter = nodemailer.createTransport({
-                host: 'smtp.ethereal.email',
-                port: 587,
-                secure: false, // true for 465, false for other ports
-                auth: {
-                    user: testAccount.user, // generated ethereal user
-                    pass: testAccount.pass, // generated ethereal password
-                },
-            });
-            console.log('Ethereal Mail Test Account Created:', testAccount.user);
-        }
-    }
-
     async sendClaimInvitation(to: string, orgName: string, claimUrl: string) {
-        if (!this.transporter) await this.init();
-
-        const info = await this.transporter!.sendMail({
-            from: '"ScoreKeeper" <noreply@scorekeeper.com>',
+        await sendMail({
             to,
             subject: `Action Required: Claim Ownership of ${orgName} on ScoreKeeper`,
             text: `Hi,\n\nYou have been invited to claim ownership of the organisation "${orgName}" on ScoreKeeper.\n\nScoreKeeper is an online app that allows organisations to effortlessly manage sports teams, players and events. For more information you can explore our website: https://www.scorekeeper.live\n\nClaim your organisation here: ${claimUrl}\n\nNot the right person? Refer someone else: ${process.env.APP_URL}/claim/refer?token=${claimUrl.split('token=')[1]}\nOr decline this invitation: ${process.env.APP_URL}/claim/decline?token=${claimUrl.split('token=')[1]}\n\nThanks,\nScoreKeeper Team`,
@@ -117,11 +86,6 @@ class MailManager {
             `,
         });
 
-        console.log('Claim invitation sent to:', to);
-        if (process.env.NODE_ENV !== 'production' && !process.env.SMTP_HOST) {
-            console.log('Preview URL:', nodemailer.getTestMessageUrl(info));
-        }
-        return info;
     }
 
     /**
@@ -134,27 +98,12 @@ class MailManager {
      */
     async sendApplicationNotice(to: string[], content: { subject: string; text: string }) {
         if (!to.length) return;
-        if (!this.transporter) await this.init();
-        return this.transporter!.sendMail({ from: '"ScoreKeeper" <noreply@scorekeeper.com>', to, subject: content.subject, text: content.text });
+        await sendMail({ to, subject: content.subject, text: content.text });
     }
 
     async sendMemberInvitation(to: string, personName: string, orgName: string, signupUrl: string, guardianOf: string[] = []) {
-        if (!this.transporter) await this.init();
-
         const content = memberInvitationContent(personName, orgName, signupUrl, guardianOf);
-        const info = await this.transporter!.sendMail({
-            from: '"ScoreKeeper" <noreply@scorekeeper.com>',
-            to,
-            subject: content.subject,
-            text: content.text,
-            html: content.html,
-        });
-
-        console.log('Member invitation sent to:', to);
-        if (process.env.NODE_ENV !== 'production' && !process.env.SMTP_HOST) {
-            console.log('Preview URL:', nodemailer.getTestMessageUrl(info));
-        }
-        return info;
+        await sendMail({ to, subject: content.subject, text: content.text, html: content.html });
     }
 }
 

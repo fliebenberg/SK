@@ -95,7 +95,9 @@ sudo -u sk -H bash -c 'cd /srv/sk/SK/server && NODE_ENV=development npm run db:t
 ```
 That puts the test organisations back as the fixtures describe them and leaves everything else.
 Every test account's password is `Test1234!`. The app admin is `appadmin@scorekeeper.live`; its
-password was generated when the server was set up and is not in this repo.
+password was generated when the server was set up and is not in this repo. It is kept, with the
+database password, in `~/secrets.env` in the `fred` login on the server, readable only by that
+login.
 
 ## Logs
 
@@ -129,9 +131,43 @@ sudo -u sk -H bash -c '
 
 ## Email
 
-Email goes out through Google Workspace SMTP (`smtp.gmail.com`), set by the `SMTP_*` lines in
-`server/.env`. Until `SMTP_PASS` is set, emails are not sent: they are written to the server log
-(password reset) or sent to a fake Ethereal inbox (invitations).
+Every email goes through one sender, [mailer.ts](../server/src/services/mailer.ts), which explains
+the settings. On the test server it uses **Google Workspace's SMTP relay**:
+```
+SMTP_HOST=smtp-relay.gmail.com
+SMTP_PORT=587
+MAIL_FROM=ScoreKeeper <noreply@scorekeeper.live>
+```
+There is no login and no password: the relay accepts mail because it comes from this server's IP
+address. `noreply@scorekeeper.live` is an alias of a Workspace user, which the relay allows as a
+sender because it is on our domain. If email stops working, look for `[Mail]` in
+`pm2 logs scorekeeper`: at startup the server says how email is set up and whether the relay
+answered, and every failed send says why.
+
+**What the relay needs**, in the Workspace Admin console (admin.google.com, Apps → Google Workspace
+→ Gmail → Routing → **SMTP relay service**), one entry per server:
+
+| Setting | Value |
+| --- | --- |
+| Allowed senders | Only addresses in my domains |
+| Authentication | Only accept mail from the specified IP addresses: the server's public IP |
+| Require SMTP Authentication | off |
+| Encryption | Require TLS encryption |
+
+A new server, or a new IP address for this one, needs its address added there, or its email is
+refused.
+
+**What the domain needs**, so that mail from it is not marked as spam (set up for `scorekeeper.live`
+on 2026-11-07, in Squarespace's DNS):
+
+| Record | Name | Value |
+| --- | --- | --- |
+| TXT (SPF) | `@` | `v=spf1 include:_spf.google.com ~all` |
+| TXT (DMARC) | `_dmarc` | `v=DMARC1; p=none; rua=mailto:fred@scorekeeper.live` |
+| TXT (DKIM) | `google._domainkey` | from Admin console → Gmail → Authenticate email, which must say "Authenticating email with DKIM" |
+
+When email is not set up (no `SMTP_HOST`), a server refuses to send, so nobody is told an email went
+when it did not; in development the email is written to the log instead.
 
 ## Setting up a server from nothing
 
@@ -158,6 +194,10 @@ The order this one was built in, for a second server or a rebuild:
 9. `/var/www/scorekeeper` owned by `sk`; [deploy/Caddyfile](../deploy/Caddyfile) into
    `/etc/caddy/Caddyfile`; a DNS A record for the name; then build and install the web app.
 10. The backup line in `sk`'s crontab (see the top of [backup.sh](../deploy/backup.sh)).
+11. Email: add the server's IP address to the Workspace SMTP relay, put the `SMTP_HOST`,
+    `SMTP_PORT` and `MAIL_FROM` lines from [Email](#email) in `.env`, restart, and check the `[Mail]`
+    lines in the log. The domain's SPF, DMARC and DKIM records are already there for
+    `scorekeeper.live`; a new domain needs its own.
 
 ## Before production
 
@@ -166,7 +206,9 @@ The order this one was built in, for a second server or a rebuild:
 - **Requests from any website are accepted** (`cors()` and the socket's `origin: "*"` in
   [index.ts](../server/src/index.ts)). Limit them to the app's own address.
 - **Backups** need history and a copy off the machine.
-- **Email** needs a proper sending service (TODO.md, Pending Tasks).
+- **Email:** add the production server's IP address to the Workspace SMTP relay ([Email](#email)).
+  The relay has daily sending limits, so a dedicated mail service may be needed as use grows
+  (TODO.md, Pending Tasks).
 - The one-off steps for a first production server: `EXPO_PUBLIC_WEB_URL` in the app build, a
   MaxMind `GeoLite2-City.mmdb` with `GEOIP_CITY_DB` (and a way to keep it current), Google Maps and
   Places keys allowed for the production address, with daily caps.

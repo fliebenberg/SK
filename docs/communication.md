@@ -421,8 +421,8 @@ cut into parts.
   with create, list, mark-read and delete, plus three socket actions. It is one row per user, with no
   "about which person", no subject reference other than a `link` string, and no answer. No screen in
   `expo-app/` shows it. It is likely to be replaced rather than extended.
-- [EmailService.ts](file:///c:/Fred/Coding/SK/server/src/services/EmailService.ts). There is no
-  production mail service yet (FUTURE_IDEAS).
+- One email sender, [mailer.ts](file:///c:/Fred/Coding/SK/server/src/services/mailer.ts), used by
+  every email the server sends (`DEPLOY-2`). There is no production mail service yet (FUTURE_IDEAS).
 - Guardian links, and the rule for who answers for a player
   ([guardians.ts](file:///c:/Fred/Coding/SK/shared/src/utils/guardians.ts)).
 - Rosters, game squads, officials, and an org's public fixtures room. These are the sources for
