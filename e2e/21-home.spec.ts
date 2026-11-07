@@ -78,18 +78,16 @@ test.describe('Home, signed in', () => {
     await expect(visible(page, 'Set my location')).toBeVisible();
   });
 
-  test("My games shows an admin their organisation's games, and a game opens its page @phone", async ({ page }, info) => {
-    // On the phone, which runs first, so it sees the fixtures as loaded. My games lists what is closest
-    // to now, one upcoming game a team, and `10-head-to-head` adds Doringkloof games dated today.
-    test.skip(info.project.name !== 'phone', 'Needs the fixture data as loaded; the desktop run changes it');
+  test("My games shows an admin their organisation's games, and a game opens its page @phone", async ({ page }) => {
+    // On the phone and the desktop, so both forms of the row are seen. Which games it lists moves with
+    // the suite (`10-head-to-head` adds Doringkloof games dated today) and with the day, so this asks
+    // only that there is one and it opens: the choosing itself is server/src/scripts/test-my-games.ts.
     await signIn(page, USERS.hostAdmin);
     await visible(page, 'Home').click();
-    await expect(visible(page, 'My games')).toBeVisible();
-    // The next game only: results depend on the day, as the last round can be over a week old on a Saturday.
-    const comingUp = visible(page, 'Coming up');
-    await expect(comingUp).toBeVisible();
-    await comingUp.locator('xpath=following::*[@role="link" or self::a][1]').click();
-    await expect(page).toHaveURL(/\/events\/[^/]+\/games\/fx-game-/);
+    const heading = visible(page, 'My games');
+    await expect(heading).toBeVisible();
+    await heading.locator('xpath=following::*[@role="link" or self::a][1]').click();
+    await expect(page).toHaveURL(/\/events\/[^/]+\/games\/[^/]+$/);
   });
 
   test('Tournaments I run shows a convenor from another organisation the way in', async ({ page }) => {
