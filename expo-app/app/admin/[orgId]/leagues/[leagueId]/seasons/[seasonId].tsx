@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Platform, Image } from 'react-native';
 import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../../../store/unsavedChangesStore';
@@ -14,8 +14,10 @@ import { wsService } from '../../../../../../services/websocket';
 import { sendAction } from '../../../../../../services/actions';
 import { readData } from '../../../../../../services/reads';
 import { ReadFailure } from '../../../../../../components/ReadFailure';
+import { FloatingSaveBar, FLOATING_SAVE_BAR_PADDING } from '../../../../../../components/FloatingSaveBar';
+import { useIncomingRecord, CHANGED_ELSEWHERE_NOTICE } from '../../../../../../hooks/useIncomingRecord';
 import { useWsStore } from '../../../../../../store/wsStore';
-import { SocketAction, Season, SeasonTeam, LeagueStandingRow, Game, Team, reseedDecision } from '@sk/shared';
+import { SocketAction, Season, SeasonTeam, LeagueStandingRow, Game, Team, seasonPointsFromInput } from '@sk/shared';
 import { finishedScoreLine } from '../../../../../../utils/matchScore';
 import DatePicker from '../../../../../../components/DatePicker';
 import { getOrgLogoUrl } from '../../../../../../services/assets';
@@ -194,11 +196,8 @@ export default function SeasonDetails() {
 
     void Promise.all([
       // 1. Fetch Season details
-      readSeason(res => {
-        setSeason(res);
-        setStandings(res.cachedStandings || []);
-        seedSeasonSettings(seasonSettingsOf(res));
-      }, wanted),
+      // On reconnecting too, so it goes through `adoptSeason`, which keeps what is being typed (`SYNC-10`).
+      readSeason(res => adoptSeason(res), wanted),
       // 2. Fetch Season Teams
       readSeasonTeams(wanted),
       // 3. Fetch Season Games
@@ -246,6 +245,11 @@ export default function SeasonDetails() {
    * Measured against the baseline the fields were seeded from, never against the live `season` —
    * which `refreshSeasonData` replaces after unrelated actions.
    */
+  const incomingSettings = useIncomingRecord(sameSeasonSettings);
+  /** The baseline and drafts as they are now: a read's answer lands several renders after it was sent. */
+  const settingsRef = useRef<{ baseline: SeasonSettingsForm | null; drafts: SeasonSettingsForm }>({ baseline: null, drafts: currentSeasonSettings() });
+  settingsRef.current = { baseline: settingsBaseline, drafts: currentSeasonSettings() };
+
   const hasSettingsChanges =
     !!settingsBaseline && !sameSeasonSettings(currentSeasonSettings(), settingsBaseline);
 
@@ -256,14 +260,17 @@ export default function SeasonDetails() {
   /** Discard goes back to the baseline — what the fields were last seeded from, which is what
    *  is saved. Restoring from the live `season` could pull in an edit made elsewhere. */
   const handleCancelSettings = useCallback(() => {
-    if (settingsBaseline) {
-      seedSeasonSettings(settingsBaseline);
+    // The newer version, when the season changed while this was edited: Cancel shows it.
+    const to = incomingSettings.newer ?? settingsBaseline;
+    if (to) {
+      seedSeasonSettings(to);
       logoUpload.discard();
       setActionError(null);
     }
+    incomingSettings.clear();
     // Not `seedSeasonSettings`: it is new each render and only calls setters. Listing it changed this
     // callback each render, which looped `useUnsavedChanges` ("Maximum update depth exceeded").
-  }, [settingsBaseline]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsBaseline, incomingSettings.newer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useUnsavedChanges(hasSettingsChanges && !isProcessing, handleCancelSettings);
 
@@ -277,14 +284,8 @@ export default function SeasonDetails() {
       was measured against while the fields stayed as typed — so a field nobody here touched read
       as unsaved, and Cancel would have restored to a version this organiser never saw.
     */
-    const incoming = seasonSettingsOf(res);
-    const decision = reseedDecision({
-      baseline: settingsBaseline,
-      drafts: currentSeasonSettings(),
-      incoming,
-      same: sameSeasonSettings,
-    });
-    if (decision === 'adopt') seedSeasonSettings(incoming);
+    const { baseline, drafts } = settingsRef.current;
+    incomingSettings.offer({ baseline, drafts, incoming: seasonSettingsOf(res), seed: seedSeasonSettings });
   };
 
   const refreshSeasonData = () => {
@@ -389,6 +390,11 @@ export default function SeasonDetails() {
       setActionError("The season must end on or after the day it starts.");
       return;
     }
+    const points = seasonPointsFromInput({ win: ptsWin, draw: ptsDraw, loss: ptsLoss });
+    if (!points.ok) {
+      setActionError(points.message);
+      return;
+    }
 
     setIsProcessing(true);
     setActionError(null);
@@ -400,11 +406,7 @@ export default function SeasonDetails() {
         startDate: startDateStr,
         endDate: endDateStr,
         status: computedStatus,
-        settings: {
-          pointsPerWin: parseInt(ptsWin) || 4,
-          pointsPerDraw: parseInt(ptsDraw) || 2,
-          pointsPerLoss: parseInt(ptsLoss) || 0
-        },
+        settings: points.points,
         logo: seasonLogo || null
       }
     };
@@ -422,6 +424,7 @@ export default function SeasonDetails() {
         // The baseline moves with the save, which is what brings the Save bar down.
         seedSeasonSettings(seasonSettingsOf(result.data));
       }
+      incomingSettings.clear();
       useUnsavedChangesStore.getState().clear();
     });
   };
@@ -484,7 +487,7 @@ export default function SeasonDetails() {
           <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
       ) : (
-        <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: (activeTab === 'settings' && hasSettingsChanges) ? 140 : 40 }}>
+        <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: (activeTab === 'settings' && hasSettingsChanges) ? FLOATING_SAVE_BAR_PADDING : 40 }}>
           {/* TAB 1: STANDINGS */}
           {activeTab === 'standings' && readErrors.season ? (
             <ReadFailure what="The standings" reason={readErrors.season} onRetry={retryFailedReads} stale={standings.length > 0} />
@@ -913,44 +916,15 @@ export default function SeasonDetails() {
         isProcessing={isProcessing}
       />
 
-      {/* FLOATING SAVE CHANGES BAR */}
-      {activeTab === 'settings' && hasSettingsChanges && (
-        <View className="absolute bottom-6 left-6 right-6 bg-card border border-line p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
-          <View className="flex-1 mr-4">
-            <Text className="font-orbitron-bold text-[10px] text-ink uppercase tracking-wider">
-              Unsaved Changes
-            </Text>
-            <Text className="font-inter text-[9px] text-ink-muted mt-0.5">
-              You have modified this season's settings.
-            </Text>
-          </View>
-          <View className="flex-row items-center gap-2.5">
-            <TouchableOpacity
-              onPress={handleCancelSettings}
-              disabled={isProcessing}
-              className="bg-sunken px-4 py-2.5 rounded-xl active:scale-95 border border-line"
-            >
-              <Text className="font-orbitron-bold text-[9px] text-ink-soft uppercase tracking-widest">Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleSaveSettings}
-              disabled={isProcessing}
-              className="bg-primary px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-primary/30"
-            >
-              {isProcessing ? (
-                <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
-              ) : (
-                <>
-                  <Ionicons name="checkmark-circle" size={14} color={themeColor(isDark, 'on-primary')} />
-                  <Text className="font-orbitron-bold text-[9px] text-on-primary uppercase tracking-widest mt-0.5">
-                    Save
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      <FloatingSaveBar
+        visible={activeTab === 'settings' && hasSettingsChanges}
+        description="You have modified this season's settings."
+        onSave={handleSaveSettings}
+        onCancel={handleCancelSettings}
+        isProcessing={isProcessing}
+        notice={incomingSettings.newer ? CHANGED_ELSEWHERE_NOTICE : null}
+      />
+
       {logoUpload.element}
     </SafeAreaView>
   );

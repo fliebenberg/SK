@@ -205,7 +205,7 @@ export function NewHeadToHeadDialog({ visible, orgId, hostName, onClose, onCreat
               value={query}
               onChangeText={setQuery}
               autoFocus
-              placeholder="Search schools and clubs…"
+              placeholder="Search organisations…"
               placeholderTextColor={themeColor(isDark, 'ink-muted')}
               accessibilityLabel="Playing against"
               className={TEXT_INPUT}

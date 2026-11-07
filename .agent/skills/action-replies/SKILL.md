@@ -124,7 +124,15 @@ contents in a report — payloads carry people's details.
   nothing on screen becomes false.
 - **A failure that leaves a decision unsafe blocks it, and says why**: a duplicate check that failed
   blocks creating the organisation (decided 2026-11-05, user), and a team sheet that was not read
-  blocks saving one.
+  blocks saving one. A failed person search blocks adding a *new* person wherever a typed name would
+  create one (*Add person*, a new guardian, a tournament's individual entrant): pass
+  `onSearchFailure` to `PersonnelAutocomplete`.
+- **A room refusal is not an empty room either.** `ROOM_ACCESS_DENIED` / `REVOKED` clear what is
+  held (it is not this viewer's) and say so with `ReadFailure`; only the room's own push may say
+  "no leagues". A room that never answers is `LIVE-25`.
+- **A paged list keeps its page on a failed refresh** of the same question (`usePagedList`'s
+  `stale`, with `reason` for the box), and drops it for a different search, page or filter, or a
+  refusal.
 - **On the server, a `get_data` that throws answers `{ status: 'error', message }`**, never `null`,
   which means there is nothing.
 - REST calls go through `apiService` / `apiFetch`, which throws on failure. `await` inside

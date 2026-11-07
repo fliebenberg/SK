@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Switch, Image, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Dependant, GameSummary, SocketAction, formatInviteWait, inviteCooldownRemainingHours, isValidEmail, normalizeEmail } from '@sk/shared';
+import { Dependant, GameSummary, SocketAction, formatInviteWait, isValidEmail, normalizeEmail } from '@sk/shared';
 import { GlassCard } from '../../components/GlassCard';
 import { Button } from '../../components/Button';
 import { ReadFailure } from '../../components/ReadFailure';
@@ -12,7 +12,7 @@ import { sendAction } from '../../services/actions';
 import { getAvatarUrl } from '../../services/assets';
 import { formatFixtureWhen, formatInstant } from '../../utils/dates';
 import { RELATIONSHIP_LABELS } from '../../components/guardians/guardianDraft';
-import { useInviteCooldownHours } from '../../components/InviteToScoreKeeper';
+import { inviteWaitHoursFor, useInviteCooldownHours } from '../../components/InviteToScoreKeeper';
 import { formatCellphone } from '../../utils/phone';
 
 import { useActiveTheme } from '../../store/settingsStore';
@@ -51,7 +51,7 @@ export default function FamilyScreen() {
           <GlassCard className="border border-line p-6 items-center">
             <Ionicons name="people-outline" size={28} color={themeColor(isDark, 'ink-muted')} />
             <Text className="font-inter text-sm text-ink-muted text-center mt-3">
-              No children are linked to your account. A school or club records you as a guardian; ask them
+              No children are linked to your account. An organisation records you as a guardian; ask them
               to use this account's email address.
             </Text>
           </GlassCard>
@@ -252,7 +252,7 @@ function OwnAccount({ child, firstName }: { child: Dependant; firstName: string 
   const inviteSentHere = Boolean(child.lastInviteSentAt && child.lastInviteEmail
     && normalizeEmail(child.lastInviteEmail) === normalizeEmail(email));
   // The same per-address cooldown as an admin's invite: a different address may go at once.
-  const waitHours = inviteCooldownRemainingHours(
+  const waitHours = inviteWaitHoursFor(
     { lastInviteSentAt: child.lastInviteSentAt, lastInviteEmail: child.lastInviteEmail },
     normalizeEmail(email),
     cooldownHours

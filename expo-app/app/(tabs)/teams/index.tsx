@@ -9,6 +9,7 @@ import { PageBody } from '../../../components/PageBody';
 import { TeamListCard } from '../../../components/teams/TeamListCard';
 import { themeColor } from '../../../constants/Colors';
 import { usePagedList } from '../../../hooks/usePagedList';
+import { ReadFailure } from '../../../components/ReadFailure';
 import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme, useSettingsStore } from '../../../store/settingsStore';
 
@@ -37,7 +38,7 @@ export default function TeamsPage() {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const { items: teams, total, limit, isLoading, error, isSettled, term, retry } = usePagedList<TeamDirectoryEntry>({
+  const { items: teams, total, limit, isLoading, error, stale, reason, isSettled, term, retry } = usePagedList<TeamDirectoryEntry>({
     type: 'team_directory', noun: 'teams', params: { mine: tab === 'my' }, search, page,
   });
 
@@ -70,7 +71,7 @@ export default function TeamsPage() {
   );
 
   const body = () => {
-    if (error) return message('Teams did not load', error, { label: 'Try again', onPress: retry });
+    if (error && !stale) return message('Teams did not load', error, { label: 'Try again', onPress: retry });
     if (isLoading && !teams.length) {
       return <View className="py-20 items-center"><Text className="font-inter text-ink-muted">Loading teams...</Text></View>;
     }
@@ -83,6 +84,7 @@ export default function TeamsPage() {
     }
     return (
       <View style={{ opacity: isLoading ? 0.6 : 1 }}>
+        {stale && reason ? <ReadFailure what="Teams" reason={reason} onRetry={retry} stale /> : null}
         {pager('top')}
         <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
           {teams.map(team => (

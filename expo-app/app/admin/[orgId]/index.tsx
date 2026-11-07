@@ -17,6 +17,7 @@ import { useOrgAccess } from '@/hooks/useOrgAccess';
 import { useOrgApplications } from '../../../components/people/OrgApplications';
 import { mayOpenWorkspacePage } from '@/constants/workspaceNav';
 import { themeColor } from '../../../constants/Colors';
+import { ReadFailure } from '../../../components/ReadFailure';
 
 
 export default function OrgControlDashboard() {
@@ -28,7 +29,7 @@ export default function OrgControlDashboard() {
 
   // Only for the count, which comes from the organisation's own ids: a failure changes nothing on screen.
   const { data: sportsList, isLoading: isSportsLoading } = useSocketQuery('sports', {}, { suppressToast: true });
-  const { org: orgData, isLoading: isOrgLoading } = useOrgSummary(orgId);
+  const { org: orgData, isLoading: isOrgLoading, accessDenied } = useOrgSummary(orgId);
 
   const sportsMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -39,6 +40,23 @@ export default function OrgControlDashboard() {
     }
     return map;
   }, [sportsList]);
+
+  // The summary room answered with no organisation — refused, or none by this id — rather than not
+  // yet: say which, where the spinner used to wait for ever (`SYNC-10`).
+  if (!isOrgLoading && !orgData) {
+    return (
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
+        <View className="px-6 py-6">
+          <ReadFailure
+            title="This organisation did not load."
+            reason={accessDenied
+              ? 'The server refused this account access to it.'
+              : 'The server has no organisation by this link. It may have been deleted.'}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const isLoading = isOrgLoading || (isSportsLoading && !sportsList) || !orgData;
 

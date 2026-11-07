@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, Platform, Image } from 'react-native';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
@@ -15,14 +15,20 @@ import { sendAction } from '../../../../services/actions';
 import { readData } from '../../../../services/reads';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, League, Season, Sport } from '@sk/shared';
+import { SocketAction, League, Season, Sport, seasonPointsFromInput } from '@sk/shared';
 import DatePicker from '../../../../components/DatePicker';
 import { ReadFailure } from '../../../../components/ReadFailure';
+import { FloatingSaveBar, FLOATING_SAVE_BAR_PADDING } from '../../../../components/FloatingSaveBar';
+import { useIncomingRecord, CHANGED_ELSEWHERE_NOTICE } from '../../../../hooks/useIncomingRecord';
 import { getOrgLogoUrl } from '../../../../services/assets';
 import { useImageUpload } from '../../../../hooks/useImageUpload';
 import CustomSelect from '../../../../components/CustomSelect';
 import { calendarRangeStatus, formatDateRange, isCalendarDate } from '../../../../utils/dates';
 import { themeColor } from '../../../../constants/Colors';
+
+/** The league's fields this page edits, as they would be saved. */
+const sameLeagueForm = (a: League, b: League) =>
+  a.name === b.name && a.joinPolicy === b.joinPolicy && (a.logo || '') === (b.logo || '');
 
 /** Where a season sits against the viewer's today. Its dates are calendar dates, both inclusive. */
 const calculateSeasonStatus = (startDate: string, endDate: string): 'UPCOMING' | 'ACTIVE' | 'COMPLETED' => {
@@ -43,6 +49,8 @@ export default function LeagueDetails() {
   const [isLoading, setIsLoading] = useState(true);
   const [league, setLeague] = useState<League | null>(null);
   const [seasons, setSeasons] = useState<Season[]>([]);
+  /** The seasons room refused this viewer (`SYNC-10`): not "no seasons", which only its answer can say. */
+  const [seasonsRefused, setSeasonsRefused] = useState(false);
   /** Why the league's settings cannot be shown or are out of date (`SYNC-9`). */
   const [leagueError, setLeagueError] = useState<string | null>(null);
   const [leagueAttempt, setLeagueAttempt] = useState(0);
@@ -108,10 +116,19 @@ export default function LeagueDetails() {
       if (!result.ok) return setLeagueError(result.message);
       const res = result.data;
       if (!res) return setLeagueError('The server has no record of this league.');
-      setLeague(res);
-      setLeagueName(res.name);
-      setJoinPolicy(res.joinPolicy);
-      setLeagueLogo(res.logo || '');
+      // A re-read (on reconnecting, or Try again) must not overwrite what is being typed (`SYNC-10`).
+      const { baseline, drafts } = leagueFormRef.current;
+      incomingLeague.offer({
+        baseline,
+        drafts: drafts ?? res,
+        incoming: res,
+        seed: from => {
+          setLeague(from);
+          setLeagueName(from.name);
+          setJoinPolicy(from.joinPolicy);
+          setLeagueLogo(from.logo || '');
+        },
+      });
     });
 
     return () => {
@@ -134,11 +151,13 @@ export default function LeagueDetails() {
       if (event) {
         if (event.type === 'SEASONS_SYNC') {
           if (Array.isArray(event.data)) setSeasons(event.data);
+          setSeasonsRefused(false);
           setIsLoading(false);
         } else if (event.type === 'ROOM_ACCESS_DENIED' || event.type === 'ROOM_ACCESS_REVOKED') {
           // A room push has no ack and no timeout, so a refused join has to clear the spinner
           // explicitly or the screen waits forever for a message that is never coming.
           setSeasons([]);
+          setSeasonsRefused(true);
           setIsLoading(false);
         } else if (event.type === 'SEASON_ADDED') {
           setSeasons(prev => {
@@ -165,6 +184,14 @@ export default function LeagueDetails() {
     };
   }, [leagueId]);
 
+  const incomingLeague = useIncomingRecord(sameLeagueForm);
+  /** The baseline and drafts as they are now, for a read that lands several keystrokes later. */
+  const leagueFormRef = useRef<{ baseline: League | null; drafts: League | null }>({ baseline: null, drafts: null });
+  leagueFormRef.current = {
+    baseline: league,
+    drafts: league ? { ...league, name: leagueName.trim(), joinPolicy, logo: leagueLogo || undefined } : null,
+  };
+
   const hasLeagueChanges = league ? (
     leagueName.trim() !== league.name ||
     joinPolicy !== league.joinPolicy ||
@@ -175,15 +202,19 @@ export default function LeagueDetails() {
     safeBack(`/admin/${orgId}/leagues`);
   }, [safeBack, orgId]);
 
+  /** Back to the league as last read — the newer version, when it changed while this was edited. */
   const handleCancelLeague = useCallback(() => {
-    if (league) {
-      setLeagueName(league.name);
-      setJoinPolicy(league.joinPolicy);
-      setLeagueLogo(league.logo || '');
+    const to = incomingLeague.newer ?? league;
+    if (to) {
+      setLeague(to);
+      setLeagueName(to.name);
+      setJoinPolicy(to.joinPolicy);
+      setLeagueLogo(to.logo || '');
       leagueLogoUpload.discard();
       setEditError(null);
     }
-  }, [league]); // eslint-disable-line react-hooks/exhaustive-deps
+    incomingLeague.clear();
+  }, [league, incomingLeague.newer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useUnsavedChanges(hasLeagueChanges && !isSavingLeague, handleCancelLeague);
 
@@ -217,6 +248,7 @@ export default function LeagueDetails() {
       leagueLogoUpload.saved();
       // Direct merge to local state
       if (result.data) setLeague(result.data);
+      incomingLeague.clear();
       useUnsavedChangesStore.getState().clear();
     });
   };
@@ -238,6 +270,12 @@ export default function LeagueDetails() {
       return;
     }
 
+    const points = seasonPointsFromInput({ win: ptsWin, draw: ptsDraw, loss: ptsLoss });
+    if (!points.ok) {
+      setCreateError(points.message);
+      return;
+    }
+
     setIsProcessing(true);
     setCreateError(null);
 
@@ -247,11 +285,7 @@ export default function LeagueDetails() {
       startDate: startDateStr,
       endDate: endDateStr,
       status: computedStatus,
-      settings: {
-        pointsPerWin: parseInt(ptsWin) || 4,
-        pointsPerDraw: parseInt(ptsDraw) || 2,
-        pointsPerLoss: parseInt(ptsLoss) || 0
-      },
+      settings: points.points,
       logo: newSeasonLogo || undefined
     };
 
@@ -310,7 +344,7 @@ export default function LeagueDetails() {
           <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
       ) : (
-        <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: hasLeagueChanges ? 140 : 40 }}>
+        <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: hasLeagueChanges ? FLOATING_SAVE_BAR_PADDING : 40 }}>
           {leagueError ? (
             <ReadFailure what="The league's settings" reason={leagueError} onRetry={() => setLeagueAttempt(n => n + 1)} stale={!!league} className={league ? '' : 'mb-8'} />
           ) : null}
@@ -424,6 +458,7 @@ export default function LeagueDetails() {
 
           {/* Seasons List */}
           <View className="gap-4">
+            {seasonsRefused ? <ReadFailure title="The seasons did not load." reason="The server refused this account access to this league's seasons." /> : null}
             {seasons.map((season) => (
               <GlassCard key={season.id} className="border border-line p-4">
                 <View className="flex-row justify-between items-center">
@@ -494,7 +529,7 @@ export default function LeagueDetails() {
               </GlassCard>
             ))}
 
-            {seasons.length === 0 && (
+            {seasons.length === 0 && !seasonsRefused && (
               <View className="items-center justify-center py-8 bg-card border border-line rounded-2xl">
                 <Ionicons name="calendar-outline" size={36} color={themeColor(isDark, 'ink-muted')} className="opacity-45 mb-2" />
                 <Text className="font-orbitron-bold text-xs text-ink-muted">No Seasons Registered</Text>
@@ -665,44 +700,15 @@ export default function LeagueDetails() {
         isProcessing={isProcessing}
       />
 
-      {/* FLOATING SAVE CHANGES BAR */}
-      {hasLeagueChanges && (
-        <View className="absolute bottom-6 left-6 right-6 bg-card border border-line p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
-          <View className="flex-1 mr-4">
-            <Text className="font-orbitron-bold text-[10px] text-ink uppercase tracking-wider">
-              Unsaved Changes
-            </Text>
-            <Text className="font-inter text-[9px] text-ink-muted mt-0.5">
-              You have modified this league's details.
-            </Text>
-          </View>
-          <View className="flex-row items-center gap-2.5">
-            <TouchableOpacity
-              onPress={handleCancelLeague}
-              disabled={isSavingLeague}
-              className="bg-sunken px-4 py-2.5 rounded-xl active:scale-95 border border-line"
-            >
-              <Text className="font-orbitron-bold text-[9px] text-ink-soft uppercase tracking-widest">Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleSaveLeague}
-              disabled={isSavingLeague || !leagueName.trim()}
-              className="bg-primary px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-primary/30"
-            >
-              {isSavingLeague ? (
-                <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
-              ) : (
-                <>
-                  <Ionicons name="checkmark-circle" size={14} color={themeColor(isDark, 'on-primary')} />
-                  <Text className="font-orbitron-bold text-[9px] text-on-primary uppercase tracking-widest mt-0.5">
-                    Save
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      <FloatingSaveBar
+        visible={hasLeagueChanges}
+        description="You have modified this league's details."
+        onSave={handleSaveLeague}
+        onCancel={handleCancelLeague}
+        isProcessing={isSavingLeague}
+        saveDisabled={!leagueName.trim()}
+        notice={incomingLeague.newer ? CHANGED_ELSEWHERE_NOTICE : null}
+      />
     </SafeAreaView>
   );
 }

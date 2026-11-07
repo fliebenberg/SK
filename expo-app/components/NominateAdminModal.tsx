@@ -244,7 +244,7 @@ export function NominateAdminModal({ visible, onClose, org, status, statusError,
           {status?.isMember ? 'Or any email address' : 'Contact email'}
         </Text>
         <TextInput
-          placeholder="contact@school.edu"
+          placeholder="contact@example.org"
           placeholderTextColor={themeColor(isDark, 'ink-muted')}
           value={email}
           onChangeText={text => { setEmail(text); setError(null); }}

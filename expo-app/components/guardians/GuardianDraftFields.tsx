@@ -64,6 +64,7 @@ export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, exclu
             onChangeText={name => set({ name })}
             onSelectPerson={person => { if (person) pick(person); }}
             includeInactive
+            onSearchFailure={searchFailure => set({ searchFailure })}
           />
         )}
       </View>

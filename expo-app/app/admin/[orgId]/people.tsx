@@ -62,7 +62,7 @@ export default function OrgPeople() {
   const [isAdding, setIsAdding] = useState(false);
   const [page, setPage] = useState(1);
 
-  const { response, items: people, total, limit, isLoading, error, isSettled, term, retry } = usePagedList<OrgPersonRow, OrgPeoplePage>({
+  const { response, items: people, total, limit, isLoading, error, stale, reason, isSettled, term, retry } = usePagedList<OrgPersonRow, OrgPeoplePage>({
     type: 'org_people',
     noun: 'people',
     params: {
@@ -182,7 +182,7 @@ export default function OrgPeople() {
             )}
           </View>
 
-          {error ? (
+          {error && !stale ? (
             <View className="items-center justify-center py-12 gap-3">
               <Text className="font-inter text-sm text-danger-ink text-center">{error}</Text>
               <TouchableOpacity onPress={retry} accessibilityRole="button" className="px-4 py-2 rounded-xl bg-primary">
@@ -202,6 +202,7 @@ export default function OrgPeople() {
             ) : null
           ) : (
             <View className="gap-3" style={{ opacity: isLoading ? 0.6 : 1 }}>
+              {stale && reason ? <ReadFailure what="People" reason={reason} onRetry={retry} stale /> : null}
               <ListPager testID="people-pager-top" page={page} limit={limit} total={total} noun="people" onPageChange={goToPage} disabled={isLoading} />
               <View className="rounded-2xl border border-line bg-card overflow-hidden">
                 {people.map((member, index) => (

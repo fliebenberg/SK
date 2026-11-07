@@ -25,6 +25,7 @@ import { sendAction } from '../../../../../../../services/actions';
 import { readData } from '../../../../../../../services/reads';
 import { ReadFailure } from '../../../../../../../components/ReadFailure';
 import { ScreenHeader } from '../../../../../../../components/ScreenHeader';
+import { useIncomingRecord, CHANGED_ELSEWHERE_NOTICE } from '../../../../../../../hooks/useIncomingRecord';
 
 import { SocketAction } from '@sk/shared';
 import { useActiveTheme } from '../../../../../../../store/settingsStore';
@@ -43,6 +44,11 @@ const toRosterItems = (rows: any[]): RosterItem[] => (rows || []).map((r) => ({
   jerseyNumber: r.jerseyNumber || undefined,
   isReserve: !!r.isReserve,
 }));
+
+const byProfile = (rows: RosterItem[]) => [...rows].sort((a, b) => a.orgProfileId.localeCompare(b.orgProfileId));
+/** The same sheet, whatever order it was picked in. */
+const sameRoster = (a: RosterItem[], b: RosterItem[]) =>
+  a.length === b.length && JSON.stringify(byProfile(a)) === JSON.stringify(byProfile(b));
 
 /**
  * **Nothing here may be saved on a read that failed (`SYNC-9`).** Saving replaces the side's whole team
@@ -87,6 +93,13 @@ export default function GameSelectionScreen() {
   const [originalRoster, setOriginalRoster] = useState<RosterItem[]>([]);
   /** The participant whose sheet `roster` is, once the server has said. */
   const [rosterLoadedFor, setRosterLoadedFor] = useState<string | null>(null);
+  /**
+   * A newer sheet that arrived — by a re-read, as on reconnecting, or from the room — while this one
+   * had unsaved picks (`SYNC-10`): the picks stay, the bar says so, and Cancel shows it.
+   */
+  const incomingRoster = useIncomingRecord(sameRoster);
+  /** The baseline and picks as they are now, for an answer that lands after more picking. */
+  const sheetRef = useRef<{ baseline: RosterItem[]; drafts: RosterItem[]; loadedFor: string | null }>({ baseline: [], drafts: [], loadedFor: null });
   /** The team whose players `availablePlayers` are, once the server has said. */
   const [membersLoadedFor, setMembersLoadedFor] = useState<string | null>(null);
 
@@ -298,6 +311,23 @@ export default function GameSelectionScreen() {
     });
   }, []);
 
+  /** A sheet from the server: taken, unless it would overwrite unsaved picks for the same side. */
+  const offerSheet = useCallback((participantId: string, incoming: RosterItem[]) => {
+    const { baseline, drafts, loadedFor } = sheetRef.current;
+    incomingRoster.offer({
+      // Another side's sheet is another form: nothing typed there carries over.
+      baseline: loadedFor === participantId ? baseline : null,
+      drafts,
+      incoming,
+      seed: from => {
+        setRoster(from);
+        setOriginalRoster(from);
+        setProposedFrom(null);
+        useUnsavedChangesStore.getState().clear();
+      },
+    });
+  }, [incomingRoster.offer]);
+
   // Fetch Saved Roster whenever selected participant changes
   useEffect(() => {
     if (!isConnected || !currentParticipant?.id || !currentTeamId) return;
@@ -315,9 +345,7 @@ export default function GameSelectionScreen() {
       // The server always answers this with a list, and with `null` only when reading it threw.
       if (!Array.isArray(result.data)) { setRosterError('The server could not read the team sheet.'); return; }
       const mapped = toRosterItems(result.data);
-      setRoster(mapped);
-      setOriginalRoster(mapped);
-      setProposedFrom(null);
+      offerSheet(participantId, mapped);
       setRosterLoadedFor(participantId);
       // No team of its own yet: start from the proposed one — the team of this team's latest
       // earlier game in the tournament (`FIX-32`).
@@ -327,7 +355,7 @@ export default function GameSelectionScreen() {
     return () => {
       isMounted = false;
     };
-  }, [isConnected, currentParticipant?.id, currentTeamId, canEditCurrentTeam, rosterAttempt, loadProposal]);
+  }, [isConnected, currentParticipant?.id, currentTeamId, canEditCurrentTeam, rosterAttempt, loadProposal, offerSheet]);
 
   // Asking again for a proposal alone, which leaves what has been picked since alone too.
   useEffect(() => {
@@ -352,18 +380,11 @@ export default function GameSelectionScreen() {
       if (evt.type === 'GAME_ROSTER_UPDATED') {
         const { participantId, items } = evt.data || {};
         if (participantId && participantId === currentParticipant?.id && Array.isArray(items)) {
-          const mapped: RosterItem[] = items.map((r: any) => ({
-            orgProfileId: r.orgProfileId,
-            position: r.position || undefined,
-            jerseyNumber: r.jerseyNumber || undefined,
-            isReserve: !!r.isReserve,
-          }));
-          setRoster(mapped);
-          setOriginalRoster(mapped);
+          // Our own save landing back is adopted; somebody else's keeps the picks in progress.
+          offerSheet(participantId, toRosterItems(items));
           // It carries the whole sheet, so the sheet is known whatever a read made of it.
           setRosterLoadedFor(participantId);
           setRosterError(null);
-          useUnsavedChangesStore.getState().clear();
         }
       } else if (evt.type === 'GAME_UPDATED') {
         if (evt.data && (evt.data.id === gameId || evt.data.gameId === gameId)) {
@@ -387,27 +408,25 @@ export default function GameSelectionScreen() {
       unsubscribeRoom();
       wsService.off('update', handleUpdate);
     };
-  }, [gameId, currentParticipant?.id]);
+  }, [gameId, currentParticipant?.id, offerSheet]);
+
+  sheetRef.current = { baseline: originalRoster, drafts: roster, loadedFor: rosterLoadedFor };
 
   // Check dirty state
-  const isDirty = useMemo(() => {
-    if (roster.length !== originalRoster.length) return true;
-    const sortedR = [...roster].sort((a, b) =>
-      a.orgProfileId.localeCompare(b.orgProfileId)
-    );
-    const sortedO = [...originalRoster].sort((a, b) =>
-      a.orgProfileId.localeCompare(b.orgProfileId)
-    );
-    return JSON.stringify(sortedR) !== JSON.stringify(sortedO);
-  }, [roster, originalRoster]);
+  const isDirty = useMemo(() => !sameRoster(roster, originalRoster), [roster, originalRoster]);
 
   const handleCancel = useCallback(() => {
-    setRoster(originalRoster);
+    // The newer sheet, when it changed while this was being picked: Cancel shows it.
+    const to = incomingRoster.newer ?? originalRoster;
+    setRoster(to);
+    setOriginalRoster(to);
+    setProposedFrom(null);
+    incomingRoster.clear();
     setActivePositionId(null);
     setActivePlayerId(null);
     setActiveIsReserve(false);
     useUnsavedChangesStore.getState().clear();
-  }, [originalRoster]);
+  }, [originalRoster, incomingRoster.newer, incomingRoster.clear]);
 
   useUnsavedChanges(isDirty, handleCancel);
 
@@ -485,6 +504,7 @@ export default function GameSelectionScreen() {
       if (result.ok) {
         setOriginalRoster(roster);
         setProposedFrom(null);
+        incomingRoster.clear();
         useUnsavedChangesStore.getState().clear();
       }
     });
@@ -1666,6 +1686,10 @@ export default function GameSelectionScreen() {
           {saveBlockedBy ? (
             <Text testID="save-blocked" className="font-inter text-xs text-warning-ink text-center">
               Cannot save yet: {saveBlockedBy}.
+            </Text>
+          ) : incomingRoster.newer ? (
+            <Text className="font-inter text-xs text-warning-ink text-center" accessibilityLiveRegion="polite">
+              {CHANGED_ELSEWHERE_NOTICE}
             </Text>
           ) : null}
           <View className="flex-row gap-3">

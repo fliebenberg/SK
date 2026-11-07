@@ -69,4 +69,5 @@ export * from './utils/peopleImport';
 export * from './utils/phone';
 export * from './utils/nationalId';
 export * from './utils/zonedTime';
+export * from './utils/seasonPoints';
 export * from './constants/TestConstants';

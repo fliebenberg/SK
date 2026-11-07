@@ -58,10 +58,15 @@ export function isOnScoreKeeper(person: InvitablePerson): boolean {
   return Boolean(person.hasAccount || person.userId);
 }
 
-/** The resend cooldown from `system_settings`. */
-export function useInviteCooldownHours(): number {
+/**
+ * The resend cooldown from `system_settings`, or `null` until the server has answered (`SYNC-10`).
+ * Only the server's answer may produce the default: a failed read used to mean 336 hours, which
+ * could say *Invite Pending* about an address that may be sent to. Unknown, nothing claims a wait
+ * and the server, which always checks, says so if one applies.
+ */
+export function useInviteCooldownHours(): number | null {
   const { data } = useSocketQuery<Record<string, any>>('system_settings', {}, { suppressToast: true });
-  return inviteCooldownHoursFrom(data);
+  return data ? inviteCooldownHoursFrom(data) : null;
 }
 
 /**
@@ -77,14 +82,19 @@ export function isInvitePending(person: InvitablePerson): boolean {
   );
 }
 
-/** Hours until the person's current address may be invited again; `0` means now. */
-export function inviteWaitHours(person: InvitablePerson, cooldownHours: number): number {
-  return inviteCooldownRemainingHours(person, person.email, cooldownHours);
+/** Hours until `email` may be invited again; `0` means now, or that the cooldown is not known. */
+export function inviteWaitHoursFor(person: Parameters<typeof inviteCooldownRemainingHours>[0], email: string | null | undefined, cooldownHours: number | null): number {
+  return cooldownHours == null ? 0 : inviteCooldownRemainingHours(person, email, cooldownHours);
+}
+
+/** Hours until the person's current address may be invited again; `0` means now, or not known. */
+export function inviteWaitHours(person: InvitablePerson, cooldownHours: number | null): number {
+  return inviteWaitHoursFor(person, person.email, cooldownHours);
 }
 
 interface InviteButtonProps {
   person: InvitablePerson;
-  cooldownHours: number;
+  cooldownHours: number | null;
   /** Opens the screen's {@link InviteModal} for this person. */
   onPress: () => void;
 }
@@ -125,7 +135,7 @@ export function InviteButton({ person, cooldownHours, onPress }: InviteButtonPro
 interface InviteModalProps {
   /** Who to invite; `null` keeps the modal closed. One modal serves a whole screen. */
   person: InvitablePerson | null;
-  cooldownHours: number;
+  cooldownHours: number | null;
   onClose: () => void;
   /** Called with the updated profile once the invite has gone **to `person`** — not to a guardian. */
   onSent?: (profile: OrgProfile) => void;
@@ -225,7 +235,7 @@ export function InviteModal({
   const onScoreKeeper = isOnScoreKeeper(invitee);
   const typed = normalizeEmail(email);
   const onFile = normalizeEmail(invitee.email);
-  const waitHours = typed ? inviteCooldownRemainingHours(invitee, typed, cooldownHours) : 0;
+  const waitHours = typed ? inviteWaitHoursFor(invitee, typed, cooldownHours) : 0;
   const isResend = waitHours > 0 && allowResend;
 
   const handleSend = () => {
@@ -422,7 +432,7 @@ function TargetOption({ label, detail, selected, disabled, onPress, isDark }: {
 
 interface InviteStatusCardProps {
   person: InvitablePerson;
-  cooldownHours: number;
+  cooldownHours: number | null;
   /** Whether the viewer may send invites — org admins and staff. */
   canInvite: boolean;
   onInvite: () => void;

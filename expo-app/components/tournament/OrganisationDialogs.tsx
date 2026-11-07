@@ -77,7 +77,7 @@ export function Tick({ on }: { on: boolean }) {
  * ------------------------------------------------------------------------------------------- */
 
 /**
- * *Add organisations*: search every school and club on ScoreKeeper, tick as many as you like, then
+ * *Add organisations*: search every organisation on ScoreKeeper, tick as many as you like, then
  * **Add** or **Add and invite**. Which is the main button follows the tournament: until the first
  * invitation has gone out an organiser is still building it, so Add; after, Add and invite.
  * One not found is registered — `onRegister` closes this and opens the register dialog.
@@ -171,7 +171,7 @@ export function AddOrganisationsDialog({ visible, event, orgId, onClose, onRegis
         value={query}
         onChangeText={setQuery}
         autoFocus
-        placeholder="Search schools and clubs…"
+        placeholder="Search organisations…"
         accessibilityLabel="Search organisations"
         className={TEXT_INPUT}
       />
@@ -198,8 +198,10 @@ export function AddOrganisationsDialog({ visible, event, orgId, onClose, onRegis
       ) : null}
       {query.trim() && !searching && !searchError ? (
         <TouchableOpacity onPress={() => onRegister(query.trim())} accessibilityRole="button" className="flex-row items-center gap-2 rounded-xl border border-dashed border-line-strong px-3 py-2.5">
+          {/* Beside matches it is not "not on ScoreKeeper yet": the search is loose, so a similar name may still be a different organisation. */}
+          {found.length ? <Text className="font-inter text-[13px] text-ink-muted">Not one of these?</Text> : null}
           <Text className="font-inter-bold text-[13px] text-primary-ink">＋ Register “{query.trim()}”</Text>
-          <Text className="font-inter text-[13px] text-ink-muted">— not on ScoreKeeper yet</Text>
+          {found.length ? null : <Text className="font-inter text-[13px] text-ink-muted">— not on ScoreKeeper yet</Text>}
         </TouchableOpacity>
       ) : null}
       <Text className="font-inter text-xs text-ink-muted leading-relaxed">

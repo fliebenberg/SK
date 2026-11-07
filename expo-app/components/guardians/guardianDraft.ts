@@ -18,6 +18,11 @@ export interface GuardianDraft {
   relationship: GuardianRelationship;
   /** Only offered when the player already has a guardian; the first is primary regardless. */
   makePrimary: boolean;
+  /**
+   * The search of people on record failed (`SYNC-10`), so nobody knows whether a typed name is
+   * someone already there: a new guardian waits for it, as *Add person* does.
+   */
+  searchFailure?: string | null;
 }
 
 export const emptyGuardianDraft = (): GuardianDraft => ({
@@ -44,6 +49,9 @@ export function isGuardianDraftStarted(draft: GuardianDraft): boolean {
 /** What is wrong with a started draft, or `null` when it can be saved. */
 export function guardianDraftProblem(draft: GuardianDraft): string | null {
   if (!draft.existingId && !draft.name.trim()) return 'Enter the guardian’s name, or pick someone already on record.';
+  if (!draft.existingId && draft.searchFailure) {
+    return `Could not check whether ${draft.name.trim()} is already on record, so they cannot be added yet. ${draft.searchFailure} Edit the name or use Try again in the list.`;
+  }
   if (!draft.existingId && draft.email.trim() && !isValidEmail(draft.email)) return 'The guardian’s email is not a valid address.';
   const phone = draft.existingId ? null : cellphoneProblem(draft.cellphone);
   if (phone) return `The guardian’s cellphone: ${phone}`;

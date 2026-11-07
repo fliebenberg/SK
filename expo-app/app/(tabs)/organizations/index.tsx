@@ -11,6 +11,7 @@ import { AddOrgDialog } from '../../../components/org/AddOrgDialog';
 import { OrgListCard } from '../../../components/org/OrgListCard';
 import { themeColor } from '../../../constants/Colors';
 import { usePagedList } from '../../../hooks/usePagedList';
+import { ReadFailure } from '../../../components/ReadFailure';
 import { readData } from '../../../services/reads';
 import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme, useSettingsStore } from '../../../store/settingsStore';
@@ -38,7 +39,7 @@ export default function OrganizationsPage() {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const { items: orgs, total, limit, isLoading, error, isSettled, term, retry } = usePagedList<OrgDirectoryEntry>({
+  const { items: orgs, total, limit, isLoading, error, stale, reason, isSettled, term, retry } = usePagedList<OrgDirectoryEntry>({
     type: 'org_directory', noun: 'organisations', params: { mine: tab === 'my' }, search, page,
   });
 
@@ -108,7 +109,7 @@ export default function OrganizationsPage() {
   );
 
   const body = () => {
-    if (error) return message('Organisations did not load', error, { label: 'Try again', onPress: retry });
+    if (error && !stale) return message('Organisations did not load', error, { label: 'Try again', onPress: retry });
     if (isLoading && !orgs.length) {
       return <View className="py-20 items-center"><Text className="font-inter text-ink-muted">Loading organisations...</Text></View>;
     }
@@ -121,6 +122,7 @@ export default function OrganizationsPage() {
     }
     return (
       <View style={{ opacity: isLoading ? 0.6 : 1 }}>
+        {stale && reason ? <ReadFailure what="Organisations" reason={reason} onRetry={retry} stale /> : null}
         {pager('top')}
         <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
           {orgs.map(org => (

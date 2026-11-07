@@ -40,6 +40,8 @@ export interface FloatingSaveBarProps {
   /** Save is unusable because the form is incomplete — dimmed rather than hidden, so the
    *  user can see there is something still to fix rather than wondering where Save went. */
   saveDisabled?: boolean;
+  /** A warning under the description, such as `CHANGED_ELSEWHERE_NOTICE` from `useIncomingRecord`. */
+  notice?: string | null;
 }
 
 /** Bottom padding a scroll container needs while the bar is up, so nothing hides behind it. */
@@ -55,6 +57,7 @@ export function FloatingSaveBar({
   onCancel,
   isProcessing = false,
   saveDisabled = false,
+  notice,
 }: FloatingSaveBarProps) {
   const isDark = useActiveTheme() === 'dark';
   if (!visible) return null;
@@ -68,6 +71,11 @@ export function FloatingSaveBar({
         {!!description && (
           <Text className="font-inter text-[9px] text-ink-muted mt-0.5">
             {description}
+          </Text>
+        )}
+        {!!notice && (
+          <Text className="font-inter text-[10px] text-warning-ink mt-1" accessibilityLiveRegion="polite">
+            {notice}
           </Text>
         )}
       </View>

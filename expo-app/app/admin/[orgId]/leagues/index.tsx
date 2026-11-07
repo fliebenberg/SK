@@ -28,6 +28,8 @@ export default function OrgLeagues() {
   // States
   const [isLoading, setIsLoading] = useState(true);
   const [leagues, setLeagues] = useState<League[]>([]);
+  /** The room refused this viewer (`SYNC-10`): not "no leagues", which only its answer can say. */
+  const [refused, setRefused] = useState(false);
   // Drawn here where the names would be, and in the form where the sport is chosen.
   const { data: sportsRead, error: sportsError, refetch: refetchSports } = useSocketQuery<Sport[]>('sports', {}, { suppressToast: true });
   const sports = sportsRead ?? [];
@@ -79,11 +81,13 @@ export default function OrgLeagues() {
       if (event) {
         if (event.type === 'LEAGUES_SYNC') {
           if (Array.isArray(event.data)) setLeagues(event.data);
+          setRefused(false);
           setIsLoading(false);
         } else if (event.type === 'ROOM_ACCESS_DENIED' || event.type === 'ROOM_ACCESS_REVOKED') {
           // A room push has no ack and no timeout, so a refused join has to clear the spinner
           // explicitly or the screen waits forever for a message that is never coming.
           setLeagues([]);
+          setRefused(true);
           setIsLoading(false);
         } else if (event.type === 'LEAGUE_ADDED') {
           setLeagues(prev => {
@@ -210,6 +214,7 @@ export default function OrgLeagues() {
           {/* List */}
           <View className="gap-4">
             {sportsFailed ? <ReadFailure what="The sports" reason={sportsError} onRetry={refetchSports} /> : null}
+            {refused ? <ReadFailure title="The leagues did not load." reason="The server refused this account access to the organisation's leagues." /> : null}
 
             {filteredLeagues.map((league) => (
               <GlassCard key={league.id} className="border border-line p-4">
@@ -272,7 +277,7 @@ export default function OrgLeagues() {
               </GlassCard>
             ))}
 
-            {filteredLeagues.length === 0 && (
+            {filteredLeagues.length === 0 && !refused && (
               <View className="items-center justify-center py-12">
                 <Ionicons name="trophy-outline" size={48} color={themeColor(isDark, 'ink-muted')} className="opacity-40 mb-3" />
                 <Text className="font-orbitron-bold text-base text-ink-soft">No Leagues Found</Text>

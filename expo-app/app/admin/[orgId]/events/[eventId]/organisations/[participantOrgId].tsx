@@ -90,6 +90,11 @@ export default function OrganisationInTournamentScreen() {
     () => new Set<string>(teamMemberships.filter((m: any) => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach').map((m: any) => m.teamId)),
     [teamMemberships]
   );
+  // Who may read who invited it and who answered, as the server's `event_org_history` gate has it:
+  // the organisers, and its admins, staff and coaches — not a plain member (`SYNC-10`).
+  const coachesInOrg = teamMemberships.some((m: any) =>
+    m.orgId === participantOrgId && (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach') && (!m.endDate || new Date(m.endDate) > new Date()));
+  const mayReadHistory = canEdit || adminsOwnOrg || coachesInOrg;
   // Mine / All — the events list's one choice (`useMineAll`) — for a coach who is not an admin.
   const [mineAll, setMineAll] = useMineAll(orgId);
 
@@ -133,17 +138,16 @@ export default function OrganisationInTournamentScreen() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyTry, setHistoryTry] = useState(0);
   useEffect(() => {
-    if (!isConnected || !(canEdit || isOwnOrg) || !eventId || !participantOrgId) return;
+    if (!isConnected || !mayReadHistory || !eventId || !participantOrgId) return;
     let live = true;
     setHistoryError(null);
     void readData<EventOrgHistory | null>('event_org_history', { eventId, participantOrgId }, { suppressToast: true, stillWanted: () => live }).then(result => {
       if (!live) return;
       if (result.ok) setHistory(result.data || null);
-      // The server refuses a plain member of the organisation these names: for them that is not a fault.
-      else if (result.noAnswer || canEdit || adminsOwnOrg) setHistoryError(result.message);
+      else setHistoryError(result.message);
     });
     return () => { live = false; };
-  }, [isConnected, canEdit, isOwnOrg, adminsOwnOrg, eventId, participantOrgId, org?.invitation, org?.answeredAt, org?.invitedAt, historyTry]);
+  }, [isConnected, mayReadHistory, eventId, participantOrgId, org?.invitation, org?.answeredAt, org?.invitedAt, historyTry]);
 
   /* -- teams ------------------------------------------------------------------------------- */
   const teams = useOrgTeamPicks({ org, orgId, divisions, sportIds: event?.sportIds || NO_SPORTS, entrants, candidateTeams });

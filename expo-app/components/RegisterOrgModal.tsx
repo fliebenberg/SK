@@ -185,7 +185,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, alread
         <TextInput
           value={contactEmail}
           onChangeText={setContactEmail}
-          placeholder="contact@school.edu"
+          placeholder="contact@example.org"
           placeholderTextColor={themeColor(isDark, 'ink-faint')}
           keyboardType="email-address"
           autoCapitalize="none"

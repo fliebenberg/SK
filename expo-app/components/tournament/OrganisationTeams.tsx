@@ -352,6 +352,8 @@ function AddToDivision({ division, org, individual, writable, others, onPick, on
   const [text, setText] = useState('');
   const [person, setPerson] = useState<OrgProfile | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The roster search failed: a typed name may be someone already on record, so no new person (`SYNC-10`). */
+  const [searchFailure, setSearchFailure] = useState<string | null>(null);
 
   const createTeam = async () => {
     if (!text.trim()) return;
@@ -371,7 +373,7 @@ function AddToDivision({ division, org, individual, writable, others, onPick, on
       onPick({ key: `person:${person.id}`, label: person.name, kind: 'person', orgProfileId: person.id });
       return;
     }
-    if (!text.trim()) return;
+    if (!text.trim() || searchFailure) return;
     setBusy(true);
     const created = await sendAction(SocketAction.ADD_ORG_PROFILE, { name: text.trim(), orgId: org.id });
     setBusy(false);
@@ -415,13 +417,21 @@ function AddToDivision({ division, org, individual, writable, others, onPick, on
         form('What to call it until it is named', 'Add', addPlace)
       ) : writable ? (
         form('Search the roster or type a name', 'Add', addPlayer, (
-          <PersonnelAutocomplete
-            orgId={org.id}
-            value={text}
-            onChangeText={t => { setText(t); setPerson(null); }}
-            onSelectPerson={p => { setPerson(p); setText(p?.name || ''); }}
-            placeholder="Search the roster or type a name…"
-          />
+          <View className="gap-1.5" style={{ zIndex: 50 }}>
+            <PersonnelAutocomplete
+              orgId={org.id}
+              value={text}
+              onChangeText={t => { setText(t); setPerson(null); }}
+              onSelectPerson={p => { setPerson(p); setText(p?.name || ''); }}
+              onSearchFailure={setSearchFailure}
+              placeholder="Search the roster or type a name…"
+            />
+            {searchFailure && !person ? (
+              <Text className="font-inter text-xs text-warning-ink">
+                Could not check whether {text.trim() || 'this person'} is already on record, so they cannot be added yet. Edit the name or use Try again in the list.
+              </Text>
+            ) : null}
+          </View>
         ))
       ) : (
         form('What to call it until it is named', 'Add a place', addPlace)
