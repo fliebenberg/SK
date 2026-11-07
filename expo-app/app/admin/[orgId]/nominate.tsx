@@ -40,6 +40,7 @@ export default function NominateAdmin() {
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const safeBack = useSafeBack();
   const { width } = useWindowDimensions();
+  // rooms-ok: covered by the workspace layout's RoomFailure
   const { org, isLoading } = useOrgSummary(orgId);
   const isUnclaimed = org?.isClaimed === false;
   const { data: nominations, error: nominationsError, refetch } = useSocketQuery<any[]>('org_referrals', { orgId }, { enabled: isUnclaimed, suppressToast: true });

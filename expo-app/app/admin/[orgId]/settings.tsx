@@ -34,6 +34,7 @@ export default function OrgSettings() {
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const safeBack = useSafeBack();
   const { width } = useWindowDimensions();
+  // rooms-ok: covered by the workspace layout's RoomFailure
   const { org, isLoading } = useOrgSummary(orgId);
   const [editingTimezone, setEditingTimezone] = useState(false);
   const { isAdmin: isOrgAdminViewer } = useOrgAccess(orgId);

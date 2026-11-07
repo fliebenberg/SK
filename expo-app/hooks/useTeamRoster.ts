@@ -6,11 +6,11 @@ import { useLiveRoom } from './useLiveRoom';
  * the whole roster (`TEAM_MEMBERS_SYNC`), so it simply replaces what is held.
  */
 export function useTeamRoster(teamId?: string | null) {
-  const { items, isLoading, accessDenied } = useLiveRoom<TeamMember>(teamId ? `team:${teamId}:members` : null, {
+  const { items, isLoading, accessDenied, failure, room } = useLiveRoom<TeamMember>(teamId ? `team:${teamId}:members` : null, {
     reduce: (message) => message.type === 'TEAM_MEMBERS_SYNC' && Array.isArray(message.data)
       ? { kind: 'replace', items: message.data }
       : { kind: 'ignore' },
     getId: member => member.membershipId,
   });
-  return { roster: items, isLoading, accessDenied };
+  return { roster: items, isLoading, accessDenied, failure, room };
 }

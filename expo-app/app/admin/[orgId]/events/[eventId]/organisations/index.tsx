@@ -14,6 +14,7 @@ import { useTournamentData } from '../../../../../../hooks/useTournamentData';
 import { useSafeBack } from '../../../../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../../../../store/authStore';
 import { PageBody } from '../../../../../../components/PageBody';
+import { RoomFailure } from '../../../../../../components/RoomFailure';
 
 /**
  * Organisations & teams as a page of its own — the Overview card's *See all ›* (agreed 2026-10-09
@@ -35,10 +36,22 @@ export default function TournamentOrganisationsScreen() {
       </SafeAreaView>
     );
   }
+  if (data.notFound) {
+    return (
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
+        <ScreenHeader title="Organisations" onBack={backToTournament} backLabel="Overview" />
+        <View className="flex-1 items-center justify-center p-6">
+          <Text className="font-inter text-sm text-ink-muted text-center">This tournament does not exist. It may have been deleted.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
   if (!data.event) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Organisations" onBack={backToTournament} backLabel="Overview" />
+        {/* The tournament's rooms are this page's load; one that never answers is said here (`LIVE-25`). */}
+        <View className="px-3 pt-3"><RoomFailure rooms={data.rooms} what="The tournament" /></View>
         <View className="flex-1 items-center justify-center p-6"><ActivityIndicator /></View>
       </SafeAreaView>
     );
@@ -95,6 +108,8 @@ function OrganisationsPage({ orgId, event, data, onBack }: {
       <ScreenHeader title="Organisations" context={event.name} onBack={onBack} backLabel="Overview" />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 80 }}>
         <PageBody className="gap-3">
+          {/* Once, for every room the page is built from (`LIVE-25`). */}
+          <RoomFailure rooms={data.rooms} what="The tournament" stale />
           <SectionPageHeading
             title={title}
             count={rows.length}

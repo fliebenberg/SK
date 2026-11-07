@@ -53,6 +53,7 @@ import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { useSocketQuery } from '../../../../../../../hooks/useSocketQuery';
 import { readData } from '../../../../../../../services/reads';
 import { ReadFailure } from '../../../../../../../components/ReadFailure';
+import { RoomFailure } from '../../../../../../../components/RoomFailure';
 import { sendAction } from '../../../../../../../services/actions';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../../../store/authStore';
@@ -119,9 +120,10 @@ export default function DivisionScreen() {
   const backToTournament = () => safeBack(links.event(eventId));
 
   /* -- data ------------------------------------------------------------------------------- */
+  // rooms-ok: capability updates only; the read is the load
   const { capabilities } = useEventCapabilities(eventId);
 
-  const { items: divisionItems, accessDenied } = useLiveRoom<TournamentDivision>(divisionId ? `division:${divisionId}` : null, {
+  const { items: divisionItems, accessDenied, notFound: divisionNotFound, room: divisionRoom } = useLiveRoom<TournamentDivision>(divisionId ? `division:${divisionId}` : null, {
     reduce: message => {
       switch (message.type) {
         case 'DIVISION_ADDED':
@@ -133,19 +135,20 @@ export default function DivisionScreen() {
   });
   const division = divisionItems.find(d => d.id === divisionId);
 
-  const event = useEventRecord(eventId).event || undefined;
+  const eventRecord = useEventRecord(eventId);
+  const event = eventRecord.event || undefined;
 
   // The tournament's other divisions: names are unique within a sport, and the last division of a
   // sport takes the sport with it when it goes.
-  const eventDivisions = useEventDivisions(eventId);
+  const { divisions: eventDivisions, room: eventDivisionsRoom } = useEventDivisions(eventId);
   const siblings = eventDivisions.filter(d => d.id !== divisionId);
 
-  const { items: stages } = useLiveRoom<TournamentStage>(divisionId ? `division:${divisionId}:stages` : null, {
+  const { items: stages, room: stagesRoom } = useLiveRoom<TournamentStage>(divisionId ? `division:${divisionId}:stages` : null, {
     // Stages always arrive as a set, because their order is part of what changed.
     reduce: message => (message.type === 'STAGES_SYNC' ? { kind: 'replace', items: message.data?.stages || [] } : { kind: 'ignore' }),
   });
 
-  const { items: games } = useLiveRoom<GameSummary>(divisionId ? `division:${divisionId}:fixtures` : null, {
+  const { items: games, room: gamesRoom } = useLiveRoom<GameSummary>(divisionId ? `division:${divisionId}:fixtures` : null, {
     reduce: message => {
       switch (message.type) {
         case 'DIVISION_GAMES_SYNC': return { kind: 'replace', items: message.data || [] };
@@ -167,14 +170,14 @@ export default function DivisionScreen() {
   const canEditRecord = canEditEvent || runsThisSport;
 
   // The roster is the organisers' tier; the whole tournament's, the tournament organisers'.
-  const { entrants: roster } = useDivisionEntrants(divisionId, canEdit);
+  const { entrants: roster, room: rosterRoom } = useDivisionEntrants(divisionId, canEdit);
   // Anyone else gets the teams the public sees — enough for the banner's count and a withdrawn team (`FIX-25`).
-  const publicTeams = useEventPublicTeams(eventId, !canEdit);
+  const { teams: publicTeams, room: publicTeamsRoom } = useEventPublicTeams(eventId, !canEdit);
   const entrants = useMemo(() => (canEdit ? roster : publicTeams.filter(e => e.divisionId === divisionId)), [canEdit, roster, publicTeams, divisionId]);
   // A guest organisation's members read the tournament's roster too (the server's room allows it), for Mine / My organisation.
   const takesPart = !!event?.participatingOrgs?.some(o =>
     viewerOrgIds.includes(o.id) && (o.invitation === 'invited' || o.invitation === 'accepted' || o.invitation === 'withdrawal_pending'));
-  const { entrants: eventEntrantsAll } = useEventEntrants(eventId, canEditEvent || takesPart);
+  const { entrants: eventEntrantsAll, room: eventEntrantsRoom } = useEventEntrants(eventId, canEditEvent || takesPart);
   const eventEntrants = canEditEvent ? eventEntrantsAll : null;
 
   const sports = useSports();
@@ -208,7 +211,7 @@ export default function DivisionScreen() {
   // Known once answered, or with an earlier answer to show; only then may the card say *None*.
   const organizersKnown = !!organizersRead.data || (!organizersRead.isLoading && !organizersRead.error);
 
-  const { sites, facilities } = useOrgSites(event?.orgId);
+  const { sites, facilities, rooms: siteRooms } = useOrgSites(event?.orgId);
   // The Where map's markers, as on its full map: the division's courts, or the tournament's when it has none.
   const courtIds = division?.facilityIds?.length ? division.facilityIds : tournament.facilityIds;
   const courtMarkers = useMemo(
@@ -260,6 +263,15 @@ export default function DivisionScreen() {
   // An organiser's way to the teams' answers and actions once the Teams card has become the table.
   const [managingTeams, setManagingTeams] = useState(false);
 
+  /** Once, for every room the page is built from (`LIVE-25`). */
+  const roomFailure = (stale: boolean) => (
+    <RoomFailure
+      rooms={[divisionRoom, eventRecord.room, eventDivisionsRoom, stagesRoom, gamesRoom, rosterRoom, publicTeamsRoom, eventEntrantsRoom, ...tournament.rooms, ...siteRooms]}
+      what="This division"
+      stale={stale}
+    />
+  );
+
   if (accessDenied) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
@@ -267,10 +279,23 @@ export default function DivisionScreen() {
       </SafeAreaView>
     );
   }
+  if (divisionNotFound || eventRecord.notFound) {
+    return (
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
+        <ScreenHeader title="Division" context={event?.name} onBack={backToTournament} />
+        <View className="flex-1 items-center justify-center px-8">
+          <Text className="font-inter text-sm text-ink-muted text-center">
+            {eventRecord.notFound ? 'This tournament does not exist. It may have been deleted.' : 'This division does not exist. It may have been deleted.'}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
   if (!division || !event) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Division" context={event?.name} onBack={backToTournament} />
+        <View className="px-3 pt-3">{roomFailure(false)}</View>
         <View className="flex-1 items-center justify-center"><ActivityIndicator /></View>
       </SafeAreaView>
     );
@@ -690,6 +715,7 @@ export default function DivisionScreen() {
       </View>
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 80 }}>
         <PageBody className="gap-3.5">
+          {roomFailure(true)}
           {tab === 'overview' ? (
             <>
               {banner}

@@ -2129,7 +2129,16 @@ io.on('connection', (socket) => {
       }
     });
 
-  socket.on('join_room', async (incoming: unknown) => {
+  // Every join is answered (`LIVE-25`), after the room's join push, so a client can tell "the room
+  // has spoken" from "the room never answered": `{ status: 'ok' }` once whatever the room hands over
+  // has been sent (possibly nothing, for a room that holds nothing), or `{ status: 'error', error,
+  // message }` saying why not. Before this, a refusal was the only outcome the client heard of; a
+  // read that threw was logged here and the screen spun for ever. The reply is optional so the
+  // ad-hoc scripts that join without one keep working.
+  socket.on('join_room', async (incoming: unknown, ack?: unknown) => {
+    const reply = (answer: { status: 'ok' } | { status: 'error'; error: string; message: string }) => {
+      if (typeof ack === 'function') ack(answer);
+    };
     // The payload is whatever the client sent, so it is `unknown` until checked. A non-string used
     // to reach `room.split(':')` and throw, and a throw in an async socket handler is an unhandled
     // rejection, which ends the process — from an anonymous socket (`SOCK-1`). `canJoinRoom` now
@@ -2137,6 +2146,7 @@ io.on('connection', (socket) => {
     // on treating `room` as the string it declares.
     if (typeof incoming !== 'string' || incoming.length === 0) {
       console.warn(`[Socket] Malformed join_room payload from ${socket.id}: ${JSON.stringify(incoming)}`);
+      reply({ status: 'error', error: 'InvalidRoom', message: 'The app asked for a room with no name.' });
       return;
     }
     const room = incoming;
@@ -2147,9 +2157,13 @@ io.on('connection', (socket) => {
     if (!(await canJoinRoom(joiningUserId, room))) {
       console.warn(`[Socket] Refused join: room=${room} user=${joiningUserId} socket=${socket.id}`);
       socket.emit('update', { topic: room, type: 'ROOM_ACCESS_DENIED', data: { room } });
+      reply({ status: 'error', error: 'RoomAccessDenied', message: 'The server refused this account access.' });
       return;
     }
     socket.join(room);
+    // A room for one record says so when the record does not exist, rather than sending nothing:
+    // the screen would otherwise wait on a push that is never coming (`LIVE-25`).
+    const notFound = (id: string, type: string) => pushToSocket(socket, room, 'ENTITY_NOT_FOUND', { id, type });
 
     // A room hands over its own tier of state on join, and nothing beyond it.
     // This push IS the initial load - a client that joins does not also query.
@@ -2184,7 +2198,7 @@ io.on('connection', (socket) => {
                 if (org) {
                     pushToSocket(socket, room, 'ORGANIZATION_UPDATED', org);
                 } else {
-                    pushToSocket(socket, room, 'ENTITY_NOT_FOUND', { id, type: 'organization' });
+                    notFound(id, 'organization');
                 }
             } else if (sub === 'referrals') {
                 pushToSocket(socket, room, 'ORG_REFERRALS_SYNC', await dataManager.getReferralsForOrg(id));
@@ -2206,10 +2220,12 @@ io.on('connection', (socket) => {
         } else if (kind === 'team' && sub === 'guardians') {
             const orgOfTeam = await accessManager.getTeamOrgId(id);
             if (orgOfTeam) pushToSocket(socket, room, 'GUARDIANS_SYNC', await teamGuardians(id, orgOfTeam));
+            else notFound(id, 'team');
 
         } else if (kind === 'team') {
             const team = await dataManager.getTeam(id);
             if (team) pushToSocket(socket, room, 'TEAM_UPDATED', team);
+            else notFound(id, 'team');
 
         } else if (kind === 'event' && sub === 'entrants') {
             // The whole tournament's roster, as one push (U21). The entry screens work both axes
@@ -2252,6 +2268,7 @@ io.on('connection', (socket) => {
             // per join for data it discards.
             const event = await dataManager.getEvent(id);
             if (event) pushToSocket(socket, room, 'EVENT_UPDATED', event);
+            else notFound(id, 'event');
 
         } else if (kind === 'division' && sub === 'stages') {
             pushToSocket(socket, room, 'STAGES_SYNC', {
@@ -2307,6 +2324,7 @@ io.on('connection', (socket) => {
                 // share this room are `:entrants`, `:stage_entrants` and `:adjustments` (rule 4).
                 const division = await dataManager.getDivision(id);
                 if (division) pushToSocket(socket, room, 'DIVISION_UPDATED', division);
+                else notFound(id, 'division');
             }
 
         } else if (kind === 'league' && sub === 'seasons') {
@@ -2319,25 +2337,30 @@ io.on('connection', (socket) => {
             // `LIVE-14`. `STANDINGS_UPDATED` is exactly what this room republishes on every
             // recalculation, so the join push and the update are the same message.
             const season = await dataManager.getSeason(id);
-            pushToSocket(socket, room, 'STANDINGS_UPDATED', season?.cachedStandings || []);
+            if (season) pushToSocket(socket, room, 'STANDINGS_UPDATED', season.cachedStandings || []);
+            else notFound(id, 'season');
 
         } else if (kind === 'site') {
             const site = await dataManager.getSite(id);
             if (site) pushToSocket(socket, room, 'SITE_UPDATED', site);
+            else notFound(id, 'site');
 
         } else if (kind === 'facility') {
             const facility = await dataManager.getFacility(id);
             if (facility) pushToSocket(socket, room, 'FACILITY_UPDATED', facility);
+            else notFound(id, 'facility');
 
         } else if (kind === 'game') {
             if (sub === 'summary') {
                 // Spectator tier: score, clock, status, teams. No event feed.
                 const summary = await dataManager.getGameSummary(id);
                 if (summary) pushToSocket(socket, room, 'GAME_SUMMARY_UPDATED', summary);
+                else notFound(id, 'game');
             } else if (sub === 'row') {
                 // A list's row: status, score and times. Who is playing comes with the list's read.
                 const row = await dataManager.getGameListRow(id);
                 if (row) pushToSocket(socket, room, 'GAME_ROW_UPDATED', row);
+                else notFound(id, 'game');
             } else if (sub === 'disputes') {
                 // Open disputes only. Split out of `:events`, which carried the scoring feed too.
                 pushToSocket(socket, room, 'ACTIVE_DISPUTES_SYNC', await gameEventManager.getActiveDisputes(id));
@@ -2348,6 +2371,7 @@ io.on('connection', (socket) => {
                 // The full game record.
                 const game = await dataManager.getGame(id);
                 if (game) pushToSocket(socket, room, 'GAME_UPDATED', game);
+                else notFound(id, 'game');
             }
 
         } else if (kind === 'user' && sub === 'memberships') {
@@ -2365,8 +2389,10 @@ io.on('connection', (socket) => {
         } else if (kind === 'user' && sub === 'notifications') {
             pushToSocket(socket, room, 'NOTIFICATIONS_SYNC', await dataManager.getNotifications(id));
         }
+        reply({ status: 'ok' });
     } catch (error) {
         console.error(`Error pushing data for room ${room}:`, error);
+        reply({ status: 'error', error: 'RoomReadFailed', message: 'The server hit a problem reading this.' });
     }
   });
 

@@ -7,6 +7,7 @@ import { Facility, GameSummary, SocketAction, Sport } from '@sk/shared';
 import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { EditLink, ReadCardEmpty } from '../../../../components/ReadCard';
 import { ReadFailure } from '../../../../components/ReadFailure';
+import { RoomFailure } from '../../../../components/RoomFailure';
 import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { JumpBar, useJumpSections } from '../../../../components/JumpBar';
@@ -74,8 +75,9 @@ export default function SitePage() {
   const access = useOrgAccess(orgId);
   const canEdit = !isPublic && access.canManage;
 
-  const { sites, facilities: allFacilities, isLoading } = useOrgSites(orgId);
-  const { org } = useOrgSummary(orgId);
+  const { sites, facilities: allFacilities, isLoading, failure: sitesFailure, rooms: siteRooms } = useOrgSites(orgId);
+  // Its timezone and sports. In the workspace the layout covers this room too; on the public page this page does.
+  const { org, room: orgRoom } = useOrgSummary(orgId);
   const { data: sportsData, error: sportsError, refetch: refetchSports } = useSocketQuery<Sport[]>('sports', {}, { suppressToast: true });
   const sports = sportsData || [];
 
@@ -84,7 +86,7 @@ export default function SitePage() {
     () => allFacilities.filter(f => f.siteId === siteId && (!isPublic || f.isActive !== false)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
     [allFacilities, siteId, isPublic]
   );
-  const { games, gameCount, eventCount, eventNames, gamesByFacility, countsError, retryCounts } = useSiteGames(orgId, siteId, facilities);
+  const { games, gameCount, eventCount, eventNames, gamesByFacility, countsError, retryCounts, rooms: gameRooms } = useSiteGames(orgId, siteId, facilities);
 
   const [query, setQuery] = useState('');
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -104,12 +106,14 @@ export default function SitePage() {
     // On the public page the organisation comes from the site, so its read decides until there is one.
     const orgUnknown = isPublic && !orgId;
     const failure = orgUnknown ? publicSite.error : null;
-    const loading = !failure && (orgUnknown ? publicSite.isLoading : isLoading);
+    const loading = !failure && (orgUnknown ? publicSite.isLoading : isLoading && !sitesFailure);
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Site" backLabel="Sites" onBack={back} />
         <View className="flex-1 items-center justify-center px-6">
-          {failure ? <ReadFailure what="This site" reason={failure} onRetry={publicSite.refetch} /> : loading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+          {failure ? <ReadFailure what="This site" reason={failure} onRetry={publicSite.refetch} /> : loading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : sitesFailure && !site ? (
+            <RoomFailure rooms={siteRooms} what="This site" />
+          ) : (
             <Text className="font-inter text-sm text-ink-muted text-center">This site does not exist any more.</Text>
           )}
         </View>
@@ -409,6 +413,7 @@ export default function SitePage() {
         contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}
       >
         <PageBody className="gap-4">
+          <RoomFailure rooms={[...siteRooms, orgRoom, ...gameRooms]} what="This site" stale />
           {banner}
           {isPublic ? null : inactiveNote}
           {sportsError && !sportsData && facilities.length ? <ReadFailure what="Sport names" reason={sportsError} onRetry={refetchSports} /> : null}

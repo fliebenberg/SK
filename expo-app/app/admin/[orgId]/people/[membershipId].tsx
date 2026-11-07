@@ -7,6 +7,7 @@ import { OrgMember, SocketAction } from '@sk/shared';
 import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { ReadCard } from '../../../../components/ReadCard';
 import { ReadFailure } from '../../../../components/ReadFailure';
+import { RoomFailure } from '../../../../components/RoomFailure';
 import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { InviteModal, InviteStatusCard, isOnScoreKeeper, useInviteCooldownHours } from '../../../../components/InviteToScoreKeeper';
@@ -66,9 +67,10 @@ export default function PersonPage() {
   // team's alone (`PEOPLE-8`).
   const fromTeam = !orgAccessOf.canManage && !!teamId && orgAccessOf.dutyTeamIds.includes(teamId) ? teamId : null;
   const { person, isLoading: isPersonLoading, error: personError, retry: retryPerson } = useOrgPerson(orgAccessOf.canManage ? orgId : null, membershipId);
-  const { roster: teamRoster, isLoading: isRosterLoading } = useTeamRoster(coachesTeam || fromTeam ? teamId : null);
+  const { roster: teamRoster, isLoading: isRosterLoading, failure: rosterFailure, room: rosterRoom } = useTeamRoster(coachesTeam || fromTeam ? teamId : null);
   const roles: OrgRole[] = rolesTheyMayGive(rolesData?.org || [], isOrgAdmin);
-  const { byPlayer: teamGuardians } = useTeamGuardians(fromTeam);
+  const { byPlayer: teamGuardians, room: guardiansRoom } = useTeamGuardians(fromTeam);
+  // rooms-ok: covered by the workspace layout's RoomFailure
   const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
   const inviteCooldownHours = useInviteCooldownHours();
 
@@ -107,7 +109,7 @@ export default function PersonPage() {
     onRemove: () => savePhoto(''),
   });
 
-  const isLoadingPerson = isPersonLoading || isRolesLoading || (!!fromTeam && isRosterLoading);
+  const isLoadingPerson = isPersonLoading || isRolesLoading || (!!fromTeam && isRosterLoading && !rosterFailure);
   if (isLoadingPerson || !member) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
@@ -115,6 +117,8 @@ export default function PersonPage() {
         <View className="flex-1 items-center justify-center px-6">
           {isLoadingPerson ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : personError ? (
             <ReadFailure what="This person" reason={personError} onRetry={retryPerson} />
+          ) : fromTeam && rosterFailure ? (
+            <RoomFailure rooms={[rosterRoom]} what="This person" />
           ) : (
             <Text className="font-inter text-sm text-ink-muted text-center">
               This person is not a member of the organisation any more.
@@ -201,6 +205,7 @@ export default function PersonPage() {
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}>
         <PageBody className="gap-4">
           {personError ? <ReadFailure what="This person's details" reason={personError} onRetry={retryPerson} stale /> : null}
+          <RoomFailure rooms={[rosterRoom, guardiansRoom]} what="This person's team details" stale />
           {/* Without them the Edit dialog has no roles to offer. */}
           {rolesError && !rolesData && canEdit ? <ReadFailure what="Roles" reason={rolesError} onRetry={refetchRoles} /> : null}
           <PersonBanner

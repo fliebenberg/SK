@@ -20,7 +20,7 @@ import { useLiveRoom } from './useLiveRoom';
  * changed. Merging the second as an upsert would keep entrants the edit removed.
  */
 export function useEventEntrants(eventId?: string | null, enabled = true) {
-  const { items, isLoading, accessDenied } = useLiveRoom<TournamentEntrant>(
+  const { items, isLoading, accessDenied, failure, room } = useLiveRoom<TournamentEntrant>(
     eventId ? `event:${eventId}:entrants` : null,
     {
       enabled,
@@ -55,7 +55,7 @@ export function useEventEntrants(eventId?: string | null, enabled = true) {
     return map;
   }, [items]);
 
-  return { entrants: items, byDivision, isLoading, accessDenied };
+  return { entrants: items, byDivision, isLoading, accessDenied, failure, room };
 }
 
 /*

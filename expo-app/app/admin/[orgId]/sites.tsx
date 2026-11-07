@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Facility, Site, Sport } from '@sk/shared';
 import { ScreenHeader } from '../../../components/ScreenHeader';
 import { ReadFailure } from '../../../components/ReadFailure';
+import { RoomFailure } from '../../../components/RoomFailure';
 import { AmenityIcons, SiteAddressLine, SiteMark, addressText, siteAmenities, siteSports } from '../../../components/sites/SiteBits';
 import { SiteDialog } from '../../../components/sites/SiteDialogs';
 import { useOrgSites } from '../../../hooks/useOrgSites';
@@ -35,7 +36,7 @@ export default function OrgSites() {
 
   const { canManage: canEdit } = useOrgAccess(orgId);
 
-  const { sites, facilities, isLoading } = useOrgSites(orgId);
+  const { sites, facilities, isLoading, failure: sitesFailure, rooms: siteRooms } = useOrgSites(orgId);
   const { data: sportsData, error: sportsError, refetch: refetchSports } = useSocketQuery<Sport[]>('sports', {}, { suppressToast: true });
   const sports = sportsData || [];
   const sportsFailed = !!sportsError && !sportsData;
@@ -84,7 +85,7 @@ export default function OrgSites() {
     </TouchableOpacity>
   ) : undefined;
 
-  if (isLoading) {
+  if (isLoading && !sitesFailure) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Sites" onBack={() => safeBack(`/admin/${orgId}`)} />
@@ -106,6 +107,7 @@ export default function OrgSites() {
       <ScreenHeader title="Sites" onBack={() => safeBack(`/admin/${orgId}`)} right={headerRight} />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <PageBody className="gap-3">
+          <RoomFailure rooms={siteRooms} what="The sites" stale={!isLoading} />
           <View className="flex-row items-center gap-2 bg-card border border-line rounded-xl px-3">
             <Ionicons name="search-outline" size={16} color={themeColor(isDark, 'ink-muted')} />
             <TextInput
@@ -124,7 +126,7 @@ export default function OrgSites() {
 
           {sportsFailed && sites.length ? <ReadFailure what="Sport names" reason={sportsError!} onRetry={refetchSports} /> : null}
 
-          {shownActive.length ? list(shownActive) : (
+          {shownActive.length ? list(shownActive) : isLoading ? null : (
             <View className="items-center justify-center py-12 gap-2">
               <Ionicons name="location-outline" size={40} color={themeColor(isDark, 'ink-muted')} />
               <Text className="font-inter text-sm text-ink-muted text-center">

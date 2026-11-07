@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { MapPage } from '../../../../../components/address/MapPage';
+import { RoomFailure } from '../../../../../components/RoomFailure';
 import { useEventDivisions, useEventFacilityIds, useEventRecord, useSports } from '../../../../../hooks/useEventRooms';
 import { useOrgSites } from '../../../../../hooks/useOrgSites';
 import { useSafeBack } from '../../../../../hooks/useSafeBack';
@@ -16,10 +17,11 @@ export default function TournamentMap() {
   const { orgId, eventId, division: divisionId } = useLocalSearchParams<{ orgId: string; eventId: string; division?: string }>();
   const links = useTournamentLinks(orgId);
   const safeBack = useSafeBack();
-  const { event, isLoading, accessDenied } = useEventRecord(eventId);
-  const facilityIds = useEventFacilityIds(eventId);
-  const divisions = useEventDivisions(eventId);
-  const { sites, facilities } = useOrgSites(event?.orgId);
+  // A missing tournament is `emptyText` below; rooms that do not arrive are the notice (`LIVE-25`).
+  const { event, isLoading, accessDenied, room: eventRoom } = useEventRecord(eventId);
+  const { facilityIds, room: facilitiesRoom } = useEventFacilityIds(eventId);
+  const { divisions, room: divisionsRoom } = useEventDivisions(eventId);
+  const { sites, facilities, rooms: siteRooms } = useOrgSites(event?.orgId);
   const sports = useSports();
 
   const division = divisionId ? divisions.find(d => d.id === divisionId) || null : null;
@@ -38,6 +40,7 @@ export default function TournamentMap() {
       backLabel={back.label}
       onBack={() => safeBack(back.to)}
       context={event?.name}
+      notice={<RoomFailure rooms={[eventRoom, facilitiesRoom, divisionsRoom, ...siteRooms]} what="The map" stale={!!event} />}
       isLoading={isLoading && !event}
       emptyText={accessDenied || (!isLoading && !event) ? 'This tournament could not be found.' : !site && !shown.length ? 'No venue has been set for this tournament yet.' : null}
       name={site?.name || event?.name || ''}

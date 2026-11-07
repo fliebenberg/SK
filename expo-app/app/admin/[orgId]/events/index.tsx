@@ -32,6 +32,7 @@ import {
 import { PastEventRow, PastFixturesPage, PastGamesPage } from '@sk/shared';
 import { useStaticRead } from '../../../../hooks/useStaticRead';
 import { useLiveRoom } from '../../../../hooks/useLiveRoom';
+import { RoomFailure } from '../../../../components/RoomFailure';
 import { usePagedList } from '../../../../hooks/usePagedList';
 import { ListPager } from '../../../../components/ListPager';
 import { ReadFailure } from '../../../../components/ReadFailure';
@@ -155,9 +156,10 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   const [namingTournament, setNamingTournament] = useState(false);
   const [namingHeadToHead, setNamingHeadToHead] = useState(false);
   // The organising organisation's name, for the name a new Head to Head is given.
+  // rooms-ok: the workspace's own organisation, only for a new Head to Head's name; the workspace layout covers its room
   const { org: hostSummary } = useOrgSummary(canCreate ? orgId : null);
 
-  const { items: listedEvents, isLoading: eventsLoading, accessDenied } = useLiveRoom<Event>(orgId ? `org:${orgId}:events` : null, {
+  const { items: listedEvents, isLoading: eventsLoading, accessDenied, failure: eventsFailure, room: eventsRoom } = useLiveRoom<Event>(orgId ? `org:${orgId}:events` : null, {
     reduce: (message) => {
       switch (message.type) {
         case 'EVENTS_SYNC':
@@ -178,7 +180,7 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
    * answer, and one it declined or withdrew from, kept as the record. A members' room — the
    * public `org:{id}:events` shows a tournament only once the organisation is in it.
    */
-  const { items: invitedEvents } = useLiveRoom<Event>(orgId && !publicView ? `org:${orgId}:invitations` : null, {
+  const { items: invitedEvents, room: invitationsRoom } = useLiveRoom<Event>(orgId && !publicView ? `org:${orgId}:invitations` : null, {
     reduce: (message) =>
       message.type === 'EVENT_INVITATIONS_SYNC' ? { kind: 'replace', items: message.data || [] } : { kind: 'ignore' },
   });
@@ -191,7 +193,7 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   const invitationTo = (event: Event): EventOrgInvitation | undefined =>
     event.orgId === orgId ? undefined : event.participatingOrgs?.find(o => o.id === orgId)?.invitation;
 
-  const { items: games, isLoading: gamesLoading } = useLiveRoom<GameSummary>(orgId ? `org:${orgId}:fixtures` : null, {
+  const { items: games, isLoading: gamesLoading, failure: gamesFailure, room: gamesRoom } = useLiveRoom<GameSummary>(orgId ? `org:${orgId}:fixtures` : null, {
     reduce: (message) => {
       switch (message.type) {
         case 'GAME_SUMMARIES_SYNC':
@@ -206,9 +208,9 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
     },
   });
 
-  const { sites, facilities } = useOrgSites(orgId);
+  const { sites, facilities, rooms: siteRooms } = useOrgSites(orgId);
   const { data: sportsData, error: sportsError, refetch: refetchSports } = useSocketQuery<Sport[]>('sports', {}, { suppressToast: true });
-  const myGrants = useMyEventGrants();
+  const { grants: myGrants, room: grantsRoom } = useMyEventGrants();
   const grants = publicView ? NO_GRANTS : myGrants;
 
   const sportName = (id?: string) => (sportsData || []).find(s => s.id === id)?.name || '';
@@ -840,7 +842,19 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
     ? <ReadFailure what="Your teams' tournament invitations" reason={teamInvitesError} onRetry={retryTeamInvites} />
     : null;
 
+  /*
+   * The list is built from these rooms; one that does not arrive is said once, above it (`LIVE-25`).
+   * The two the list waits on keep loading while failed, so it shows this rather than a spinner, and
+   * never "No events yet" for a list that did not come.
+   */
+  const listWaiting = eventsLoading || gamesLoading;
+  const listSpinner = listWaiting && !eventsFailure && !gamesFailure;
+  const listFailure = (
+    <RoomFailure rooms={[eventsRoom, invitationsRoom, gamesRoom, ...siteRooms, grantsRoom]} what="The events" stale={events.length > 0 || games.length > 0} />
+  );
+
   const body = (() => {
+    if (listWaiting) return null;
     if (accessDenied) {
       return (
         <View className="items-center justify-center py-16 gap-2">
@@ -962,7 +976,8 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   })();
 
   if (nowNext) {
-    if (eventsLoading || gamesLoading) return <View className="items-center py-6"><ActivityIndicator color={themeColor(isDark, 'primary')} /></View>;
+    if (listSpinner) return <View className="items-center py-6"><ActivityIndicator color={themeColor(isDark, 'primary')} /></View>;
+    if (listWaiting) return listFailure;
     const soonest = eventSections.flatMap(section => section.items).slice(0, nowNext);
     return soonest.length
       ? <View>{soonest.map((event, i) => eventRow(event, i))}</View>
@@ -995,10 +1010,11 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   ) : null;
 
   if (publicView) {
-    return eventsLoading || gamesLoading ? (
+    return listSpinner ? (
       <View className="items-center justify-center py-16"><ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /></View>
     ) : (
       <View className="gap-3">
+        {listFailure}
         {toolbar}
         {sportsFailure}
         {body}
@@ -1011,13 +1027,14 @@ export function OrgEventsListView({ orgId, publicView = false, nowNext }: {
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader title="Fixtures & Events" onBack={() => safeBack(`/admin/${orgId}`)} right={headerRight} />
-      {eventsLoading || gamesLoading ? (
+      {listSpinner ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
           <PageBody className="gap-3">
+            {listFailure}
             {invitationsBox}
             {toolbar}
             {sportsFailure}

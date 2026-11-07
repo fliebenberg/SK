@@ -15,6 +15,8 @@ import { useUnsavedChangesStore } from '../../../store/unsavedChangesStore';
 import { BottomMenu } from '../../../components/BottomMenu';
 import { AuthGuard } from '../../../components/AuthGuard';
 import { UnclaimedOrgBanner } from '../../../components/UnclaimedOrgBanner';
+import { RoomFailure } from '../../../components/RoomFailure';
+import { ReadFailure } from '../../../components/ReadFailure';
 
 import { inkOnBrand } from '../../../utils/colorUtils';
 import { themeColor } from '../../../constants/Colors';
@@ -34,6 +36,7 @@ export default function OrgAdminLayout() {
   // games (`PERM-8`): the server says so, and that opens those pages and nothing else of it.
   // Quiet here: the guard draws a failure if it would otherwise turn someone away, and the screen inside
   // says what it means for that screen.
+  // rooms-ok: the room carries updates only; the read is the load, and the guard shows its failure
   const { capabilities: eventCaps, isLoading: eventLoading, error: eventError, retry: retryEvent } = useEventCapabilities(eventId, { suppressToast: true });
   const { capabilities: gameCaps, isLoading: gameLoading, error: gameError, retry: retryGame } = useGameCapabilities(gameId, { suppressToast: true });
   const grant = !!(eventCaps?.canEditEvent || eventCaps?.convenesDivisionIds?.length || eventCaps?.convenesSportIds?.length)
@@ -61,7 +64,9 @@ function OrgAdminWorkspace({ grant }: { grant: boolean }) {
   const segments = useSegments();
 
   const { orgId } = useGlobalSearchParams<{ orgId?: string }>();
-  const { org: orgData } = useOrgSummary(orgId);
+  // The workspace's own org, said once here for every page under it (`LIVE-25`): this box claims
+  // `org:{id}:summary`, so a page reading the same org does not say it again.
+  const { org: orgData, room: orgRoom, notFound: orgNotFound } = useOrgSummary(orgId);
   const currentPage = currentWorkspacePage(segments);
   // Each role opens only its part of the workspace (`PERM-4`): a coach gets their teams and fixtures.
   const { workspace } = useOrgAccess(orgId);
@@ -119,6 +124,10 @@ function OrgAdminWorkspace({ grant }: { grant: boolean }) {
     <View className="flex-1 bg-canvas relative">
       {/* While the org has no administrator, on every workspace page (docs/nomination-process.md §4). */}
       <UnclaimedOrgBanner org={orgData} />
+      <RoomFailure rooms={[orgRoom]} what="The organisation" stale={!!orgData} className="mx-3 mt-2" />
+      {orgNotFound ? (
+        <ReadFailure title="This organisation was not found." reason="It may have been deleted, or the link is wrong." className="mx-3 mt-2" />
+      ) : null}
       {/* A page their role does not open goes to the Control Panel, which lists the ones it does. */}
       {mayOpenPage ? stackContent : <Redirect href={`/admin/${orgId}` as any} />}
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { EventCapabilities, EventGrants } from '@sk/shared';
-import { wsService } from '../services/websocket';
+import { useLiveRoom } from './useLiveRoom';
 import { readData } from '../services/reads';
 import { useWsStore } from '../store/wsStore';
 import { useAuthStore } from '../store/authStore';
@@ -73,27 +73,21 @@ export function useEventCapabilities(eventId?: string | null, options: { suppres
     };
   }, [isConnected, eventId, userId, attempt]);
 
+  // The push carries the freshly computed capabilities, so this is a merge rather than a nudge to
+  // refetch — rule 1 of the live-data skill. It is filtered to this event because one socket may hold
+  // grants on several. Held tagged with the event, so another event's answer is never adopted.
+  const live = useLiveRoom<EventCapabilities & { id: string }>(eventId && userId ? `user:${userId}:capabilities` : null, {
+    reduce: message =>
+      message.type === 'EVENT_CAPABILITIES_UPDATED' && message.data?.eventId === eventId
+        ? { kind: 'replace', items: [{ ...message.data, id: eventId! }] }
+        : { kind: 'ignore' },
+  });
+  const pushed = live.items[0]?.id === eventId ? live.items[0] : undefined;
   useEffect(() => {
-    if (!eventId || !userId) return;
+    if (pushed) setCapabilities(pushed);
+  }, [pushed]);
 
-    // The push carries the freshly computed capabilities, so this is a merge rather than a nudge
-    // to refetch — rule 1 of the live-data skill. It is filtered to this event because one socket
-    // may hold grants on several.
-    const handleUpdate = (message: any) => {
-      if (message?.type === 'EVENT_CAPABILITIES_UPDATED' && message.data?.eventId === eventId) {
-        setCapabilities(message.data);
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-    const unsubscribe = wsService.subscribeToRoom(`user:${userId}:capabilities`, handleUpdate);
-    return () => {
-      unsubscribe();
-      wsService.off('update', handleUpdate);
-    };
-  }, [eventId, userId]);
-
-  return { capabilities, isLoading, error, retry };
+  return { capabilities, isLoading, error, retry, room: live.room };
 }
 
 const EMPTY_GRANTS: EventGrants = { eventIds: [], sports: [], divisions: [] };
@@ -118,34 +112,14 @@ const EMPTY_GRANTS: EventGrants = { eventIds: [], sports: [], divisions: [] };
  */
 export function useMyEventGrants() {
   const userId = useAuthStore((state: any) => state.user?.id);
-  const [grants, setGrants] = useState<EventGrants>(EMPTY_GRANTS);
+  const { items, room } = useLiveRoom<{ id: string; grants: EventGrants }>(userId ? `user:${userId}:capabilities` : null, {
+    reduce: message =>
+      message.type === 'EVENT_GRANTS_SYNC'
+        ? { kind: 'replace', items: [{ id: 'grants', grants: message.data && Array.isArray(message.data.eventIds) ? message.data : EMPTY_GRANTS }] }
+        : { kind: 'ignore' },
+  });
+  // A refused room is held as nothing (`useLiveRoom` empties it), which is no grants.
+  const grants: EventGrants = (userId && items[0]?.grants) || EMPTY_GRANTS;
 
-  useEffect(() => {
-    if (!userId) {
-      setGrants(EMPTY_GRANTS);
-      return;
-    }
-
-    let active = true;
-    const room = `user:${userId}:capabilities`;
-
-    const handleUpdate = (message: any) => {
-      if (!active || message?.topic !== room) return;
-      if (message.type === 'EVENT_GRANTS_SYNC') {
-        setGrants(message.data && Array.isArray(message.data.eventIds) ? message.data : EMPTY_GRANTS);
-      } else if (message.type === 'ROOM_ACCESS_DENIED' || message.type === 'ROOM_ACCESS_REVOKED') {
-        setGrants(EMPTY_GRANTS);
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-    const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
-    return () => {
-      active = false;
-      unsubscribe();
-      wsService.off('update', handleUpdate);
-    };
-  }, [userId]);
-
-  return grants;
+  return { grants, room };
 }

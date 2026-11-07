@@ -13,7 +13,7 @@ import { useStaticRead } from './useStaticRead';
  * rather than "no results", and does not offer deleting a team that may have games.
  */
 export function useTeamGames(orgId?: string | null, teamId?: string | null, season?: number) {
-  const { games: current, eventNames: currentNames, isLoading } = useOrgFixtures(orgId);
+  const { games: current, eventNames: currentNames, isLoading, rooms } = useOrgFixtures(orgId);
   const { data, error, retry } = useStaticRead<TeamSeasonResults>(
     'team_season_results',
     teamId && season ? { teamId, ...seasonRange(season) } : null,
@@ -37,5 +37,6 @@ export function useTeamGames(orgId?: string | null, teamId?: string | null, seas
     seasons: data?.seasons ?? [],
     error,
     retry,
+    rooms,
   };
 }

@@ -13,7 +13,7 @@ import { useStaticRead } from './useStaticRead';
  * are not known (`SYNC-9`), and the page does not offer deleting.
  */
 export function useSiteGames(orgId: string | null | undefined, siteId: string | null | undefined, facilities: Facility[]) {
-  const { games: all, events: allEvents, eventNames, isLoading } = useOrgFixtures(orgId);
+  const { games: all, events: allEvents, eventNames, isLoading, rooms } = useOrgFixtures(orgId);
   const { data: counts, error: countsError, retry: retryCounts } = useStaticRead<SiteGameCounts>('site_game_counts', siteId ? { siteId } : null, { suppressToast: true });
   const facilityIds = useMemo(() => new Set(facilities.map(f => f.id)), [facilities]);
   const games = useMemo(
@@ -32,5 +32,6 @@ export function useSiteGames(orgId: string | null | undefined, siteId: string | 
     isLoading,
     countsError,
     retryCounts,
+    rooms,
   };
 }

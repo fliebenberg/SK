@@ -25,10 +25,13 @@ export default function OrgControlDashboard() {
   const { orgId } = useGlobalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const access = useOrgAccess(orgId);
-  const applications = useOrgApplications(orgId, access.canManage);
+  // Only a count on the People tile; the list itself, on People, says when it does not arrive.
+  // rooms-ok: an optional badge, absent rather than wrong; the People page's card says when the room fails, and RoomFailureNotice does here
+  const { applications } = useOrgApplications(orgId, access.canManage);
 
   // Only for the count, which comes from the organisation's own ids: a failure changes nothing on screen.
   const { data: sportsList, isLoading: isSportsLoading } = useSocketQuery('sports', {}, { suppressToast: true });
+  // rooms-ok: covered by the workspace layout's RoomFailure
   const { org: orgData, isLoading: isOrgLoading, accessDenied } = useOrgSummary(orgId);
 
   const sportsMap = useMemo(() => {

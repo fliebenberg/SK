@@ -50,6 +50,7 @@ export default function OrgProfile() {
   const safeBack = useSafeBack();
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
+  // rooms-ok: covered by the workspace layout's RoomFailure
   const { org, isLoading } = useOrgSummary(orgId);
   const { data: sports, error: sportsError, refetch: refetchSports } = useSocketQuery<any[]>('sports', {}, { suppressToast: true });
   const { isAdmin: canEdit } = useOrgAccess(orgId);

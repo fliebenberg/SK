@@ -10,10 +10,11 @@ import { Button } from '../../../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
-import { wsService } from '../../../../../../services/websocket';
 import { sendAction } from '../../../../../../services/actions';
 import { readData } from '../../../../../../services/reads';
 import { ReadFailure } from '../../../../../../components/ReadFailure';
+import { RoomFailure } from '../../../../../../components/RoomFailure';
+import { useLiveRoom } from '../../../../../../hooks/useLiveRoom';
 import { FloatingSaveBar, FLOATING_SAVE_BAR_PADDING } from '../../../../../../components/FloatingSaveBar';
 import { useIncomingRecord, CHANGED_ELSEWHERE_CHECKED_NOTICE } from '../../../../../../hooks/useIncomingRecord';
 import { useWsStore } from '../../../../../../store/wsStore';
@@ -237,31 +238,18 @@ export default function SeasonDetails() {
     };
   }, [isConnected, seasonId, orgId]);
 
-  // Subscribe to Room updates
+  // The live standings. The season read hands over the table as it was; this room carries every
+  // recalculation after it, and a sibling screen already holding it replays the last (`LIVE-9`).
+  const liveStandings = useLiveRoom<LeagueStandingRow>(seasonId ? `season:${seasonId}:standings` : null, {
+    reduce: message =>
+      message.type === 'STANDINGS_UPDATED' && Array.isArray(message.data)
+        ? { kind: 'replace', items: message.data }
+        : { kind: 'ignore' },
+  });
   useEffect(() => {
-    if (!seasonId) return;
+    if (!liveStandings.isLoading && !liveStandings.notFound) setStandings(liveStandings.items);
+  }, [liveStandings.items, liveStandings.isLoading, liveStandings.notFound]);
 
-    const room = `season:${seasonId}:standings`;
-
-    // Dynamic standing merge handler: NO redundant fetches!
-    const handleUpdate = (event: any) => {
-      if (event) {
-        if (event.type === 'STANDINGS_UPDATED' && Array.isArray(event.data)) {
-          setStandings(event.data);
-        }
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-    // Replay handler, so arriving second at a room a sibling screen already holds still
-    // yields the standings (`LIVE-9`).
-    const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
-
-    return () => {
-      unsubscribe();
-      wsService.off('update', handleUpdate);
-    };
-  }, [seasonId]);
 
   /**
    * Measured against the baseline the fields were seeded from, never against the live `season` —
@@ -590,6 +578,9 @@ export default function SeasonDetails() {
           {/* TAB 1: STANDINGS */}
           {activeTab === 'standings' && readErrors.season ? (
             <ReadFailure what="The standings" reason={readErrors.season} onRetry={retryFailedReads} stale={standings.length > 0} />
+          ) : activeTab === 'standings' ? (
+            // The table from the season read is there; this says it is not keeping up (`LIVE-25`).
+            <RoomFailure rooms={[liveStandings.room]} what="The standings" stale={standings.length > 0} />
           ) : null}
           {activeTab === 'standings' && (!readErrors.season || standings.length > 0) && (
             <GlassCard className="border border-line p-4 overflow-hidden">

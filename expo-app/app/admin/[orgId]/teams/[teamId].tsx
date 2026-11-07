@@ -9,6 +9,7 @@ import { GameSummary, SocketAction, Sport, TeamMember } from '@sk/shared';
 import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { EditLink } from '../../../../components/ReadCard';
 import { ReadFailure } from '../../../../components/ReadFailure';
+import { RoomFailure } from '../../../../components/RoomFailure';
 import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { InviteModal, isOnScoreKeeper, useInviteCooldownHours } from '../../../../components/InviteToScoreKeeper';
@@ -109,12 +110,12 @@ export default function TeamPage() {
   const mayGiveRole = (roleId: string) =>
     runsOrg || (roleId !== 'role-coach' && (myTeamRole === 'role-coach' || roleId !== 'role-assistant-coach'));
 
-  const { teams, isLoading: isTeamsLoading } = useOrgTeams(orgId);
-  const { roster: workspaceRoster } = useTeamRoster(isPublic ? null : teamId);
+  const { teams, isLoading: isTeamsLoading, failure: teamsFailure, room: teamsRoom } = useOrgTeams(orgId);
+  const { roster: workspaceRoster, room: rosterRoom } = useTeamRoster(isPublic ? null : teamId);
   const publicSquad = useTeamSquad(isPublic ? teamId : null);
   const roster = isPublic ? publicSquad.squad : workspaceRoster;
   const rosterError = isPublic ? publicSquad.error : null;
-  const { games, eventNames, gameCount, seasons, error: gamesError, retry: retryGames } = useTeamGames(orgId, teamId, season);
+  const { games, eventNames, gameCount, seasons, error: gamesError, retry: retryGames, rooms: gameRooms } = useTeamGames(orgId, teamId, season);
   // Its places in tournaments, and invitations to answer (`FIX-31`): its coach, or an admin, answers.
   const { entries: workspaceEntries, error: workspaceEntriesError, refresh: refreshEntries } = useTeamEntries({ teamId: isPublic ? null : teamId }, { suppressToast: true });
   const publicEntries = useTeamCompetitions(isPublic ? teamId : null);
@@ -123,12 +124,14 @@ export default function TeamPage() {
   const retryEntries = isPublic ? publicEntries.retry : refreshEntries;
   const coachesThis = !!teamId && access.coachedTeamIds.includes(teamId);
   const canAnswer = !isPublic && (access.canManage || coachesThis);
-  const { org } = useOrgSummary(orgId);
+  // In the workspace the layout covers this room too; on the public page this page does.
+  const { org, room: orgRoom } = useOrgSummary(orgId);
   // The organisation's people are its Admin and Staff's business (`PEOPLE-8`). A coach has the team's
   // own people from its roster and guardians, and everyone else's names to pick from; the public
   // page has the squad alone.
   const peopleRead = runsOrg ? 'org_people' as const : 'org_people_names' as const;
-  const { byPlayer: guardiansByPlayer } = useTeamGuardians(isPublic ? null : teamId);
+  const { byPlayer: guardiansByPlayer, room: guardiansRoom } = useTeamGuardians(isPublic ? null : teamId);
+  // rooms-ok: the org summary room, already in this page's RoomFailure through useOrgSummary
   const { settings: minorsSettings } = useOrgMinorsSettings(isPublic ? null : orgId);
   const { data: sportsData, error: sportsError, refetch: refetchSports } = useSocketQuery<Sport[]>('sports');
   const { data: rolesData, error: rolesError, refetch: refetchRoles } = useSocketQuery<any>('roles');
@@ -149,7 +152,7 @@ export default function TeamPage() {
   const [isBusy, setIsBusy] = useState(false);
   const [busyError, setBusyError] = useState<string | null>(null);
 
-  const { sites } = useOrgSites(orgId);
+  const { sites, rooms: siteRooms } = useOrgSites(orgId);
   const seasonStats = useTeamSeasonStats(teamId, season);
 
   const team = teams.find(t => t.id === teamId) || null;
@@ -176,12 +179,14 @@ export default function TeamPage() {
     // On the public page the organisation comes from the team, so its read decides until there is one.
     const orgUnknown = isPublic && !orgId;
     const failure = orgUnknown ? publicTeam.error : null;
-    const loading = !failure && (orgUnknown ? publicTeam.isLoading : isTeamsLoading);
+    const loading = !failure && (orgUnknown ? publicTeam.isLoading : isTeamsLoading && !teamsFailure);
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Team" backLabel="Teams" onBack={back} />
         <View className="flex-1 items-center justify-center px-6">
-          {failure ? <ReadFailure what="This team" reason={failure} onRetry={publicTeam.retry} /> : loading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+          {failure ? <ReadFailure what="This team" reason={failure} onRetry={publicTeam.retry} /> : loading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : teamsFailure && !team ? (
+            <RoomFailure rooms={[teamsRoom]} what="This team" />
+          ) : (
             <Text className="font-inter text-sm text-ink-muted text-center">This team does not exist any more.</Text>
           )}
         </View>
@@ -609,6 +614,7 @@ export default function TeamPage() {
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 60 }}>
         <View style={{ padding: isWide ? 24 : 12, paddingBottom: 0 }}>
           <PageBody className="gap-3">
+            <RoomFailure rooms={[teamsRoom, rosterRoom, ...gameRooms, orgRoom, guardiansRoom, ...siteRooms]} what="This team" stale />
             {banner(seasonSelect)}
             {invitationStrip}
             {inactiveNote}

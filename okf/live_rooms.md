@@ -77,6 +77,15 @@ not also query for the same data.
 
 `npm run verify:rooms` checks every row of the `Join push` column against a running server.
 
+**Every join is answered after its push** (`LIVE-25`): `{ status: 'ok' }`, or `{ status: 'error',
+error, message }` for a refusal (`RoomAccessDenied`), a push that threw (`RoomReadFailed`) or a
+nameless room (`InvalidRoom`). A room whose join push is one record — `team:{id}`,
+`team:{id}:guardians`, `event:{id}`, `division:{id}`, `season:{id}:standings`, `site:{id}`,
+`facility:{id}`, the `game:{id}` rooms holding one record and `org:{id}:summary` — pushes
+`ENTITY_NOT_FOUND` `{ id, type }` when the record does not exist. `org:{id}:members` pushes nothing
+by design and is answered `ok`. How the client uses this: the live-data skill, *When a room does not
+arrive*.
+
 **`staff` means Admin or Staff of a related organisation** (`PEOPLE-8`, 2026-11-01). A plain Member reads what the public reads.
 
 **A `public` room is public only while its subject's organisation is** (`ORG-14`): every public room

@@ -9,6 +9,7 @@ import { FixtureCrest } from '../events/EventBits';
 import { DivisionStateLine, TournamentCard, divisionFormatLabel, divisionStateOf } from './TournamentBits';
 import { awardsPoints, crestOf, entrantName, hasOneTable, orgName } from './standingsBits';
 import { useEventStandings } from '../../hooks/useEventRooms';
+import { RoomFailure } from '../RoomFailure';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
 import { useTournamentLinks } from './tournamentLinks';
@@ -48,7 +49,9 @@ export function StandingsTab({ event, orgId, isWide, divisions: allDivisions, ga
   const router = useRouter();
   const links = useTournamentLinks(orgId);
   const isDark = useActiveTheme() === 'dark';
-  const { rows: allRows, divisions: tables, sports: sportTables } = useEventStandings(event.id);
+  const { rows: allRows, divisions: tables, sports: sportTables, isLoading: tablesLoading, room: standingsRoom } = useEventStandings(event.id);
+  // The tab's own room — the page's box covers the tournament's others (`LIVE-25`).
+  const roomFailure = <RoomFailure rooms={[standingsRoom]} what="The standings" stale={!tablesLoading} />;
   const orgs = event.participatingOrgs;
 
   const sportIds = [...new Set(allDivisions.map(d => d.sportId).filter(Boolean))] as string[];
@@ -87,7 +90,7 @@ export function StandingsTab({ event, orgId, isWide, divisions: allDivisions, ga
         showPoints={awardsPoints(event)}
         highlight={row => viewerOrgIds.includes(row.orgId || row.teamId)}
         onPressRow={row => router.push(links.event(event.id, `/standings/organisations/${row.orgId || row.teamId}`))}
-        emptyMessage="Nothing to rank yet. The leaderboard fills in as results come in."
+        emptyMessage={tablesLoading ? 'Loading the leaderboard…' : 'Nothing to rank yet. The leaderboard fills in as results come in.'}
       />
     </TournamentCard>
   );
@@ -169,10 +172,11 @@ export function StandingsTab({ event, orgId, isWide, divisions: allDivisions, ga
     </View>
   ) : null;
 
-  if (!isWide) return <View className="gap-3">{scopeLine}{sportFilter}{leaderboard}{divisionsCard}</View>;
+  if (!isWide) return <View className="gap-3">{scopeLine}{roomFailure}{sportFilter}{leaderboard}{divisionsCard}</View>;
   return (
     <View className="gap-3">
       {scopeLine}
+      {roomFailure}
       {sportFilter}
       <View className="flex-row items-start gap-5">
         <View style={{ flex: 1.55, minWidth: 0 }}>{leaderboard}</View>

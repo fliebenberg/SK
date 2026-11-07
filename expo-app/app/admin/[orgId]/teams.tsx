@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Organization, Sport, Team, sortAgeGroups } from '@sk/shared';
 import { ScreenHeader } from '../../../components/ScreenHeader';
 import { ReadFailure } from '../../../components/ReadFailure';
+import { RoomFailure } from '../../../components/RoomFailure';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import CustomSelect from '../../../components/CustomSelect';
 import { TeamCrest } from '../../../components/teams/TeamBits';
@@ -40,12 +41,13 @@ export default function OrgTeams() {
   const access = useOrgAccess(orgId);
   const canEdit = access.canManage;
 
-  const { teams: orgTeams, isLoading } = useOrgTeams(orgId);
+  const { teams: orgTeams, isLoading, failure: teamsFailure, room: teamsRoom } = useOrgTeams(orgId);
   // A coach's or team scorer's workspace is their own teams (`PERM-4`).
   const teams = useMemo(
     () => (access.workspace === 'team' ? orgTeams.filter(t => access.dutyTeamIds.includes(t.id)) : orgTeams),
     [orgTeams, access.workspace, access.dutyTeamIds.join(',')]
   );
+  // rooms-ok: covered by the workspace layout's RoomFailure
   const { org } = useOrgSummary(orgId);
   const { data: sportsData, error: sportsError, refetch: refetchSports } = useSocketQuery<Sport[]>('sports', {}, { suppressToast: true });
   const sports = sportsData || [];
@@ -104,7 +106,7 @@ export default function OrgTeams() {
     </TouchableOpacity>
   ) : undefined;
 
-  if (isLoading) {
+  if (isLoading && !teamsFailure) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Teams" onBack={() => safeBack(`/admin/${orgId}`)} />
@@ -126,6 +128,7 @@ export default function OrgTeams() {
       <ScreenHeader title="Teams" onBack={() => safeBack(`/admin/${orgId}`)} right={headerRight} />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <PageBody className="gap-3">
+          <RoomFailure rooms={[teamsRoom]} what="The teams" stale={!isLoading} />
           <View className={`gap-2.5 ${isWide ? 'flex-row items-center' : ''}`}>
             <View className="flex-1 flex-row items-center gap-2 bg-card border border-line rounded-xl px-3" style={isWide ? { minWidth: 160 } : undefined}>
               <Ionicons name="search-outline" size={16} color={themeColor(isDark, 'ink-muted')} />
@@ -170,7 +173,7 @@ export default function OrgTeams() {
               <TeamList teams={group.teams} org={org} isWide={isWide} onOpen={open} />
             </View>
           ))}
-          {shownActive.length === 0 ? (
+          {shownActive.length === 0 && !isLoading ? (
             <View className="items-center justify-center py-12 gap-2">
               <Ionicons name="shield-outline" size={40} color={themeColor(isDark, 'ink-muted')} />
               <Text className="font-inter text-sm text-ink-muted text-center">

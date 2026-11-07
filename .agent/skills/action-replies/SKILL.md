@@ -132,7 +132,8 @@ contents in a report — payloads carry people's details.
   `onSearchFailure` to `PersonnelAutocomplete`.
 - **A room refusal is not an empty room either.** `ROOM_ACCESS_DENIED` / `REVOKED` clear what is
   held (it is not this viewer's) and say so with `ReadFailure`; only the room's own push may say
-  "no leagues". A room that never answers is `LIVE-25`.
+  "no leagues". A room that never answers is said too: `RoomFailure` in place, or the app-wide notice
+  — see *When a room does not arrive* in the [live-data skill](file:///c:/Fred/Coding/SK/.agent/skills/live-data/SKILL.md) (`LIVE-25`).
 - **A paged list keeps its page on a failed refresh** of the same question (`usePagedList`'s
   `stale`, with `reason` for the box), and drops it for a different search, page or filter, or a
   refusal.

@@ -27,6 +27,8 @@ export interface MapPageProps {
   /** Facilities to mark around the pin, each listed on the card; a tap on one goes to it. */
   facilities?: Facility[];
   sports?: { id: string; name?: string }[];
+  /** Said under the header, above the map or the spinner — a `RoomFailure` for the rooms the map comes from (`LIVE-25`). */
+  notice?: React.ReactNode;
 }
 
 /**
@@ -42,7 +44,7 @@ export interface MapPageProps {
  *
  * With facilities it opens zoomed to fit them all, and leaves the card's height clear of them.
  */
-export function MapPage({ backLabel, onBack, context, isLoading, emptyText, name, address, facilities = NO_FACILITIES, sports = [] }: MapPageProps) {
+export function MapPage({ backLabel, onBack, context, isLoading, emptyText, name, address, facilities = NO_FACILITIES, sports = [], notice }: MapPageProps) {
   const isDark = useActiveTheme() === 'dark';
   const [cardHeight, setCardHeight] = useState(0);
   const [focus, setFocus] = useState<{ id: string; latitude: number; longitude: number; nonce: number } | null>(null);
@@ -61,6 +63,7 @@ export function MapPage({ backLabel, onBack, context, isLoading, emptyText, name
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader title="Map" context={context} backLabel={backLabel} onBack={onBack} />
+      {notice ? <View className="px-4 pt-3">{notice}</View> : null}
       {isLoading ? (
         <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /></View>
       ) : emptyText ? (

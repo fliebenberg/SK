@@ -52,6 +52,7 @@ import { themeColor } from '../../constants/Colors';
 import { LAYOUT } from '../../constants/layout';
 import { useTournamentLinks } from './tournamentLinks';
 import { useEventStandings } from '../../hooks/useEventRooms';
+import { RoomFailure } from '../RoomFailure';
 import { StandingsTable } from './StandingsTable';
 import { awardsPoints } from './standingsBits';
 import { managesOrg } from '../../utils/orgAccess';
@@ -927,10 +928,12 @@ export function TournamentHome({
    * played — between days, or once it is over — the organisation leaderboard leads, its top three,
    * with *Standings ›* for the rest. A Head to Head's Results card does this for it already.
    */
-  const { rows: leaderboardRows } = useEventStandings(links.isPublic ? eventId : null);
+  const { rows: leaderboardRows, room: leaderboardRoom } = useEventStandings(links.isPublic ? eventId : null);
   const anyFinished = games.some(g => g.status === 'Finished');
   const leaderboardCard = links.isPublic && !dual && !liveGames.length && anyFinished && leaderboardRows.length ? (
     <TournamentCard title="Leaderboard" right={seeAll(onOpenResults || onOpenSchedule, 'Standings')}>
+      {/* Drawn only once it has rows, so a failure here is about keeping up (`LIVE-25`). */}
+      <RoomFailure rooms={[leaderboardRoom]} what="The leaderboard" stale />
       <StandingsTable
         rows={leaderboardRows.slice(0, 3)}
         kind="organisation"
@@ -1043,6 +1046,7 @@ export function TournamentHome({
         tasks={todo.tasks}
         rows={todo.rows}
         error={todo.error}
+        teamsRoom={todo.teamsRoom}
         orgId={orgId}
         eventName={event.name}
         orgName={id => event.participatingOrgs?.find(o => o.id === id)?.name || 'Your organisation'}

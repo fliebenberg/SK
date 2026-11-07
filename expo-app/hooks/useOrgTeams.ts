@@ -9,7 +9,7 @@ import { useLiveRoom } from './useLiveRoom';
  * right. The teams list and the team page both read their team from here, so neither fetches it.
  */
 export function useOrgTeams(orgId?: string | null) {
-  const { items, isLoading, accessDenied } = useLiveRoom<Team>(orgId ? `org:${orgId}:teams` : null, {
+  const { items, isLoading, accessDenied, failure, room } = useLiveRoom<Team>(orgId ? `org:${orgId}:teams` : null, {
     reduce: (message) => {
       switch (message.type) {
         case 'TEAMS_SYNC':
@@ -24,5 +24,5 @@ export function useOrgTeams(orgId?: string | null) {
       }
     },
   });
-  return { teams: items, isLoading, accessDenied };
+  return { teams: items, isLoading, accessDenied, failure, room };
 }

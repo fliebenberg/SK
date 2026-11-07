@@ -6,6 +6,7 @@ import { TournamentStandingRow, ordinal } from '@sk/shared';
 import { ScreenHeader } from '../../../../../../../components/ScreenHeader';
 import { AccessDenied } from '../../../../../../../components/AccessDenied';
 import { PageBody } from '../../../../../../../components/PageBody';
+import { RoomFailure } from '../../../../../../../components/RoomFailure';
 import { StandingsTable } from '../../../../../../../components/tournament/StandingsTable';
 import { ResultsHead } from '../../../../../../../components/tournament/StandingsTab';
 import { awardsPoints, formByEntrant, hasOneTable, standingSummary } from '../../../../../../../components/tournament/standingsBits';
@@ -34,11 +35,15 @@ export default function OrganisationResultsScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
 
-  const { event, accessDenied } = useEventRecord(eventId);
-  const divisions = useEventDivisions(eventId);
-  const games = useEventFixtures(eventId);
+  const { event, accessDenied, notFound: eventNotFound, room: eventRoom } = useEventRecord(eventId);
+  const { divisions: divisions, room: divisionsRoom } = useEventDivisions(eventId);
+  const { games: games, room: gamesRoom } = useEventFixtures(eventId);
   const sports = useSports();
-  const { rows: leaderboard, divisions: tables, isLoading } = useEventStandings(eventId);
+  const { rows: leaderboard, divisions: tables, isLoading, room: standingsRoom } = useEventStandings(eventId);
+  /** Once, for every room the page is built from (`LIVE-25`). */
+  const roomFailure = (stale: boolean) => (
+    <RoomFailure rooms={[eventRoom, divisionsRoom, gamesRoom, standingsRoom]} what="The standings" stale={stale} />
+  );
   const form = useMemo(() => formByEntrant(games), [games]);
 
   if (accessDenied) {
@@ -55,7 +60,16 @@ export default function OrganisationResultsScreen() {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title={name} onBack={back} backLabel="Standings" />
-        <View className="flex-1 items-center justify-center p-6"><ActivityIndicator /></View>
+        {eventNotFound ? (
+          <View className="flex-1 items-center justify-center p-6">
+            <Text className="font-inter text-sm text-ink-muted text-center">This tournament does not exist. It may have been deleted.</Text>
+          </View>
+        ) : (
+          <>
+            <View className="px-3 pt-3">{roomFailure(false)}</View>
+            <View className="flex-1 items-center justify-center p-6"><ActivityIndicator /></View>
+          </>
+        )}
       </SafeAreaView>
     );
   }
@@ -90,6 +104,7 @@ export default function OrganisationResultsScreen() {
       <ScreenHeader title={name} context={event.name} onBack={back} backLabel="Standings" />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 80 }}>
         <PageBody className="gap-3.5">
+          {roomFailure(true)}
           <ResultsHead
             orgId={participantOrgId}
             orgs={event.participatingOrgs}

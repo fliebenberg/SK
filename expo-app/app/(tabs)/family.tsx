@@ -5,6 +5,7 @@ import { Dependant, GameSummary, SocketAction, formatInviteWait, isValidEmail, n
 import { GlassCard } from '../../components/GlassCard';
 import { Button } from '../../components/Button';
 import { ReadFailure } from '../../components/ReadFailure';
+import { RoomFailure } from '../../components/RoomFailure';
 import { useAuthStore } from '../../store/authStore';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
 import { useStaticRead } from '../../hooks/useStaticRead';
@@ -131,7 +132,7 @@ function DependantCard({ child }: { child: Dependant }) {
 /** The child's teams' fixtures, from the org's public fixtures room, and their latest results, which are read once (`LIST-1`). */
 function ChildFixtures({ child }: { child: Dependant }) {
   const teamIds = useMemo(() => new Set(child.teams.map(t => t.teamId)), [child.teams]);
-  const { items, isLoading } = useLiveRoom<GameSummary>(child.teams.length ? `org:${child.orgId}:fixtures` : null, {
+  const { items, isLoading, failure, room } = useLiveRoom<GameSummary>(child.teams.length ? `org:${child.orgId}:fixtures` : null, {
     reduce: message => {
       if (message.type === 'GAME_SUMMARIES_SYNC') return { kind: 'replace', items: message.data || [] };
       if (message.type === 'GAME_SUMMARY_UPDATED' && message.data?.id) return { kind: 'upsert', item: message.data };
@@ -169,10 +170,12 @@ function ChildFixtures({ child }: { child: Dependant }) {
     <View>
       <Text className={SECTION}>Fixtures</Text>
       {pastError ? <ReadFailure what="Recent results" reason={pastError} onRetry={retryPast} stale={recent.length > 0} className="mb-2" /> : null}
-      {isLoading ? (
+      {/* The live fixtures did not arrive (`LIVE-25`): what shows is only the recent results read, if that. */}
+      <RoomFailure rooms={[room]} what="Fixtures" stale={!isLoading} className="mb-2" />
+      {isLoading && !failure ? (
         <Text className="font-inter text-xs text-ink-muted">Loading fixtures…</Text>
       ) : upcoming.length === 0 && recent.length === 0 ? (
-        pastError ? null : <Text className="font-inter text-xs text-ink-muted">No fixtures scheduled.</Text>
+        pastError || failure ? null : <Text className="font-inter text-xs text-ink-muted">No fixtures scheduled.</Text>
       ) : (
         <View className="gap-1.5">
           {upcoming.map(game => <FixtureRow key={game.id} game={game} />)}

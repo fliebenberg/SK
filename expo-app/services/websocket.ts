@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { useWsStore } from '../store/wsStore';
 import { useToastStore } from '../store/toastStore';
 import { RoomLedger, RoomMessage } from './roomLedger';
+import { setRoomFailed } from '../store/roomStatusStore';
 
 import { SocketAction, SocketActionPayload, SocketActionResponse, createSocketAction } from '@sk/shared';
 
@@ -22,6 +23,25 @@ interface ReadWaiter {
   callback: (...args: any[]) => void;
   suppressToast?: boolean;
 }
+
+/**
+ * Where a held room's join stands (`LIVE-25`). The server answers every `join_room` after the room's
+ * join push, so `ready` means the room has handed over what it holds — possibly nothing, for a room
+ * that holds nothing — and a screen still waiting on its first push can stop. A room is one join,
+ * shared by every screen holding it, so the status is too.
+ */
+export type RoomStatus =
+  | { state: 'waiting' }
+  | { state: 'ready' }
+  | { state: 'failed'; reason: 'offline' | 'timeout' | 'denied' | 'error'; message: string };
+
+/** How long a join may go unanswered — or wait for a connection — before the screen says so. */
+const ROOM_ANSWER_MS = 10_000;
+
+const ROOM_NO_ANSWER: Record<'offline' | 'timeout', string> = {
+  offline: 'Cannot connect to the server.',
+  timeout: 'The server did not answer in time.',
+};
 
 /** Reads kept for a while after answering: reference data, the same for everyone (`LIVE-11`). */
 const REFERENCE_READS = new Set(['sports', 'roles']);
@@ -136,10 +156,8 @@ class WebSocketService {
         // on the old connection is superseded.
         this.rooms.resetLogs();
         for (const room of this.rooms.heldRooms()) {
-          if (this.socket && this.socket.connected) {
-            this.log('log', `Joining held room on connect: ${room}`);
-            this.socket.emit('join_room', room);
-          }
+          this.log('log', `Joining held room on connect: ${room}`);
+          this.joinRoom(room);
         }
       });
 
@@ -232,29 +250,143 @@ class WebSocketService {
    * call — the same messages the caller's `'update'` listener would have seen had it been there
    * for the join push. A caller that passes no handler gets the old behaviour and, if it arrives
    * late, no initial state. `useLiveRoom` passes its reducer; direct callers should move to it.
+   *
+   * `onStatus` hears where the room's join stands (`RoomStatus`, `LIVE-25`): every join — the first,
+   * a re-join on reconnect, a retry — is answered or times out, so no holder waits for ever on a push
+   * that is not coming. A late subscriber hears the current status straight after its replay.
    */
-  subscribeToRoom(room: string, onReplay?: (message: RoomMessage) => void): () => void {
+  subscribeToRoom(
+    room: string,
+    onReplay?: (message: RoomMessage) => void,
+    onStatus?: (status: RoomStatus) => void
+  ): () => void {
     const { token, isFirst, replay } = this.rooms.subscribe(room);
+
+    let listeners = this.roomListeners.get(room);
+    if (!listeners) this.roomListeners.set(room, (listeners = new Set()));
+    if (onStatus) listeners.add(onStatus);
 
     if (isFirst) {
       this.log('log', `Subscribing to room: ${room}`);
-      this.sendIfConnected('join_room', room);
+      this.joinRoom(room);
     } else if (replay === 'overflow') {
       // The log grew past what is worth replaying. Socket.io's join is idempotent, so asking
       // again costs one re-push of the room's state, which every holder absorbs as a replace.
       this.log('log', `Re-joining room for a late subscriber (replay log overflowed): ${room}`);
-      this.sendIfConnected('join_room', room);
-    } else if (replay && onReplay) {
-      if (replay.length) this.log('log', `Replaying ${replay.length} message(s) to a late subscriber: ${room}`);
-      for (const message of replay) onReplay(message);
+      this.joinRoom(room);
+    } else {
+      if (replay && onReplay) {
+        if (replay.length) this.log('log', `Replaying ${replay.length} message(s) to a late subscriber: ${room}`);
+        for (const message of replay) onReplay(message);
+      }
+      const status = this.roomStatus.get(room);
+      if (status && onStatus) onStatus(status);
     }
 
     return () => {
+      if (onStatus) listeners!.delete(onStatus);
       if (this.rooms.unsubscribe(room, token)) {
         this.log('log', `Unsubscribing from room: ${room}`);
+        this.forgetRoom(room);
         this.sendIfConnected('leave_room', room);
       }
     };
+  }
+
+  /**
+   * Ask for a held room again after it failed — a room's *Try again* (`LIVE-25`). Every holder hears
+   * the new attempt and absorbs the fresh join push as a replace, as on a reconnect.
+   */
+  retryRoom(room: string) {
+    if (!this.rooms.isHeld(room)) return;
+    this.log('log', `Retrying room: ${room}`);
+    // Somebody pressing Try again does not want to wait out the reconnect backoff.
+    if (this.socket && !this.socket.connected && !this.retired) this.socket.connect();
+    this.joinRoom(room);
+  }
+
+  /** Where each held room's join stands. */
+  private roomStatus = new Map<string, RoomStatus>();
+  private roomListeners = new Map<string, Set<(status: RoomStatus) => void>>();
+  /** Which join of a room is the current one, so a late answer to an earlier one is ignored. */
+  private roomAttempts = new Map<string, number>();
+  private roomTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /** Ask again for every held room that failed, or for those of `rooms` that did. */
+  retryFailedRooms(rooms?: string[]) {
+    for (const [room, status] of this.roomStatus) {
+      if (status.state !== 'failed' || status.reason === 'denied') continue;
+      if (rooms && !rooms.includes(room)) continue;
+      this.retryRoom(room);
+    }
+  }
+
+  private setRoomStatus(room: string, status: RoomStatus) {
+    this.roomStatus.set(room, status);
+    // While it is pending a retry, a room is not said to have failed: the screen shows it loading.
+    setRoomFailed(room, status.state === 'failed' && status.reason !== 'denied' ? status.message : null);
+    for (const listener of [...(this.roomListeners.get(room) || [])]) {
+      try {
+        listener(status);
+      } catch (error) {
+        // One screen's bad handler must not keep the status from the others.
+        this.log('error', `A status listener for ${room} threw`, error);
+      }
+    }
+  }
+
+  private forgetRoom(room: string) {
+    const timer = this.roomTimers.get(room);
+    if (timer) clearTimeout(timer);
+    this.roomTimers.delete(room);
+    this.roomStatus.delete(room);
+    setRoomFailed(room, null);
+    this.roomAttempts.delete(room);
+    this.roomListeners.delete(room);
+  }
+
+  /**
+   * Join a held room and wait for the server to say it has (`LIVE-25`). Without a connection nothing
+   * is sent — the room is joined on connect — but no screen is left waiting on that for ever either:
+   * after `ROOM_ANSWER_MS` its holders hear that the server cannot be reached, and the join on
+   * connect clears that again.
+   */
+  private joinRoom(room: string) {
+    const attempt = (this.roomAttempts.get(room) ?? 0) + 1;
+    this.roomAttempts.set(room, attempt);
+    const pending = this.roomTimers.get(room);
+    if (pending) clearTimeout(pending);
+    this.roomTimers.delete(room);
+    const isCurrent = () => this.roomAttempts.get(room) === attempt && this.rooms.isHeld(room);
+
+    this.setRoomStatus(room, { state: 'waiting' });
+
+    if (!this.socket || !this.socket.connected) {
+      this.roomTimers.set(room, setTimeout(() => {
+        this.roomTimers.delete(room);
+        if (isCurrent()) this.setRoomStatus(room, { state: 'failed', reason: 'offline', message: ROOM_NO_ANSWER.offline });
+      }, ROOM_ANSWER_MS));
+      return;
+    }
+
+    this.socket.timeout(ROOM_ANSWER_MS).emit('join_room', room, (error: Error | null, answer?: any) => {
+      if (!isCurrent()) return;
+      if (error) {
+        // A connection that dropped while waiting is why no answer came, and the truer thing to say.
+        const reason = this.socket?.connected ? 'timeout' : 'offline';
+        this.log('warn', `No answer to joining ${room} (${reason})`);
+        this.setRoomStatus(room, { state: 'failed', reason, message: ROOM_NO_ANSWER[reason] });
+      } else if (answer?.status === 'ok') {
+        this.setRoomStatus(room, { state: 'ready' });
+      } else {
+        this.log('warn', `Joining ${room} failed: ${answer?.error ?? 'no reason given'}`);
+        this.setRoomStatus(room, {
+          state: 'failed',
+          reason: answer?.error === 'RoomAccessDenied' ? 'denied' : 'error',
+          message: typeof answer?.message === 'string' && answer.message ? answer.message : 'The server could not open this.',
+        });
+      }
+    });
   }
 
   /**

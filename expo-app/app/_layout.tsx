@@ -11,18 +11,19 @@ import { useActiveTheme } from '../store/settingsStore';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Orbitron_400Regular, Orbitron_700Bold } from '@expo-google-fonts/orbitron';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { wsService } from '../services/websocket';
 import { loadAssetConfig } from '../services/assets';
-import { useWsStore } from '../store/wsStore';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../store/authStore';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { SportsReadFailure } from '../components/SportsReadFailure';
+import { RoomFailureNotice } from '../components/RoomFailure';
+import { useLiveRoom } from '../hooks/useLiveRoom';
 import { startResultQueue } from '../services/resultQueue';
 import { startIdleDisconnect } from '../services/idleDisconnect';
 import { useAppActive } from '../hooks/useAppActive';
@@ -48,7 +49,6 @@ export default function RootLayout() {
   const verifySession = useAuthStore(state => state.verifySession);
   const { user, isAuthenticated, setMemberships, markMembershipsResolved } = useAuthStore();
   const isHydrated = useAuthStore(state => state.isHydrated);
-  const isConnected = useWsStore(state => state.isConnected);
   const appActive = useAppActive();
 
   // Where uploaded images are served from comes from the server (MEDIA-1). Nothing that shows an
@@ -102,56 +102,43 @@ export default function RootLayout() {
     prepare();
   }, [loaded, isHydrated, assetsReady]);
 
-  /**
-   * Route guards block until memberships resolve, and a room push has no ack and no timeout — so
-   * unlike a query there is nothing to fail. A refused join has to release them explicitly, and so
-   * does a push that simply never arrives, or the app sits on its splash screen forever. The wait is
-   * counted from having a connection, since that is when the join is sent.
-   */
-  const releaseGuards = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // `user:{id}:memberships` — one room, one dataset (rule 4). It used to be `user:{id}`, which also
+  // carried notifications and event capabilities, and the memberships themselves were read with a
+  // `get_data` because the broadcast carried `{}` (`LIVE-15`). The join push is the load now, so
+  // there is no query here at all. Each held copy is tagged with its room, so a change of user never
+  // hands the last user's memberships to the next.
+  const membershipsRoom = loaded && isAuthenticated && user?.id ? `user:${user.id}:memberships` : null;
+  // rooms-ok: route guard — RoomFailureNotice says it; failure releases the guards
+  const memberships = useLiveRoom<{ id: string; data: any }>(membershipsRoom, {
+    reduce: message =>
+      message.type === 'USER_MEMBERSHIPS_UPDATED'
+        ? { kind: 'replace', items: [{ id: membershipsRoom!, data: message.data }] }
+        : { kind: 'ignore' },
+  });
+  const heldMemberships = memberships.items[0]?.id === membershipsRoom ? memberships.items[0] : undefined;
+
   useEffect(() => {
-    if (!loaded || !isConnected || !isAuthenticated || !user?.id) return;
-    releaseGuards.current = setTimeout(() => {
-      console.warn('[RootLayout] No membership push within 10s. Releasing route guards.');
+    if (!heldMemberships) return;
+    const data = heldMemberships.data;
+    if (Array.isArray(data?.orgs)) {
+      console.log(`[RootLayout] Memberships received.`);
+      setMemberships(data.orgs, data.teams || [], data.dependants || []);
+    } else {
       markMembershipsResolved();
-    }, 10000);
-    return () => clearTimeout(releaseGuards.current);
-  }, [loaded, isConnected, isAuthenticated, user?.id]);
-
-  useEffect(() => {
-    if (loaded && isAuthenticated && user?.id) {
-      // `user:{id}:memberships` — one room, one dataset (rule 4). It used to be `user:{id}`,
-      // which also carried notifications and event capabilities, and the memberships themselves
-      // were read with a `get_data` because the broadcast carried `{}` (`LIVE-15`). The join push
-      // is the load now, so there is no query here at all.
-      const room = `user:${user.id}:memberships`;
-
-      const handleUpdate = (update: any) => {
-        if (!update || update.topic !== room) return;
-        if (update.type === 'ROOM_ACCESS_DENIED' || update.type === 'ROOM_ACCESS_REVOKED') {
-          clearTimeout(releaseGuards.current);
-          markMembershipsResolved();
-          return;
-        }
-        if (update.type !== 'USER_MEMBERSHIPS_UPDATED') return;
-        clearTimeout(releaseGuards.current);
-        if (Array.isArray(update.data?.orgs)) {
-          console.log(`[RootLayout] Memberships received.`);
-          setMemberships(update.data.orgs, update.data.teams || [], update.data.dependants || []);
-        } else {
-          markMembershipsResolved();
-        }
-      };
-
-      wsService.on('update', handleUpdate);
-      const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
-
-      return () => {
-        unsubscribe();
-        wsService.off('update', handleUpdate);
-      };
     }
-  }, [loaded, isAuthenticated, user?.id]);
+  }, [heldMemberships]);
+
+  /**
+   * Route guards block until memberships resolve, so a room that refuses or never answers has to
+   * release them, or the app sits on its splash screen for ever. The room's own status says when
+   * (`LIVE-25`), and `RoomFailureNotice` says why: nothing on this layout claims the room.
+   */
+  const membershipsFailed = !!memberships.failure;
+  useEffect(() => {
+    if (!membershipsRoom || !(memberships.accessDenied || membershipsFailed)) return;
+    console.warn('[RootLayout] Memberships did not arrive. Releasing route guards.');
+    markMembershipsResolved();
+  }, [membershipsRoom, memberships.accessDenied, membershipsFailed]);
 
   if (!loaded || !imagesReady) {
     return null;
@@ -199,6 +186,7 @@ function ThemeManager({ children }: { children: React.ReactNode }) {
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <OfflineBanner />
         <SportsReadFailure />
+        <RoomFailureNotice />
         {children}
         <ToastContainer />
       </View>

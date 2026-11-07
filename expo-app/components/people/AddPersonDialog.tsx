@@ -62,6 +62,7 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
   /** Whether they are already on record is unknown, and a second record is what the search is there to stop. */
   const [searchFailure, setSearchFailure] = useState<string | null>(null);
   const scope = useRequestScope();
+  // rooms-ok: covered by the workspace layout's RoomFailure
   const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
 
   useEffect(() => {

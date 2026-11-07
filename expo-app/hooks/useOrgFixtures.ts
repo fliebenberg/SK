@@ -10,7 +10,7 @@ import { useLiveRoom } from './useLiveRoom';
  * `useSiteGames`).
  */
 export function useOrgFixtures(orgId?: string | null) {
-  const { items: games, isLoading } = useLiveRoom<GameSummary>(orgId ? `org:${orgId}:fixtures` : null, {
+  const { items: games, isLoading, failure: gamesFailure, room: gamesRoom } = useLiveRoom<GameSummary>(orgId ? `org:${orgId}:fixtures` : null, {
     reduce: (message) => {
       switch (message.type) {
         case 'GAME_SUMMARIES_SYNC':
@@ -24,7 +24,7 @@ export function useOrgFixtures(orgId?: string | null) {
       }
     },
   });
-  const { items: events } = useLiveRoom<Event>(orgId ? `org:${orgId}:events` : null, {
+  const { items: events, failure: eventsFailure, room: eventsRoom } = useLiveRoom<Event>(orgId ? `org:${orgId}:events` : null, {
     reduce: (message) => {
       switch (message.type) {
         case 'EVENTS_SYNC':
@@ -40,5 +40,5 @@ export function useOrgFixtures(orgId?: string | null) {
     },
   });
   const eventNames = useMemo(() => new Map(events.map(e => [e.id, e.name])), [events]);
-  return { games, events, eventNames, isLoading };
+  return { games, events, eventNames, isLoading, failure: gamesFailure || eventsFailure, rooms: [gamesRoom, eventsRoom] };
 }

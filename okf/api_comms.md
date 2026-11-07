@@ -51,6 +51,13 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
      what each held room has delivered, and `subscribeToRoom(room, onReplay)` feeds that log to
      the newcomer. Screens using `useLiveRoom` get this without doing anything; a screen that
      calls `subscribeToRoom` directly does not, and should move to the hook (`LIVE-9`).
+   - **Every join is answered, and every room that does not arrive is said (`LIVE-25`).** The
+     server replies to `join_room` after the join push (`{ status: 'ok' }` or `{ status: 'error',
+     error, message }`), and a room for a missing record pushes `ENTITY_NOT_FOUND`. The socket
+     service times each join and keeps a status per held room (`RoomStatus`); `useLiveRoom` exposes
+     `failure`, `notFound`, `retry` and `room`. A page shows a failure with `RoomFailure`; any failed
+     room no page claims is said by the app-wide `RoomFailureNotice`. `npm run check:rooms` enforces
+     it. Details: the live-data skill, *When a room does not arrive*.
    - **Every message carries its `topic`.** Socket.io does not tell a receiver which room
      delivered a message, so the server stamps the room on
      ([wss/broadcast.ts](file:///c:/Fred/Coding/SK/server/src/wss/broadcast.ts)) and listeners

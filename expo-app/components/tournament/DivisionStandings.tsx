@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import { EventOrgBadge, GameSummary, TournamentAdjustment, TournamentStandingRow } from '@sk/shared';
 import { StandingsTable } from './StandingsTable';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
+import { RoomFailure } from '../RoomFailure';
 import { formByEntrant, orgName } from './standingsBits';
 import { useEventStandings } from '../../hooks/useEventRooms';
 
@@ -59,7 +60,7 @@ export function DivisionOrgStandings({ eventId, divisionId, showPoints = true, o
   isWide?: boolean;
   viewerOrgIds?: string[];
 }) {
-  const { divisions, isLoading } = useEventStandings(eventId);
+  const { divisions, isLoading, failure, room: tablesRoom } = useEventStandings(eventId);
   const entry = divisions.find(d => d.divisionId === divisionId);
   const teamCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -68,7 +69,11 @@ export function DivisionOrgStandings({ eventId, divisionId, showPoints = true, o
   }, [entry]);
 
   if (isLoading) {
-    return <Text className="font-inter text-xs text-ink-muted italic py-6 text-center">Loading the table...</Text>;
+    // Said only while there is nothing to show: a Head to Head's results open several of these at
+    // once, and one box per table would repeat it. Once held, the app-wide notice says it (`LIVE-25`).
+    return failure
+      ? <RoomFailure rooms={[tablesRoom]} what="The table" />
+      : <Text className="font-inter text-xs text-ink-muted italic py-6 text-center">Loading the table...</Text>;
   }
   return (
     <StandingsTable
@@ -90,7 +95,7 @@ export function DivisionOrgStandings({ eventId, divisionId, showPoints = true, o
 
 export function DivisionStandings({ divisionId, canEdit = false, showPoints = true, orgs, games, isWide = false, viewerOrgIds }: DivisionStandingsProps) {
   const form = useMemo(() => (games ? formByEntrant(games) : undefined), [games]);
-  const { items: stages, isLoading } = useLiveRoom<StageStandings>(
+  const { items: stages, isLoading, failure, room: standingsRoom } = useLiveRoom<StageStandings>(
     divisionId ? `division:${divisionId}:standings` : null,
     {
       reduce: (message) =>
@@ -101,7 +106,7 @@ export function DivisionStandings({ divisionId, canEdit = false, showPoints = tr
     }
   );
 
-  const { items: adjustments } = useLiveRoom<TournamentAdjustment>(
+  const { items: adjustments, room: adjustmentsRoom } = useLiveRoom<TournamentAdjustment>(
     divisionId ? `division:${divisionId}:adjustments` : null,
     {
       enabled: canEdit,
@@ -112,11 +117,19 @@ export function DivisionStandings({ divisionId, canEdit = false, showPoints = tr
     }
   );
 
+  // The division page's Standings: its tables and, for an organiser, the adjustments (`LIVE-25`).
+  const roomFailure = <RoomFailure rooms={[standingsRoom, adjustmentsRoom]} what="The table" stale={!isLoading} />;
+
   if (isLoading) {
     return (
-      <Text className="font-inter text-xs text-ink-muted italic py-6 text-center">
-        Loading the table...
-      </Text>
+      <View className="gap-2">
+        {roomFailure}
+        {failure ? null : (
+          <Text className="font-inter text-xs text-ink-muted italic py-6 text-center">
+            Loading the table...
+          </Text>
+        )}
+      </View>
     );
   }
 
@@ -126,6 +139,7 @@ export function DivisionStandings({ divisionId, canEdit = false, showPoints = tr
 
   return (
     <View className="gap-4">
+      {roomFailure}
       {stages.map(stage => (
         <View key={stage.stageId} className="gap-2">
           {named && (

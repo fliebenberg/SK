@@ -15,6 +15,7 @@ import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
 import { readData } from '../../services/reads';
 import { ReadFailure } from '../ReadFailure';
+import { RoomFailure } from '../RoomFailure';
 import { formatInstantDate, formatKickoffTime } from '../../utils/dates';
 import { managesOrg } from '../../utils/orgAccess';
 
@@ -114,12 +115,12 @@ export function useTournamentTodo({ event, divisions, entrants, canEdit, sports,
   games?: GameSummary[];
   /** The acting workspace, whose teams' coaches the team tasks name. */
   orgId?: string;
-}): { tasks: TodoTask[]; rows: TodoRow[]; reload: () => void; error: string | null } {
+}): { tasks: TodoTask[]; rows: TodoRow[]; reload: () => void; error: string | null; teamsRoom: string | null } {
   const orgMemberships = useAuthStore((state: any) => state.orgMemberships) || [];
   const teamMemberships = useAuthStore((state: any) => state.teamMemberships) || [];
   const userId = useAuthStore((state: any) => state.user?.id) as string | undefined;
   const { lineups, reload, error } = useEventLineups(canEdit ? null : event.id, userId);
-  const { teams } = useOrgTeams(canEdit ? null : orgId);
+  const { teams, room: teamsRoom } = useOrgTeams(canEdit ? null : orgId);
   const listed = useMemo(() => {
     if (canEdit) return { tasks: [], rows: [] };
     // Its admins and staff answer and name its places (`FIX-31`, `PERM-2`).
@@ -217,7 +218,9 @@ export function useTournamentTodo({ event, divisions, entrants, canEdit, sports,
     }
     return { tasks, rows };
   }, [canEdit, entrants, divisions, event, orgMemberships, teamMemberships, sports, lineups, teams, games]);
-  return { ...listed, reload, error };
+  // The workspace's teams room, which only names a task's coach: the list's holder places a
+  // `RoomFailure` for it (`TodoCard` here, the To do page's own) (`LIVE-25`).
+  return { ...listed, reload, error, teamsRoom };
 }
 
 /**
@@ -375,7 +378,7 @@ export function TodoRows({ rows, orgId, eventName, orgName, onAnswerEach, onOpen
  */
 function NameTeamDialog({ task, orgId, onClose }: { task: TodoTask | null; orgId: string; onClose: () => void }) {
   const isDark = useActiveTheme() === 'dark';
-  const { teams } = useOrgTeams(task?.entrant.orgId);
+  const { teams, room: pickRoom } = useOrgTeams(task?.entrant.orgId);
   const [teamId, setTeamId] = useState<string | null>(null);
   const [cannot, setCannot] = useState(false);
   const [reason, setReason] = useState('');
@@ -432,6 +435,8 @@ function NameTeamDialog({ task, orgId, onClose }: { task: TodoTask | null; orgId
       isDirty={!!teamId || !!reason.trim()}
     >
       <Text className="font-inter text-sm text-ink-muted">{task ? `${task.divisionName} · \u201c${task.teamName}\u201d` : ''}</Text>
+      {/* The teams to choose from; said in the dialog, which covers the page (`LIVE-25`). */}
+      <RoomFailure rooms={[pickRoom]} what="Your organisation's teams" stale={teams.length > 0} />
       {cannot ? (
         <>
           <Text className="font-inter text-sm text-ink leading-relaxed">
@@ -482,11 +487,13 @@ export function todoTitle(tasks: TodoTask[]) {
  * coaches · See all 9 ›*. Nothing to do, no card — unless the games could not be read, when nobody
  * knows that (`SYNC-9`).
  */
-export function TodoCard({ tasks, rows, error, orgId, eventName, orgName, onAnswerEach, onOpenGame, onChanged, onSeeAll }: {
+export function TodoCard({ tasks, rows, error, teamsRoom, orgId, eventName, orgName, onAnswerEach, onOpenGame, onChanged, onSeeAll }: {
   tasks: TodoTask[];
   rows: TodoRow[];
   /** `useTournamentTodo`'s: the games did not load. `onChanged` reads them again. */
   error?: string | null;
+  /** `useTournamentTodo`'s: the room the coaches' names come from. */
+  teamsRoom?: string | null;
   orgId: string;
   eventName: string;
   orgName: (orgId?: string) => string;
@@ -505,6 +512,7 @@ export function TodoCard({ tasks, rows, error, orgId, eventName, orgName, onAnsw
     <View testID="todo-card" className="rounded-2xl border border-warning-line bg-card p-4 gap-1">
       <Text className="font-inter-bold text-[18px] text-ink">{tasks.length ? todoTitle(tasks) : 'To do'}</Text>
       {error ? <TodoReadFailure reason={error} onRetry={onChanged} /> : null}
+      <RoomFailure rooms={[teamsRoom]} title="Coaches' names may be missing from this list." stale />
       {shown.length ? (
         <TodoRows rows={shown} orgId={orgId} eventName={eventName} orgName={orgName} onAnswerEach={onAnswerEach} onOpenGame={onOpenGame} onChanged={onChanged} />
       ) : rows.length ? (

@@ -10,6 +10,8 @@ import { Tabs } from '../../../../../../../components/Tabs';
 import { OverflowMenu, OverflowMenuItem } from '../../../../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../../../../components/ConfirmationModal';
 import { ReadFailure } from '../../../../../../../components/ReadFailure';
+import { RoomFailure } from '../../../../../../../components/RoomFailure';
+import { EditDialog } from '../../../../../../../components/EditDialog';
 import { AccessDenied } from '../../../../../../../components/AccessDenied';
 import { RecordResultModal } from '../../../../../../../components/RecordResultModal';
 import { PendingResultNote } from '../../../../../../../components/PendingResultNote';
@@ -33,6 +35,7 @@ import { sendAction } from '../../../../../../../services/actions';
 import { readData } from '../../../../../../../services/reads';
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { useWsStore } from '../../../../../../../store/wsStore';
+import { useRoomStatusStore } from '../../../../../../../store/roomStatusStore';
 import { useActiveTheme } from '../../../../../../../store/settingsStore';
 import { themeColor } from '../../../../../../../constants/Colors';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
@@ -69,12 +72,13 @@ export default function GamePage() {
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((s: any) => s.isConnected);
 
-  const { summary, isLoading, accessDenied } = useGameSummary(gameId);
-  const { event } = useEventRecord(eventId);
+  const { summary, isLoading, accessDenied, notFound, failure: summaryFailure, room: summaryRoom } = useGameSummary(gameId);
+  const { event, notFound: eventNotFound, failure: eventFailure, room: eventRoom } = useEventRecord(eventId);
   const isMatch = resolveEventType(event).kind === 'SingleMatch';
   const isFixture = !!event && !isMatch;
   const sports = useSports();
   const sport = sports.find(s => s.id === summary?.sportId);
+  // rooms-ok: capability updates only; the read is the load and its failure is in `detailsFailure`
   const { capabilities, error: capabilitiesError, retry: retryCapabilities } = useEventCapabilities(eventId, { suppressToast: true });
   // Appointed officials, whom no membership names (`PERM-6`); not asked on the public page.
   const { capabilities: gameCapabilities, error: gameCapabilitiesError, retry: retryGameCapabilities } = useGameCapabilities(links.isPublic ? null : gameId, { suppressToast: true });
@@ -114,7 +118,7 @@ export default function GamePage() {
   const { lineups, error: lineupsError, reload: reloadLineups } = useGameLineups(sides.map(p => p.id));
   const homeSides = useMemo(() => new Set(sides.filter(p => site?.orgId && p.orgId === site.orgId).map(p => p.id)), [sides, site]);
 
-  const divisions = useEventDivisions(isFixture ? eventId : null);
+  const { divisions: divisions, room: divisionsRoom } = useEventDivisions(isFixture ? eventId : null);
   const division = divisions.find(d => d.id === summary?.divisionId);
 
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -143,10 +147,17 @@ export default function GamePage() {
     );
   }
   if (isLoading || !summary || !event) {
+    // Its room says so when the game or its event is gone (`LIVE-25`), rather than leaving this spinning.
+    const missing = notFound ? 'This game does not exist any more.'
+      : eventNotFound ? 'The event this game belongs to does not exist any more.' : null;
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Game" onBack={goBack} />
-        <View className="flex-1 items-center justify-center"><ActivityIndicator color={themeColor(isDark, 'primary')} /></View>
+        <View className="flex-1 items-center justify-center px-6">
+          {missing ? <Text className="font-inter text-sm text-ink-muted text-center">{missing}</Text>
+            : summaryFailure || eventFailure ? <RoomFailure rooms={[summaryRoom, eventRoom]} what="This game" />
+            : <ActivityIndicator color={themeColor(isDark, 'primary')} />}
+        </View>
       </SafeAreaView>
     );
   }
@@ -398,6 +409,8 @@ export default function GamePage() {
         <PageBody className="gap-3.5">
           {scoreboard}
           {detailsFailure}
+          {/* The score, status and division come live from these rooms: without them this is the last known state. */}
+          <RoomFailure rooms={[summaryRoom, eventRoom, divisionsRoom]} what="This game" stale />
           <PendingResultNote gameId={gameId} />
           {cancelledStrip}
           {body}
@@ -473,12 +486,15 @@ export default function GamePage() {
  */
 function FixtureMove({ event, orgId, summary, canEdit, onClose }: { event: Event; orgId: string; summary: GameSummary; canEdit: boolean; onClose: () => void }) {
   const online = useWsStore((s: any) => s.isConnected);
-  const games = useEventFixtures(event.id);
-  const divisions = useEventDivisions(event.id);
-  const facilityIds = useEventFacilityIds(event.id);
-  const { sites, facilities } = useOrgSites(event.orgId);
-  const { org: hostOrg } = useOrgSummary(event.orgId);
+  const { games: games, room: gamesRoom } = useEventFixtures(event.id);
+  const { divisions: divisions, room: divisionsRoom } = useEventDivisions(event.id);
+  const { facilityIds: facilityIds, room: facilityIdsRoom } = useEventFacilityIds(event.id);
+  const { sites, facilities, rooms: siteRooms } = useOrgSites(event.orgId);
+  const { org: hostOrg, room: hostRoom } = useOrgSummary(event.orgId);
   const sports = useSports();
+  // The clash check is worked out from all of these; with one missing it cannot be relied on (`LIVE-25`).
+  const scheduleRooms = [gamesRoom, divisionsRoom, facilityIdsRoom, ...siteRooms, hostRoom];
+  const scheduleFailed = useRoomStatusStore(state => scheduleRooms.some(room => !!room && !!state.failed[room]));
   const check = useScheduleCheck({ event, orgId, canEdit, divisions, games, sports, sites, facilities, facilityIds, hostOrg });
   const game = games.find(g => g.id === summary.id) || summary;
   const days = (event.days || []).map(d => d.day);
@@ -489,6 +505,15 @@ function FixtureMove({ event, orgId, summary, canEdit, onClose }: { event: Event
     const res = await sendAction(SocketAction.MOVE_FIXTURE, { gameId: summary.id, orgId, startAt, facilityId: to ? to.facilityId : null });
     if (res.ok) onClose();
   };
+
+  if (scheduleFailed) {
+    return (
+      <EditDialog visible title="Move fixture" onClose={onClose}>
+        <RoomFailure rooms={[gamesRoom, divisionsRoom, facilityIdsRoom, ...siteRooms, hostRoom]} title="The tournament's schedule did not load." />
+        <Text className="font-inter text-[13px] text-ink-muted">Moving a fixture needs it, to check for clashes.</Text>
+      </EditDialog>
+    );
+  }
 
   return (
     <MoveSheet

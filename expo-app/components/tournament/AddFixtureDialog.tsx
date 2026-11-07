@@ -23,10 +23,17 @@ export function AddFixtureDialog({ event, orgId, divisionId, onClose }: {
   divisionId?: string;
   onClose: () => void;
 }) {
-  const games = useEventFixtures(event.id);
-  const allDivisions = useEventDivisions(event.id);
-  const facilityIds = useEventFacilityIds(event.id);
+  // The tournament's rooms, which both pages that open this (the tournament page and the division page)
+  // hold and cover with their own RoomFailure (`LIVE-25`). The sheet below says its division's own.
+  // rooms-ok: covered by the tournament or division page's RoomFailure
+  const { games } = useEventFixtures(event.id);
+  // rooms-ok: as above
+  const { divisions: allDivisions } = useEventDivisions(event.id);
+  // rooms-ok: as above
+  const { facilityIds } = useEventFacilityIds(event.id);
+  // rooms-ok: as above
   const { sites, facilities } = useOrgSites(event.orgId);
+  // rooms-ok: as above
   const { org: hostOrg } = useOrgSummary(event.orgId);
   const sports = useSports();
   const check = useScheduleCheck({ event, orgId, canEdit: true, divisions: allDivisions, games, sports, sites, facilities, facilityIds, hostOrg });

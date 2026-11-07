@@ -9,6 +9,7 @@ import { useActiveTheme } from '../../../../store/settingsStore';
 import { sendAction } from '../../../../services/actions';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { ReadFailure } from '../../../../components/ReadFailure';
+import { RoomFailure } from '../../../../components/RoomFailure';
 import { useAuthStore } from '../../../../store/authStore';
 import {
   SocketAction,
@@ -107,7 +108,7 @@ export default function EventDetails() {
   // ------------------------------------------------------------------------------------------
 
   const {
-    event, eventLoading, accessDenied, games, divisions, facilityIds: savedFacilityIds, sites, facilities, sports,
+    event, eventLoading, accessDenied, notFound, rooms, games, divisions, facilityIds: savedFacilityIds, sites, facilities, sports,
     capabilities, canEdit, entrants, entrantsByDivision, hostOrg,
   } = useTournamentData(orgId, eventId);
 
@@ -127,7 +128,7 @@ export default function EventDetails() {
   // Permissions
   // ------------------------------------------------------------------------------------------
 
-  const grants = useMyEventGrants();
+  const { grants, room: grantsRoom } = useMyEventGrants();
   /*
    * `canEdit` is what the server says (`capabilities.canEditEvent`), rather than
    * `event.orgId === orgId`, which was the old test. That question cannot see an appointed organiser
@@ -271,9 +272,23 @@ export default function EventDetails() {
     );
   }
 
+  if (notFound) {
+    return (
+      <SafeAreaView className="flex-1 bg-canvas justify-center items-center px-8">
+        <Ionicons name="help-circle-outline" size={44} color={themeColor(isDark, 'ink-muted')} style={{ opacity: 0.3 }} />
+        <Text className="font-orbitron-bold text-base text-ink-soft mt-4">Not Found</Text>
+        <Text className="font-inter text-xs text-ink-muted text-center mt-1">
+          This event does not exist. It may have been deleted.
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
   if (eventLoading || !event) {
     return (
-      <SafeAreaView className="flex-1 bg-canvas justify-center items-center">
+      <SafeAreaView className="flex-1 bg-canvas justify-center items-center px-8">
+        {/* Said here too: the tournament's rooms are its load, and one that never answers would spin for ever (`LIVE-25`). */}
+        <RoomFailure rooms={[...rooms, grantsRoom]} what="The tournament" className="mb-4" />
         <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         <Text className="font-orbitron text-xs text-ink-muted mt-4 uppercase tracking-widest">
           Loading Details...
@@ -452,6 +467,8 @@ export default function EventDetails() {
       <ScrollView ref={scrollRef} className="flex-1" contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}>
         {/* The first tab, the Overview: cards in two or three columns on a wide screen. Each card saves itself
             through its own dialog, so the tab is never dirty. */}
+        {/* Once, for every room the page is built from (`LIVE-25`): what is shown is the last known state. */}
+        <RoomFailure rooms={[...rooms, grantsRoom]} what="The tournament" stale className="mb-3" />
         {activeTab === 'setup' && (
           <PageBody onLayout={e => { overviewTop.current = e.nativeEvent.layout.y; }}>
             {/* No organisers is no card, so a failed read says so here rather than leaving that impression. */}

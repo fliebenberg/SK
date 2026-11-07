@@ -17,7 +17,7 @@ import { useLiveRoom } from './useLiveRoom';
  * join it — joining anyway would be a refusal per mount rather than a quiet no-op.
  */
 export function useDivisionEntrants(divisionId?: string | null, enabled = true) {
-  const { items, isLoading, accessDenied } = useLiveRoom<TournamentEntrant>(
+  const { items, isLoading, accessDenied, failure, room } = useLiveRoom<TournamentEntrant>(
     divisionId ? `division:${divisionId}:entrants` : null,
     {
       enabled,
@@ -30,7 +30,7 @@ export function useDivisionEntrants(divisionId?: string | null, enabled = true) 
     }
   );
 
-  return { entrants: items, isLoading, accessDenied };
+  return { entrants: items, isLoading, accessDenied, failure, room };
 }
 
 /**

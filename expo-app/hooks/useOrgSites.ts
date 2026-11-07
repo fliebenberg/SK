@@ -9,7 +9,7 @@ import { useLiveRoom } from './useLiveRoom';
  * the Sites list and the site page read from here and neither fetches.
  */
 export function useOrgSites(orgId?: string | null) {
-  const { items: sites, isLoading: isSitesLoading, accessDenied } = useLiveRoom<Site>(orgId ? `org:${orgId}:sites` : null, {
+  const { items: sites, isLoading: isSitesLoading, accessDenied, failure: sitesFailure, room: sitesRoom } = useLiveRoom<Site>(orgId ? `org:${orgId}:sites` : null, {
     reduce: (message) => {
       switch (message.type) {
         case 'SITES_SYNC':
@@ -24,7 +24,7 @@ export function useOrgSites(orgId?: string | null) {
       }
     },
   });
-  const { items: facilities, isLoading: isFacilitiesLoading } = useLiveRoom<Facility>(orgId ? `org:${orgId}:facilities` : null, {
+  const { items: facilities, isLoading: isFacilitiesLoading, failure: facilitiesFailure, room: facilitiesRoom } = useLiveRoom<Facility>(orgId ? `org:${orgId}:facilities` : null, {
     reduce: (message) => {
       switch (message.type) {
         case 'FACILITIES_SYNC':
@@ -39,5 +39,7 @@ export function useOrgSites(orgId?: string | null) {
       }
     },
   });
-  return { sites, facilities, isLoading: isSitesLoading || isFacilitiesLoading, accessDenied };
+  // Both rooms, for a `RoomFailure`: a page about venues has lost half of them if either fails.
+  const rooms = [sitesRoom, facilitiesRoom];
+  return { sites, facilities, isLoading: isSitesLoading || isFacilitiesLoading, accessDenied, failure: sitesFailure || facilitiesFailure, rooms };
 }

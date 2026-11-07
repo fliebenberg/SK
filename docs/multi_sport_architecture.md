@@ -82,6 +82,14 @@ double as a record of what the official list is missing: the admin promotes one,
 the official entry it duplicates. Teams, divisions and leagues hold the entry's id, under a foreign
 key that requires it to belong to their own sport.
 
+The picker is a dropdown on every form (2026-11-07; the row of chips is gone). **Choosing an age
+group is required everywhere.** A team must have one. A division or league may be open to any age,
+but that is a choice like any other, **Any age**, and the form starts on it. **Other…** replaces the
+dropdown with a box for typing a new entry, with a ✕ that goes back to the earlier choice. While the
+box is open nothing is chosen, so Save stays disabled until the new entry is added with **Add**.
+Without that, a form could save the earlier choice, or Any age, while the user believed they had set
+the name they typed.
+
 The picker has two shapes. Its default is **chips** — every official entry on show, with "Other…"
 opening the custom ones and a box to add another — for screens where choosing the age group is the
 point. `variant="dropdown"` folds the same choices into a `CustomSelect`, for a screen where the

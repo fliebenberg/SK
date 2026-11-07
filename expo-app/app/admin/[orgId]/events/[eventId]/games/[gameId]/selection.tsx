@@ -21,10 +21,12 @@ import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { useUnsavedChangesStore } from '../../../../../../../store/unsavedChangesStore';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { wsService } from '../../../../../../../services/websocket';
+import { useRoom } from '../../../../../../../hooks/useLiveRoom';
 import { sendAction } from '../../../../../../../services/actions';
 import { useToastStore } from '../../../../../../../store/toastStore';
 import { readData } from '../../../../../../../services/reads';
 import { ReadFailure } from '../../../../../../../components/ReadFailure';
+import { RoomFailure } from '../../../../../../../components/RoomFailure';
 import { ScreenHeader } from '../../../../../../../components/ScreenHeader';
 import { useIncomingRecord, CHANGED_ELSEWHERE_CHECKED_NOTICE } from '../../../../../../../hooks/useIncomingRecord';
 
@@ -67,6 +69,7 @@ export default function GameSelectionScreen() {
     gameId: string;
     teamId?: string;
   }>();
+  // rooms-ok: capability updates only; the read is the load and its failure is shown with the page's read failures
   const { capabilities, error: capabilitiesError, retry: retryCapabilities } = useEventCapabilities(eventId, { suppressToast: true });
   const router = useRouter();
   const safeBack = useSafeBack();
@@ -369,11 +372,13 @@ export default function GameSelectionScreen() {
     };
   }, [proposalAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Real-Time Room Subscription & Delta Update Listener
+  // The game's room, held with its status (`LIVE-25`); the listener below reads its messages.
+  const gameRoom = useRoom(gameId ? `game:${gameId}` : null);
+
+  // Delta Update Listener
   useEffect(() => {
     if (!gameId) return;
     const room = `game:${gameId}`;
-    const unsubscribeRoom = wsService.subscribeToRoom(room);
 
     const handleUpdate = (evt: { topic?: string; type: string; data: any }) => {
       if (!evt) return;
@@ -407,7 +412,6 @@ export default function GameSelectionScreen() {
     wsService.on('update', handleUpdate);
 
     return () => {
-      unsubscribeRoom();
       wsService.off('update', handleUpdate);
     };
   }, [gameId, currentParticipant?.id, offerSheet]);
@@ -959,7 +963,10 @@ export default function GameSelectionScreen() {
 
       {/* MAIN CONTAINER: 2-COLUMN RESPONSIVE LAYOUT */}
       <ScrollView className="flex-1 px-3 py-3" contentContainerStyle={{ paddingBottom: 60 }}>
-        {readProblem ? <ReadFailure title={readProblem.title} reason={readProblem.reason} onRetry={retryFailedReads} className="mb-3" /> : null}
+        {readProblem ? <ReadFailure title={readProblem.title} reason={readProblem.reason} onRetry={retryFailedReads} className="mb-3" /> : (
+          // Saved sheets and kick-off changes arrive through this room; without it the sheet may be out of date.
+          <RoomFailure rooms={[gameRoom.room]} what="The team sheet" stale className="mb-3" />
+        )}
         {proposedFrom && canEditCurrentTeam ? (
           <View testID="proposed-note" className="bg-warning-soft border border-warning-line rounded-xl p-3 mb-3 flex-row items-center gap-2">
             <Ionicons name="information-circle-outline" size={18} color={themeColor(isDark, 'warning-ink')} />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
@@ -8,13 +8,14 @@ import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../store/settingsStore';
-import { wsService } from '../../../../services/websocket';
 import { sendAction } from '../../../../services/actions';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { SocketAction, League, Sport } from '@sk/shared';
 import { getOrgLogoUrl } from '../../../../services/assets';
 import CustomSelect from '../../../../components/CustomSelect';
 import { ReadFailure } from '../../../../components/ReadFailure';
+import { RoomFailure } from '../../../../components/RoomFailure';
+import { useLiveRoom } from '../../../../hooks/useLiveRoom';
 import { AgeGroupPicker } from '../../../../components/AgeGroupPicker';
 import { useImageUpload } from '../../../../hooks/useImageUpload';
 import { themeColor } from '../../../../constants/Colors';
@@ -25,11 +26,26 @@ export default function OrgLeagues() {
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
 
-  // States
-  const [isLoading, setIsLoading] = useState(true);
-  const [leagues, setLeagues] = useState<League[]>([]);
-  /** The room refused this viewer (`SYNC-10`): not "no leagues", which only its answer can say. */
-  const [refused, setRefused] = useState(false);
+  // The room hands the leagues over on join (`LIVE-14`), so there is no `get_data leagues` here —
+  // joining *is* the load, live-data rule 2. A refusal is not "no leagues" (`SYNC-10`), and a room
+  // that does not arrive is said where the list would be (`LIVE-25`).
+  const {
+    items: leagues,
+    isLoading,
+    accessDenied: refused,
+    failure: leaguesFailure,
+    room: leaguesRoom,
+  } = useLiveRoom<League>(orgId ? `org:${orgId}:leagues` : null, {
+    reduce: message => {
+      switch (message.type) {
+        case 'LEAGUES_SYNC': return { kind: 'replace', items: Array.isArray(message.data) ? message.data : [] };
+        case 'LEAGUE_ADDED':
+        case 'LEAGUE_UPDATED': return message.data?.id ? { kind: 'upsert', item: message.data } : { kind: 'ignore' };
+        case 'LEAGUE_DELETED': return message.data?.id ? { kind: 'remove', id: message.data.id } : { kind: 'ignore' };
+        default: return { kind: 'ignore' };
+      }
+    },
+  });
   // Drawn here where the names would be, and in the form where the sport is chosen.
   const { data: sportsRead, error: sportsError, refetch: refetchSports } = useSocketQuery<Sport[]>('sports', {}, { suppressToast: true });
   const sports = sportsRead ?? [];
@@ -41,7 +57,7 @@ export default function OrgLeagues() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newLeagueName, setNewLeagueName] = useState('');
   const [selectedSportId, setSelectedSportId] = useState('');
-  const [newLeagueAgeGroupId, setNewLeagueAgeGroupId] = useState<string | null>(null);
+  const [newLeagueAgeGroupId, setNewLeagueAgeGroupId] = useState<string | null | undefined>(null);
   const [selectedJoinPolicy, setSelectedJoinPolicy] = useState<'CLOSED' | 'INVITE' | 'OPEN'>('CLOSED');
   const [newLeagueLogo, setNewLeagueLogo] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -65,55 +81,6 @@ export default function OrgLeagues() {
     setIsCreateModalOpen(false);
   };
 
-  // Fetch Data & Subscribe
-  useEffect(() => {
-    if (!orgId) return;
-
-    let active = true;
-    setIsLoading(true);
-
-    // Real-Time Sync Subscription. The room hands the leagues over on join (`LIVE-14`), so there
-    // is no `get_data leagues` here — joining *is* the load, live-data rule 2.
-    const room = `org:${orgId}:leagues`;
-
-    const handleUpdate = (event: any) => {
-      if (!active) return;
-      if (event) {
-        if (event.type === 'LEAGUES_SYNC') {
-          if (Array.isArray(event.data)) setLeagues(event.data);
-          setRefused(false);
-          setIsLoading(false);
-        } else if (event.type === 'ROOM_ACCESS_DENIED' || event.type === 'ROOM_ACCESS_REVOKED') {
-          // A room push has no ack and no timeout, so a refused join has to clear the spinner
-          // explicitly or the screen waits forever for a message that is never coming.
-          setLeagues([]);
-          setRefused(true);
-          setIsLoading(false);
-        } else if (event.type === 'LEAGUE_ADDED') {
-          setLeagues(prev => {
-            if (prev.some(l => l.id === event.data.id)) {
-              return prev.map(l => l.id === event.data.id ? event.data : l);
-            }
-            return [event.data, ...prev];
-          });
-        } else if (event.type === 'LEAGUE_UPDATED') {
-          setLeagues(prev => prev.map(l => l.id === event.data.id ? event.data : l));
-        } else if (event.type === 'LEAGUE_DELETED') {
-          setLeagues(prev => prev.filter(l => l.id !== event.data.id));
-        }
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-    const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
-
-    return () => {
-      active = false;
-      unsubscribe();
-      wsService.off('update', handleUpdate);
-    };
-  }, [orgId]);
-
   // Create League Handler
   const handleCreateLeague = () => {
     if (!newLeagueName.trim() || !selectedSportId) {
@@ -128,7 +95,7 @@ export default function OrgLeagues() {
       name: newLeagueName.trim(),
       orgId,
       sportId: selectedSportId,
-      ageGroupId: newLeagueAgeGroupId,
+      ageGroupId: newLeagueAgeGroupId ?? null,
       joinPolicy: selectedJoinPolicy,
       criteria: {},
       logo: newLeagueLogo || undefined
@@ -193,7 +160,7 @@ export default function OrgLeagues() {
       </View>
 
       {/* Content */}
-      {isLoading ? (
+      {isLoading && !leaguesFailure ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
@@ -215,6 +182,7 @@ export default function OrgLeagues() {
           <View className="gap-4">
             {sportsFailed ? <ReadFailure what="The sports" reason={sportsError} onRetry={refetchSports} /> : null}
             {refused ? <ReadFailure title="The leagues did not load." reason="The server refused this account access to the organisation's leagues." /> : null}
+            <RoomFailure rooms={[leaguesRoom]} what="The leagues" stale={leagues.length > 0} />
 
             {filteredLeagues.map((league) => (
               <GlassCard key={league.id} className="border border-line p-4">
@@ -277,7 +245,7 @@ export default function OrgLeagues() {
               </GlassCard>
             ))}
 
-            {filteredLeagues.length === 0 && !refused && (
+            {filteredLeagues.length === 0 && !refused && !isLoading && (
               <View className="items-center justify-center py-12">
                 <Ionicons name="trophy-outline" size={48} color={themeColor(isDark, 'ink-muted')} className="opacity-40 mb-3" />
                 <Text className="font-orbitron-bold text-base text-ink-soft">No Leagues Found</Text>
@@ -391,7 +359,7 @@ export default function OrgLeagues() {
               <Button
                 title={isProcessing ? "Saving..." : "Create League"}
                 onPress={handleCreateLeague}
-                disabled={isProcessing || sportsFailed}
+                disabled={isProcessing || sportsFailed || newLeagueAgeGroupId === undefined}
                 className="flex-1 py-3 rounded-xl"
               />
             </View>

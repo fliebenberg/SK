@@ -54,6 +54,7 @@ export default function OrgPeople() {
   const { data: rolesData, isLoading: isRolesLoading, error: rolesError, refetch: refetchRoles } = useSocketQuery<any>('roles', {}, { suppressToast: true });
   const { canManage: canEdit, isAdmin } = useOrgAccess(orgId);
   const roles: OrgRole[] = rolesTheyMayGive(rolesData?.org || [], isAdmin);
+  // rooms-ok: covered by the workspace layout's RoomFailure
   const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
 
   const [search, setSearch] = useState('');

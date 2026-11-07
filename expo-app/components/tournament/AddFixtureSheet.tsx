@@ -8,6 +8,7 @@ import { EditDialog } from '../EditDialog';
 import { scheduleModel } from './scheduleModel';
 import { useDivisionEntrants } from '../../hooks/useDivisionEntrants';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
+import { RoomFailure } from '../RoomFailure';
 import { sendAction } from '../../services/actions';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
@@ -56,9 +57,9 @@ export function AddFixtureSheet({ event, orgId, divisions, divisionName, initial
   const [divisionId, setDivisionId] = useState(initialDivisionId && divisions.some(d => d.id === initialDivisionId) ? initialDivisionId : divisions[0]?.id || '');
   const division = divisions.find(d => d.id === divisionId);
 
-  const { entrants, isLoading } = useDivisionEntrants(divisionId || null);
+  const { entrants, isLoading, failure: entrantsFailure, room: entrantsRoom } = useDivisionEntrants(divisionId || null);
   const inPlay = entrants.filter(e => isEntrantInPlay(e.status));
-  const { items: stageItems } = useLiveRoom<TournamentStage>(divisionId ? `division:${divisionId}:stages` : null, {
+  const { items: stageItems, room: stagesRoom } = useLiveRoom<TournamentStage>(divisionId ? `division:${divisionId}:stages` : null, {
     reduce: message => (message.type === 'STAGES_SYNC' ? { kind: 'replace', items: message.data?.stages || [] } : { kind: 'ignore' }),
   });
   const stages = useMemo(() => [...stageItems].sort((a, b) => (a.sequence || 0) - (b.sequence || 0)), [stageItems]);
@@ -153,8 +154,10 @@ export function AddFixtureSheet({ event, orgId, divisions, divisionName, initial
         </View>
       ) : null}
 
+      {/* Said in the dialog, which covers the page: the chosen division may not be the page's (`LIVE-25`). */}
+      <RoomFailure rooms={[entrantsRoom, stagesRoom]} what="This division's teams and stages" stale={!isLoading} />
       {isLoading ? (
-        <Text className="font-inter text-sm text-ink-muted">Loading the teams…</Text>
+        entrantsFailure ? null : <Text className="font-inter text-sm text-ink-muted">Loading the teams…</Text>
       ) : inPlay.length < 2 ? (
         <Text className="font-inter text-sm text-ink-muted">{divisionName(divisionId)} needs at least two teams in it before a fixture can be added.</Text>
       ) : (

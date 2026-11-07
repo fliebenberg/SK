@@ -13,10 +13,9 @@ import { useLiveRoom } from './useLiveRoom';
  * Pass `null` to hold no room.
  */
 export function useOrgSummary(orgId?: string | null) {
-  const { items, isLoading, accessDenied } = useLiveRoom<Organization>(orgId ? `org:${orgId}:summary` : null, {
+  const { items, isLoading, accessDenied, notFound, failure, room } = useLiveRoom<Organization>(orgId ? `org:${orgId}:summary` : null, {
     reduce: (message) => {
-      // The room answers a join for an org that does not exist with this instead of the org.
-      if (message.type === 'ENTITY_NOT_FOUND' && message.data?.id === orgId) return { kind: 'replace', items: [] };
+      // An org that does not exist is `notFound`, said by `useLiveRoom` (`ENTITY_NOT_FOUND`).
       if (message.type !== 'ORGANIZATION_UPDATED' || message.data?.id !== orgId) return { kind: 'ignore' };
       // A deleted org is published as `{ id, deleted: true }`: there is no organisation to show.
       if (message.data?.deleted) return { kind: 'replace', items: [] };
@@ -26,5 +25,5 @@ export function useOrgSummary(orgId?: string | null) {
   // The room's state outlives an id change until the new room's push lands; never show the
   // previous organisation under the new one's id.
   const held = items[0] as Organization | undefined;
-  return { org: orgId && held?.id === orgId ? held : null, isLoading, accessDenied };
+  return { org: orgId && held?.id === orgId ? held : null, isLoading, accessDenied, notFound, failure, room };
 }

@@ -7,11 +7,11 @@ import { useLiveRoom } from './useLiveRoom';
  * game page's scoreboard moves with the match without reading the full record again.
  */
 export function useGameSummary(gameId?: string | null) {
-  const { items, isLoading, accessDenied } = useLiveRoom<GameSummary>(gameId ? `game:${gameId}:summary` : null, {
+  const { items, isLoading, accessDenied, notFound, failure, room } = useLiveRoom<GameSummary>(gameId ? `game:${gameId}:summary` : null, {
     reduce: (message) =>
       message.type === 'GAME_SUMMARY_UPDATED' && message.data?.id === gameId
         ? { kind: 'replace', items: [message.data] }
         : { kind: 'ignore' },
   });
-  return { summary: items[0] as GameSummary | undefined, isLoading, accessDenied };
+  return { summary: items[0] as GameSummary | undefined, isLoading, accessDenied, notFound, failure, room };
 }

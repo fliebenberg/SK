@@ -7,6 +7,7 @@ import DatePicker from '../DatePicker';
 import { FixtureCrest } from '../events/EventBits';
 import { sideLabel } from './GameBits';
 import { ReadFailure } from '../ReadFailure';
+import { RoomFailure } from '../RoomFailure';
 import { sendAction } from '../../services/actions';
 import { readData } from '../../services/reads';
 import { useAuthStore } from '../../store/authStore';
@@ -177,8 +178,8 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
   onClose: () => void;
 }) {
   const isDark = useActiveTheme() === 'dark';
-  const { sites, facilities } = useOrgSites(hostOrgId);
-  const { org: hostOrg } = useOrgSummary(hostOrgId);
+  const { sites, facilities, rooms: siteRooms } = useOrgSites(hostOrgId);
+  const { org: hostOrg, room: hostRoom } = useOrgSummary(hostOrgId);
   /** Every organisation read so far: the match's two, and whatever a search has found. */
   const [knownOrgs, setKnownOrgs] = useState<Record<string, Organization>>({});
   const [found, setFound] = useState<Organization[]>([]);
@@ -358,6 +359,8 @@ export function EditMatchDialog({ visible, orgId, hostOrgId, eventId, game, summ
       {orgsError || teamsError ? (
         <ReadFailure what="The organisations and their teams" reason={(orgsError || teamsError)!} onRetry={() => setReadAttempt(n => n + 1)} />
       ) : null}
+      {/* The venues to choose from and the host's time zone (`LIVE-25`). */}
+      <RoomFailure rooms={[...siteRooms, hostRoom]} what="The venues" stale={sites.length > 0} />
       <View className="gap-1.5">
         {label('Teams')}
         {teamRow(0)}

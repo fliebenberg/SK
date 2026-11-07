@@ -108,6 +108,7 @@ export function LeftNavigationRail() {
   // Check if we are in the org admin panel
   const isOrgAdmin = segments[0] === 'admin';
   const orgSubTab = isOrgAdmin ? currentWorkspacePage(segments) : '';
+  // rooms-ok: the org's name and colours on the rail; the workspace layout's RoomFailure says it, elsewhere RoomFailureNotice
   const { org: orgData } = useOrgSummary(isOrgAdmin ? orgId : null);
   const { workspace } = useOrgAccess(isOrgAdmin ? orgId : undefined);
 

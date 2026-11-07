@@ -6,6 +6,7 @@ import { EditDialog } from '../EditDialog';
 import { RELATIONSHIP_LABELS } from '../guardians/guardianDraft';
 import { PersonAvatar } from './PersonBits';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
+import { RoomFailure } from '../RoomFailure';
 import { sendAction } from '../../services/actions';
 import { useActiveTheme } from '../../store/settingsStore';
 import { themeColor } from '../../constants/Colors';
@@ -14,13 +15,13 @@ import { formatCellphone } from '../../utils/phone';
 
 /** What is waiting to be decided, from `org:{id}:applications`: Admin and Staff's (`MEMBER-1`). */
 export function useOrgApplications(orgId: string | undefined, enabled = true) {
-  const { items } = useLiveRoom<MembershipApplication>(orgId ? `org:${orgId}:applications` : null, {
+  const { items, room } = useLiveRoom<MembershipApplication>(orgId ? `org:${orgId}:applications` : null, {
     enabled,
     reduce: message => (message.type === 'ORG_APPLICATIONS_SYNC' && Array.isArray(message.data)
       ? { kind: 'replace', items: message.data }
       : { kind: 'ignore' }),
   });
-  return items;
+  return { applications: items, room };
 }
 
 /**
@@ -28,12 +29,16 @@ export function useOrgApplications(orgId: string | undefined, enabled = true) {
  * not rows among the people: an applicant is not on the organisation's records until approved.
  */
 export function OrgApplicationsCard({ orgId }: { orgId: string }) {
-  const applications = useOrgApplications(orgId);
+  const { applications, room } = useOrgApplications(orgId);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const reviewing = applications.find(a => a.id === reviewingId) || null;
-  if (!applications.length && !reviewing) return null;
+  // Not knowing whether anyone is waiting is not "nobody is waiting" (`LIVE-25`).
+  const failure = <RoomFailure rooms={[room]} what="Applications to join" stale={applications.length > 0} />;
+  if (!applications.length && !reviewing) return failure;
 
   return (
+    <>
+    {failure}
     <View testID="org-applications" className="rounded-2xl border border-warning-line bg-card overflow-hidden">
       <View className="px-4 py-2.5 bg-warning-soft">
         <Text className="font-inter-bold text-sm text-warning-ink">Applications to join · {applications.length}</Text>
@@ -61,6 +66,7 @@ export function OrgApplicationsCard({ orgId }: { orgId: string }) {
       ))}
       <ReviewDialog application={reviewing} onClose={() => setReviewingId(null)} />
     </View>
+    </>
   );
 }
 

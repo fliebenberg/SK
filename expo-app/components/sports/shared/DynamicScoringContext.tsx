@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, captureEventLabels, findOutcome, getTriggerFor, hasOutcomes, isScoringTemplate, reasonRequiresPlayer, TriggerTeam } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
+import { useRoom } from '../../../hooks/useLiveRoom';
+import { RoomFailure } from '../../RoomFailure';
 import { readData, ReadResult } from '../../../services/reads';
 import { newRequestId, requestKeyFor, sendAction } from '../../../services/actions';
 import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
@@ -68,6 +70,8 @@ const UNREADABLE_SHEET = 'The server could not read the team sheet.';
 interface DynamicScoringContextType {
   /** What did not load and why, as one note: `null` when everything on screen is what the server said. */
   readFailure: { what: string; reason: string } | null;
+  /** The match's live rooms, for `ScoringReadNote` to say when they do not arrive (`LIVE-25`). */
+  liveRooms: (string | null)[];
   /** Each read's own failure, so that a list can say it did not load rather than that it is empty. */
   eventsError: string | null;
   rostersError: string | null;
@@ -175,19 +179,14 @@ export function DynamicScoringProvider({ game, spectator = false, showReadNote =
   // 1. WebSocket room subscriptions — three datasets, three rooms (rule 4). Open disputes left
   // `game:{id}:events` on 2026-09-11; a screen wanting only the scoring feed no longer receives
   // them, and this one wants both so it holds both.
-  useEffect(() => {
-    if (!game.id) return;
-    const unsubscribeEventsRoom = wsService.subscribeToRoom(`game:${game.id}:events`);
-    if (spectator) return unsubscribeEventsRoom;
-    const unsubscribeRoom = wsService.subscribeToRoom(`game:${game.id}`);
-    const unsubscribeDisputesRoom = wsService.subscribeToRoom(`game:${game.id}:disputes`);
-
-    return () => {
-      unsubscribeRoom();
-      unsubscribeEventsRoom();
-      unsubscribeDisputesRoom();
-    };
-  }, [game.id, spectator]);
+  // Held with their status (`LIVE-25`); `handleSocketUpdate` below reads their messages.
+  // rooms-ok: said by ScoringReadNote, from `liveRooms`
+  const eventsRoom = useRoom(game.id ? `game:${game.id}:events` : null);
+  // rooms-ok: said by ScoringReadNote, from `liveRooms`
+  const gameRoom = useRoom(game.id ? `game:${game.id}` : null, undefined, { enabled: !spectator });
+  // rooms-ok: said by ScoringReadNote, from `liveRooms`
+  const disputesRoom = useRoom(game.id ? `game:${game.id}:disputes` : null, undefined, { enabled: !spectator });
+  const liveRooms = [eventsRoom.room, gameRoom.room, disputesRoom.room];
 
   // The connection coming back asks again for whatever failed while it was away.
   useEffect(() => {
@@ -854,6 +853,7 @@ export function DynamicScoringProvider({ game, spectator = false, showReadNote =
     <DynamicScoringContext.Provider
       value={{
         readFailure,
+        liveRooms,
         eventsError: failedReads.events ?? null,
         rostersError: failedReads.rosters ?? null,
         retryReads,
@@ -919,11 +919,18 @@ export function DynamicScoringProvider({ game, spectator = false, showReadNote =
   );
 }
 
-/** What did not load on a scoring screen, once, with a way to ask again (`SYNC-9`). */
+/**
+ * What did not load on a scoring screen, once, with a way to ask again (`SYNC-9`). A read that failed
+ * comes first; otherwise the match's live rooms, when one does not arrive — what is on screen is then
+ * the last known state of the match, not a live one (`LIVE-25`).
+ */
 export function ScoringReadNote() {
   const ctx = useContext(DynamicScoringContext);
-  if (!ctx?.readFailure) return null;
-  return <ReadFailure title={`${ctx.readFailure.what} did not load.`} reason={ctx.readFailure.reason} onRetry={ctx.retryReads} className="mb-2" />;
+  if (!ctx) return null;
+  if (ctx.readFailure) {
+    return <ReadFailure title={`${ctx.readFailure.what} did not load.`} reason={ctx.readFailure.reason} onRetry={ctx.retryReads} className="mb-2" />;
+  }
+  return <RoomFailure rooms={ctx.liveRooms} what="The match" stale className="mb-2" />;
 }
 
 export function useOptionalSharedDynamicScoring(): DynamicScoringContextType | null {

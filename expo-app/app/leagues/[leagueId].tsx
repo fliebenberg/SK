@@ -6,7 +6,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../components/GlassCard';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../store/settingsStore';
-import { wsService } from '../../services/websocket';
 import { readData } from '../../services/reads';
 import { useSocketQuery } from '../../hooks/useSocketQuery';
 import { useWsStore } from '../../store/wsStore';
@@ -14,6 +13,8 @@ import { League, Season, LeagueStandingRow, Game, Sport } from '@sk/shared';
 import { finishedScoreLine } from '../../utils/matchScore';
 import CustomSelect from '../../components/CustomSelect';
 import { ReadFailure } from '../../components/ReadFailure';
+import { RoomFailure } from '../../components/RoomFailure';
+import { useLiveRoom } from '../../hooks/useLiveRoom';
 import { formatFixtureWhen } from '../../utils/dates';
 import { themeColor } from '../../constants/Colors';
 
@@ -148,32 +149,22 @@ export default function PublicLeagueStandings() {
     };
   }, [isConnected, selectedSeasonId, detailsAttempt]);
 
-  // Subscribe to standings updates in real-time
+  // Standings updates in real time: every recalculation, merged with no read. A sibling screen
+  // already holding the room replays the last (`LIVE-9`).
+  const liveStandings = useLiveRoom<LeagueStandingRow>(selectedSeasonId ? `season:${selectedSeasonId}:standings` : null, {
+    reduce: message =>
+      message.type === 'STANDINGS_UPDATED' && Array.isArray(message.data)
+        ? { kind: 'replace', items: message.data }
+        : { kind: 'ignore' },
+  });
   useEffect(() => {
-    if (!selectedSeasonId) return;
-
-    const room = `season:${selectedSeasonId}:standings`;
-
-    // Merge directly on update: strictly NO server refetch!
-    const handleUpdate = (event: any) => {
-      if (event && event.type === 'STANDINGS_UPDATED' && Array.isArray(event.data)) {
-        // As good an answer as the read's, so a failed read has nothing left to say.
-        answeredSeason.current.standings = selectedSeasonId;
-        setStandingsError(null);
-        setStandings(event.data);
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-    // Replay handler, so arriving second at a room a sibling screen already holds still
-    // yields the standings (`LIVE-9`).
-    const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
-
-    return () => {
-      unsubscribe();
-      wsService.off('update', handleUpdate);
-    };
-  }, [selectedSeasonId]);
+    // Only what the room has actually said: its empty hold before the first push is not an answer.
+    if (liveStandings.isLoading || liveStandings.notFound || !selectedSeasonId) return;
+    // As good an answer as the read's, so a failed read has nothing left to say.
+    answeredSeason.current.standings = selectedSeasonId;
+    setStandingsError(null);
+    setStandings(liveStandings.items);
+  }, [liveStandings.items, liveStandings.isLoading, liveStandings.notFound]);
 
   const getSportName = (sportId: string) => {
     const s = sports?.find(x => x.id === sportId);
@@ -274,6 +265,10 @@ export default function PublicLeagueStandings() {
             <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
               {activeTab === 'standings' && standingsError && (
                 <ReadFailure what="The standings" reason={standingsError} onRetry={retryDetails} stale={standings.length > 0} />
+              )}
+              {activeTab === 'standings' && !standingsError && (
+                // The read's table is there; this says it is not keeping up (`LIVE-25`).
+                <RoomFailure rooms={[liveStandings.room]} what="The standings" stale={standings.length > 0} />
               )}
 
               {activeTab === 'standings' && (!standingsError || standings.length > 0) && (

@@ -10,7 +10,6 @@ import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../store/settingsStore';
-import { wsService } from '../../../../services/websocket';
 import { sendAction } from '../../../../services/actions';
 import { readData } from '../../../../services/reads';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
@@ -18,6 +17,8 @@ import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, League, Season, Sport, seasonPointsFromInput } from '@sk/shared';
 import DatePicker from '../../../../components/DatePicker';
 import { ReadFailure } from '../../../../components/ReadFailure';
+import { RoomFailure } from '../../../../components/RoomFailure';
+import { useLiveRoom } from '../../../../hooks/useLiveRoom';
 import { FloatingSaveBar, FLOATING_SAVE_BAR_PADDING } from '../../../../components/FloatingSaveBar';
 import { useIncomingRecord, CHANGED_ELSEWHERE_NOTICE } from '../../../../hooks/useIncomingRecord';
 import { getOrgLogoUrl } from '../../../../services/assets';
@@ -46,11 +47,27 @@ export default function LeagueDetails() {
   const isConnected = useWsStore((state: any) => state.isConnected);
 
   // States
-  const [isLoading, setIsLoading] = useState(true);
   const [league, setLeague] = useState<League | null>(null);
-  const [seasons, setSeasons] = useState<Season[]>([]);
-  /** The seasons room refused this viewer (`SYNC-10`): not "no seasons", which only its answer can say. */
-  const [seasonsRefused, setSeasonsRefused] = useState(false);
+  // The room hands the seasons over on join (`LIVE-14`), so there is no `get_data seasons` here —
+  // joining *is* the load, live-data rule 2. A refusal is not "no seasons" (`SYNC-10`), and a room
+  // that does not arrive is said where the list would be (`LIVE-25`).
+  const {
+    items: seasons,
+    isLoading,
+    accessDenied: seasonsRefused,
+    failure: seasonsFailure,
+    room: seasonsRoom,
+  } = useLiveRoom<Season>(leagueId ? `league:${leagueId}:seasons` : null, {
+    reduce: message => {
+      switch (message.type) {
+        case 'SEASONS_SYNC': return { kind: 'replace', items: Array.isArray(message.data) ? message.data : [] };
+        case 'SEASON_ADDED':
+        case 'SEASON_UPDATED': return message.data?.id ? { kind: 'upsert', item: message.data } : { kind: 'ignore' };
+        case 'SEASON_DELETED': return message.data?.id ? { kind: 'remove', id: message.data.id } : { kind: 'ignore' };
+        default: return { kind: 'ignore' };
+      }
+    },
+  });
   /** Why the league's settings cannot be shown or are out of date (`SYNC-9`). */
   const [leagueError, setLeagueError] = useState<string | null>(null);
   const [leagueAttempt, setLeagueAttempt] = useState(0);
@@ -135,54 +152,6 @@ export default function LeagueDetails() {
       active = false;
     };
   }, [isConnected, leagueId, leagueAttempt]);
-
-  useEffect(() => {
-    if (!leagueId) return;
-
-    let active = true;
-    setIsLoading(true);
-
-    // Real-Time Room Subscriptions. The room hands the seasons over on join (`LIVE-14`), so there
-    // is no `get_data seasons` here — joining *is* the load, live-data rule 2.
-    const room = `league:${leagueId}:seasons`;
-
-    const handleUpdate = (event: any) => {
-      if (!active) return;
-      if (event) {
-        if (event.type === 'SEASONS_SYNC') {
-          if (Array.isArray(event.data)) setSeasons(event.data);
-          setSeasonsRefused(false);
-          setIsLoading(false);
-        } else if (event.type === 'ROOM_ACCESS_DENIED' || event.type === 'ROOM_ACCESS_REVOKED') {
-          // A room push has no ack and no timeout, so a refused join has to clear the spinner
-          // explicitly or the screen waits forever for a message that is never coming.
-          setSeasons([]);
-          setSeasonsRefused(true);
-          setIsLoading(false);
-        } else if (event.type === 'SEASON_ADDED') {
-          setSeasons(prev => {
-            if (prev.some(s => s.id === event.data.id)) {
-              return prev.map(s => s.id === event.data.id ? event.data : s);
-            }
-            return [event.data, ...prev];
-          });
-        } else if (event.type === 'SEASON_UPDATED') {
-          setSeasons(prev => prev.map(s => s.id === event.data.id ? event.data : s));
-        } else if (event.type === 'SEASON_DELETED') {
-          setSeasons(prev => prev.filter(s => s.id !== event.data.id));
-        }
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-    const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
-
-    return () => {
-      active = false;
-      unsubscribe();
-      wsService.off('update', handleUpdate);
-    };
-  }, [leagueId]);
 
   const incomingLeague = useIncomingRecord(sameLeagueForm);
   /** The baseline and drafts as they are now, for a read that lands several keystrokes later. */
@@ -339,7 +308,7 @@ export default function LeagueDetails() {
         <View className="w-8" />
       </View>
 
-      {isLoading ? (
+      {isLoading && !seasonsFailure ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
@@ -459,6 +428,7 @@ export default function LeagueDetails() {
           {/* Seasons List */}
           <View className="gap-4">
             {seasonsRefused ? <ReadFailure title="The seasons did not load." reason="The server refused this account access to this league's seasons." /> : null}
+            <RoomFailure rooms={[seasonsRoom]} what="The seasons" stale={seasons.length > 0} />
             {seasons.map((season) => (
               <GlassCard key={season.id} className="border border-line p-4">
                 <View className="flex-row justify-between items-center">
@@ -529,7 +499,7 @@ export default function LeagueDetails() {
               </GlassCard>
             ))}
 
-            {seasons.length === 0 && !seasonsRefused && (
+            {seasons.length === 0 && !seasonsRefused && !isLoading && (
               <View className="items-center justify-center py-8 bg-card border border-line rounded-2xl">
                 <Ionicons name="calendar-outline" size={36} color={themeColor(isDark, 'ink-muted')} className="opacity-45 mb-2" />
                 <Text className="font-orbitron-bold text-xs text-ink-muted">No Seasons Registered</Text>

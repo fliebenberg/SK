@@ -9,7 +9,7 @@ import { useLiveRoom } from './useLiveRoom';
  * change ended.
  */
 export function useTeamGuardians(teamId?: string | null) {
-  const { items, isLoading, accessDenied } = useLiveRoom<ProfileGuardian>(
+  const { items, isLoading, accessDenied, notFound, failure, room } = useLiveRoom<ProfileGuardian>(
     teamId ? `team:${teamId}:guardians` : null,
     {
       reduce: (message) => {
@@ -42,7 +42,7 @@ export function useTeamGuardians(teamId?: string | null) {
     return map;
   }, [items]);
 
-  return { links: items, byPlayer, isLoading, accessDenied };
+  return { links: items, byPlayer, isLoading, accessDenied, notFound, failure, room };
 }
 
 /** "Karin Kotzé" or "Karin Kotzé +1" — the short form a list row has room for. */

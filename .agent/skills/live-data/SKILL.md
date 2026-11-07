@@ -82,7 +82,42 @@ covers this by logging what each held room has delivered
 ([roomLedger.ts](file:///c:/Fred/Coding/SK/expo-app/services/roomLedger.ts)) and replaying the log
 into a late subscriber's handler: `subscribeToRoom(room, onReplay)`. `useLiveRoom` does this for
 you. **Do not call `subscribeToRoom` directly in new code** — without a replay handler a screen
-still inherits the gap.
+still inherits the gap, and without a status handler nobody hears that the room failed.
+`npm run check:rooms` refuses it outside the socket layer. A screen whose first data comes from a
+read and whose merging does not fit `LiveAction` (the scoring screens) holds its rooms with
+`useRoom(room, onMessage?)`, which is `useLiveRoom` with the reducer handed to the screen.
+
+### When a room does not arrive (`LIVE-25`)
+
+**The server answers every `join_room`**, after the room's join push: `{ status: 'ok' }` once
+whatever the room hands over has been sent — possibly nothing, for a room that holds nothing — or
+`{ status: 'error', error, message }` (`RoomAccessDenied`, `RoomReadFailed` when the push threw,
+`InvalidRoom`). **A room for one record that does not exist pushes `ENTITY_NOT_FOUND`** rather than
+nothing (`team:`, `event:`, `division:`, `season:`, `site:`, `facility:`, `game:` and the org summary).
+Before 2026-11-07 neither existed, and a join with no reply left its screen loading for ever.
+
+**The socket service times every join** — the first, a re-join on reconnect, a retry — and keeps a
+status per held room, shared by every screen holding it: `waiting`, `ready`, or `failed` with the
+reason (`Cannot connect to the server.` after 10 s without a connection, `The server did not answer
+in time.`, or the server's own message). `useLiveRoom` turns it into state: `ready` ends `isLoading`
+even if nothing was pushed, `ENTITY_NOT_FOUND` is `notFound`, a failure is `failure` with
+**`isLoading` left true** — with nothing held the room has still not arrived, and an empty state
+("No leagues yet") over a failure would be false. Every room hook hands back its `room` (or `rooms`).
+
+**Say it once, in one of two places.** A page puts
+[`<RoomFailure rooms={[…]} what="The leagues" stale={…} />`](file:///c:/Fred/Coding/SK/expo-app/components/RoomFailure.tsx)
+where the content would have been, covering all the rooms that content comes from; while on screen it
+*claims* those rooms. The app-wide `RoomFailureNotice` (root layout) speaks for every failed room no
+screen has claimed. So a page that forgets is still not silent, and a room is never reported twice.
+*Try again* re-joins the failed rooms; the fresh join push lands as a replace for every holder, and a
+connection coming back re-joins and clears the failure by itself.
+
+**`npm run check:rooms` makes it a rule** (pre-commit hook): every call in `app/` and `components/` of
+`useLiveRoom` or of a hook built on it (found by the script, not listed) must pass its room to a
+`RoomFailure` in the same file, or carry `// rooms-ok: <reason>` on its line or the line above. Fair
+reasons: the room only carries updates after a read that says its own failure (capabilities); the
+workspace layout's box already covers it (the workspace org's summary); a dialog or section whose
+page covers the same rooms; the root layout's route-guard room, which the notice speaks for.
 
 **One reducer per room, in a hook.** Several screens join the same rooms, and a room's messages are
 read once, in its hook — never in a copy on each screen, where a message type taught to one copy
@@ -178,7 +213,8 @@ doing it then means changing publishers and screens under pressure.
 
 1. Declare it in `classifyRoom` with its access tier — an undeclared name is refused.
 2. Give it a join push in the `join_room` handler. A joinable room that pushes nothing starts every
-   screen empty (`LIVE-14`).
+   screen empty (`LIVE-14`). A room for one record pushes `ENTITY_NOT_FOUND` when it is missing, and
+   the handler's reply after the push must not be skipped by an early `return` (`LIVE-25`).
 3. Give it a publisher. A room that hands data over on join and never republishes goes stale the
    moment anything changes (`FIX-4`, `LIVE-8`).
 4. Add it to [okf/live_rooms.md](file:///c:/Fred/Coding/SK/okf/live_rooms.md), which is the one

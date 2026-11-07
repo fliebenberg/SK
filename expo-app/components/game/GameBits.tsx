@@ -8,6 +8,7 @@ import { EventLogFeed } from '../sports/shared/EventLogFeed';
 import { DynamicScoringProvider } from '../sports/shared/DynamicScoringContext';
 import { LineupPlayer, LineupProposal } from '../../hooks/useGameLineups';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
+import { RoomFailure } from '../RoomFailure';
 import { formatInstantDate, formatKickoffTime } from '../../utils/dates';
 
 /**
@@ -329,7 +330,7 @@ export function DivisionCard({ divisionId, title, subtitle, summary, showPoints 
   showPoints?: boolean;
   onOpen: () => void;
 }) {
-  const { items: stages } = useLiveRoom<{ stageId: string; rows: TournamentStandingRow[] }>(
+  const { items: stages, room } = useLiveRoom<{ stageId: string; rows: TournamentStandingRow[] }>(
     `division:${divisionId}:standings`,
     {
       reduce: (m) => m.type === 'DIVISION_STANDINGS_UPDATED' && m.data?.divisionId === divisionId
@@ -349,6 +350,8 @@ export function DivisionCard({ divisionId, title, subtitle, summary, showPoints 
   return (
     <TournamentCard title={title} right={<EditLink label="Open" icon={null} onPress={onOpen} />}>
       {subtitle ? <Text className="font-inter text-xs text-ink-muted -mt-1.5">{subtitle}</Text> : null}
+      {/* Only this card holds the division's table, so it says when the table does not arrive (`LIVE-25`). */}
+      <RoomFailure rooms={[room]} what="The table" stale={rows.length > 0} />
       <View>
         {sides.map((p, i) => {
           const r = placeOf(p.entrantId);

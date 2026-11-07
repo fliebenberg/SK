@@ -41,6 +41,7 @@ function ageChangeEffect(from: number, to: number, accountsAllowed: boolean): st
  * live value from the org's summary room, never a draft.
  */
 export function OrgMinorsSettingsCard({ orgId, isOrgAdmin }: OrgMinorsSettingsCardProps) {
+  // rooms-ok: only on workspace pages (Settings, a team), covered by the workspace layout's RoomFailure
   const { settings } = useOrgMinorsSettings(orgId);
   const [pending, setPending] = useState<Pending | null>(null);
   const [isSaving, setIsSaving] = useState(false);

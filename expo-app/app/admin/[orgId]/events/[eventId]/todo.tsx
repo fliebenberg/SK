@@ -6,6 +6,7 @@ import { Event } from '@sk/shared';
 import { ScreenHeader } from '../../../../../components/ScreenHeader';
 import { AccessDenied } from '../../../../../components/AccessDenied';
 import { PageBody } from '../../../../../components/PageBody';
+import { RoomFailure } from '../../../../../components/RoomFailure';
 import CustomSelect from '../../../../../components/CustomSelect';
 import { SegmentedControl } from '../../../../../components/SegmentedControl';
 import { SectionPageHeading } from '../../../../../components/tournament/TournamentBits';
@@ -32,10 +33,22 @@ export default function TournamentTodoScreen() {
       </SafeAreaView>
     );
   }
+  if (data.notFound) {
+    return (
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
+        <ScreenHeader title="To do" onBack={backToTournament} backLabel="Overview" />
+        <View className="flex-1 items-center justify-center p-6">
+          <Text className="font-inter text-sm text-ink-muted text-center">This tournament does not exist. It may have been deleted.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
   if (!data.event) {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="To do" onBack={backToTournament} backLabel="Overview" />
+        {/* The tournament's rooms are this page's load; one that never answers is said here (`LIVE-25`). */}
+        <View className="px-3 pt-3"><RoomFailure rooms={data.rooms} what="The tournament" /></View>
         <View className="flex-1 items-center justify-center p-6"><ActivityIndicator /></View>
       </SafeAreaView>
     );
@@ -56,7 +69,7 @@ function TodoPage({ orgId, event, data, onBack }: {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const { divisions, entrants, canEdit, sports, games } = data;
-  const { tasks, reload, error } = useTournamentTodo({ event, divisions, entrants, canEdit, sports, games, orgId });
+  const { tasks, reload, error, teamsRoom } = useTournamentTodo({ event, divisions, entrants, canEdit, sports, games, orgId });
   const [whose, setWhose] = useState<Whose>('all');
   const [sportId, setSportId] = useState<string>(ALL);
   const [team, setTeam] = useState<string>(ALL);
@@ -91,6 +104,8 @@ function TodoPage({ orgId, event, data, onBack }: {
       <ScreenHeader title="To do" context={event.name} onBack={onBack} backLabel="Overview" />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 80 }}>
         <PageBody className="gap-3">
+          {/* Once, for every room the page is built from (`LIVE-25`). */}
+          <RoomFailure rooms={[...data.rooms, teamsRoom]} what="The tournament" stale />
           <SectionPageHeading title="To do" count={rows.length} phone={!isWide} />
           <View className="rounded-2xl border border-line bg-card p-4 gap-3">
             <Text className="font-inter text-[13px] text-ink-muted">

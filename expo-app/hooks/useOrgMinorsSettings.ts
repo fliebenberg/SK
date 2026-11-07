@@ -6,7 +6,7 @@ import { useOrgSummary } from './useOrgSummary';
  * minor age of 18 — from the public `org:{id}:summary` room, which carries `settings` and is
  * republished when they change.
  */
-export function useOrgMinorsSettings(orgId?: string | null): { settings: OrgMinorsSettings; isLoading: boolean } {
-  const { org, isLoading } = useOrgSummary(orgId);
-  return { settings: minorsSettingsOf(org?.settings), isLoading };
+export function useOrgMinorsSettings(orgId?: string | null): { settings: OrgMinorsSettings; isLoading: boolean; room: string | null } {
+  const { org, isLoading, room } = useOrgSummary(orgId);
+  return { settings: minorsSettingsOf(org?.settings), isLoading, room };
 }

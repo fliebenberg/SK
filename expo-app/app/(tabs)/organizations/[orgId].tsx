@@ -7,6 +7,7 @@ import { League, Organization, orgColors, Team } from '@sk/shared';
 import { ScreenHeader } from '../../../components/ScreenHeader';
 import { Tabs } from '../../../components/Tabs';
 import { PageBody } from '../../../components/PageBody';
+import { RoomFailure } from '../../../components/RoomFailure';
 import { OrgProfileBanner } from '../../../components/org/OrgProfileBanner';
 import { UnclaimedOrgStrip } from '../../../components/org/UnclaimedOrgStrip';
 import { ApplyToJoinButton, InviteOnlyFlag, useJoinOrganisation, YourApplications } from '../../../components/org/JoinOrganisation';
@@ -83,11 +84,11 @@ export default function PublicOrgPage() {
   const [tab, setTab] = useState<Tab>(() => (TABS.some(t => t.key === tabParam) ? (tabParam as Tab) : 'overview'));
   const [aboutOpen, setAboutOpen] = useState(false);
 
-  const { org, isLoading } = useOrgSummary(orgId);
-  const { teams } = useOrgTeams(orgId);
-  const { sites, facilities } = useOrgSites(orgId);
+  const { org, isLoading, notFound, failure: orgFailure, room: orgRoom } = useOrgSummary(orgId);
+  const { teams, isLoading: teamsLoading, room: teamsRoom } = useOrgTeams(orgId);
+  const { sites, facilities, isLoading: sitesLoading, rooms: siteRooms } = useOrgSites(orgId);
   const sports = useSports();
-  const { items: leagues } = useLiveRoom<League>(orgId ? `org:${orgId}:leagues` : null, {
+  const { items: leagues, isLoading: leaguesLoading, room: leaguesRoom } = useLiveRoom<League>(orgId ? `org:${orgId}:leagues` : null, {
     reduce: message => {
       switch (message.type) {
         case 'LEAGUES_SYNC': return { kind: 'replace', items: Array.isArray(message.data) ? message.data : [] };
@@ -118,7 +119,9 @@ export default function PublicOrgPage() {
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Organisation" onBack={() => safeBack('/(tabs)/organizations')} />
         <View className="flex-1 items-center justify-center p-6">
-          {isLoading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+          {/* Outside the workspace, so nothing else speaks for this room (`LIVE-25`). */}
+          {orgFailure && !notFound ? <RoomFailure rooms={[orgRoom]} what="This organisation" />
+            : isLoading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
             <Text className="font-inter text-sm text-ink-muted">This organisation could not be found.</Text>
           )}
         </View>
@@ -214,7 +217,7 @@ export default function PublicOrgPage() {
             </View>
           ))}
         </View>
-      ) : <Text className="font-inter text-sm text-ink-muted">No teams yet.</Text>}
+      ) : teamsLoading ? null : <Text className="font-inter text-sm text-ink-muted">No teams yet.</Text>}
     </TournamentCard>
   );
 
@@ -238,7 +241,7 @@ export default function PublicOrgPage() {
             ), () => router.push(`/sites/${s.id}` as any));
           })}
         </View>
-      ) : <Text className="font-inter text-sm text-ink-muted">No sites yet.</Text>}
+      ) : sitesLoading ? null : <Text className="font-inter text-sm text-ink-muted">No sites yet.</Text>}
     </TournamentCard>
   );
 
@@ -258,7 +261,7 @@ export default function PublicOrgPage() {
             </>
           ), () => router.push(`/leagues/${l.id}` as any)))}
         </View>
-      ) : <Text className="font-inter text-sm text-ink-muted">No leagues yet.</Text>}
+      ) : leaguesLoading ? null : <Text className="font-inter text-sm text-ink-muted">No leagues yet.</Text>}
     </TournamentCard>
   );
 
@@ -284,6 +287,8 @@ export default function PublicOrgPage() {
         </View>
         <View style={{ padding: isWide ? 24 : 12 }}>
           <PageBody className="gap-3">
+            {/* Every tab is built from these rooms; one that does not arrive is said once, here (`LIVE-25`). */}
+            <RoomFailure rooms={[orgRoom, teamsRoom, ...siteRooms, leaguesRoom]} title="Some of this organisation's details did not load." stale />
             {tab === 'overview' ? overview : null}
             {tab === 'teams' ? teamsTab : null}
             {tab === 'fixtures' ? <OrgEventsListView orgId={orgId} publicView /> : null}

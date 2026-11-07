@@ -33,6 +33,7 @@ import { useWsStore } from '../../../../../../store/wsStore';
 import { readData } from '../../../../../../services/reads';
 import { PageBody } from '../../../../../../components/PageBody';
 import { ReadFailure } from '../../../../../../components/ReadFailure';
+import { RoomFailure } from '../../../../../../components/RoomFailure';
 import { managesOrg } from '../../../../../../utils/orgAccess';
 
 /**
@@ -75,6 +76,7 @@ export default function OrganisationInTournamentScreen() {
   const myUserId = useAuthStore((state: any) => state.user?.id);
   const canWriteInto = useCanWriteInto();
 
+  // rooms-ok: capability updates only; the read is the load, and its failure is said below
   const { capabilities, isLoading: loadingCapabilities, error: capabilitiesError, retry: retryCapabilities } = useEventCapabilities(eventId, { suppressToast: true });
   const canEdit = !!capabilities?.canEditEvent;
   // The organisation's own members: its page is theirs too, once it is invited (`FIX-30`).
@@ -99,15 +101,15 @@ export default function OrganisationInTournamentScreen() {
   const [mineAll, setMineAll] = useMineAll(orgId);
 
   /* -- data ------------------------------------------------------------------------------- */
-  const { event, items: eventItems, isLoading: eventLoading } = useEventRecord(eventId);
-  const divisions = useEventDivisions(eventId);
+  const { event, items: eventItems, isLoading: eventLoading, notFound: eventNotFound, room: eventRoom } = useEventRecord(eventId);
+  const { divisions: divisions, room: divisionsRoom } = useEventDivisions(eventId);
   // Its teams: the organisers', and an invited or taking-part organisation's own (its members' room).
   const ownStatus = useLiveRoomOwnStatus(eventItems, eventId, participantOrgId);
-  const { entrants } = useEventEntrants(eventId, canEdit || (isOwnOrg && !!ownStatus && ['invited', 'accepted', 'withdrawal_pending'].includes(ownStatus)));
+  const { entrants, room: entrantsRoom } = useEventEntrants(eventId, canEdit || (isOwnOrg && !!ownStatus && ['invited', 'accepted', 'withdrawal_pending'].includes(ownStatus)));
 
   const sports = useSports();
   // Its own teams, for asking to add one (the candidate set is the organisers').
-  const { teams: ownTeams } = useOrgTeams(isOwnOrg && !canEdit ? participantOrgId : null);
+  const { teams: ownTeams, room: ownTeamsRoom } = useOrgTeams(isOwnOrg && !canEdit ? participantOrgId : null);
   const [candidateTeams, setCandidateTeams] = useState<CandidateTeam[]>([]);
   const [candidatesError, setCandidatesError] = useState<string | null>(null);
   const [candidatesTry, setCandidatesTry] = useState(0);
@@ -125,7 +127,7 @@ export default function OrganisationInTournamentScreen() {
   }, [isConnected, canEdit, eventId, candidatesTry]);
 
   // The host may be off the list (it can run a tournament it does not play in) and still opens here.
-  const { org: hostOrg } = useOrgSummary(event?.orgId);
+  const { org: hostOrg, room: hostRoom } = useOrgSummary(event?.orgId);
   const isHost = participantOrgId === event?.orgId;
   const org: EventOrgBadge | null =
     event?.participatingOrgs?.find(o => o.id === participantOrgId) ||
@@ -159,6 +161,11 @@ export default function OrganisationInTournamentScreen() {
 
   const [dialog, setDialog] = useState<null | 'remove' | 'nominate'>(null);
 
+  /** Once, for every room the page is built from (`LIVE-25`). */
+  const roomFailure = (stale: boolean) => (
+    <RoomFailure rooms={[eventRoom, divisionsRoom, entrantsRoom, ownTeamsRoom, hostRoom]} what="This organisation's page" stale={stale} />
+  );
+
   const mayOpen = canEdit || (isOwnOrg && !!ownStatus && ownStatus !== 'not_invited');
   // Whether they run the tournament could not be asked: not grounds for turning them away (`SYNC-9`).
   if (!loadingCapabilities && !eventLoading && event && !mayOpen && capabilitiesError) {
@@ -182,8 +189,11 @@ export default function OrganisationInTournamentScreen() {
     return (
       <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Organisation" context={event?.name} onBack={backToTournament} />
+        {eventNotFound ? null : <View className="px-3 pt-3">{roomFailure(false)}</View>}
         <View className="flex-1 items-center justify-center p-6">
-          {eventLoading || !event ? <ActivityIndicator /> : <Text className="font-inter text-sm text-ink-muted">That organisation is not taking part in this tournament.</Text>}
+          {eventNotFound
+            ? <Text className="font-inter text-sm text-ink-muted text-center">This tournament does not exist. It may have been deleted.</Text>
+            : eventLoading || !event ? <ActivityIndicator /> : <Text className="font-inter text-sm text-ink-muted">That organisation is not taking part in this tournament.</Text>}
         </View>
       </SafeAreaView>
     );
@@ -236,6 +246,7 @@ export default function OrganisationInTournamentScreen() {
       />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 120 }}>
         <PageBody className="gap-4">
+          {roomFailure(true)}
           {capabilitiesError && !canEdit ? <ReadFailure title="Whether you run this tournament did not load." reason={capabilitiesError} onRetry={retryCapabilities} /> : null}
           {sideBySide ? <View className="flex-row gap-4 items-stretch">{banner}{response}</View> : <>{banner}{response}</>}
           {historyError ? <ReadFailure what="Who invited and who answered" reason={historyError} onRetry={() => setHistoryTry(n => n + 1)} stale={!!history} /> : null}

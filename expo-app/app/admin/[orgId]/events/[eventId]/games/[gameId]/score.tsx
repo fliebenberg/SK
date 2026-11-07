@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'rea
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { wsService } from '../../../../../../../services/websocket';
+import { useRoom } from '../../../../../../../hooks/useLiveRoom';
 import { readData } from '../../../../../../../services/reads';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { SocketAction, Event, Game } from '@sk/shared';
@@ -34,6 +34,7 @@ export default function ScoreGameScreen() {
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId, eventId, gameId } = useLocalSearchParams<{ orgId: string; eventId: string; gameId: string }>();
+  // rooms-ok: capability updates only; the read is the load and its failure is shown with the page's read failures
   const { capabilities, isLoading: capabilitiesLoading, error: capabilitiesError, retry: retryCapabilities } = useEventCapabilities(eventId, { suppressToast: true });
   const { capabilities: gameCapabilities, isLoading: gameCapabilitiesLoading, error: gameCapabilitiesError, retry: retryGameCapabilities } = useGameCapabilities(gameId, { suppressToast: true });
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -88,38 +89,28 @@ export default function ScoreGameScreen() {
     return () => { active = false; };
   }, [isConnected, gameId, attempt]);
 
-  useEffect(() => {
-    if (!gameId) return;
-
-    const handleUpdate = (evt: { type: string; data: any }) => {
-      if (['GAME_UPDATED', 'GAME_RESET'].includes(evt.type) && (evt.data?.id === gameId || evt.data?.gameId === gameId)) {
-        if (evt.data) {
-          setGame(prev => {
-            if (!prev) return evt.data as Game;
-            const updatedLiveState = evt.data.liveState ? { ...prev.liveState, ...evt.data.liveState } : prev.liveState;
-            return {
-              ...prev,
-              ...evt.data,
-              liveState: updatedLiveState
-            };
-          });
-        }
+  // Held through the ledger, never by raw `join_room` / `leave_room` (`LIVE-17`), and with the
+  // room's status, so one that does not arrive is said (`LIVE-25`). Both rooms' messages go through
+  // the one handler, replays included (`LIVE-9`): the scoring context below holds `game:{id}` too.
+  const handleUpdate = (evt: { type: string; data: any }) => {
+    if (['GAME_UPDATED', 'GAME_RESET'].includes(evt.type) && (evt.data?.id === gameId || evt.data?.gameId === gameId)) {
+      if (evt.data) {
+        setGame(prev => {
+          if (!prev) return evt.data as Game;
+          const updatedLiveState = evt.data.liveState ? { ...prev.liveState, ...evt.data.liveState } : prev.liveState;
+          return {
+            ...prev,
+            ...evt.data,
+            liveState: updatedLiveState
+          };
+        });
       }
-    };
-
-    // Through the ledger, not by raw `join_room` / `leave_room` (`LIVE-17`). The raw leave on
-    // unmount removed the socket from `game:{id}` even when another mounted screen still held it,
-    // and the reference count never saw either call, so nothing re-joined.
-    wsService.on('update', handleUpdate);
-    const unsubscribeGame = wsService.subscribeToRoom(`game:${gameId}`, handleUpdate);
-    const unsubscribeEvents = wsService.subscribeToRoom(`game:${gameId}:events`, handleUpdate);
-
-    return () => {
-      unsubscribeGame();
-      unsubscribeEvents();
-      wsService.off('update', handleUpdate);
-    };
-  }, [gameId]);
+    }
+  };
+  // rooms-ok: the same rooms the scoring context holds; its ScoringReadNote, placed below, says it
+  useRoom(gameId ? `game:${gameId}` : null, handleUpdate);
+  // rooms-ok: as above
+  useRoom(gameId ? `game:${gameId}:events` : null, handleUpdate);
 
   const backToGame = () => safeBack(`/admin/${orgId}/events/${eventId}/games/${gameId}`);
   const retryReads = () => {

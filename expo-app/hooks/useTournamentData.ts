@@ -16,15 +16,15 @@ import { useIsPublicTournament } from '../components/tournament/tournamentLinks'
  * `useEventRooms`, so every screen reads each room's messages the same way.
  */
 export function useTournamentData(orgId?: string, eventId?: string) {
-  const { event, isLoading: eventLoading, accessDenied } = useEventRecord(eventId);
-  const games = useEventFixtures(eventId);
-  const divisions = useEventDivisions(eventId);
-  const facilityIds = useEventFacilityIds(eventId);
+  const { event, isLoading: eventLoading, accessDenied, notFound, room: eventRoom } = useEventRecord(eventId);
+  const { games, room: gamesRoom } = useEventFixtures(eventId);
+  const { divisions, room: divisionsRoom } = useEventDivisions(eventId);
+  const { facilityIds, room: facilitiesRoom } = useEventFacilityIds(eventId);
   // The host's venues: the tournament is played at its sites, whoever is looking (a guest's own are not it).
-  const { sites, facilities } = useOrgSites(event?.orgId);
+  const { sites, facilities, rooms: siteRooms } = useOrgSites(event?.orgId);
   const sports = useSports();
 
-  const { capabilities } = useEventCapabilities(eventId);
+  const { capabilities, room: capabilitiesRoom } = useEventCapabilities(eventId);
   const canEdit = !!capabilities?.canEditEvent;
   // The roster is the members' tier: the organisers, and the members of an organisation taking part
   // or invited — a coach finds their own teams in it (`FIX-31`), as the server's room allows.
@@ -36,7 +36,7 @@ export function useTournamentData(orgId?: string, eventId?: string) {
   const readsRoster = canEdit || takesPart;
   const roster = useEventEntrants(eventId, readsRoster);
   // Anyone else — the public page above all — gets the teams the public sees in its place (`FIX-25`).
-  const publicTeams = useEventPublicTeams(eventId, !readsRoster);
+  const { teams: publicTeams, room: publicTeamsRoom } = useEventPublicTeams(eventId, !readsRoster);
   const entrants = readsRoster ? roster.entrants : publicTeams;
   const entrantsByDivision = useMemo(() => {
     if (readsRoster) return roster.byDivision;
@@ -44,7 +44,9 @@ export function useTournamentData(orgId?: string, eventId?: string) {
     for (const e of publicTeams) map.set(e.divisionId, [...(map.get(e.divisionId) || []), e]);
     return map;
   }, [readsRoster, roster.byDivision, publicTeams]);
-  const { org: hostOrg } = useOrgSummary(event?.orgId);
+  const { org: hostOrg, room: hostRoom } = useOrgSummary(event?.orgId);
+  /** Every room the tournament's pages are built from, for one `RoomFailure` at the top of a page. */
+  const rooms = [eventRoom, gamesRoom, divisionsRoom, facilitiesRoom, ...siteRooms, roster.room, publicTeamsRoom, hostRoom, capabilitiesRoom];
 
-  return { event, eventLoading, accessDenied, games, divisions, facilityIds, sites, facilities, sports, capabilities, canEdit, entrants, entrantsByDivision, hostOrg };
+  return { event, eventLoading, accessDenied, notFound, rooms, games, divisions, facilityIds, sites, facilities, sports, capabilities, canEdit, entrants, entrantsByDivision, hostOrg };
 }
