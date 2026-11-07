@@ -40,14 +40,17 @@ password and cannot log in. People log in as themselves and act as `sk` through 
   ```
   Give full sudo (`usermod -aG sudo`) only to someone who has to manage the machine itself.
 
-A shortcut worth adding to your `~/.bashrc`, so `pm2 ls`, `pm2 logs` and the rest work as you:
+Shortcuts worth adding to your `~/.bashrc`: the first makes `pm2 ls`, `pm2 logs` and the rest work
+as you, the second updates the server in one word ([below](#updating-the-server)):
 ```bash
 alias pm2='sudo -u sk -H pm2'
+alias update_server='sudo -u sk -H sh /srv/sk/SK/deploy/update-server.sh'
 ```
 
 ## Updating the server
 
-After changes to `server/` or `shared/` are pushed to `main`:
+After changes to `server/` or `shared/` are pushed to `main`, run `update_server` (the alias above),
+or in full:
 ```bash
 sudo -u sk -H sh /srv/sk/SK/deploy/update-server.sh
 ```
@@ -203,8 +206,10 @@ The order this one was built in, for a second server or a rebuild:
 
 - **Player profiles are public** until `PEOPLE-4` is done. The test server only holds made-up
   people. Production must not open before `PEOPLE-4`.
-- **Requests from any website are accepted** (`cors()` and the socket's `origin: "*"` in
-  [index.ts](../server/src/index.ts)). Limit them to the app's own address.
+- **Which websites may call the server** from a browser: `APP_URL`, plus `CORS_ORIGINS` for any
+  other address the web app is served from (e.g. `https://scorekeeper.live` and
+  `https://www.scorekeeper.live`); see [allowedOrigins.ts](../server/src/services/allowedOrigins.ts).
+  The server logs the list at startup (`[CORS]`).
 - **Backups** need history and a copy off the machine.
 - **Email:** add the production server's IP address to the Workspace SMTP relay ([Email](#email)).
   The relay has daily sending limits, so a dedicated mail service may be needed as use grows

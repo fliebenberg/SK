@@ -337,9 +337,7 @@ dedicated cleanup pass.
 - [ ] `MEDIA-2` **The app cannot keep a picture's metadata, for when a kind of upload should.** Agreed 2026-11-01 when pictures moved to cropping in the app and uploading on their own ([okf/api_comms.md](file:///c:/Fred/Coding/SK/okf/api_comms.md) §Uploaded Images). The server side is built: each kind in `IMAGE_KINDS` ([ImageService.ts](file:///c:/Fred/Coding/SK/server/src/services/ImageService.ts)) says whether it may keep metadata (`mayKeepMetadata`, false for logos and people's pictures), and `POST /api/uploads?keepMetadata=1` asks for it. The app does not: cropping redraws the picture (a canvas on web, expo-image-manipulator or react-native-view-shot on phones), which drops EXIF, and copying it across needs a library on web. Needed first by game photos, which the user wants to keep their location and time; build it with that kind.
 
 ### Deployment & Email
-*Opened 2026-11-07 with the test server ([docs/deployment.md](file:///c:/Fred/Coding/SK/docs/deployment.md)).*
-
-- [ ] `DEPLOY-1` **The server accepts requests from any website.** Found 2026-11-07 while setting up the test server. Express runs `cors()` with no options and Socket.IO `origin: "*"` ([index.ts](file:///c:/Fred/Coding/SK/server/src/index.ts)), so any page on the web can call the API and open the socket from a visitor's browser. Harmless on the test server, which holds made-up people only. **Done when:** both accept only the app's own web address (from a setting, e.g. `APP_URL`), the phone apps, which send no browser origin, still connect, and local development still works.
+*Opened 2026-11-07 with the test server ([docs/deployment.md](file:///c:/Fred/Coding/SK/docs/deployment.md)). Nothing open: `DEPLOY-1` and `DEPLOY-2` were closed the same day (TODO-archive.md).*
 
 ### Shared Package & Tooling
 

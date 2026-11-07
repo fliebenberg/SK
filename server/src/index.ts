@@ -30,6 +30,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { emailService } from './services/EmailService';
 import { reportMailSetup } from './services/mailer';
+import { corsOrigin, describeAllowedOrigins, isAllowedOrigin } from './services/allowedOrigins';
 import { assetBaseUrl, assetStorage, localAssetMountPath } from './services/assetStorage';
 import { issueAssetToken, requireAssetToken } from './services/assetAccess';
 import { imageService, isImageFolder, UploadError, UPLOAD_RULES } from './services/ImageService';
@@ -95,7 +96,8 @@ import {
 dotenv.config();
 
 const app = express();
-app.use(cors());
+// Only the app's own website may call the API from a browser on a server (DEPLOY-1).
+app.use(cors({ origin: corsOrigin }));
 // The default 100kb. Pictures never travel in JSON: they go to POST /api/uploads on their own.
 app.use(express.json());
 app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -1159,9 +1161,11 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   maxHttpBufferSize: SOCKET_MAX_ACTION_BYTES + 1024, // the largest action, plus socket.io's framing
   cors: {
-    origin: "*", // allow all for now
+    origin: corsOrigin,
     methods: ["GET", "POST"]
-  }
+  },
+  // Browsers do not apply CORS to a WebSocket, so the socket checks the origin itself (DEPLOY-1).
+  allowRequest: (req, callback) => callback(null, isAllowedOrigin(req.headers.origin)),
 });
 
 /**
@@ -4493,4 +4497,5 @@ setInterval(sweepPendingUploads, 3600e3).unref();
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   reportMailSetup();
+  console.log(`[CORS] Browser requests allowed from: ${describeAllowedOrigins()}`);
 });
