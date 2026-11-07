@@ -205,11 +205,10 @@ export function TeamDetailsDialog({ visible, onClose, orgId, supportedSportIds, 
         <FieldLabel label="Age group" />
         {sportId ? (
           <AgeGroupPicker
-            variant="dropdown"
             sportId={sportId}
             ageGroups={sport?.ageGroups}
             value={ageGroupId}
-            onChange={setAgeGroupId}
+            onChange={id => setAgeGroupId(id ?? null)}
             orgId={orgId}
           />
         ) : (

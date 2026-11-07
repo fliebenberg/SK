@@ -11,16 +11,16 @@ import { themeColor } from '../constants/Colors';
  * Chooses an age group from a sport's list — the one control every screen that gives a team,
  * division or league an age group uses.
  *
- * The **official** entries (curated by an admin in the sport editor) are chips, in their curated
- * order. **Other…** opens the **custom** entries other users have already added for the sport, so
- * the second school needing "U13 Girls" picks the first school's, and a box to add a new one. The
- * server returns the existing entry when a typed name matches one ignoring case, so "u13" typed
- * here simply selects "U13".
+ * A select listing the sport's **official** entries (curated by an admin in the sport editor) and
+ * the **custom** ones other users have added, so the second school needing "U13 Girls" picks the
+ * first school's. **Other…** swaps the select for a box that adds a new one, with a ✕ that cancels
+ * back to the earlier choice. The server returns the existing entry when a typed name matches one
+ * ignoring case, so "u13" typed here simply selects "U13".
  *
- * `variant="dropdown"` renders the same choices as a select instead, for screens where the age
- * group is one field among several rather than the point of the screen. There the custom entries
- * sit in the list beside the official ones — a list has room for them — and **Other…** only opens
- * the box that adds a new one.
+ * **An age group is always required.** `undefined` means nothing is chosen yet — including while
+ * the box is open, so a form cannot save the earlier choice under a name the user has typed over —
+ * and a form keeps Save disabled until it gets one. Where any age is allowed (`noneLabel`), `null`
+ * is that choice, made like any other; such a form starts on it.
  *
  * An added entry is kept locally and handed to `onChange`, so the screen does not have to reload
  * the sports list to show it.
@@ -31,29 +31,20 @@ interface AgeGroupPickerProps {
   sportId?: string | null;
   /** The sport's list, as `get_data: sports` carries it on `sport.ageGroups`. */
   ageGroups?: AgeGroup[];
+  /** An age group id; `null` for `noneLabel`; `undefined` (or `null` without `noneLabel`) for none chosen yet. */
   value?: string | null;
-  onChange: (ageGroupId: string | null, ageGroup?: AgeGroup) => void;
-  /** Offers a "no age group" chip with this label — for divisions and leagues, which may be open to any age. */
+  onChange: (ageGroupId: string | null | undefined, ageGroup?: AgeGroup) => void;
+  /** Offers a "no age group" choice with this label — for divisions and leagues, which may be open to any age. */
   noneLabel?: string;
   /** The workspace the user is acting from, recorded against a custom entry they add. */
   orgId?: string;
   disabled?: boolean;
-  /** `chips` (the default) shows every choice at once; `dropdown` folds them into a select. */
-  variant?: 'chips' | 'dropdown';
 }
 
-/** Not an age group id — the dropdown row that opens the "add a new one" box. */
+/** Not an age group id — the row that opens the "add a new one" box. */
 const ADD_NEW = '__add_new__';
-
-const chipClass = (isSelected: boolean) =>
-  `px-3.5 py-2 rounded-xl border ${
-    isSelected
-      ? 'bg-raised border-line-selected'
-      : 'bg-canvas border-line'
-  }`;
-
-const chipTextClass = (isSelected: boolean) =>
-  `font-inter-bold text-xs ${isSelected ? 'text-ink' : 'text-ink-soft'}`;
+/** Not an age group id — matches no option, so the select shows its placeholder. */
+const NONE_CHOSEN = '__none_chosen__';
 
 export function AgeGroupPicker({
   sportId,
@@ -63,13 +54,14 @@ export function AgeGroupPicker({
   noneLabel,
   orgId,
   disabled,
-  variant = 'chips',
 }: AgeGroupPickerProps) {
   const isDark = useActiveTheme() === 'dark';
   const [added, setAdded] = useState<AgeGroup[]>([]);
   const [showOther, setShowOther] = useState(false);
   const [draft, setDraft] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  /** The choice before Other… cleared it — put back if the new entry is cancelled. */
+  const [beforeOther, setBeforeOther] = useState<string | null | undefined>(undefined);
 
   // Entries added here belong to the sport they were added for.
   useEffect(() => {
@@ -82,11 +74,6 @@ export function AgeGroupPicker({
     const known = new Set(ageGroups.map(g => g.id));
     return sortAgeGroups([...ageGroups, ...added.filter(g => !known.has(g.id))]);
   }, [ageGroups, added]);
-  const official = all.filter(g => g.isOfficial);
-  const custom = all.filter(g => !g.isOfficial);
-  const selected = all.find(g => g.id === value);
-  const isDropdown = variant === 'dropdown';
-  const otherOpen = isDropdown ? showOther : showOther || (!!selected && !selected.isOfficial);
 
   if (!sportId) {
     return (
@@ -96,16 +83,19 @@ export function AgeGroupPicker({
     );
   }
 
+  const choose = (group: AgeGroup) => {
+    setDraft('');
+    setShowOther(false);
+    onChange(group.id, group);
+  };
+
   const addDraft = () => {
     const name = draft.trim();
     if (!name || isAdding) return;
     // Already on the list: pick it without a round trip.
     const existing = all.find(g => ageGroupNameKey(g.name) === ageGroupNameKey(name));
     if (existing) {
-      onChange(existing.id, existing);
-      setDraft('');
-      // The dropdown shows what was chosen; the box has done its job.
-      if (isDropdown) setShowOther(false);
+      choose(existing);
       return;
     }
     setIsAdding(true);
@@ -115,82 +105,23 @@ export function AgeGroupPicker({
       if (!result.ok) return;
       const group = result.data;
       setAdded(prev => [...prev, group]);
-      setDraft('');
-      if (isDropdown) setShowOther(false);
-      onChange(group.id, group);
+      choose(group);
     });
   };
 
+  const cancelOther = () => {
+    setShowOther(false);
+    setDraft('');
+    onChange(beforeOther, all.find(g => g.id === beforeOther));
+  };
+
+  const selectValue = value ? value : value === null && noneLabel !== undefined ? '' : NONE_CHOSEN;
+
   return (
     <View className={disabled ? 'opacity-50' : ''} pointerEvents={disabled ? 'none' : 'auto'}>
-      {isDropdown ? (
-        <CustomSelect
-          value={value || ''}
-          onChange={picked => {
-            if (picked === ADD_NEW) {
-              setShowOther(true);
-              return;
-            }
-            setShowOther(false);
-            const group = all.find(g => g.id === picked);
-            onChange(group ? group.id : null, group);
-          }}
-          // The closed control reads "Any age" off the `''` option, so the placeholder is free to
-          // stay the instruction — which is also the select's modal heading.
-          placeholder="Choose an age group"
-          options={[
-            ...(noneLabel !== undefined ? [{ value: '', label: noneLabel }] : []),
-            // Custom entries sit with the official ones here: the list has room for them, so
-            // nothing another user added is hidden behind Other…, which only adds a new one.
-            ...all.map(group => ({ value: group.id, label: group.name })),
-            { value: ADD_NEW, label: 'Other…', description: 'Add an age group this list does not have' },
-          ]}
-        />
-      ) : (
-        <View className="flex-row flex-wrap gap-2">
-          {noneLabel !== undefined && (
-            <TouchableOpacity onPress={() => onChange(null)} className={chipClass(!value)}>
-              <Text className={chipTextClass(!value)}>{noneLabel}</Text>
-            </TouchableOpacity>
-          )}
-          {official.map(group => (
-            <TouchableOpacity key={group.id} onPress={() => onChange(group.id, group)} className={chipClass(value === group.id)}>
-              <Text className={chipTextClass(value === group.id)}>{group.name}</Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            onPress={() => setShowOther(!otherOpen)}
-            className={`${chipClass(!!selected && !selected.isOfficial)} flex-row items-center gap-1`}
-          >
-            <Text className={chipTextClass(!!selected && !selected.isOfficial)}>
-              {selected && !selected.isOfficial ? selected.name : 'Other…'}
-            </Text>
-            <Ionicons
-              name={otherOpen ? 'chevron-up' : 'chevron-down'}
-              size={12}
-              color={themeColor(isDark, selected && !selected.isOfficial ? 'on-primary' : 'ink-muted')}
-            />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {otherOpen && (
-        <View className="mt-3 p-3 rounded-xl border border-dashed border-line-strong">
-          {!isDropdown && custom.length > 0 && (
-            <>
-              <Text className="font-inter text-[11px] text-ink-muted mb-2">
-                Added by other users of this sport:
-              </Text>
-              <View className="flex-row flex-wrap gap-2 mb-3">
-                {custom.map(group => (
-                  <TouchableOpacity key={group.id} onPress={() => onChange(group.id, group)} className={chipClass(value === group.id)}>
-                    <Text className={chipTextClass(value === group.id)}>{group.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          )}
-          <View className="flex-row items-center gap-2">
+      {showOther ? (
+        <View className="flex-row items-center gap-2">
+          <View className="flex-1 justify-center">
             <TextInput
               value={draft}
               onChangeText={setDraft}
@@ -198,25 +129,65 @@ export function AgeGroupPicker({
               placeholder="Add an age group, e.g. U13 Girls"
               placeholderTextColor={themeColor(isDark, 'ink-muted')}
               maxLength={40}
-              className="flex-1 font-inter text-sm text-ink bg-canvas border border-line rounded-xl px-3 py-2 outline-none"
+              autoFocus
+              accessibilityLabel="New age group"
+              className="font-inter text-sm text-ink bg-canvas border border-line rounded-xl pl-3 pr-9 py-2 outline-none"
             />
             <TouchableOpacity
-              onPress={addDraft}
-              disabled={!draft.trim() || isAdding}
-              className={`px-3.5 py-2 rounded-xl bg-primary flex-row items-center gap-1 ${!draft.trim() ? 'opacity-50' : ''}`}
+              onPress={cancelOther}
+              accessibilityLabel="Cancel and choose from the list"
+              className="absolute right-2 p-1"
             >
-              {isAdding ? (
-                <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
-              ) : (
-                <>
-                  <Ionicons name="add" size={14} color={themeColor(isDark, 'on-primary')} />
-                  <Text className="font-inter-bold text-xs text-on-primary">Add</Text>
-                </>
-              )}
+              <Ionicons name="close" size={16} color={themeColor(isDark, 'ink-muted')} />
             </TouchableOpacity>
           </View>
+          <TouchableOpacity
+            onPress={addDraft}
+            disabled={!draft.trim() || isAdding}
+            className={`px-3.5 py-2 rounded-xl bg-primary flex-row items-center gap-1 ${!draft.trim() ? 'opacity-50' : ''}`}
+          >
+            {isAdding ? (
+              <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
+            ) : (
+              <>
+                <Ionicons name="add" size={14} color={themeColor(isDark, 'on-primary')} />
+                <Text className="font-inter-bold text-xs text-on-primary">Add</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
+      ) : (
+        <CustomSelect
+          value={selectValue}
+          onChange={picked => {
+            if (picked === ADD_NEW) {
+              // Nothing is chosen while the box is open: a form must not save the earlier choice
+              // under a name the user has typed over. The ✕ puts it back.
+              setBeforeOther(value);
+              setDraft('');
+              setShowOther(true);
+              onChange(undefined);
+              return;
+            }
+            const group = all.find(g => g.id === picked);
+            if (group) choose(group);
+            else onChange(null);
+          }}
+          // The closed control reads "Any age" off the `''` option, so the placeholder is free to
+          // stay the instruction — which is also the select's modal heading.
+          placeholder="Choose an age group"
+          options={[
+            ...(noneLabel !== undefined ? [{ value: '', label: noneLabel }] : []),
+            ...all.map(group => ({ value: group.id, label: group.name })),
+            { value: ADD_NEW, label: 'Other…', description: 'Add an age group this list does not have' },
+          ]}
+        />
       )}
+      {showOther && draft.trim() ? (
+        <Text className="font-inter text-xs text-ink-muted mt-1.5">
+          Press Add to keep {draft.trim()}, or ✕ to choose from the list.
+        </Text>
+      ) : null}
     </View>
   );
 }

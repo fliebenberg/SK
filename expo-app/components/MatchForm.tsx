@@ -1193,7 +1193,7 @@ export default function MatchForm({
                 sportId={selectedSportId}
                 ageGroups={sports.find(s => s.id === selectedSportId)?.ageGroups}
                 value={newTeamAgeGroupId}
-                onChange={setNewTeamAgeGroupId}
+                onChange={id => setNewTeamAgeGroupId(id ?? null)}
                 orgId={targetOrgIdForTeam || undefined}
               />
             </View>

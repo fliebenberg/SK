@@ -293,7 +293,7 @@ export function DivisionDetailsDialog({
 
   const [customName, setCustomName] = useState<string | null>(savedCustom);
   const [sportId, setSportId] = useState(division.sportId || '');
-  const [ageGroupId, setAgeGroupId] = useState<string | null>(division.ageGroupId || null);
+  const [ageGroupId, setAgeGroupId] = useState<string | null | undefined>(division.ageGroupId || null);
   const [ageGroupName, setAgeGroupName] = useState(division.ageGroup || '');
   const [saving, setSaving] = useState(false);
 
@@ -338,7 +338,7 @@ export function DivisionDetailsDialog({
       const result = await sendAction(SocketAction.UPDATE_DIVISION, {
         id: division.id,
         orgId,
-        data: { name, ...(sportId ? { sportId } : {}), ageGroupId },
+        data: { name, ...(sportId ? { sportId } : {}), ageGroupId: ageGroupId ?? null },
       });
       if (!result.ok) { setSaving(false); return; }
     }
@@ -354,7 +354,7 @@ export function DivisionDetailsDialog({
       onClose={onClose}
       onSave={canEditRecord || canEdit ? save : undefined}
       saveLabel={sportChanging && lastOfSport ? `Save and remove ${sportName(division.sportId) || 'the sport'}` : 'Save'}
-      saveDisabled={(!recordDirty && !courtsDirty) || !name || !!nameClash}
+      saveDisabled={(!recordDirty && !courtsDirty) || !name || !!nameClash || ageGroupId === undefined}
       isSaving={saving}
       isDirty={recordDirty || courtsDirty}
     >
@@ -404,7 +404,7 @@ export function DivisionDetailsDialog({
       </View>
 
       <View className="gap-1.5">
-        <FieldLabel label="Age group" optional help="From the sport's list. Teams of this age group are the ones offered for entry; others can still be added, as playing up or down." />
+        <FieldLabel label="Age group" help="From the sport's list. Teams of this age group are the ones offered for entry; others can still be added, as playing up or down." />
         {canEditRecord ? (
           <AgeGroupPicker
             sportId={sportId}
@@ -413,7 +413,6 @@ export function DivisionDetailsDialog({
             onChange={(id, group) => { setAgeGroupId(id); setAgeGroupName(group?.name || ''); }}
             noneLabel="Any age"
             orgId={orgId}
-            variant="dropdown"
           />
         ) : (
           <Text className="font-inter text-sm text-ink">{division.ageGroup || 'Any age'}</Text>
@@ -482,7 +481,7 @@ export function AddDivisionDialog({ visible, onClose, onAdded, orgId, event, spo
   existing?: TournamentDivision | null;
 }) {
   const isDark = useActiveTheme() === 'dark';
-  const [ageGroupId, setAgeGroupId] = useState<string | null>(null);
+  const [ageGroupId, setAgeGroupId] = useState<string | null | undefined>(null);
   const [ageGroupName, setAgeGroupName] = useState('');
   const [customName, setCustomName] = useState<string | null>(null);
   const [format, setFormat] = useState<FormatSetting>(DEFAULT_FORMAT);
@@ -509,7 +508,7 @@ export function AddDivisionDialog({ visible, onClose, onAdded, orgId, event, spo
     setSaving(true);
     let divisionId = existing?.id;
     if (existing) {
-      const updated = await sendAction(SocketAction.UPDATE_DIVISION, { id: existing.id, orgId, data: { name, ageGroupId } });
+      const updated = await sendAction(SocketAction.UPDATE_DIVISION, { id: existing.id, orgId, data: { name, ageGroupId: ageGroupId ?? null } });
       if (!updated.ok) { setSaving(false); return; }
     } else {
       const added = await sendAction(SocketAction.ADD_DIVISION, {
@@ -517,7 +516,7 @@ export function AddDivisionDialog({ visible, onClose, onAdded, orgId, event, spo
         orgId,
         sportId: sport.id,
         name,
-        ageGroupId,
+        ageGroupId: ageGroupId ?? null,
         format: format.format,
       });
       if (!added.ok) { setSaving(false); return; }
@@ -546,7 +545,7 @@ export function AddDivisionDialog({ visible, onClose, onAdded, orgId, event, spo
       onClose={onClose}
       onSave={save}
       saveLabel={existing ? 'Save' : 'Add division'}
-      saveDisabled={!name || !!clash}
+      saveDisabled={!name || !!clash || ageGroupId === undefined}
       isSaving={saving}
       footerLeft={existing ? (
         <TouchableOpacity onPress={onClose} accessibilityRole="button" className="justify-center py-2">
@@ -558,7 +557,7 @@ export function AddDivisionDialog({ visible, onClose, onAdded, orgId, event, spo
         <Text className="font-inter text-sm text-ink-soft">{sport.name} has been added. Every sport is played in at least one division — what is this one?</Text>
       ) : null}
       <View className="gap-1.5">
-        <FieldLabel label="Age group" optional help={`${sport.name}'s age groups. Teams of another age can still be entered — they are marked as playing up or down.`} />
+        <FieldLabel label="Age group" help={`${sport.name}'s age groups. Teams of another age can still be entered — they are marked as playing up or down.`} />
         <AgeGroupPicker
           sportId={sport.id}
           ageGroups={sport.ageGroups}
@@ -566,7 +565,6 @@ export function AddDivisionDialog({ visible, onClose, onAdded, orgId, event, spo
           onChange={(id, group) => { setAgeGroupId(id); setAgeGroupName(group?.name || ''); }}
           noneLabel="Any age"
           orgId={orgId}
-          variant="chips"
         />
       </View>
       <View className="gap-1.5">
