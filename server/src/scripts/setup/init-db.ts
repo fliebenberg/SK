@@ -728,6 +728,9 @@ const createTables = async () => {
                 source_game_id TEXT REFERENCES games(id) ON DELETE SET NULL,
                 source_stage_id TEXT REFERENCES division_stages(id) ON DELETE SET NULL,
                 source_rule JSONB,
+                -- Who last saved this side's team sheet; null when the server saved a proposed
+                -- team itself (20261107_last_saved_by.ts, SYNC-11).
+                roster_saved_by TEXT REFERENCES users(id) ON DELETE SET NULL,
                 -- FIX-10. Named explicitly rather than left to Postgres' auto-naming, because
                 -- the migration adds them by these names and the two schemas are diffed.
                 -- Cascade only where the row is meaningless without its parent: deleting a team
@@ -934,7 +937,9 @@ const createTables = async () => {
                 cached_standings JSONB DEFAULT '[]'::jsonb,
                 logo TEXT DEFAULT NULL,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
-                updated_at TIMESTAMPTZ DEFAULT NOW()
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                -- Who last saved its settings (20261107_last_saved_by.ts, SYNC-11).
+                updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
             );
         `);
 

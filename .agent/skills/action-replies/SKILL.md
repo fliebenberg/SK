@@ -77,6 +77,9 @@ clearing one.
    sending must be reverted on failure.
 6. **`noAnswer`** means "may have saved" — even after `sendAction`'s own retry. Its default message
    already says "check before trying again".
+7. **`conflict`** (`SYNC-11`) on a refusal means the record changed since the form was opened: who
+   changed what, and the values now. Show it in `<EditConflictModal>`, not a toast — see the
+   [saving-edits skill](file:///c:/Fred/Coding/SK/.agent/skills/saving-edits/SKILL.md).
 
 ## Rule 2 — retries must not duplicate
 

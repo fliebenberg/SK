@@ -1,4 +1,5 @@
 import {
+  EditConflict,
   SOCKET_MAX_ACTION_BYTES,
   SocketAction,
   SocketActionPayload,
@@ -47,11 +48,15 @@ import { reportClientFailure } from './clientFailures';
  * **Too large is refused here (`MEDIA-3`).** The server closes the connection on a message over its
  * limit without answering, which would read as "no answer". So one over `SOCKET_MAX_ACTION_BYTES` is
  * never sent: `tooLarge` marks it, the message gives the sizes, and nothing was saved.
+ *
+ * **Changed meanwhile (`SYNC-11`).** A save that says what it was based on is refused when that has
+ * changed since; `conflict` then holds who changed what, for `<EditConflictModal>` to offer
+ * *Save mine anyway*.
  */
 
 export type ActionResult<T> =
   | { ok: true; data: T }
-  | { ok: false; message: string; noAnswer?: boolean; tooLarge?: boolean };
+  | { ok: false; message: string; noAnswer?: boolean; tooLarge?: boolean; conflict?: EditConflict };
 
 export interface SendActionOptions {
   /** Defaults to the socket wrapper's 7 seconds. */
@@ -155,7 +160,7 @@ export async function sendAction<K extends SocketAction, P extends SocketActionP
     options.requestId || (pending && pending.expiresAt > now ? pending.requestId : undefined) || newRequestId();
   const action = { ...createSocketAction(type, payload), requestId };
 
-  const fail = (message: string, kind: 'refused' | 'no-answer' | 'unexpected-reply' | 'too-large') => {
+  const fail = (message: string, kind: 'refused' | 'no-answer' | 'unexpected-reply' | 'too-large', conflict?: EditConflict) => {
     const log = kind === 'unexpected-reply' ? console.error : console.warn;
     log(`[action] ${type} ${kind}: ${message}`);
     reportClientFailure({ actionType: type, kind, message, requestId });
@@ -168,6 +173,7 @@ export async function sendAction<K extends SocketAction, P extends SocketActionP
       message,
       ...(kind === 'no-answer' ? { noAnswer: true } : {}),
       ...(kind === 'too-large' ? { tooLarge: true } : {}),
+      ...(conflict ? { conflict } : {}),
     };
   };
 
@@ -196,7 +202,9 @@ export async function sendAction<K extends SocketAction, P extends SocketActionP
     return { ok: true, data: reply.data };
   }
   if (reply.status === 'error' || reply.error) {
-    return fail(reply.message || reply.error || 'The server refused that change.', 'refused');
+    // A save refused over a change made since it was opened says who changed what (`SYNC-11`).
+    const conflict = reply.conflict && Array.isArray(reply.conflict.fields) ? (reply.conflict as EditConflict) : undefined;
+    return fail(reply.message || reply.error || 'The server refused that change.', 'refused', conflict);
   }
   // Neither shape: the server broke the contract. Loud, because nothing else will be.
   return fail(

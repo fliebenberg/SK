@@ -162,6 +162,18 @@ server does not take: colour).` — and so is an action with no entry in `Protoc
 `npm run gen:action-schemas` after changing `shared/src`; `check:action-schemas` (pre-commit) fails
 until you do.
 
+**Changed meanwhile (`SYNC-11`, decided 2026-11-07: checks on save, not locks).** A save may carry
+the old values of the fields it changes — what its form was opened on. When one of them is no longer
+what is saved, nothing is written and the refusal carries `conflict: { changedBy, fields, current }`:
+who last saved the record (as its organisation knows them, or `null`), the fields that changed under
+the save, and their values now. A change to *other* fields is not a clash, which is why a form sends
+only the fields it changed. The app shows it in `<EditConflictModal>`: *Show theirs*, *Keep
+editing*, or *Save mine anyway*, which lists each field theirs beside yours and, once confirmed,
+sends the same save with the reported values as its old values — still refused if a third change
+landed in between. So far: `SAVE_GAME_ROSTER` (`itemsWas`) and `UPDATE_SEASON` (`was`); the
+`resultWas` of `RECORD_GAME_RESULT` is the older form of the same check. A save without these fields
+replaces what is there, as before.
+
 **Failures log.** Every refusal is written to `server/logs/failures-YYYY-MM-DD.jsonl`.
 
 #### `client_failures` (socket event, not an action)
@@ -427,8 +439,14 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
     *   **Data**: Result of update.
 
 #### `SAVE_GAME_ROSTER` — one side's team for one game
-*   **Payload**: `{ gameId, participantId, items: [{ orgProfileId, position?, jerseyNumber?, isReserve }] }`
-    — the whole sheet; saving replaces it.
+*   **Payload**: `{ gameId, participantId, items: [{ orgProfileId, position?, jerseyNumber?, isReserve }], itemsWas? }`
+    — the whole sheet; saving replaces it. `itemsWas` (`SYNC-11`) is the saved sheet it was picked
+    over, `[]` when there was none (a proposed team is not saved); the app always sends it.
+*   **Changed meanwhile**: when the saved sheet is no longer `itemsWas` (in any order), refused with
+    `conflict: { changedBy, fields: ['items'], current: { items } }` — "Anna Botha saved this team after
+    you opened it." `game_participants.roster_saved_by` records who saved it; null with the game under
+    way or over means the server saved a proposed team itself, and the refusal says so ("…saved for the
+    game when it started or its result was recorded…"). Checked and written under a lock on the side.
 *   **Authorised** (`SCORE-19`, 2026-10-22): the org gate's `pick-side` — `AccessManager.canPickSide`.
     **Each organisation picks its own**: the side's coach, or its organisation's admins and staff. In a
     tournament the people who run it may pick for any side too — its organisers, the division's
@@ -463,6 +481,22 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
     scoring actions — `UPDATE_GAME_CLOCK`, `UPDATE_GAME_STATUS` other than cancelling, `REMOVE_SIN_BIN`.
 *   **Reply**: the new `GameOfficialEntry`; nothing for a removal. No broadcast — the game page reads
     `game_officials` again after a change.
+
+### 4b. Leagues and seasons
+
+#### `UPDATE_SEASON`
+*   **Payload**: `{ id, data, was? }`. `data` names only the fields being changed — `name`,
+    `startDate`, `endDate`, `status`, `logo`, and `settings`, which is **merged** into what is stored
+    (`{ pointsPerWin: 4 }` leaves the other points as they are). `was` (`SYNC-11`) holds the values the
+    form was opened on for the fields it changes, flat: `{ name, startDate, endDate, pointsPerWin,
+    pointsPerDraw, pointsPerLoss, logo }` (`SeasonEditFields`, read through `seasonEditFields`).
+*   **Authorised**: the org gate's `manage-org`, for the league's organisation.
+*   **Changed meanwhile**: when a field in `was` is no longer what is saved, refused with
+    `conflict: { changedBy, fields, current }` — "Thabo Nkosi changed the points for a win after you
+    opened this season." `seasons.updated_by` records who last saved the settings. Checked and written
+    under a row lock.
+*   **Broadcasts**: `SEASON_UPDATED` to `org:{orgId}:leagues` and `league:{id}:seasons`;
+    `STANDINGS_UPDATED` to `season:{id}:standings`.
 
 ### 5. Organizations
 

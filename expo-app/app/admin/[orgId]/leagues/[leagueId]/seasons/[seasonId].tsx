@@ -15,14 +15,16 @@ import { sendAction } from '../../../../../../services/actions';
 import { readData } from '../../../../../../services/reads';
 import { ReadFailure } from '../../../../../../components/ReadFailure';
 import { FloatingSaveBar, FLOATING_SAVE_BAR_PADDING } from '../../../../../../components/FloatingSaveBar';
-import { useIncomingRecord, CHANGED_ELSEWHERE_NOTICE } from '../../../../../../hooks/useIncomingRecord';
+import { useIncomingRecord, CHANGED_ELSEWHERE_CHECKED_NOTICE } from '../../../../../../hooks/useIncomingRecord';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { SocketAction, Season, SeasonTeam, LeagueStandingRow, Game, Team, seasonPointsFromInput } from '@sk/shared';
+import { EditConflict, SEASON_EDIT_LABELS, SeasonEditFields, UpdateSeasonPayload, sameEditValue, seasonEditFields } from '@sk/shared';
+import { EditConflictModal, EditConflictRow } from '../../../../../../components/EditConflictModal';
 import { finishedScoreLine } from '../../../../../../utils/matchScore';
 import DatePicker from '../../../../../../components/DatePicker';
 import { getOrgLogoUrl } from '../../../../../../services/assets';
 import { useImageUpload } from '../../../../../../hooks/useImageUpload';
-import { calendarRangeStatus, formatFixtureWhen, isCalendarDate } from '../../../../../../utils/dates';
+import { calendarRangeStatus, formatCalendarDate, formatFixtureWhen, isCalendarDate } from '../../../../../../utils/dates';
 import { pickableTeams } from '../../../../../../components/teams/TeamBits';
 import { themeColor } from '../../../../../../constants/Colors';
 
@@ -48,16 +50,36 @@ interface SeasonSettingsForm {
   logo: string;
 }
 
-/** A season record, in the shape the settings form holds it. Defaults match the form's own. */
-const seasonSettingsOf = (season: any): SeasonSettingsForm => ({
-  name: season?.name || '',
-  startDate: season?.startDate || '',
-  endDate: season?.endDate || '',
-  ptsWin: String(season?.settings?.pointsPerWin ?? 4),
-  ptsDraw: String(season?.settings?.pointsPerDraw ?? 2),
-  ptsLoss: String(season?.settings?.pointsPerLoss ?? 0),
-  logo: season?.logo || '',
-});
+/**
+ * A season record, in the shape the settings form holds it. Read through `seasonEditFields`, the
+ * server's own view of these fields, so what the form was opened on is what a save's `was` says
+ * (`SYNC-11`).
+ */
+const seasonSettingsOf = (season: any): SeasonSettingsForm => {
+  const fields = seasonEditFields(season || {});
+  return {
+    name: fields.name,
+    startDate: fields.startDate,
+    endDate: fields.endDate,
+    ptsWin: String(fields.pointsPerWin),
+    ptsDraw: String(fields.pointsPerDraw),
+    ptsLoss: String(fields.pointsPerLoss),
+    logo: fields.logo || '',
+  };
+};
+
+/** How one season field reads in the list *Save mine anyway* shows. */
+const seasonFieldText = (key: string, value: unknown, side: 'theirs' | 'yours'): string => {
+  if (key === 'logo') return value ? (side === 'theirs' ? 'Their logo' : 'Your logo') : 'No logo';
+  if (key === 'startDate' || key === 'endDate') return formatCalendarDate(value as string) ?? 'Not set';
+  if (value === null || value === undefined || value === '') return 'Not set';
+  return String(value);
+};
+
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** What one season save writes: only the fields it changes (`SYNC-11`). */
+type SeasonSaveData = UpdateSeasonPayload['data'];
 
 const sameSeasonSettings = (a: SeasonSettingsForm, b: SeasonSettingsForm) =>
   a.name.trim() === b.name.trim() &&
@@ -396,28 +418,76 @@ export default function SeasonDetails() {
       return;
     }
 
+    if (!settingsBaseline) return;
+
+    /*
+      `SYNC-11`: only the fields changed here are sent, each with the value the form was opened on.
+      One sent unchanged would replace somebody else's change to it; the server refuses the save
+      when a field it changes has been changed since.
+    */
+    const opened = settingsBaseline;
+    const was: SeasonEditFields = {
+      name: opened.name,
+      startDate: opened.startDate,
+      endDate: opened.endDate,
+      pointsPerWin: Number(opened.ptsWin),
+      pointsPerDraw: Number(opened.ptsDraw),
+      pointsPerLoss: Number(opened.ptsLoss),
+      logo: opened.logo || null,
+    };
+    const yours: SeasonEditFields = {
+      name: seasonName.trim(),
+      startDate: startDateStr,
+      endDate: endDateStr,
+      ...points.points,
+      logo: seasonLogo || null,
+    };
+    const changed = (Object.keys(yours) as (keyof SeasonEditFields)[]).filter(key =>
+      !sameEditValue(yours[key], key === 'name' ? was.name.trim() : was[key]));
+
+    const data: SeasonSaveData = {};
+    if (changed.includes('name')) data.name = yours.name;
+    if (changed.includes('startDate')) data.startDate = yours.startDate;
+    if (changed.includes('endDate')) data.endDate = yours.endDate;
+    if (changed.includes('logo')) data.logo = yours.logo;
+    const pointKeys = (['pointsPerWin', 'pointsPerDraw', 'pointsPerLoss'] as const).filter(key => changed.includes(key));
+    // Merged into what is stored, so only the points changed here.
+    if (pointKeys.length) data.settings = Object.fromEntries(pointKeys.map(key => [key, yours[key]]));
+    if (computedStatus !== season?.status) data.status = computedStatus;
+
+    sendSeasonSave(data, Object.fromEntries(changed.map(key => [key, was[key]])), yours);
+  };
+
+  /**
+   * A save refused over a change made since the form was opened: the refusal, what this save would
+   * have written, and what it was based on — for *Save mine anyway* to send again on top of theirs.
+   */
+  const [seasonConflict, setSeasonConflict] = useState<{
+    message: string;
+    conflict: EditConflict;
+    data: SeasonSaveData;
+    was: Partial<SeasonEditFields>;
+    yours: SeasonEditFields;
+  } | null>(null);
+
+  const sendSeasonSave = (data: SeasonSaveData, was: Partial<SeasonEditFields>, yours: SeasonEditFields) => {
     setIsProcessing(true);
     setActionError(null);
 
-    const payload = {
-      id: seasonId,
-      data: {
-        name: seasonName.trim(),
-        startDate: startDateStr,
-        endDate: endDateStr,
-        status: computedStatus,
-        settings: points.points,
-        logo: seasonLogo || null
-      }
-    };
-
-    sendAction(SocketAction.UPDATE_SEASON, payload, { suppressToast: true }).then(result => {
+    sendAction(SocketAction.UPDATE_SEASON, { id: seasonId, data, was }, { suppressToast: true }).then(result => {
       setIsProcessing(false);
       // A missing reply used to fall through to here and clear the unsaved-changes guard.
       if (!result.ok) {
+        // Changed by someone else meanwhile: said in the dialog, which offers the ways on.
+        if (result.conflict) {
+          setSeasonConflict({ message: result.message, conflict: result.conflict, data, was, yours });
+          return;
+        }
+        setSeasonConflict(null);
         setActionError(result.message);
         return;
       }
+      setSeasonConflict(null);
       logoUpload.saved();
       if (result.data) {
         setSeason(result.data);
@@ -425,6 +495,35 @@ export default function SeasonDetails() {
         seedSeasonSettings(seasonSettingsOf(result.data));
       }
       incomingSettings.clear();
+      useUnsavedChangesStore.getState().clear();
+    });
+  };
+
+  /** Each field the refused save would replace: what is saved now beside what this save puts there. */
+  const seasonConflictRows: EditConflictRow[] = (seasonConflict?.conflict.fields ?? []).map(key => ({
+    key,
+    label: capitalise(SEASON_EDIT_LABELS[key as keyof SeasonEditFields] ?? key),
+    theirs: seasonFieldText(key, seasonConflict?.conflict.current[key], 'theirs'),
+    yours: seasonFieldText(key, seasonConflict?.yours[key as keyof SeasonEditFields], 'yours'),
+  }));
+
+  /** *Save mine anyway*: the same save, now based on what was just reported as saved. */
+  const handleSaveSeasonAnyway = () => {
+    if (!seasonConflict) return;
+    const { data, was, yours, conflict } = seasonConflict;
+    sendSeasonSave(data, { ...was, ...(conflict.current as Partial<SeasonEditFields>) }, yours);
+  };
+
+  /** *Show theirs*: drop these edits and seed the form from the season as it is saved now. */
+  const handleShowTheirSeason = () => {
+    setSeasonConflict(null);
+    void readSeason(res => {
+      setSeason(res);
+      setStandings(res.cachedStandings || []);
+      seedSeasonSettings(seasonSettingsOf(res));
+      logoUpload.discard();
+      incomingSettings.clear();
+      setActionError(null);
       useUnsavedChangesStore.getState().clear();
     });
   };
@@ -922,7 +1021,17 @@ export default function SeasonDetails() {
         onSave={handleSaveSettings}
         onCancel={handleCancelSettings}
         isProcessing={isProcessing}
-        notice={incomingSettings.newer ? CHANGED_ELSEWHERE_NOTICE : null}
+        notice={incomingSettings.newer ? CHANGED_ELSEWHERE_CHECKED_NOTICE : null}
+      />
+
+      <EditConflictModal
+        isOpen={!!seasonConflict}
+        message={seasonConflict?.message ?? ''}
+        rows={seasonConflictRows}
+        onShowTheirs={handleShowTheirSeason}
+        onSaveAnyway={handleSaveSeasonAnyway}
+        onClose={() => setSeasonConflict(null)}
+        isProcessing={isProcessing}
       />
 
       {logoUpload.element}

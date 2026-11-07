@@ -77,6 +77,7 @@ import { guardianManager } from './managers/GuardianManager';
 import { peopleImportManager, PeopleImportEffects } from './managers/PeopleImportManager';
 import { publishPeopleImport } from './wss/peopleImport';
 import { attachSocketLogging, redactViewerPosition } from './wss/socketLog';
+import { EditConflictError } from './utils/editConflict';
 import {
   divisionFacilitiesRoom,
   divisionRoom,
@@ -2563,7 +2564,8 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.UPDATE_SEASON:
-                result = await dataManager.updateSeason(action.payload.id, action.payload.data);
+                // `was`: refused over a change made since the form was opened (`SYNC-11`).
+                result = await dataManager.updateSeason(action.payload.id, action.payload.data, { was: action.payload.was, userId: authUserId });
                 if (result) {
                     const parentLeague = await dataManager.getLeague(result.leagueId);
                     if (parentLeague) {
@@ -2940,8 +2942,9 @@ io.on('connection', (socket) => {
                 break;
 
             case SocketAction.SAVE_GAME_ROSTER:
-                const { gameId, participantId, items } = action.payload;
-                result = await dataManager.saveGameRoster(gameId, participantId, items);
+                const { gameId, participantId, items, itemsWas } = action.payload;
+                // `itemsWas`: refused over a sheet saved since this one was opened (`SYNC-11`).
+                result = await dataManager.saveGameRoster(gameId, participantId, items, { itemsWas, userId: authUserId });
                 if (result) {
                     // Broadcast roster update to the game room
                     broadcast(`game:${gameId}`, 'GAME_ROSTER_UPDATED', { gameId, participantId, items });
@@ -4404,7 +4407,9 @@ io.on('connection', (socket) => {
             userId: authUserId,
             requestId: typeof (action as any).requestId === 'string' ? (action as any).requestId : undefined,
         });
-        if (callback) callback({ status: 'error', message: error.message || 'Internal server error' } satisfies ActionAck);
+        // A refusal over a change made meanwhile carries who changed what (`SYNC-11`).
+        const conflict = error instanceof EditConflictError ? error.conflict : undefined;
+        if (callback) callback({ status: 'error', message: error.message || 'Internal server error', ...(conflict ? { conflict } : {}) } satisfies ActionAck);
     }
   };
 

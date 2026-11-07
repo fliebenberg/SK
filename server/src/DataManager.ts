@@ -185,7 +185,7 @@ export class DataManager {
   getGameEvents = (gameId: string, fromSequence?: number, limit?: number) => gameEventManager.getGameEvents(gameId, fromSequence, limit);
   getGameRoster = (participantId: string) => eventManager.getGameRoster(participantId);
   getGameIdForParticipant = (participantId: string) => eventManager.getGameIdForParticipant(participantId);
-  saveGameRoster = (gameId: string, participantId: string, items: Array<{ orgProfileId: string, position?: string, isReserve: boolean }>) => eventManager.saveGameRoster(gameId, participantId, items);
+  saveGameRoster = (...args: Parameters<typeof eventManager.saveGameRoster>) => eventManager.saveGameRoster(...args);
   getRosterProposal = (participantId: string) => eventManager.getRosterProposal(participantId);
   standProposedRosters = (gameId: string) => eventManager.standProposedRosters(gameId);
   getEventLineups = (userId: string, eventId: string) => eventManager.getEventLineups(userId, eventId);
@@ -294,7 +294,7 @@ export class DataManager {
   getSeasons = (leagueId: string) => leagueManager.getSeasons(leagueId);
   getSeason = (id: string) => leagueManager.getSeason(id);
   createSeason = (data: any) => leagueManager.createSeason(data);
-  updateSeason = (id: string, data: any) => leagueManager.updateSeason(id, data);
+  updateSeason = (...args: Parameters<typeof leagueManager.updateSeason>) => leagueManager.updateSeason(...args);
   deleteSeason = (id: string) => leagueManager.deleteSeason(id);
   getSeasonTeams = (seasonId: string) => leagueManager.getSeasonTeams(seasonId);
   addTeamToSeason = (seasonId: string, teamId: string, status?: any) => leagueManager.addTeamToSeason(seasonId, teamId, status);

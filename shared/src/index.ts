@@ -70,4 +70,5 @@ export * from './utils/phone';
 export * from './utils/nationalId';
 export * from './utils/zonedTime';
 export * from './utils/seasonPoints';
+export * from './utils/editConflicts';
 export * from './constants/TestConstants';

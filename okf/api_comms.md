@@ -86,6 +86,16 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
      result already recorded as done. The match's page shows it waiting or not sent
      (`PendingResultNote`, with *Discard*), and the offline banner counts what is waiting. Live
      scoring, drawing, scheduling and moving fixtures need a connection.
+4b. **Two people editing the same thing: checks on save, not locks** (`SYNC-11`, decided 2026-11-07).
+   Locks were set aside: a phone in a pocket or a dropped connection leaves one behind, the offline
+   queue cannot hold one, and locking on opening blocks people who are only looking. Instead a save
+   carries the old values of the fields it changes, and the server refuses it — with
+   `conflict: { changedBy, fields, current }` — when one has changed since; a change to other fields
+   is not a clash. `<EditConflictModal>` offers *Show theirs*, *Keep editing* and *Save mine anyway*,
+   which lists exactly what it would replace and resends based on the reported values. Done for the
+   team sheet (`itemsWas`) and season settings (`was`); the other update actions still replace, one
+   area at a time to follow ([TODO.md](file:///c:/Fred/Coding/SK/TODO.md) `SYNC-11`). Wire format in
+   [docs/api_actions.md](file:///c:/Fred/Coding/SK/docs/api_actions.md) (*Changed meanwhile*).
 5. **Centralized Error Toast Interception**:
    - REST API calls (`apiService`), WebSocket emissions (`wsService.emit`), and data queries (`useSocketQuery`) automatically intercept non-ok status, error responses, and timeouts, broadcasting user-friendly toast notifications via `useToastStore`.
    - To suppress automatic toast notifications on specific requests, callers pass `{ suppressToast: true }` in request options.

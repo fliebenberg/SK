@@ -1,5 +1,6 @@
 import { SocketAction } from '../constants/SocketActions';
 import { ProtocolMap } from '../types/Protocol';
+import type { EditConflict } from './editConflicts';
 
 /** `never` for an action with no entry in `ProtocolMap`: the server refuses those (`SYNC-6`). */
 export type SocketActionPayload<K extends SocketAction> = K extends keyof ProtocolMap ? ProtocolMap[K]['payload'] : never;
@@ -23,8 +24,11 @@ export function createSocketAction<K extends SocketAction>(
  * `{ status: 'ok', data: team }`, never with the team itself. Reading the ack as the result is
  * how a created team was reported as a failure (`FIX-18`).
  *
+ * A refusal over a change made since the form was opened carries `conflict` (`SYNC-11`): who
+ * changed what, and what is saved now, so the screen can offer *Save mine anyway*.
+ *
  * `get_data` and the REST routes answer differently — see `okf/api_comms.md`.
  */
 export type ActionAck<T = unknown> =
   | { status: 'ok'; data: T }
-  | { status: 'error'; message: string };
+  | { status: 'error'; message: string; conflict?: EditConflict };

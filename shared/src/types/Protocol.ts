@@ -3,6 +3,7 @@ import { SocketAction } from "../constants/SocketActions";
 import { Organization, OrganizationType, OrgMembershipMode } from "../models/organization/Organization";
 import { MembershipApplication } from "../models/organization/MembershipApplication";
 import type { CalendarDate } from "../utils/calendarDate";
+import type { SeasonEditFields, TeamSheetItem } from "../utils/editConflicts";
 import { OrgMembership } from "../models/organization/OrgMembership";
 import { Team } from "../models/team/Team";
 import { TeamMembership } from "../models/team/TeamMembership";
@@ -433,7 +434,13 @@ export interface ResetGamePayload {
 export interface SaveGameRosterPayload {
     gameId: string;
     participantId: string;
-    items: Array<{ orgProfileId: string, position?: string, jerseyNumber?: string, isReserve: boolean }>;
+    items: TeamSheetItem[];
+    /**
+     * The sheet this one was picked over — the saved sheet as the screen loaded it, `[]` when it had
+     * none (a proposed team is not a saved one). Refused when the saved sheet is no longer this
+     * (`SYNC-11`). Left out, the save replaces whatever is there, as `standProposedRosters` does.
+     */
+    itemsWas?: TeamSheetItem[];
 }
 
 export interface UndoGameEventPayload {
@@ -601,7 +608,16 @@ export interface AddSeasonPayload {
 
 export interface UpdateSeasonPayload {
     id: string;
-    data: Partial<Omit<Season, 'id' | 'leagueId'>>;
+    /**
+     * Only the fields being changed: one sent unchanged would replace someone else's change to it.
+     * `settings` is merged into what is stored, so it too names only the points being changed.
+     */
+    data: Partial<Omit<Season, 'id' | 'leagueId' | 'settings'>> & { settings?: Partial<LeagueSettings> };
+    /**
+     * The values the form was opened on, for the fields it changes (`SYNC-11`). Refused, with an
+     * `EditConflict`, when any of them is no longer what is saved.
+     */
+    was?: Partial<SeasonEditFields>;
 }
 
 export interface DeleteSeasonPayload {

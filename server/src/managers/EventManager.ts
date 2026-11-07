@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
 import { Event, EventOrgHistory, Game, GameParticipant, GameClockState, GameEvent, GameSummary, AddGamePayload, UpdateGamePayload } from "@sk/shared";
-import { getPeriodLabel, assertCalendarDates, hasLeft, isDualEvent } from "@sk/shared";
+import { getPeriodLabel, assertCalendarDates, hasLeft, isDualEvent, sameTeamSheet } from "@sk/shared";
+import type { TeamSheetItem } from "@sk/shared";
+import { EditConflictError, nameForUser } from "../utils/editConflict";
 import { BaseManager, Tx } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 import type { EventListRow, GameListRow, PastEventRow, PastFixturesPage, PastGamesPage, SiteGameCounts, TeamSeasonResults } from "@sk/shared";
@@ -1274,9 +1276,61 @@ export class EventManager extends BaseManager {
     return res.rows;
   }
 
-  async saveGameRoster(gameId: string, participantId: string, items: { orgProfileId: string, position?: string, jerseyNumber?: string, isReserve: boolean }[]): Promise<boolean> {
+  /**
+   * Replace one side's team sheet for a game.
+   *
+   * `itemsWas` (`SYNC-11`): the saved sheet the new one was picked over (`[]` for none). When the
+   * saved sheet is no longer that, nothing is written and an `EditConflictError` says who saved it
+   * and carries it, for the screen to offer *Save mine anyway*. Checked and written under a lock on
+   * the side, so two saves cannot both pass. `userId` is recorded as who saved it; none — as from
+   * `standProposedRosters` — means the server saved it, at kick-off or with a result.
+   */
+  async saveGameRoster(
+    gameId: string,
+    participantId: string,
+    items: TeamSheetItem[],
+    options: { itemsWas?: TeamSheetItem[]; userId?: string | null } = {}
+  ): Promise<boolean> {
     try {
         await this.transaction(async (tx) => {
+            const side = await tx(
+              `SELECT gp.roster_saved_by AS "savedBy", g.status, COALESCE(t.org_id, op.org_id) AS "orgId"
+                 FROM game_participants gp
+                 JOIN games g ON g.id = gp.game_id
+                 LEFT JOIN teams t ON t.id = gp.team_id
+                 LEFT JOIN org_profiles op ON op.id = gp.org_profile_id
+                WHERE gp.id = $1 AND gp.game_id = $2
+                  FOR UPDATE OF gp`,
+              [participantId, gameId]
+            );
+            if (!side.rows[0]) throw new Error('That side is no longer in this game. It may have been changed by someone else; refresh and try again.');
+
+            if (options.itemsWas) {
+              const saved = await tx(
+                `SELECT org_profile_id AS "orgProfileId", position, jersey_number AS "jerseyNumber", is_reserve AS "isReserve"
+                   FROM game_rosters WHERE game_participant_id = $1`,
+                [participantId]
+              );
+              const now: TeamSheetItem[] = saved.rows.map((r: any) => ({
+                orgProfileId: r.orgProfileId,
+                position: r.position || undefined,
+                jerseyNumber: r.jerseyNumber || undefined,
+                isReserve: !!r.isReserve,
+              }));
+              if (!sameTeamSheet(options.itemsWas, now)) {
+                const { savedBy, status, orgId } = side.rows[0];
+                const changedBy = await nameForUser(tx, savedBy, orgId);
+                // Nobody recorded and the game under way or over: `standProposedRosters` saved it.
+                const message = changedBy
+                  ? `${changedBy} saved this team after you opened it. Nothing was saved.`
+                  : !savedBy && status !== 'Scheduled'
+                    ? 'This team was saved for the game when it started or its result was recorded, after you opened it. Nothing was saved.'
+                    : 'Someone else saved this team after you opened it. Nothing was saved.';
+                throw new EditConflictError(message, { changedBy, fields: ['items'], current: { items: now } });
+              }
+            }
+
+            await tx('UPDATE game_participants SET roster_saved_by = $2 WHERE id = $1', [participantId, options.userId ?? null]);
             // Clear existing roster for this participant
             await tx('DELETE FROM game_rosters WHERE game_participant_id = $1', [participantId]);
 
@@ -1292,7 +1346,8 @@ export class EventManager extends BaseManager {
         });
         return true;
     } catch (e) {
-        console.error('Error saving game roster:', e);
+        // A refusal over a sheet saved meanwhile is an answer, not a fault (`SYNC-11`).
+        if (!(e instanceof EditConflictError)) console.error('Error saving game roster:', e);
         throw e;
     }
   }

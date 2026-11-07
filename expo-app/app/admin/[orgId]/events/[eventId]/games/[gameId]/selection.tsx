@@ -22,12 +22,14 @@ import { useUnsavedChangesStore } from '../../../../../../../store/unsavedChange
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { wsService } from '../../../../../../../services/websocket';
 import { sendAction } from '../../../../../../../services/actions';
+import { useToastStore } from '../../../../../../../store/toastStore';
 import { readData } from '../../../../../../../services/reads';
 import { ReadFailure } from '../../../../../../../components/ReadFailure';
 import { ScreenHeader } from '../../../../../../../components/ScreenHeader';
-import { useIncomingRecord, CHANGED_ELSEWHERE_NOTICE } from '../../../../../../../hooks/useIncomingRecord';
+import { useIncomingRecord, CHANGED_ELSEWHERE_CHECKED_NOTICE } from '../../../../../../../hooks/useIncomingRecord';
 
-import { SocketAction } from '@sk/shared';
+import { EditConflict, SocketAction, TeamSheetItem, teamSheetChanges } from '@sk/shared';
+import { EditConflictModal, EditConflictRow } from '../../../../../../../components/EditConflictModal';
 import { useActiveTheme } from '../../../../../../../store/settingsStore';
 import { themeColor } from '../../../../../../../constants/Colors';
 
@@ -491,23 +493,77 @@ export default function GameSelectionScreen() {
     });
   }, [availablePlayers, roster]);
 
-  // Save Roster Handler
-  const handleSave = () => {
+  /**
+   * A save refused because the sheet was saved by someone else after it was opened (`SYNC-11`):
+   * the refusal and the sheet saved now, for *Save mine anyway* and *Show theirs*.
+   */
+  const [sheetConflict, setSheetConflict] = useState<{ message: string; conflict: EditConflict; participantId: string } | null>(null);
+  const theirSheet = (sheetConflict?.conflict.current.items ?? []) as TeamSheetItem[];
+
+  // Save Roster Handler. `itemsWas` is the saved sheet this one was picked over (`[]` for a
+  // proposed team, which is not saved): refused if the saved sheet has changed since.
+  const handleSave = (itemsWas: TeamSheetItem[] = originalRoster) => {
     if (!currentParticipant?.id || !canEditCurrentTeam || !game?.id || saveBlockedBy) return;
+    const participantId = currentParticipant.id;
     setIsSaving(true);
     sendAction(SocketAction.SAVE_GAME_ROSTER, {
       gameId: game.id,
-      participantId: currentParticipant.id,
+      participantId,
       items: roster,
-    }).then((result) => {
+      itemsWas,
+    }, { suppressToast: true }).then((result) => {
       setIsSaving(false);
-      if (result.ok) {
-        setOriginalRoster(roster);
-        setProposedFrom(null);
-        incomingRoster.clear();
-        useUnsavedChangesStore.getState().clear();
+      if (!result.ok) {
+        // Saved by someone else meanwhile: the dialog says who, and offers the ways on.
+        if (result.conflict) setSheetConflict({ message: result.message, conflict: result.conflict, participantId });
+        else { setSheetConflict(null); useToastStore.getState().showError(result.message, 'Not saved'); }
+        return;
       }
+      setSheetConflict(null);
+      setOriginalRoster(roster);
+      setProposedFrom(null);
+      incomingRoster.clear();
+      useUnsavedChangesStore.getState().clear();
     });
+  };
+
+  /** A name for each player on either sheet, for the list *Save mine anyway* shows. */
+  const playerLabel = (orgProfileId: string) => {
+    const player = availablePlayers.find((p) => (p.id || p.orgProfileId) === orgProfileId);
+    return player?.name || player?.orgProfileName || 'A player no longer in this team';
+  };
+  const placeText = (item: TeamSheetItem | null) => {
+    if (!item) return 'Not picked';
+    const place = item.isReserve
+      ? 'Reserve'
+      : item.position
+        ? positions.find((p) => p.id === item.position)?.name || `Position ${item.position}`
+        : 'Picked';
+    return item.jerseyNumber ? `${place} · #${item.jerseyNumber}` : place;
+  };
+  /** Each player whose place differs between the saved sheet and this one. */
+  const sheetConflictRows: EditConflictRow[] = sheetConflict
+    ? teamSheetChanges(theirSheet, roster).map((change) => ({
+        key: change.orgProfileId,
+        label: playerLabel(change.orgProfileId),
+        theirs: placeText(change.theirs),
+        yours: placeText(change.yours),
+      }))
+    : [];
+
+  /** *Show theirs*: drop these picks and show the sheet as it is saved now. */
+  const handleShowTheirSheet = () => {
+    if (sheetConflict?.participantId === currentParticipant?.id) {
+      setRoster(theirSheet);
+      setOriginalRoster(theirSheet);
+      setProposedFrom(null);
+      incomingRoster.clear();
+      setActivePositionId(null);
+      setActivePlayerId(null);
+      setActiveIsReserve(false);
+      useUnsavedChangesStore.getState().clear();
+    }
+    setSheetConflict(null);
   };
 
   // Reserve Limit
@@ -1689,7 +1745,7 @@ export default function GameSelectionScreen() {
             </Text>
           ) : incomingRoster.newer ? (
             <Text className="font-inter text-xs text-warning-ink text-center" accessibilityLiveRegion="polite">
-              {CHANGED_ELSEWHERE_NOTICE}
+              {CHANGED_ELSEWHERE_CHECKED_NOTICE}
             </Text>
           ) : null}
           <View className="flex-row gap-3">
@@ -1705,7 +1761,7 @@ export default function GameSelectionScreen() {
 
           <TouchableOpacity
             disabled={isSaving || !!saveBlockedBy}
-            onPress={handleSave}
+            onPress={() => handleSave()}
             className={`flex-1 py-3 rounded-xl bg-primary items-center flex-row justify-center gap-2 ${saveBlockedBy ? 'opacity-50' : ''}`}
           >
             {isSaving ? (
@@ -1722,6 +1778,18 @@ export default function GameSelectionScreen() {
           </View>
         </View>
       )}
+
+      {/* Saved by someone else after this sheet was opened (`SYNC-11`). */}
+      <EditConflictModal
+        isOpen={!!sheetConflict && sheetConflict.participantId === currentParticipant?.id}
+        message={sheetConflict?.message ?? ''}
+        rows={sheetConflictRows}
+        onShowTheirs={handleShowTheirSheet}
+        // The same sheet again, now picked over the one just reported as saved.
+        onSaveAnyway={() => handleSave(theirSheet)}
+        onClose={() => setSheetConflict(null)}
+        isProcessing={isSaving}
+      />
 
       {/* MOBILE PLAYER PICKER BOTTOM SHEET MODAL (FOR PHONES) */}
       <Modal

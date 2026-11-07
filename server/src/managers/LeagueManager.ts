@@ -1,6 +1,8 @@
 import { BaseManager } from "./BaseManager";
 import { assertSeasonKeepsPrivateOrgsApart } from "./privateOrgs";
 import { League, Season, SeasonTeam, LeagueStandingRow, Game, Team, ScoringSystem, calculateStandings, assertCalendarDates } from "@sk/shared";
+import { SEASON_EDIT_LABELS, SeasonEditFields, UpdateSeasonPayload, clashingFields, listInWords, seasonEditFields } from "@sk/shared";
+import { EditConflictError, nameForUser } from "../utils/editConflict";
 
 import { v4 as uuidv4 } from "uuid";
 import { imageService } from "../services/ImageService";
@@ -155,13 +157,21 @@ export class LeagueManager extends BaseManager {
     return (await this.getSeason(id))!;
   }
 
-  async updateSeason(id: string, data: Partial<Season>): Promise<Season | null> {
+  /**
+   * Save a season's settings. Only the fields in `data` are written, and `settings` is merged into
+   * what is stored, so a save of the points for a win leaves the other points as they are.
+   *
+   * `was` (`SYNC-11`): the values the form was opened on, for the fields it changes. When one of
+   * them is no longer what is saved, nothing is written and an `EditConflictError` says who last
+   * saved the season and what those fields hold now. Checked and written under a row lock, so two
+   * saves cannot both pass the check.
+   */
+  async updateSeason(id: string, data: UpdateSeasonPayload["data"], options: { was?: Partial<SeasonEditFields>; userId?: string | null } = {}): Promise<Season | null> {
     assertCalendarDates(data as Record<string, unknown>, SEASON_DATE_FIELDS);
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;
 
-    const previousLogo = data.logo !== undefined ? (await this.getSeason(id))?.logo : undefined;
     const image = await imageService.stage('logos', data.logo);
     if (image.value !== undefined) {
       fields.push(`logo = $${idx++}`);
@@ -185,20 +195,57 @@ export class LeagueManager extends BaseManager {
       values.push(data.status);
     }
     if (data.settings !== undefined) {
-      fields.push(`settings = $${idx++}`);
-      values.push(JSON.stringify(data.settings));
+      fields.push(`settings = COALESCE(settings, '{}'::jsonb) || $${idx++}::jsonb`);
+      values.push(JSON.stringify(data.settings ?? {}));
     }
 
     if (fields.length === 0) return this.getSeason(id);
 
+    fields.push(`updated_by = $${idx++}`);
+    values.push(options.userId ?? null);
     values.push(id);
+    let previousLogo: string | null | undefined;
     try {
-      await this.query(`UPDATE seasons SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx}`, values);
+      const found = await this.transaction(async (tx) => {
+        const locked = await tx(
+          `SELECT s.name, s.start_date AS "startDate", s.end_date AS "endDate", s.settings, s.logo,
+                  s.updated_by AS "updatedBy", l.org_id AS "orgId"
+             FROM seasons s JOIN leagues l ON l.id = s.league_id
+            WHERE s.id = $1
+              FOR UPDATE OF s`,
+          [id]
+        );
+        const row = locked.rows[0];
+        if (!row) return false;
+        previousLogo = row.logo;
+
+        const now = seasonEditFields(row);
+        const clashes = clashingFields(options.was, now as unknown as Record<string, unknown>);
+        if (clashes.length) {
+          const changedBy = await nameForUser(tx, row.updatedBy, row.orgId);
+          const what = listInWords(clashes.map(key => SEASON_EDIT_LABELS[key as keyof SeasonEditFields] ?? key));
+          throw new EditConflictError(
+            `${changedBy ?? 'Someone else'} changed the ${what} after you opened this season. Nothing was saved.`,
+            {
+              changedBy,
+              fields: clashes,
+              current: Object.fromEntries(clashes.map(key => [key, (now as unknown as Record<string, unknown>)[key] ?? null])),
+            }
+          );
+        }
+
+        await tx(`UPDATE seasons SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx}`, values);
+        return true;
+      });
+      if (!found) {
+        await image.discard();
+        return null;
+      }
     } catch (error) {
       await image.discard();
       throw error;
     }
-    await image.commit(previousLogo);
+    await image.commit(data.logo !== undefined ? previousLogo : undefined);
     return this.getSeason(id);
   }
 
