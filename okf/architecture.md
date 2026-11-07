@@ -17,6 +17,7 @@ ScoreKeeper is a monorepo of three packages. The multi-sport design they impleme
 - **[server/](file:///c:/Fred/Coding/SK/server/)**: the backend. Node.js, Express, PostgreSQL and WebSockets.
 - **[shared/](file:///c:/Fred/Coding/SK/shared/)**: what the other two must agree on. Models, socket-action constants and logic both sides run, published as `@sk/shared`. Browse [shared/src/](file:///c:/Fred/Coding/SK/shared/src/) for what is there.
 - **[docs/](file:///c:/Fred/Coding/SK/docs/)**: canonical specifications. Not a package.
+- **[deploy/](file:///c:/Fred/Coding/SK/deploy/)**: the test server's Caddy config and the scripts that update, install and back it up. Not a package; how they are used is in [deployment.md](file:///c:/Fred/Coding/SK/docs/deployment.md). The PM2 process file lives with the code it runs, in [server/pm2.config.js](file:///c:/Fred/Coding/SK/server/pm2.config.js).
 
 A fourth package, `client/` (an older Next.js web-only app that `expo-app/` replaced), was deleted on 2026-09-13. To-do entries that mention it are closed records, kept as history in [TODO-archive.md](file:///c:/Fred/Coding/SK/TODO-archive.md).
 

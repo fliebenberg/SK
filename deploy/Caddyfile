@@ -1,0 +1,30 @@
+# ScoreKeeper test server. See docs/deployment.md in the repo.
+# Caddy gets and renews the HTTPS certificate for this name by itself.
+test.scorekeeper.live {
+	encode zstd gzip
+
+	# The Node server (PM2 / port 3001): API, sign-in (/auth), live socket, uploaded images.
+	@backend path /api/* /auth/* /socket.io/* /uploads/*
+	handle @backend {
+		reverse_proxy 127.0.0.1:3001
+	}
+
+	# The web app: one index.html for every other address (EXPO_WEB_OUTPUT=single build).
+	handle {
+		root * /var/www/scorekeeper/current
+		# Bundles carry a hash in their name, so they can be kept for good; index.html must not be.
+		@hashed path /_expo/* /assets/*
+		@page not path /_expo/* /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		header @page Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output file /var/log/caddy/test.scorekeeper.live.log {
+			roll_size 10MiB
+			roll_keep 10
+		}
+	}
+}

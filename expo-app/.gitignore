@@ -6,6 +6,9 @@ node_modules/
 # Expo
 .expo/
 dist/
+# Web build for the test server and its upload (docs/deployment.md)
+dist-web/
+web-dist.tgz
 web-build/
 expo-env.d.ts
 

@@ -29,6 +29,7 @@ Below are the key concept files in this bundle. AI agents should read these to g
 - **[API & WebSockets](file:///c:/Fred/Coding/SK/okf/api_comms.md)** (`type: concept`): Real-time communications framework, subscription models, REST fallbacks, and sport scoring registries.
 - **[Live Room Inventory](file:///c:/Fred/Coding/SK/okf/live_rooms.md)** (`type: concept`): Every subscription room, its access tier, what it pushes on join, what it publishes afterwards, and how each message type must be merged.
 - **[End-to-end tests](file:///c:/Fred/Coding/SK/e2e/README.md)** (`type: guide`): Playwright against the web app and the dev API, from a reset of the test organisations and the fixture tournament — `npm run e2e`.
+- **[Deployment: the test server](file:///c:/Fred/Coding/SK/docs/deployment.md)** (`type: guide`): How test.scorekeeper.live is put together (Caddy, PM2, PostgreSQL), and how to update it, reset its data, read its logs and restore backups. Scripts in [deploy/](file:///c:/Fred/Coding/SK/deploy/).
 - **[Git Workflow](file:///c:/Fred/Coding/SK/okf/git_workflow.md)** (`type: concept`): Git branching rules and development workflows.
 - **[Agentic Skills Index](file:///c:/Fred/Coding/SK/okf/skills_index.md)** (`type: concept`): Catalog of workspace-specific agent guidelines under `.agent/skills/`.
 
