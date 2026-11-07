@@ -181,6 +181,10 @@ organiser or convenor from outside the host, it is the way in to the tournament'
 
 Nobody else's can be asked for: `home_mine` answers for the signed-in caller.
 
+[test-my-games.ts](file:///c:/Fred/Coding/SK/server/src/scripts/test-my-games.ts) checks these rules, and each
+reason through the real query against the test organisations; `21-home.spec.ts` only checks that the
+card shows and its games open, since which games it lists moves with the day.
+
 ## 6. The reads
 
 | `get_data` type | Access | Answers |
